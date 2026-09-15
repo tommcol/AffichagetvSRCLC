@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Trophy, Frown, Sparkles, Clock, Share2, Download, X, Eye, EyeOff } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { FinishedMatchNotification } from '../types';
+import { isVideoMedia } from '../utils/mediaUtils';
 
 interface VictoryDefeatOverlayProps {
   notification: FinishedMatchNotification | null;
@@ -111,6 +112,30 @@ export const VictoryDefeatOverlay: React.FC<VictoryDefeatOverlayProps> = ({
       />
 
       <div className="relative w-full max-w-4xl mx-auto overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 p-8 md:p-12 shadow-2xl text-center">
+        {/* Optional background custom media (image or video) */}
+        {notification.customImageUrl && (
+          <div className="absolute inset-0 z-0 pointer-events-none opacity-20">
+            {isVideoMedia(notification.customImageUrl) ? (
+              <video
+                src={notification.customImageUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src={notification.customImageUrl}
+                alt="Visuel match"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="absolute inset-0 bg-slate-950/60" />
+          </div>
+        )}
+
         {/* Top Header Bar inside card */}
         <div className="flex items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-semibold text-slate-300">

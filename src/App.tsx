@@ -120,7 +120,13 @@ export default function App() {
         if (res.data) {
           const d = res.data;
           if (d.clubSettings) setClubSettings(d.clubSettings);
-          if (d.categories) setCategories(d.categories);
+          if (d.categories) {
+            const clampedCats = d.categories.map((c: CategoryConfig) => ({
+              ...c,
+              durationSeconds: Math.min(10, Math.max(3, c.durationSeconds || 6)),
+            }));
+            setCategories(clampedCats);
+          }
           if (d.matches) setMatches(d.matches);
           if (d.results) setResults(d.results);
           if (d.sponsors) setSponsors(d.sponsors);
@@ -195,7 +201,12 @@ export default function App() {
           if (data.alerts && Array.isArray(data.alerts)) {
             const now = Date.now();
             const valid = data.alerts.filter((a: ActiveMatchAlert) => a.expiresAt > now);
-            setActiveAlerts(valid);
+            setActiveAlerts((prev) => {
+              if (prev.length === valid.length && prev.every((p, i) => p.id === valid[i]?.id)) {
+                return prev;
+              }
+              return valid;
+            });
           }
         }
       } catch (err) {
@@ -204,7 +215,7 @@ export default function App() {
     };
 
     fetchServerAlerts();
-    const interval = setInterval(fetchServerAlerts, 8000);
+    const interval = setInterval(fetchServerAlerts, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -212,7 +223,11 @@ export default function App() {
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      setActiveAlerts((prev) => prev.filter((a) => a.expiresAt > now));
+      setActiveAlerts((prev) => {
+        const filtered = prev.filter((a) => a.expiresAt > now);
+        if (filtered.length === prev.length) return prev;
+        return filtered;
+      });
     }, 30000);
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -375,27 +390,16 @@ export default function App() {
       totalItemsCount += pools[key].length;
     });
 
-    poolKeys.forEach((key) => {
+    poolKeys.forEach((key, poolIdx) => {
       const originalPool = pools[key];
-      // Shuffle the items within this pool to have a nice randomization (mélange)
-      const shuffledPool = [...originalPool];
-      for (let i = shuffledPool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        const temp = shuffledPool[i];
-        shuffledPool[i] = shuffledPool[j];
-        shuffledPool[j] = temp;
-      }
-
-      const N = shuffledPool.length;
+      const N = originalPool.length;
       if (N === 0) return;
 
-      shuffledPool.forEach((slide, idx) => {
-        // Proportional spreading formula:
-        // Spacing factor = totalItemsCount / N
-        // Base target position = (idx + 0.1 + Math.random() * 0.8) * Spacing factor
-        const stepSize = totalItemsCount / N;
-        const targetPosition = (idx + 0.1 + Math.random() * 0.8) * stepSize;
+      const stepSize = totalItemsCount / N;
+      const offset = (poolIdx * (stepSize / poolKeys.length)) % stepSize;
 
+      originalPool.forEach((slide, idx) => {
+        const targetPosition = idx * stepSize + offset;
         spacedItems.push({
           slide,
           targetPosition,
@@ -418,7 +422,19 @@ export default function App() {
   // Keep index within playlist boundaries
   const activeSlideIndex = currentSlideIndex % carouselPlaylist.length;
   const currentSlide = carouselPlaylist[activeSlideIndex] || carouselPlaylist[0];
-  const currentDuration = currentSlide?.durationSeconds || 15;
+
+  // Dynamically resolve duration based on category settings (clamped 3 to 10 seconds)
+  const currentDuration = useMemo(() => {
+    if (!currentSlide) return 6;
+    if (currentSlide.type === 'alert') return 18;
+    if (currentSlide.categoryId) {
+      const cat = categories.find((c) => c.id === currentSlide.categoryId);
+      if (cat?.durationSeconds) {
+        return Math.min(10, Math.max(3, cat.durationSeconds));
+      }
+    }
+    return Math.min(10, Math.max(3, currentSlide.durationSeconds || 6));
+  }, [currentSlide, categories]);
 
   const isCurrentSlideVideo = useMemo(() => {
     if (!currentSlide) return false;
@@ -451,27 +467,31 @@ export default function App() {
     setProgressPercent(0);
   }, [carouselPlaylist.length]);
 
-  // Carousel timer loop
+  // Carousel timer loop - Strictly respects elapsed time and resets on slide change
   useEffect(() => {
-    if (!isPlaying || carouselPlaylist.length <= 1) return;
+    if (!isPlaying || carouselPlaylist.length <= 1) {
+      setProgressPercent(0);
+      return;
+    }
     if (isCurrentSlideVideo) return; // Video controls its own duration and next-slide trigger
 
-    const stepIntervalMs = 100;
-    const totalSteps = (currentDuration * 1000) / stepIntervalMs;
-    let currentStep = 0;
+    setProgressPercent(0);
+    const startTime = Date.now();
+    const durationMs = currentDuration * 1000;
 
     const timer = setInterval(() => {
-      currentStep++;
-      const pct = Math.min(100, (currentStep / totalSteps) * 100);
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(100, (elapsed / durationMs) * 100);
       setProgressPercent(pct);
 
-      if (currentStep >= totalSteps) {
+      if (elapsed >= durationMs) {
+        clearInterval(timer);
         nextSlide();
       }
-    }, stepIntervalMs);
+    }, 50);
 
     return () => clearInterval(timer);
-  }, [isPlaying, currentDuration, nextSlide, carouselPlaylist.length, isCurrentSlideVideo]);
+  }, [isPlaying, activeSlideIndex, currentDuration, nextSlide, carouselPlaylist.length, isCurrentSlideVideo]);
 
   // Handle Fullscreen
   const handleToggleFullscreen = () => {

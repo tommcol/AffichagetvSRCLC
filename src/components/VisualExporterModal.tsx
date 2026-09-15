@@ -66,6 +66,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Filter matches to those checked/selected for the weekend
+  const activeMatches = useMemo(() => {
+    const selected = matches.filter((m) => m.selectedForWeekend !== false);
+    return selected.length > 0 ? selected : matches;
+  }, [matches]);
+
   // Generate captions for Instagram, TikTok, and Facebook
   const generatedCaptions = useMemo(() => {
     const clubTag = clubSettings.instagramHandle || `@${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
@@ -73,13 +79,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     const ttTag = clubSettings.tiktokHandle || `@${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}_basket`;
 
     if (contentType === 'matches') {
-      const matchLines = matches.slice(0, 6).map((m) =>
+      const matchLines = activeMatches.slice(0, 6).map((m) =>
         `🏀 ${m.category} : ${m.teamHome} vs ${m.teamAway} (${m.time} - ${m.isHomeMatch ? '🏠 Domicile' : '🚗 Déplacement'})`
       ).join('\n');
 
       return {
         instagram: `🔥 PROGRAMME DU WEEK-END | ${clubSettings.shortName.toUpperCase()} 🔥\n\nC'est l'heure du matchday ! Retrouvez toutes nos équipes sur les parquets ce week-end :\n\n${matchLines}\n\n📍 Rendez-vous au ${clubSettings.gymnasiumDefault} pour soutenir nos couleurs !\nBuvette & ambiance au rendez-vous ☕🍿\n\nIdentifiez-nous sur vos photos & stories : ${clubTag} 📸\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #MatchDay #Basketball #FFBB #BasketFrance #ProgrammeDuWeekend #TeamSpirit #GameDay`,
-        tiktok: `🏀 Le programme basket du week-end est là ! Qui vient nous encourager au gymnase ? 🔥⚡ Commente ton équipe préférée ! 👇\n\n${matches.slice(0, 4).map((m) => `👉 ${m.category} à ${m.time} (${m.isHomeMatch ? 'Domicile' : 'Extérieur'})`).join('\n')}\n\n#fyp #pourtoi #basketball #hoops #basketfrance #matchday #basketclub #viral #sports`,
+        tiktok: `🏀 Le programme basket du week-end est là ! Qui vient nous encourager au gymnase ? 🔥⚡ Commente ton équipe préférée ! 👇\n\n${activeMatches.slice(0, 4).map((m) => `👉 ${m.category} à ${m.time} (${m.isHomeMatch ? 'Domicile' : 'Extérieur'})`).join('\n')}\n\n#fyp #pourtoi #basketball #hoops #basketfrance #matchday #basketclub #viral #sports`,
         facebook: `🏀 PROGRAMME DU WEEK-END - ${clubSettings.name.toUpperCase()} 🏀\n\nChers supporters, licenciés et familles,\nVoici le planning complet de nos rencontres pour ce week-end :\n\n${matchLines}\n\nVenez nombreux applaudir nos joueuses et joueurs au ${clubSettings.gymnasiumDefault} ! La buvette du club vous accueillera tout le week-end avec boissons chaudes, fraîches et petite restauration.\n\nAllez le ${clubSettings.shortName} ! 🧡🖤\n\nPage officielle : ${fbTag}\n#Basketball #${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #TousAuGymnase`,
       };
     }
@@ -298,7 +304,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Matchs à venir</span>
+              <span>Matchs du week-end</span>
             </button>
 
             <button
@@ -508,7 +514,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   {visualTheme === 'brick' ? (
                     /* STYLE BRIQUES : STACKED WHITE & RED PILLS */
                     <div className="space-y-1.5 max-h-[220px] overflow-hidden">
-                      {matches.slice(0, aspectRatio === '9:16' ? 7 : 5).map((m) => (
+                      {activeMatches.slice(0, aspectRatio === '9:16' ? 7 : 5).map((m) => (
                         <div key={m.id} className="flex items-center justify-between gap-1.5 py-0.5">
                           <div className="bg-white text-black font-black px-2 py-1 rounded-md text-[11px] sm:text-xs uppercase truncate w-[42%] text-center shadow-md border border-slate-300">
                             {m.category}
@@ -533,7 +539,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   ) : (
                     /* STYLE MODERN : SLATE CARDS */
                     <div className="space-y-1.5">
-                      {matches.slice(0, aspectRatio === '9:16' ? 5 : 4).map((m) => (
+                      {activeMatches.slice(0, aspectRatio === '9:16' ? 5 : 4).map((m) => (
                         <div
                           key={m.id}
                           className="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm"

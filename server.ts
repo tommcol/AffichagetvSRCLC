@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 interface ActiveMatchAlert {
   id: string;
@@ -331,7 +332,99 @@ app.post("/api/social/publish", async (req, res) => {
   }
 });
 
-// 9. FFBB Official API Proxy & Live Data Integration (with ffbb-api.desimone.fr support)
+// 8b. AI Social Caption Generator (Gemini API with smart fallback)
+app.post("/api/generate-caption", async (req, res) => {
+  try {
+    const {
+      platform = "instagram",
+      type = "matches",
+      matches = [],
+      results = [],
+      clubName = "Notre Club",
+      shortClub = "BCVS",
+      gymnasium = "Gymnase du Club",
+      tone = "supporter",
+      extraContext = "",
+    } = req.body;
+
+    const matchesSummary = (matches || []).map((m: any) => 
+      `- ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'à Domicile vs ' + (m.teamAway || 'Adversaire') : 'à l\'Extérieur @ ' + (m.teamHome || 'Adversaire')} le ${m.date || ''} à ${m.time || ''}`
+    ).join("\n");
+
+    const resultsSummary = (results || []).map((r: any) =>
+      `- ${r.category || 'Équipe'} : ${r.homeScore ?? 0} - ${r.awayScore ?? 0} (${r.result === 'win' ? 'Victoire 🏆' : 'Défaite ❌'}) vs ${r.isHomeMatch ? (r.teamAway || 'Adversaire') : (r.teamHome || 'Adversaire')}`
+    ).join("\n");
+
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (apiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const prompt = `Tu es le Community Manager passionné et créatif du club de basketball "${clubName}" (Aussi appelé ${shortClub}).
+Rédige une légende captivante, moderne et prête à être publiée sur le réseau social "${platform.toUpperCase()}".
+
+Contexte du post : ${type === "matches" ? "Annonce des prochains matchs du week-end" : "Bilan et résultats des matchs passés"}.
+Ton souhaité : ${tone === "supporter" ? "Survolté, très enthousiaste, esprit d'équipe 🔥" : tone === "officiel" ? "Professionnel, chaleureux et institutionnel 🏛️" : tone === "fun" ? "Dynamique, jeune, punchy avec emojis ⚡" : "Centré sur la buvette, l'ambiance et les supporters 🍿"}.
+
+${type === "matches" ? `Matchs du week-end (${matches.length} rencontres retenues) :\n${matchesSummary || "Matchs à venir du club"}\nLieu principal domicile : ${gymnasium}` : `Résultats des rencontres :\n${resultsSummary || "Résultats récents du club"}`}
+${extraContext ? `Instructions supplémentaires du club : ${extraContext}` : ""}
+
+Directives :
+1. Structurer clairement avec des sections lisibles et des emojis attrayants.
+2. Pour Instagram / Facebook, inclure une accroche percutante, la liste des rencontres/résultats, une incitation à venir encourager au gymnase / à la buvette.
+3. Pour TikTok, faire une version plus courte, dynamique et avec des hashtags tendance (#basketball #matchday #fyp etc.).
+4. Terminer par des hashtags pertinents pour le club.
+Restitue uniquement le texte de la légende rédigé, sans guillemets ni meta-commentaires.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt,
+        });
+
+        const captionText = response.text?.trim();
+        if (captionText) {
+          return res.json({
+            success: true,
+            provider: "gemini",
+            caption: captionText,
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn("[GEMINI API WARNING] Fallback local utilisé :", geminiErr.message);
+      }
+    }
+
+    // Smart Local Generator Fallback (100% free & reliable if key is absent or offline)
+    let generatedCaption = "";
+    if (type === "matches") {
+      const matchCount = (matches || []).length;
+      if (platform === "tiktok") {
+        generatedCaption = `⚡ WEEK-END DE BASKET INTENSE POUR ${shortClub.toUpperCase()} ! 🏀🔥\n${matchCount} matchs au programme ce week-end ! Qui vient faire chauffer la salle ? 🥁💥\n\n#basketball #matchday #bball #fyp #pourtoi #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      } else if (tone === "officiel") {
+        generatedCaption = `🏀 PROGRAMME OFFICIEL DES RENCONTRES • ${clubName.toUpperCase()} 🏀\n\nNous vous présentons l'ensemble des matchs programmés pour le week-end :\n\n${matchesSummary || "Rencontres à venir"}\n\n📍 Gymnase : ${gymnasium}\nNous comptons sur votre présence pour soutenir nos joueuses et joueurs ! 🔴⚪\n\n#Basketball #FFBB #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      } else {
+        generatedCaption = `🔥 WEEK-END CHAUD BOUILLANT CHEZ LES ${shortClub.toUpperCase()} ! 🔥\n\nPréparez les tambours et les maillots, voici les ${matchCount} matchs clés sélectionnés du week-end !\n\n${matchesSummary || "Prochaines rencontres"}\n\n🍿 Buvette & petite restauration assurées au ${gymnasium} !\nAllez ${shortClub} ! ❤️🤍\n\n#GameDay #MatchWeek #TeamBasket #FFBB #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      }
+    } else {
+      if (platform === "tiktok") {
+        generatedCaption = `🏆 BILAN DU WEEK-END DE ${shortClub.toUpperCase()} ! 🏀\nVoici les scores de nos équipes ! Laisse un ❤️ pour féliciter nos joueurs !\n\n#resultats #basket #victoire #fyp #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      } else {
+        generatedCaption = `🏆 RÉSULTATS & BILAN DU WEEK-END — ${clubName.toUpperCase()} 🏆\n\nVoici le résumé complet des rencontres du week-end :\n\n${resultsSummary || "Résultats récents"}\n\nUn grand bravo à toutes nos équipes, coachs et supporters pour leur ferveur ! 👏🔥\n\n#Résultats #Basket #TeamWork #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      }
+    }
+
+    return res.json({
+      success: true,
+      provider: "smart_local_generator",
+      caption: generatedCaption,
+    });
+  } catch (err: any) {
+    console.error("Erreur génération légende IA:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. FFBB Official API Proxy & Live Data Integration (via ffbb-api.desimone.fr)
 app.get("/api/ffbb/desimone/*", async (req, res) => {
   try {
     const endpoint = req.params[0] || "";
@@ -361,286 +454,418 @@ app.get("/api/ffbb/desimone/*", async (req, res) => {
   }
 });
 
+// Direct proxies to official ffbb-api endpoints
+app.get("/api/ffbb/club/:id", async (req, res) => {
+  try {
+    const orgId = req.params.id;
+    const apiRes = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!apiRes.ok) return res.status(apiRes.status).json({ error: "Club non trouvé" });
+    const data = await apiRes.json();
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/ffbb/club/:id/matches", async (req, res) => {
+  try {
+    const orgId = req.params.id;
+    const team = req.query.team ? `?team=${encodeURIComponent(String(req.query.team))}` : "";
+    const apiRes = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches${team}`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!apiRes.ok) return res.status(apiRes.status).json({ error: "Matchs non trouvés", matches: [], count: 0 });
+    const data = await apiRes.json();
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message, matches: [], count: 0 });
+  }
+});
+
+app.get("/api/ffbb/club/:id/teams", async (req, res) => {
+  try {
+    const orgId = req.params.id;
+    const apiRes = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!apiRes.ok) return res.status(apiRes.status).json({ error: "Équipes non trouvées", teams: [], count: 0 });
+    const data = await apiRes.json();
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message, teams: [], count: 0 });
+  }
+});
+
+app.get("/api/ffbb/poule/:id/classement", async (req, res) => {
+  try {
+    const pouleId = req.params.id;
+    const apiRes = await fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(pouleId)}/classement`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!apiRes.ok) return res.status(apiRes.status).json({ error: "Classement non disponible", classement: [] });
+    const data = await apiRes.json();
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message, classement: [] });
+  }
+});
+
+app.get("/api/ffbb/lives", async (req, res) => {
+  try {
+    const apiRes = await fetch(`https://ffbb-api.desimone.fr/api/v1/lives`, {
+      headers: { "Accept": "application/json" },
+    });
+    if (!apiRes.ok) return res.status(apiRes.status).json({ lives: [] });
+    const data = await apiRes.json();
+    return res.json(Array.isArray(data) ? data : []);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message, lives: [] });
+  }
+});
+
+// Club search (real resolution via FFBB endpoints)
 app.get("/api/ffbb/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) {
-    return res.status(400).json({ error: "Terme de recherche requis" });
+    return res.status(400).json({ error: "Terme de recherche requis", clubs: [] });
   }
 
   try {
-    // 1. Try ffbb-api.desimone.fr API
-    const desimoneRes = await fetch(`https://ffbb-api.desimone.fr/clubs?q=${encodeURIComponent(query)}`, {
+    // 1. If numeric query, check club directly
+    if (/^\d+$/.test(query)) {
+      const directClub = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${query}`, {
+        headers: { "Accept": "application/json" },
+      }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+      if (directClub && directClub.nom) {
+        return res.json({
+          source: "ffbb_api_desimone",
+          clubs: [{
+            code: directClub.code || query,
+            organisme_id: directClub.id || query,
+            name: directClub.nom,
+            city: directClub.commune?.libelle || "France",
+            committee: "FFBB",
+          }],
+        });
+      }
+    }
+
+    // 2. Query next-match resolver for club/code resolution
+    const resolverRes = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(query)}`, {
       headers: { "Accept": "application/json" },
     }).catch(() => null);
 
-    if (desimoneRes && desimoneRes.ok) {
-      const desimoneData = await desimoneRes.json();
-      const items = Array.isArray(desimoneData) ? desimoneData : desimoneData.clubs || desimoneData.results || [];
-      if (items.length > 0) {
+    if (resolverRes && resolverRes.ok) {
+      const rData = await resolverRes.json();
+      if (rData.status === "ok" && rData.club_resolu) {
         return res.json({
           source: "ffbb_api_desimone",
-          clubs: items.map((h: any) => ({
-            code: h.code || h.id || h.codeOrganisme || h.clubId || "BFC0071",
-            name: h.nom || h.libelle || h.nomOrganisme || h.name || query,
-            city: h.ville || h.commune || h.town || "Bourgogne",
-            committee: h.comite || h.ligue || h.department || "Comité 71",
-          })),
+          clubs: [{
+            code: rData.club_resolu.code,
+            organisme_id: rData.club_resolu.organisme_id,
+            name: rData.club_resolu.nom,
+            city: rData.club_resolu.ville || "",
+            committee: rData.club_resolu.departement || "FFBB",
+          }],
         });
       }
-    }
 
-    // 2. Try public Meilisearch / FFBB search endpoint
-    const meiliRes = await fetch("https://meilisearch-prod.ffbb.app/multi-search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        queries: [
-          {
-            indexUid: "organisme",
-            q: query,
-            limit: 10,
-          },
-        ],
-      }),
-    }).catch(() => null);
-
-    if (meiliRes && meiliRes.ok) {
-      const meiliData = await meiliRes.json();
-      const hits = meiliData?.results?.[0]?.hits || [];
-      if (hits.length > 0) {
+      if (rData.status === "ambiguous" && Array.isArray(rData.candidates) && rData.candidates.length > 0) {
         return res.json({
-          source: "ffbb_meilisearch",
-          clubs: hits.map((h: any) => ({
-            code: h.code || h.id || h.codeOrganisme || "BFC0071",
-            name: h.nom || h.libelle || h.nomOrganisme || query,
-            city: h.ville || h.commune || "Bourgogne",
-            committee: h.comite || h.ligue || "Comité 71",
-          })),
-        });
-      }
-    }
-
-    // 3. Try FFBB Directus API
-    const directusRes = await fetch(`https://api.ffbb.com/items/organisme?filter[nom][_contains]=${encodeURIComponent(query)}&limit=10`).catch(() => null);
-    if (directusRes && directusRes.ok) {
-      const dData = await directusRes.json();
-      if (dData.data && dData.data.length > 0) {
-        return res.json({
-          source: "ffbb_directus",
-          clubs: dData.data.map((h: any) => ({
-            code: h.code || h.id || "BFC0071",
-            name: h.nom || query,
-            city: h.ville || "Bourgogne",
-            committee: h.ligue || "Comité FFBB",
+          source: "ffbb_api_desimone",
+          clubs: rData.candidates.map((c: any) => ({
+            code: c.code,
+            organisme_id: c.organisme_id,
+            name: c.nom,
+            city: c.ville || "",
+            committee: c.departement || "FFBB",
           })),
         });
       }
     }
   } catch (err) {
-    console.log("Network search FFBB info:", err);
+    console.error("[API FFBB Search Error]:", err);
   }
 
-  // Structured Fallback based on query
-  const cleanCode = query.toUpperCase();
+  // Return empty if not found - NO FAKE CLUBS
   res.json({
-    source: "ffbb_api_ready",
-    clubs: [
-      {
-        code: cleanCode.startsWith("BFC") || cleanCode.length >= 6 ? cleanCode : `BFC${cleanCode}`,
-        name: query.toLowerCase().includes("basket") ? query : `Basket Club ${query}`,
-        city: "Région Bourgogne-Franche-Comté",
-        committee: "Comité Départemental FFBB",
-      },
-    ],
+    source: "ffbb_api_desimone",
+    clubs: [],
+    message: "Aucun club correspondant trouvé sur les serveurs FFBB.",
   });
 });
 
-app.get("/api/ffbb/matches", async (req, res) => {
-  const clubCode = String(req.query.code || "BFC0071015").trim();
-  console.log(`[API FFBB] Récupération des rencontres pour le code club: ${clubCode}`);
+// Helper to resolve code or name to organism ID
+async function resolveOrganismeId(codeOrName: string): Promise<{ organismeId: string; clubResolue?: any } | null> {
+  const clean = codeOrName.trim();
+  // Known mapping for SRC Basket / Sports Réunis Clayettois
+  if (clean.toUpperCase() === "BFC0071024" || clean.toUpperCase().includes("CLAYETTE") || clean.toUpperCase() === "SRC BASKET") {
+    return { organismeId: "9422" };
+  }
+
+  // Pure numeric string is already an organisme_id
+  if (/^\d+$/.test(clean)) {
+    return { organismeId: clean };
+  }
 
   try {
-    // 1. Try ffbb-api.desimone.fr API
-    const desimoneRes = await fetch(`https://ffbb-api.desimone.fr/rencontres?club_id=${encodeURIComponent(clubCode)}`, {
+    const res = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(clean)}`, {
       headers: { "Accept": "application/json" },
     }).catch(() => null);
 
-    if (desimoneRes && desimoneRes.ok) {
-      const desimoneData = await desimoneRes.json();
-      const matchesData = Array.isArray(desimoneData) ? desimoneData : desimoneData.rencontres || desimoneData.matchs || [];
-      if (matchesData.length > 0) {
-        console.log(`[API FFBB DE SIMONE] ${matchesData.length} matchs réels récupérés`);
-        return res.json({
-          success: true,
-          source: "ffbb_api_desimone",
-          clubCode,
-          matches: matchesData,
-        });
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.status === "ok" && data.club_resolu?.organisme_id) {
+        return { organismeId: String(data.club_resolu.organisme_id), clubResolue: data.club_resolu };
       }
-    }
+      if (data.status === "ambiguous" && Array.isArray(data.candidates) && data.candidates.length > 0) {
+        const exactCode = data.candidates.find((c: any) => c.code && c.code.toUpperCase() === clean.toUpperCase());
+        if (exactCode) return { organismeId: String(exactCode.organisme_id), clubResolue: exactCode };
 
-    // 2. Attempt live fetch from FFBB endpoints
-    const liveRes = await fetch(`https://api.ffbb.com/items/rencontre?filter[organisme_domicile][code]=${clubCode}&limit=20`).catch(() => null);
-    if (liveRes && liveRes.ok) {
-      const data = await liveRes.json();
-      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-        console.log(`[API FFBB] ${data.data.length} matchs réels récupérés depuis api.ffbb.com`);
-        return res.json({
-          success: true,
-          source: "ffbb_live_api",
-          clubCode,
-          matches: data.data,
-        });
+        const matchName = data.candidates.find((c: any) => c.nom && c.nom.toUpperCase().includes(clean.toUpperCase()));
+        if (matchName) return { organismeId: String(matchName.organisme_id), clubResolue: matchName };
+
+        return { organismeId: String(data.candidates[0].organisme_id), clubResolue: data.candidates[0] };
       }
     }
-  } catch (e) {
-    console.log("[API FFBB] Interrogation direct API FFBB fallback...", e);
+  } catch (err) {
+    console.error("[FFBB Resolver Error]:", err);
   }
 
-  // Fallback enriched data generator per clubCode
-  const today = new Date();
-  const nextSat = new Date(today);
-  nextSat.setDate(today.getDate() + (6 - today.getDay() + 7) % 7);
-  const nextSun = new Date(nextSat);
-  nextSun.setDate(nextSat.getDate() + 1);
+  return null;
+}
 
-  const satFormatted = nextSat.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const sunFormatted = nextSun.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+// Helper to normalize team category based on competition and team string
+function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
+  badgeCategory: string;
+  displayName: string;
+  gender: 'M' | 'F' | 'Mixte';
+} {
+  const comp = (competition || '').trim();
+  const compLower = comp.toLowerCase();
+  const raw = (rawTeam || '').trim();
+  const rawLower = raw.toLowerCase();
 
-  const prevSat = new Date(today);
-  prevSat.setDate(today.getDate() - ((today.getDay() + 1) % 7 + 1));
-  const prevSatFormatted = prevSat.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f');
+  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || rawLower.includes(' m');
+  const gender: 'M' | 'F' | 'Mixte' = isFem ? 'F' : (isMasc ? 'M' : 'Mixte');
 
-  const upcomingMatches = [
-    {
-      id: `ffbb-${clubCode}-u1`,
-      date: satFormatted,
-      time: '20:30',
-      category: 'Seniors Garçons 1',
-      competition: 'Nationale 3 Masculine (Poule K)',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'JDA Dijon Basket 2',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-1092`,
-    },
-    {
-      id: `ffbb-${clubCode}-u2`,
-      date: satFormatted,
-      time: '18:00',
-      category: 'Seniors Filles 1',
-      competition: 'Pré-Nationale Féminine',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'AL Nuits-Saint-Georges',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-3041`,
-    },
-    {
-      id: `ffbb-${clubCode}-u3`,
-      date: sunFormatted,
-      time: '15:30',
-      category: 'U18 Masculins Région',
-      competition: 'Régionale 1 U18M',
-      teamHome: 'Élan Chalon CTC 2',
-      teamAway: 'BC Val de Saône',
-      isHomeMatch: false,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Le Colisée (Salle Annexe)',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-8472`,
-    },
-    {
-      id: `ffbb-${clubCode}-u4`,
-      date: sunFormatted,
-      time: '13:30',
-      category: 'U15 Filles 1',
-      competition: 'Départementale 1 U15F',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'US Saint-Rémy Basket',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-2019`,
-    },
-  ];
+  const uMatch = compLower.match(/u\s*(\d+)/i) || rawLower.match(/u\s*(\d+)/i);
+  const numMatch = raw.match(/(\d+)$/) || comp.match(/équipe\s*(\d+)/i) || comp.match(/division\s*(\d+)/i);
+  const num = numMatch ? numMatch[1] : '1';
 
-  const pastResults = [
-    {
-      id: `ffbb-${clubCode}-r1`,
-      date: prevSatFormatted,
-      time: '20:30',
-      category: 'Seniors Garçons 1',
-      competition: 'Nationale 3 Masculine',
-      teamHome: 'Besançon Basket Club',
-      teamAway: 'BC Val de Saône',
-      isHomeMatch: false,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase des Montboucons',
-      city: 'Besançon',
-      homeScore: 72,
-      awayScore: 81,
-      status: 'finished',
-      result: 'win',
-      ffbbMatchNumber: `FFBB-${clubCode}-1091`,
-    },
-    {
-      id: `ffbb-${clubCode}-r2`,
-      date: prevSatFormatted,
-      time: '18:00',
-      category: 'Seniors Filles 1',
-      competition: 'Pré-Nationale Féminine',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'CS Louhans Basket',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      homeScore: 68,
-      awayScore: 54,
-      status: 'finished',
-      result: 'win',
-      ffbbMatchNumber: `FFBB-${clubCode}-3040`,
-    },
-    {
-      id: `ffbb-${clubCode}-r3`,
-      date: prevSatFormatted,
-      time: '15:30',
-      category: 'U18 Masculins Région',
-      competition: 'Régionale 1 U18M',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'JDA Dijon 2',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      homeScore: 62,
-      awayScore: 74,
-      status: 'finished',
-      result: 'loss',
-      ffbbMatchNumber: `FFBB-${clubCode}-8471`,
-    },
-  ];
+  if (uMatch) {
+    const age = uMatch[1];
+    const gLetter = isFem ? 'F' : (isMasc ? 'M' : '');
+    const gWord = isFem ? 'Filles' : (isMasc ? 'Garçons' : 'Mixte');
+    return {
+      badgeCategory: `U${age} ${gLetter}${num}`.trim(),
+      displayName: `U${age} ${gWord} ${num}`.trim(),
+      gender,
+    };
+  }
 
-  res.json({
-    success: true,
-    source: "ffbb_api_sync",
-    clubCode,
-    matches: upcomingMatches,
-    results: pastResults,
-    message: `API FFBB connectée : 4 rencontres à venir et 3 résultats récents synchronisés pour le club ${clubCode}`,
-  });
+  if (compLower.includes('senior') || rawLower.includes('senior')) {
+    const gLetter = isFem ? 'F' : 'M';
+    const gWord = isFem ? 'Filles' : 'Garçons';
+    return {
+      badgeCategory: `Seniors ${gLetter}${num}`,
+      displayName: `Seniors ${gWord} ${num}`,
+      gender,
+    };
+  }
+
+  return {
+    badgeCategory: raw || 'Seniors',
+    displayName: raw || comp || 'Équipe Club',
+    gender,
+  };
+}
+
+// Official matches retrieval: strictly real FFBB matches, ZERO mock data
+app.get("/api/ffbb/matches", async (req, res) => {
+  const clubCode = String(req.query.code || "BFC0071024").trim();
+  console.log(`[API FFBB] Récupération officielle des rencontres pour : ${clubCode}`);
+
+  try {
+    const resolved = await resolveOrganismeId(clubCode);
+    if (!resolved || !resolved.organismeId) {
+      console.warn(`[API FFBB] Organisme introuvable pour : ${clubCode}`);
+      return res.json({
+        success: false,
+        source: "ffbb_api_desimone",
+        clubCode,
+        matches: [],
+        results: [],
+        totalCount: 0,
+        message: `Club FFBB "${clubCode}" non trouvé sur les registres officiels. Aucune fausse donnée de secours générée.`,
+      });
+    }
+
+    const orgId = resolved.organismeId;
+    console.log(`[API FFBB] Organisme résolu: ${orgId} pour code ${clubCode}`);
+
+    // Fetch official matches, club details, and teams in parallel
+    const [matchesData, clubData, teamsData] = await Promise.all([
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+        headers: { "Accept": "application/json" },
+      }).then(r => r.ok ? r.json() : { matches: [], count: 0 }).catch(() => ({ matches: [], count: 0 })),
+
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+        headers: { "Accept": "application/json" },
+      }).then(r => r.ok ? r.json() : null).catch(() => null),
+
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+        headers: { "Accept": "application/json" },
+      }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+    ]);
+
+    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+    const clubNom = clubData?.nom || resolved.clubResolue?.nom || "Sports Réunis Clayettois";
+    const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "La Clayette";
+    const defaultGym = clubData?.salle?.libelle || "COSEC";
+
+    if (rawMatches.length === 0) {
+      console.log(`[API FFBB] Aucune rencontre retournée pour l'organisme ${orgId}`);
+      return res.json({
+        success: true,
+        source: "ffbb_api_desimone",
+        clubCode,
+        organismeId: orgId,
+        clubName: clubNom,
+        city: clubCommune,
+        teams: teamsData?.teams || [],
+        matches: [],
+        results: [],
+        totalCount: 0,
+        message: `Aucun match programmé trouvé sur le calendrier FFBB officiel pour ${clubNom}.`,
+      });
+    }
+
+    // Today in YYYY-MM-DD
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Map strictly into MatchItem format
+    const mappedMatches = rawMatches.map((m: any, idx: number) => {
+      const isHome = m.isHome ?? true;
+      const ourClubName = clubNom;
+      const opp = m.opponent || "Adversaire Inconnu";
+      const teamHome = isHome ? ourClubName : opp;
+      const teamAway = isHome ? opp : ourClubName;
+
+      // Extract gym name from location string (e.g. "COSEC, Route Gibles - CD79, 71800 CLAYETTE")
+      let gym = defaultGym;
+      if (m.location) {
+        const parts = m.location.split(",");
+        if (parts[0] && parts[0].trim()) {
+          gym = parts[0].trim();
+        }
+      }
+
+      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
+      const isPast = dateStr < todayStr;
+
+      const normCat = normalizeFFBBCategory(m.team, m.competition);
+      return {
+        id: `ffbb-${m.ffbbMatchId || idx}`,
+        date: dateStr,
+        time: m.time && m.time !== "Horaire à fixer" ? m.time : "20:30",
+        category: normCat.badgeCategory,
+        competition: m.competition || "Championnat FFBB",
+        teamHome,
+        teamAway,
+        isHomeMatch: isHome,
+        ourClubName,
+        gymnasium: gym,
+        city: isHome ? clubCommune : (m.location ? m.location.split(",").pop()?.trim() || "" : ""),
+        status: isPast ? "finished" : "upcoming",
+        result: null,
+        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
+        teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
+        opponentLogo: m.opponentLogo || undefined,
+        poule: m.poule || undefined,
+        pouleId: m.pouleId || undefined,
+      };
+    });
+
+    // Sort chronologically
+    mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+    const upcomingMatches = mappedMatches.filter((m: any) => m.status === "upcoming");
+    const pastResults = mappedMatches.filter((m: any) => m.status === "finished").reverse();
+
+    // Format and rank official teams with their real match counts
+    const rawTeams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
+    const formattedTeams = rawTeams.map((t: any, idx: number) => {
+      const comp = t.competition || "";
+      const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
+      const teamMatches = mappedMatches.filter((m: any) => m.pouleId === t.poule_id || m.competition === comp);
+      const pouleName = teamMatches.find((m: any) => m.poule)?.poule;
+
+      return {
+        id: `team-${t.engagement_id || idx}`,
+        name: norm.displayName,
+        category: norm.badgeCategory,
+        gender: norm.gender,
+        competition: comp,
+        poule: pouleName,
+        pouleId: t.poule_id,
+        matchesCount: teamMatches.length,
+        status: "active",
+      };
+    });
+
+    // Order: Seniors Filles, Seniors Garçons, U18 F, U18 G, U15 F, U13, U11
+    formattedTeams.sort((a: any, b: any) => {
+      const rank = (str: string) => {
+        if (str.includes("Seniors F")) return 1;
+        if (str.includes("Seniors G")) return 2;
+        if (str.includes("U18 F")) return 3;
+        if (str.includes("U18 G")) return 4;
+        if (str.includes("U15 F")) return 5;
+        if (str.includes("U13 F1")) return 6;
+        if (str.includes("U13 F2")) return 7;
+        if (str.includes("U13 G")) return 8;
+        if (str.includes("U11 F")) return 9;
+        if (str.includes("U11 G")) return 10;
+        return 99;
+      };
+      return rank(a.name) - rank(b.name);
+    });
+
+    console.log(`[API FFBB DE SIMONE] ${mappedMatches.length} rencontres réelles chargées (${upcomingMatches.length} à venir, ${pastResults.length} passées), ${formattedTeams.length} équipes officielles`);
+
+    return res.json({
+      success: true,
+      source: "ffbb_api_desimone",
+      clubCode,
+      organismeId: orgId,
+      clubName: clubNom,
+      city: clubCommune,
+      gymnasiumDefault: defaultGym,
+      logoUrl: clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined,
+      teams: formattedTeams,
+      matches: upcomingMatches,
+      results: pastResults,
+      totalCount: mappedMatches.length,
+      message: `API FFBB Officielle (ffbb-api.desimone.fr) : ${upcomingMatches.length} rencontres à venir et ${pastResults.length} résultats récents pour ${clubNom}.`,
+    });
+  } catch (err: any) {
+    console.error("[API FFBB Fatal Error]:", err);
+    return res.status(500).json({
+      success: false,
+      source: "ffbb_api_desimone",
+      clubCode,
+      matches: [],
+      results: [],
+      totalCount: 0,
+      error: err.message,
+      message: `Erreur lors de la récupération des données FFBB officielles. Aucune fausse donnée générée.`,
+    });
+  }
 });
 
 // ----------------------------------------------------

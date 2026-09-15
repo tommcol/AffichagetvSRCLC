@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Frown, Sparkles, Clock, Flame, ShieldAlert } from 'lucide-react';
 import { ActiveMatchAlert, TeamVisualItem } from '../../types';
+import { isVideoMedia } from '../../utils/mediaUtils';
 
 interface MatchAlertSlideProps {
   alert: ActiveMatchAlert;
@@ -29,14 +30,25 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({ alert, teamVis
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-slate-950">
-      {/* Background visual (Team victory / defeat image) */}
+      {/* Background visual (Team victory / defeat image or video) */}
       {visualImage ? (
         <div className="absolute inset-0 z-0">
-          <img
-            src={visualImage}
-            alt={`${alert.team} - ${alert.isWin ? 'Victoire' : 'Défaite'}`}
-            className="w-full h-full object-cover brightness-[0.82] contrast-110 scale-100 transition-transform duration-10000 ease-out animate-pulse-slow"
-          />
+          {isVideoMedia(visualImage) ? (
+            <video
+              src={visualImage}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover brightness-[0.85] contrast-110"
+            />
+          ) : (
+            <img
+              src={visualImage}
+              alt={`${alert.team} - ${alert.isWin ? 'Victoire' : 'Défaite'}`}
+              className="w-full h-full object-cover brightness-[0.82] contrast-110 scale-100 transition-transform duration-10000 ease-out animate-pulse-slow"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/60" />
         </div>
       ) : (

@@ -21,15 +21,7 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
-
-  useEffect(() => {
-    if (photo || photos.length <= 1) return;
-    const interval = setInterval(() => {
-      setActivePhotoIndex((prev) => (prev + 1) % photos.length);
-    }, 5500);
-    return () => clearInterval(interval);
-  }, [photo, photos.length]);
+  const [activePhotoIndex] = useState<number>(0);
 
   const currentPhoto = photo || photos[activePhotoIndex] || photos[0];
   const currentIndex = typeof itemIndex === 'number' ? itemIndex : activePhotoIndex;

@@ -31,6 +31,24 @@ export interface MatchItem {
   result?: MatchResult; // 'win' -> vert, 'loss' -> rouge
   ffbbMatchNumber?: string;
   finishedAt?: number; // timestamp when match ended
+  teamLogo?: string;
+  opponentLogo?: string;
+  poule?: string;
+  pouleId?: string;
+  selectedForWeekend?: boolean;
+}
+
+export interface FFBBTeamItem {
+  id: string;
+  name: string;
+  category: string;
+  gender: 'M' | 'F' | 'Mixte';
+  competition: string;
+  poule?: string;
+  pouleId?: string;
+  matchesCount: number;
+  divisionCode?: string;
+  status?: 'active' | 'pending' | 'inactive';
 }
 
 export interface ActiveMatchAlert {
@@ -162,3 +180,4 @@ export interface ClubSettings {
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos
   balancedLoopMode?: boolean; // Alternance équilibrée des catégories (1 match, 1 sponsor, 1 photo, 1 résultat...)
 }
+

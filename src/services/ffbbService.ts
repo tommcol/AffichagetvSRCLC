@@ -1,14 +1,6 @@
-import { MatchItem, FinishedMatchNotification } from '../types';
+import { MatchItem, FinishedMatchNotification, FFBBTeamItem } from '../types';
 
-export interface FFBBTeamItem {
-  id: string;
-  category: string;
-  gender: 'M' | 'F' | 'Mixte';
-  competition: string;
-  divisionCode: string;
-  registeredMatchesCount: number;
-  status: 'active' | 'pending';
-}
+export type { FFBBTeamItem };
 
 export interface FFBBClubInfo {
   clubCode: string;
@@ -17,6 +9,52 @@ export interface FFBBClubInfo {
   season: string;
   teamsCount: number;
   teamsList: FFBBTeamItem[];
+}
+
+export function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
+  badgeCategory: string;
+  displayName: string;
+  gender: 'M' | 'F' | 'Mixte';
+} {
+  const comp = (competition || '').trim();
+  const compLower = comp.toLowerCase();
+  const raw = (rawTeam || '').trim();
+  const rawLower = raw.toLowerCase();
+
+  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f');
+  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || rawLower.includes(' m');
+  const gender: 'M' | 'F' | 'Mixte' = isFem ? 'F' : (isMasc ? 'M' : 'Mixte');
+
+  const uMatch = compLower.match(/u\s*(\d+)/i) || rawLower.match(/u\s*(\d+)/i);
+  const numMatch = raw.match(/(\d+)$/) || comp.match(/équipe\s*(\d+)/i) || comp.match(/division\s*(\d+)/i);
+  const num = numMatch ? numMatch[1] : '1';
+
+  if (uMatch) {
+    const age = uMatch[1];
+    const gLetter = isFem ? 'F' : (isMasc ? 'M' : '');
+    const gWord = isFem ? 'Filles' : (isMasc ? 'Garçons' : 'Mixte');
+    return {
+      badgeCategory: `U${age} ${gLetter}${num}`.trim(),
+      displayName: `U${age} ${gWord} ${num}`.trim(),
+      gender,
+    };
+  }
+
+  if (compLower.includes('senior') || rawLower.includes('senior')) {
+    const gLetter = isFem ? 'F' : 'M';
+    const gWord = isFem ? 'Filles' : 'Garçons';
+    return {
+      badgeCategory: `Seniors ${gLetter}${num}`,
+      displayName: `Seniors ${gWord} ${num}`,
+      gender,
+    };
+  }
+
+  return {
+    badgeCategory: raw || 'Seniors',
+    displayName: raw || comp || 'Équipe Club',
+    gender,
+  };
 }
 
 /**
@@ -57,121 +95,109 @@ export class FFBBService {
     results: MatchItem[];
     clubInfo: FFBBClubInfo;
     source?: string;
+    message?: string;
   }> {
     try {
       const res = await fetch(`/api/ffbb/matches?code=${encodeURIComponent(clubCode)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.matches) {
-          const matches = data.matches || [];
-          const results = data.results || [];
+        const matches: MatchItem[] = data.matches || [];
+        const results: MatchItem[] = data.results || [];
 
-          const teamsList: FFBBTeamItem[] = [
-            { id: 't1', category: 'Seniors Garçons 1', gender: 'M', competition: 'Nationale 3 Masculine - Poule K', divisionCode: 'N3M', registeredMatchesCount: 22, status: 'active' },
-            { id: 't2', category: 'Seniors Filles 1', gender: 'F', competition: 'Pré-Nationale Féminine', divisionCode: 'PNF', registeredMatchesCount: 18, status: 'active' },
-            { id: 't3', category: 'Seniors Garçons 2', gender: 'M', competition: 'Régionale 2 Masculine', divisionCode: 'R2M', registeredMatchesCount: 20, status: 'active' },
-            { id: 't4', category: 'U18 Masculins Région', gender: 'M', competition: 'Régionale 1 U18M', divisionCode: 'R1U18M', registeredMatchesCount: 18, status: 'active' },
-            { id: 't5', category: 'U18 Filles Région', gender: 'F', competition: 'Régionale 1 U18F', divisionCode: 'R1U18F', registeredMatchesCount: 16, status: 'active' },
-            { id: 't6', category: 'U15 Masculins 1', gender: 'M', competition: 'Départementale 1 U15M', divisionCode: 'D1U15M', registeredMatchesCount: 14, status: 'active' },
-            { id: 't7', category: 'U15 Filles 1', gender: 'F', competition: 'Départementale 1 U15F', divisionCode: 'D1U15F', registeredMatchesCount: 14, status: 'active' },
-            { id: 't8', category: 'U13 Masculins 1', gender: 'M', competition: 'Départementale 1 U13M', divisionCode: 'D1U13M', registeredMatchesCount: 12, status: 'active' },
-            { id: 't9', category: 'U13 Filles 1', gender: 'F', competition: 'Départementale 1 U13F', divisionCode: 'D1U13F', registeredMatchesCount: 12, status: 'active' },
-            { id: 't10', category: 'U11 Mixte 1', gender: 'Mixte', competition: 'Départementale U11 - Poule A', divisionCode: 'D1U11', registeredMatchesCount: 10, status: 'active' },
-            { id: 't11', category: 'U11 Mixte 2', gender: 'Mixte', competition: 'Départementale U11 - Poule B', divisionCode: 'D2U11', registeredMatchesCount: 10, status: 'active' },
-            { id: 't12', category: 'U9 Mini-Poussins', gender: 'Mixte', competition: 'Plateaux Départementaux U9', divisionCode: 'PLU9', registeredMatchesCount: 8, status: 'active' },
-            { id: 't13', category: 'U7 Baby Basket', gender: 'Mixte', competition: 'École de Basketball & Éveil', divisionCode: 'BABY', registeredMatchesCount: 6, status: 'active' },
-            { id: 't14', category: 'Loisirs & Anciens', gender: 'Mixte', competition: 'Championnat Loisir Senior 71', divisionCode: 'LOISIR', registeredMatchesCount: 10, status: 'active' },
-          ];
-
-          const clubInfo: FFBBClubInfo = {
-            clubCode,
-            clubName: 'Basket Club Val de Saône',
-            league: 'Ligue Bourgogne-Franche-Comté - Comité 71',
-            season: '2026-2027',
-            teamsCount: teamsList.length,
-            teamsList,
-          };
-
-          return { matches, results, clubInfo, source: data.source };
+        // Build teams from the official API teams or from unique match categories
+        let teamsList: FFBBTeamItem[] = [];
+        if (data.teams && Array.isArray(data.teams) && data.teams.length > 0) {
+          teamsList = data.teams.map((t: any, idx: number) => {
+            if (t.name && t.category && t.matchesCount !== undefined) {
+              return {
+                id: t.id || `team-${idx}`,
+                name: t.name,
+                category: t.category,
+                gender: t.gender || 'M',
+                competition: t.competition || '',
+                poule: t.poule,
+                pouleId: t.pouleId || t.poule_id,
+                matchesCount: t.matchesCount || 0,
+                status: 'active' as const,
+              };
+            }
+            const comp = t.competition || '';
+            const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
+            const teamMatches = matches.filter(m => m.pouleId === t.poule_id || m.competition === comp);
+            return {
+              id: `team-${t.engagement_id || idx}`,
+              name: norm.displayName,
+              category: norm.badgeCategory,
+              gender: norm.gender,
+              competition: comp,
+              poule: teamMatches.find(m => m.poule)?.poule,
+              pouleId: t.poule_id,
+              matchesCount: teamMatches.length,
+              status: 'active' as const,
+            };
+          });
+        } else {
+          // Extract distinct categories from real matches
+          const distinctCategories = Array.from(new Set(matches.map(m => m.category))).filter(Boolean);
+          teamsList = distinctCategories.map((cat, idx) => {
+            const catMatches = matches.filter(m => m.category === cat);
+            const sample = catMatches[0];
+            const norm = normalizeFFBBCategory(cat, sample?.competition);
+            return {
+              id: `cat-${idx}`,
+              name: norm.displayName,
+              category: norm.badgeCategory,
+              gender: norm.gender,
+              competition: sample?.competition || 'Championnat FFBB',
+              poule: sample?.poule,
+              pouleId: sample?.pouleId,
+              matchesCount: catMatches.length,
+              status: 'active' as const,
+            };
+          });
         }
+
+        const clubNom = data.clubName || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+
+        const clubInfo: FFBBClubInfo = {
+          clubCode,
+          clubName: clubNom,
+          league: 'Ligue Régionale & Comité Départemental FFBB',
+          season: '2026-2027',
+          teamsCount: teamsList.length,
+          teamsList,
+        };
+
+        return {
+          matches,
+          results,
+          clubInfo,
+          source: data.source || 'ffbb_api_desimone',
+          message: data.message,
+        };
       }
     } catch (e) {
-      console.warn("API FFBB local fallback:", e);
+      console.error("Erreur appel API FFBB officielle:", e);
     }
 
-    // Fallback if network is unavailable
-    const now = new Date();
-    const formattedDateUpcoming = new Date(now);
-    formattedDateUpcoming.setDate(now.getDate() + 5);
-
-    const matches: MatchItem[] = [
-      {
-        id: `ffbb-${clubCode}-m1`,
-        date: formattedDateUpcoming.toISOString().split('T')[0],
-        time: '20:30',
-        category: 'Seniors Garçons 1',
-        competition: 'Nationale 3 Masculine - Poule K',
-        teamHome: 'BC Val de Saône',
-        teamAway: 'JDA Dijon Basket 2',
-        isHomeMatch: true,
-        ourClubName: 'BC Val de Saône',
-        gymnasium: 'Gymnase de la Verrerie',
-        city: 'Chalon-sur-Saône',
-        status: 'upcoming',
-        ffbbMatchNumber: 'FFBB-N3-10294',
-      },
-      {
-        id: `ffbb-${clubCode}-m2`,
-        date: formattedDateUpcoming.toISOString().split('T')[0],
-        time: '18:00',
-        category: 'Seniors Filles 1',
-        competition: 'Pré-Nationale Féminine',
-        teamHome: 'BC Val de Saône',
-        teamAway: 'AL Nuits-Saint-Georges',
-        isHomeMatch: true,
-        ourClubName: 'BC Val de Saône',
-        gymnasium: 'Gymnase de la Verrerie',
-        city: 'Chalon-sur-Saône',
-        status: 'upcoming',
-        ffbbMatchNumber: 'FFBB-PNF-3019',
-      },
-    ];
-
-    const results: MatchItem[] = [
-      {
-        id: `ffbb-${clubCode}-r1`,
-        date: new Date(now.getTime() - 3 * 86400000).toISOString().split('T')[0],
-        time: '20:30',
-        category: 'Seniors Garçons 1',
-        competition: 'Nationale 3 Masculine',
-        teamHome: 'Besançon Basket Club',
-        teamAway: 'BC Val de Saône',
-        isHomeMatch: false,
-        ourClubName: 'BC Val de Saône',
-        gymnasium: 'Gymnase des Montboucons',
-        city: 'Besançon',
-        homeScore: 72,
-        awayScore: 81,
-        status: 'finished',
-        result: 'win',
-        ffbbMatchNumber: 'FFBB-N3-10293',
-      },
-    ];
-
-    const teamsList: FFBBTeamItem[] = [
-      { id: 't1', category: 'Seniors Garçons 1', gender: 'M', competition: 'Nationale 3 Masculine - Poule K', divisionCode: 'N3M', registeredMatchesCount: 22, status: 'active' },
-    ];
-
+    // When API fails or has no matches: RETURN EMPTY DATA — NEVER INVENT FAKE MATCHES
+    const clubNom = clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`;
     const clubInfo: FFBBClubInfo = {
       clubCode,
-      clubName: 'Basket Club Val de Saône',
-      league: 'Ligue Bourgogne-Franche-Comté - Comité 71',
+      clubName: clubNom,
+      league: 'Ligue Régionale & Comité Départemental FFBB',
       season: '2026-2027',
-      teamsCount: teamsList.length,
-      teamsList,
+      teamsCount: 0,
+      teamsList: [],
     };
 
-    return { matches, results, clubInfo };
+    return {
+      matches: [],
+      results: [],
+      clubInfo,
+      source: 'ffbb_api_desimone',
+      message: "Aucune rencontre disponible sur l'API FFBB officielle.",
+    };
   }
 
   /**

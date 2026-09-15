@@ -39,11 +39,14 @@ import {
   Shuffle,
   ChevronDown,
   Settings,
+  Pencil,
+  Video,
 } from 'lucide-react';
 import {
   CategoryConfig,
   ClubSettings,
   MatchItem,
+  MatchStatus,
   SponsorItem,
   ClubLogoItem,
   ClubPhotoItem,
@@ -53,9 +56,126 @@ import {
   ActiveMatchAlert,
   TeamVisualItem,
   VisualTemplatesConfig,
+  FFBBTeamItem,
 } from '../../types';
+import { isMatchLive } from '../../utils/matchStatus';
+import { isVideoMedia } from '../../utils/mediaUtils';
 import { FFBBService } from '../../services/ffbbService';
 import { parseExcelBirthdays, generateClubBirthdayTemplate } from '../../utils/excelBirthdayParser';
+
+
+const DEFAULT_REAL_FFBB_TEAMS: FFBBTeamItem[] = [
+  {
+    id: 'team-200000005335541',
+    name: 'Seniors Filles 1',
+    category: 'Seniors F1',
+    gender: 'F',
+    competition: 'Départementale féminine seniors - Division 3',
+    poule: 'Poule C',
+    pouleId: '200000003054576',
+    matchesCount: 22,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005335759',
+    name: 'Seniors Garçons 1',
+    category: 'Seniors M1',
+    gender: 'M',
+    competition: 'Départementale masculine seniors - Division 4',
+    poule: 'Poule E',
+    pouleId: '200000003054623',
+    matchesCount: 16,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005361201',
+    name: 'U18 Filles 1',
+    category: 'U18 F1',
+    gender: 'F',
+    competition: 'Départementale féminine U18 - Division 3',
+    poule: 'Poule D',
+    pouleId: '200000003058138',
+    matchesCount: 5,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005360595',
+    name: 'U18 Garçons 1',
+    category: 'U18 M1',
+    gender: 'M',
+    competition: 'Départementale masculine U18 - Division 3',
+    poule: 'Poule D',
+    pouleId: '200000003058058',
+    matchesCount: 4,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005361338',
+    name: 'U15 Filles 1',
+    category: 'U15 F1',
+    gender: 'F',
+    competition: 'Départementale féminine U15 - Division 3',
+    poule: 'Poule D',
+    pouleId: '200000003058157',
+    matchesCount: 5,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005360457',
+    name: 'U13 Garçons 1',
+    category: 'U13 M1',
+    gender: 'M',
+    competition: 'Départementale masculine U13 - Division 3',
+    poule: 'Poule F',
+    pouleId: '200000003058036',
+    matchesCount: 5,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005360524',
+    name: 'U13 Filles 1',
+    category: 'U13 F1',
+    gender: 'F',
+    competition: 'Départementale féminine U13 - Division 3',
+    poule: 'Poule F',
+    pouleId: '200000003058047',
+    matchesCount: 8,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005360525',
+    name: 'U13 Filles 2',
+    category: 'U13 F2',
+    gender: 'F',
+    competition: 'Départementale féminine U13 - Division 3',
+    poule: 'Poule F',
+    pouleId: '200000003058048',
+    matchesCount: 8,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005363537',
+    name: 'U11 Filles 1',
+    category: 'U11 F1',
+    gender: 'F',
+    competition: 'Départementale féminine U11 - Division 3',
+    poule: 'Poule E',
+    pouleId: '200000003058517',
+    matchesCount: 5,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005363354',
+    name: 'U11 Garçons 1',
+    category: 'U11 M1',
+    gender: 'M',
+    competition: 'Départementale masculine U11 - Division 3',
+    poule: 'Poule F',
+    pouleId: '200000003058489',
+    matchesCount: 5,
+    status: 'active',
+  },
+];
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -145,6 +265,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
+
+
   // New Match Form State
   const [newMatchCategory, setNewMatchCategory] = useState('Seniors Garçons 1');
   const [newMatchOpponent, setNewMatchOpponent] = useState('');
@@ -159,9 +281,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newResultHomeScore, setNewResultHomeScore] = useState<string>('82');
   const [newResultAwayScore, setNewResultAwayScore] = useState<string>('74');
 
-  // FFBB Sync State
+  // FFBB Sync State & Real Teams State
   const [isSyncingFFBB, setIsSyncingFFBB] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [editingMatch, setEditingMatch] = useState<MatchItem | null>(null);
+  const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ffbb_club_teams_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_REAL_FFBB_TEAMS;
+  });
 
   // Telegram Simulator State
   const [telegramSimText, setTelegramSimText] = useState<string>('Victoire Seniors 1 82-74');
@@ -182,12 +317,108 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [socialCopiedPlatform, setSocialCopiedPlatform] = useState<string | null>(null);
   const [socialWebhookStatus, setSocialWebhookStatus] = useState<{ loading: boolean; message?: string; success?: boolean }>({ loading: false });
   const [socialSaveSuccess, setSocialSaveSuccess] = useState<boolean>(false);
+  const [socialOnlySelectedMatches, setSocialOnlySelectedMatches] = useState<boolean>(true);
+  const [aiTone, setAiTone] = useState<'supporter' | 'officiel' | 'fun' | 'buvette'>('supporter');
+  const [aiExtraContext, setAiExtraContext] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiCustomCaptions, setAiCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
   const [socialForm, setSocialForm] = useState({
     instagramHandle: clubSettings.instagramHandle || '@bc_valdesaone',
     facebookPage: clubSettings.facebookPage || 'BasketClubValDeSaone',
     tiktokHandle: clubSettings.tiktokHandle || '@bcvs_basket',
     socialWebhookUrl: clubSettings.socialWebhookUrl || '',
   });
+
+  const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
+    setAiLoading(true);
+    try {
+      const activeMatches = socialOnlySelectedMatches
+        ? matches.filter((m) => m.selectedForWeekend !== false)
+        : matches;
+
+      if (targetPlatform === 'all') {
+        const [resInsta, resTikTok, resFB] = await Promise.all([
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'instagram',
+              type: socialContentType,
+              matches: activeMatches,
+              results,
+              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
+              shortClub: clubSettings.shortName || 'BCVS',
+              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'tiktok',
+              type: socialContentType,
+              matches: activeMatches,
+              results,
+              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
+              shortClub: clubSettings.shortName || 'BCVS',
+              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'facebook',
+              type: socialContentType,
+              matches: activeMatches,
+              results,
+              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
+              shortClub: clubSettings.shortName || 'BCVS',
+              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+        ]);
+
+        setAiCustomCaptions({
+          instagram: resInsta?.caption || undefined,
+          tiktok: resTikTok?.caption || undefined,
+          facebook: resFB?.caption || undefined,
+        });
+      } else {
+        const res = await fetch('/api/generate-caption', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: targetPlatform,
+            type: socialContentType,
+            matches: activeMatches,
+            results,
+            clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
+            shortClub: clubSettings.shortName || 'BCVS',
+            gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+            tone: aiTone,
+            extraContext: aiExtraContext.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.caption) {
+          setAiCustomCaptions((prev) => ({ ...prev, [targetPlatform]: data.caption }));
+        }
+      }
+    } catch (err) {
+      console.error('Erreur génération IA:', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const togglePreparedItem = (id: string) => {
     setPreparedItemIds((prev) =>
@@ -239,7 +470,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Add Manual Match
   const handleAddMatchManual = () => {
     if (!newMatchOpponent.trim()) return;
-    const club = clubSettings.shortName || 'BC Val de Saône';
+    const club = clubSettings.shortName || clubSettings.name || 'Notre Club';
     const newMatch: MatchItem = {
       id: `match-m-${Date.now()}`,
       date: newMatchDate.trim() || 'Samedi',
@@ -251,7 +482,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       isHomeMatch: newMatchIsHome,
       ourClubName: club,
       gymnasium: newMatchGymnasium.trim() || clubSettings.gymnasiumDefault,
-      city: clubSettings.city || 'Chalon-sur-Saône',
+      city: clubSettings.city || 'La Clayette',
       status: 'upcoming',
     };
     onUpdateMatches([newMatch, ...matches]);
@@ -261,7 +492,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Add Manual Result
   const handleAddResultManual = () => {
     if (!newResultOpponent.trim()) return;
-    const club = clubSettings.shortName || 'BC Val de Saône';
+    const club = clubSettings.shortName || clubSettings.name || 'Notre Club';
     const hScore = parseInt(newResultHomeScore) || 0;
     const aScore = parseInt(newResultAwayScore) || 0;
     const isWin = hScore > aScore;
@@ -291,8 +522,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Handle category duration change
   const handleDurationChange = (categoryId: SlideCategory, duration: number) => {
+    const clampedDuration = Math.min(10, Math.max(3, duration));
     const updated = categories.map((c) =>
-      c.id === categoryId ? { ...c, durationSeconds: Math.max(3, duration) } : c
+      c.id === categoryId ? { ...c, durationSeconds: clampedDuration } : c
     );
     onUpdateCategories(updated);
   };
@@ -454,21 +686,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         if (res.results && res.results.length > 0) {
           onUpdateResults(res.results);
         }
-        
-        let sourceInfo = "Simulateur de Secours Intelligent (Haute Disponibilité)";
-        if (res.source === "ffbb_api_desimone") {
-          sourceInfo = "Passerelle de secours DeSimone (Scraping de secours)";
-        } else if (res.source === "ffbb_live_api") {
-          sourceInfo = "API FFBB Officielle (api.ffbb.com)";
+        if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
+          setFfbbTeams(res.clubInfo.teamsList);
+          try {
+            localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(res.clubInfo.teamsList));
+          } catch (e) {}
         }
         
-        setSyncMessage(`Synchronisation réussie (${sourceInfo}) ! ${res.matches.length} rencontres FFBB mises à jour pour le code club ${clubSettings.codeFFBB}.`);
+        const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
+        setSyncMessage(`Synchronisation réussie (${sourceInfo}) ! ${res.matches.length} rencontres à venir, ${res.results?.length || 0} résultats, et ${res.clubInfo?.teamsList?.length || ffbbTeams.length} équipes officielles pour ${clubSettings.name || clubSettings.codeFFBB}.`);
       } else {
-        setSyncMessage('Calendrier FFBB synchronisé (aucune nouvelle rencontre pour le club).');
+        setSyncMessage(res.message || 'Calendrier FFBB officiel interrogé : aucune rencontre programmée pour ce club.');
       }
     } catch (err) {
       console.error(err);
-      setSyncMessage('Erreur de connexion à l\'API FFBB.');
+      setSyncMessage('Erreur de connexion à l\'API FFBB officielle.');
     } finally {
       setIsSyncingFFBB(false);
     }
@@ -508,15 +740,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Social Caption Generator Helper
   const getSocialCaption = (platform: 'instagram' | 'tiktok' | 'facebook', type: 'matches' | 'results') => {
+    if (aiCustomCaptions[platform]) {
+      return aiCustomCaptions[platform]!;
+    }
+
     const clubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
     const shortClub = clubSettings.shortName || 'BCVS';
     const insta = socialForm.instagramHandle || clubSettings.instagramHandle || '@bc_valdesaone';
     const fb = socialForm.facebookPage || clubSettings.facebookPage || 'BasketClubValDeSaone';
     const tiktok = socialForm.tiktokHandle || clubSettings.tiktokHandle || '@bcvs_basket';
 
+    const targetMatches = socialOnlySelectedMatches
+      ? matches.filter((m) => m.selectedForWeekend !== false)
+      : matches;
+
     if (type === 'matches') {
-      const homeMatches = matches.filter((m) => m.isHomeMatch);
-      const awayMatches = matches.filter((m) => !m.isHomeMatch);
+      const homeMatches = targetMatches.filter((m) => m.isHomeMatch);
+      const awayMatches = targetMatches.filter((m) => !m.isHomeMatch);
 
       if (platform === 'instagram') {
         const homeList = homeMatches.length > 0
@@ -729,7 +969,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             }`}
           >
             <Calendar className="w-4 h-4 text-orange-400" />
-            <span>Matchs à Venir ({matches.length})</span>
+            <span>Matchs du Week-end ({matches.length})</span>
           </button>
 
           <button
@@ -899,7 +1139,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
                   <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                    <span>PROGRAMME DES MATCHS À VENIR ({matches.length})</span>
+                    <span>PROGRAMME DES MATCHS DU WEEK-END ({matches.length})</span>
                   </h3>
                   <p className="text-xs text-slate-400">
                     Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
@@ -917,36 +1157,311 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+              {/* Barre d'action et sélection des matchs pour le week-end */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    <Tv className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white uppercase font-bebas tracking-wide">
+                        SÉLECTION DES MATCHS DU WEEK-END
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold font-mono">
+                        {matches.filter((m) => m.selectedForWeekend !== false).length} / {matches.length} cochés pour la TV
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Cochez ou décochez les matchs à diffuser sur l'écran TV et les réseaux sociaux ce week-end.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSocialOnlySelectedMatches(true);
+                      setActiveTab('social');
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-pink-600/20"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Passerelle Réseaux ({matches.filter((m) => m.selectedForWeekend !== false).length} cochés)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: true })))}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all"
+                  >
+                    Tout cocher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: false })))}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold transition-all"
+                  >
+                    Tout décocher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: m.isHomeMatch })))}
+                    className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 font-bold transition-all"
+                  >
+                    Domicile uniquement
+                  </button>
+                </div>
+              </div>
+
               {/* Liste des matchs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {matches.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 text-xs font-bold text-orange-400 mb-1">
-                        <span>{m.category}</span>
-                        <span className="text-slate-600">•</span>
-                        <span>{m.date} - {m.time}</span>
+                {matches.map((m) => {
+                  const isEditing = editingMatch?.id === m.id;
+                  const isSelected = m.selectedForWeekend !== false;
+
+                  if (isEditing && editingMatch) {
+                    return (
+                      <div
+                        key={m.id}
+                        className="p-4 rounded-2xl bg-slate-900 border-2 border-orange-500/60 shadow-lg space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-orange-400 font-mono">
+                            MODIFIER LA RENCONTRE
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {m.teamHome} vs {m.teamAway}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Date :</label>
+                            <input
+                              type="date"
+                              value={editingMatch.date}
+                              onChange={(e) => setEditingMatch({ ...editingMatch, date: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Heure :</label>
+                            <input
+                              type="time"
+                              value={editingMatch.time}
+                              onChange={(e) => setEditingMatch({ ...editingMatch, time: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Catégorie :</label>
+                            <input
+                              type="text"
+                              value={editingMatch.category}
+                              onChange={(e) => setEditingMatch({ ...editingMatch, category: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs"
+                              placeholder="ex: U18 F1, U18 M1"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Gymnase / Salle :</label>
+                            <input
+                              type="text"
+                              value={editingMatch.gymnasium || ''}
+                              onChange={(e) => setEditingMatch({ ...editingMatch, gymnasium: e.target.value })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs"
+                              placeholder="ex: COSEC"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Statut du match :</label>
+                            <select
+                              value={editingMatch.status || 'upcoming'}
+                              onChange={(e) => setEditingMatch({ ...editingMatch, status: e.target.value as MatchStatus })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-bold"
+                            >
+                              <option value="upcoming">À venir (Passe en cours à l'heure du match)</option>
+                              <option value="live">🔴 En cours (Direct)</option>
+                              <option value="finished">✅ Terminé</option>
+                            </select>
+                          </div>
+                          {(editingMatch.status === 'live' || editingMatch.status === 'finished') && (
+                            <div className="col-span-2 grid grid-cols-2 gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                              <div>
+                                <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Score Domicile :</label>
+                                <input
+                                  type="number"
+                                  value={editingMatch.homeScore ?? ''}
+                                  onChange={(e) => setEditingMatch({ ...editingMatch, homeScore: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white font-mono text-xs"
+                                  placeholder="Score Domicile"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Score Extérieur :</label>
+                                <input
+                                  type="number"
+                                  value={editingMatch.awayScore ?? ''}
+                                  onChange={(e) => setEditingMatch({ ...editingMatch, awayScore: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white font-mono text-xs"
+                                  placeholder="Score Extérieur"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          <div className="col-span-2 pt-2 border-t border-slate-800 flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
+                              <input
+                                type="checkbox"
+                                checked={editingMatch.selectedForWeekend !== false}
+                                onChange={(e) => setEditingMatch({ ...editingMatch, selectedForWeekend: e.target.checked })}
+                                className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0"
+                              />
+                              <span>Diffuser cette rencontre sur l'écran TV ce week-end</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800">
+                          <button
+                            onClick={() => setEditingMatch(null)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            onClick={() => {
+                              onUpdateMatches(matches.map((item) => (item.id === editingMatch.id ? editingMatch : item)));
+                              setEditingMatch(null);
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Enregistrer</span>
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-sm font-bold text-white truncate">
-                        {m.teamHome} vs {m.teamAway}
+                    );
+                  }
+
+                  const isLive = isMatchLive(m);
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                        isLive
+                          ? 'bg-red-950/20 border-red-500/50 shadow-md shadow-red-950/20'
+                          : isSelected
+                          ? 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                          : 'bg-slate-950/40 border-slate-900 opacity-60 hover:opacity-90'
+                      }`}
+                    >
+                      {/* Checkbox pour choisir d'afficher ou non le match ce week-end */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = matches.map((item) =>
+                            item.id === m.id ? { ...item, selectedForWeekend: !isSelected } : item
+                          );
+                          onUpdateMatches(updated);
+                        }}
+                        className={`shrink-0 p-2 sm:px-3 sm:py-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-sm shadow-emerald-500/10'
+                            : 'bg-slate-900/90 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400'
+                        }`}
+                        title={
+                          isSelected
+                            ? 'Match coché pour la TV du week-end (cliquer pour masquer)'
+                            : 'Match masqué de la TV (cliquer pour cocher et afficher)'
+                        }
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                            isSelected
+                              ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black'
+                              : 'border-slate-700 bg-slate-950'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <span className="hidden sm:inline font-mono text-[11px]">
+                          {isSelected ? 'Ce week-end' : 'Masqué'}
+                        </span>
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono text-[11px] font-bold">
+                            {m.category}
+                          </span>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-300 font-mono">{m.date} - {m.time}</span>
+                          {isLive && (
+                            <span className="px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                              EN COURS
+                            </span>
+                          )}
+                          {m.competition && (
+                            <>
+                              <span className="text-slate-600 hidden sm:inline">•</span>
+                              <span className="text-[10px] text-slate-500 truncate max-w-[170px] hidden sm:inline" title={m.competition}>
+                                {m.competition}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="text-sm font-bold text-white truncate">
+                          {m.teamHome} vs {m.teamAway}
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                          📍 {m.gymnasium || clubSettings.gymnasiumDefault}
+                          {m.poule && <span className="text-orange-400/80 ml-2 font-medium">({m.poule})</span>}
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                        📍 {m.gymnasium || clubSettings.gymnasiumDefault}
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Bouton rapide En cours / À venir */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newStatus: MatchStatus = isLive ? 'upcoming' : 'live';
+                            const updated = matches.map((item) =>
+                              item.id === m.id ? { ...item, status: newStatus } : item
+                            );
+                            onUpdateMatches(updated);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                            isLive
+                              ? 'bg-red-600/30 text-red-300 border-red-500/60 hover:bg-red-600/50'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-800'
+                          }`}
+                          title={isLive ? 'Repasser en statut à venir' : 'Activer le mode EN COURS sur la TV'}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-ping' : 'bg-slate-500'}`}></span>
+                          <span className="hidden md:inline">{isLive ? 'En cours' : 'Mettre en cours'}</span>
+                        </button>
+                        <button
+                          onClick={() => setEditingMatch({ ...m })}
+                          className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all"
+                          title="Modifier la date ou l'heure de ce match"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onUpdateMatches(matches.filter((item) => item.id !== m.id))}
+                          className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all"
+                          title="Supprimer ce match"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => onUpdateMatches(matches.filter((item) => item.id !== m.id))}
-                      className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all shrink-0"
-                      title="Supprimer ce match"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -965,6 +1480,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Saisissez les résultats des matchs pour les afficher dans le carrousel TV et générer les visuels Victoire/Défaite.
                   </p>
                 </div>
+
+
               </div>
 
               {/* Formulaire de saisie rapide de résultat */}
@@ -1087,6 +1604,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Déposez les photos des matchs, entraînements et événements du club.
                   </p>
                 </div>
+
+
               </div>
 
               {/* Upload Box for Photos */}
@@ -1200,6 +1719,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Ajoutez les logos ou clips vidéos de vos partenaires pour les mettre à l'honneur dans la boucle TV.
                   </p>
                 </div>
+
+
               </div>
 
               <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
@@ -1312,6 +1833,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Stockage centralisé de vos visuels et logos (PNG / SVG transparents) du club, des partenaires, de la Ligue et du Comité.
                   </p>
                 </div>
+
+
               </div>
 
               {/* Upload Box for Logos */}
@@ -1431,6 +1954,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     Ces affiches sont diffusées en plein écran dans la boucle de la télévision.
                   </p>
                 </div>
+
+
               </div>
 
               <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
@@ -1831,43 +2356,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-lg font-black text-white font-bebas">Gabarit Matchs à Venir</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold">16:9</span>
+                      <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
                     </div>
                     <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      <img
-                        src={visualTemplates.matchesBackgroundUrl}
-                        alt="Gabarit Matchs"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center">
+                      {isVideoMedia(visualTemplates.matchesBackgroundUrl) ? (
+                        <video
+                          src={visualTemplates.matchesBackgroundUrl}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={visualTemplates.matchesBackgroundUrl}
+                          alt="Gabarit Matchs"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
                         <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          Fond actif
+                          {isVideoMedia(visualTemplates.matchesBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
                         </span>
                       </div>
                     </div>
                     <p className="text-xs text-slate-400">
-                      Ce fond habille l'affiche des rencontres du club du week-end.
+                      Ce fond ou vidéo habille l'affiche des rencontres du club du week-end.
                     </p>
                   </div>
 
-                  <label className="mt-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Remplacer ce gabarit</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleImageFileChange(file, (dataUrl) =>
-                            onUpdateVisualTemplates({ ...visualTemplates, matchesBackgroundUrl: dataUrl })
-                          );
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="mt-4 flex items-center gap-2">
+                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Remplacer</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleImageFileChange(file, (dataUrl) =>
+                              onUpdateVisualTemplates({ ...visualTemplates, matchesBackgroundUrl: dataUrl })
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 {/* Template 2: Résultats */}
@@ -1875,18 +2413,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-lg font-black text-white font-bebas">Gabarit Résultats Week-end</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">16:9</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
                     </div>
                     <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      <img
-                        src={visualTemplates.resultsBackgroundUrl}
-                        alt="Gabarit Résultats"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center">
+                      {isVideoMedia(visualTemplates.resultsBackgroundUrl) ? (
+                        <video
+                          src={visualTemplates.resultsBackgroundUrl}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={visualTemplates.resultsBackgroundUrl}
+                          alt="Gabarit Résultats"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
                         <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          Fond actif
+                          {isVideoMedia(visualTemplates.resultsBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
                         </span>
                       </div>
                     </div>
@@ -1895,23 +2444,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </p>
                   </div>
 
-                  <label className="mt-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Remplacer ce gabarit</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleImageFileChange(file, (dataUrl) =>
-                            onUpdateVisualTemplates({ ...visualTemplates, resultsBackgroundUrl: dataUrl })
-                          );
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="mt-4 flex items-center gap-2">
+                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Remplacer</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleImageFileChange(file, (dataUrl) =>
+                              onUpdateVisualTemplates({ ...visualTemplates, resultsBackgroundUrl: dataUrl })
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 {/* Template 3: Anniversaires */}
@@ -1919,18 +2470,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-lg font-black text-white font-bebas">Gabarit Anniversaires</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">16:9</span>
+                      <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
                     </div>
                     <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      <img
-                        src={visualTemplates.birthdaysBackgroundUrl}
-                        alt="Gabarit Anniversaires"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center">
+                      {isVideoMedia(visualTemplates.birthdaysBackgroundUrl) ? (
+                        <video
+                          src={visualTemplates.birthdaysBackgroundUrl}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={visualTemplates.birthdaysBackgroundUrl}
+                          alt="Gabarit Anniversaires"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
                         <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          Fond actif
+                          {isVideoMedia(visualTemplates.birthdaysBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
                         </span>
                       </div>
                     </div>
@@ -1939,23 +2501,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </p>
                   </div>
 
-                  <label className="mt-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Remplacer ce gabarit</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleImageFileChange(file, (dataUrl) =>
-                            onUpdateVisualTemplates({ ...visualTemplates, birthdaysBackgroundUrl: dataUrl })
-                          );
-                        }
-                      }}
-                    />
-                  </label>
+                  <div className="mt-4 flex items-center gap-2">
+                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Remplacer</span>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleImageFileChange(file, (dataUrl) =>
+                              onUpdateVisualTemplates({ ...visualTemplates, birthdaysBackgroundUrl: dataUrl })
+                            );
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2013,19 +2577,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
                           <span className="text-[10px] opacity-70">16:9</span>
                         </div>
-                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2">
-                          <img
-                            src={team.winVisualUrl}
-                            alt="Victoire"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
+                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
+                          {isVideoMedia(team.winVisualUrl) ? (
+                            <video
+                              src={team.winVisualUrl}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={team.winVisualUrl}
+                              alt="Victoire"
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          {isVideoMedia(team.winVisualUrl) && (
+                            <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-emerald-300 text-[9px] font-bold flex items-center gap-0.5">
+                              <Video className="w-2.5 h-2.5" /> Vidéo
+                            </div>
+                          )}
                         </div>
                         <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white cursor-pointer transition-colors mt-auto">
-                          Changer image
+                          Changer visuel (Img / Vidéo)
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -2050,19 +2630,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
                           <span className="text-[10px] opacity-70">16:9</span>
                         </div>
-                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2">
-                          <img
-                            src={team.lossVisualUrl}
-                            alt="Défaite"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
+                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
+                          {isVideoMedia(team.lossVisualUrl) ? (
+                            <video
+                              src={team.lossVisualUrl}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={team.lossVisualUrl}
+                              alt="Défaite"
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
+                          {isVideoMedia(team.lossVisualUrl) && (
+                            <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-rose-300 text-[9px] font-bold flex items-center gap-0.5">
+                              <Video className="w-2.5 h-2.5" /> Vidéo
+                            </div>
+                          )}
                         </div>
                         <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white cursor-pointer transition-colors mt-auto">
-                          Changer image
+                          Changer visuel (Img / Vidéo)
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -2081,24 +2677,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
 
                     {/* Quick Simulation Buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
-                      <button
-                        onClick={() => handleTriggerMatchOutcome(team, true, 84, 76)}
-                        className="flex-1 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold text-xs transition-colors flex items-center justify-center gap-1"
-                        title="Injecter le visuel Victoire pendant 1 heure dans la boucle"
-                      >
-                        <Trophy className="w-3 h-3" />
-                        <span>Simuler Victoire (1h)</span>
-                      </button>
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleTriggerMatchOutcome(team, true, 84, 76)}
+                          className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
+                          title="Injecter le visuel Victoire pendant 1 heure dans la boucle TV"
+                        >
+                          <Trophy className="w-3 h-3 text-emerald-500" />
+                          <span>Injecter Victoire (1h)</span>
+                        </button>
 
-                      <button
-                        onClick={() => handleTriggerMatchOutcome(team, false, 68, 74)}
-                        className="flex-1 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 font-bold text-xs transition-colors flex items-center justify-center gap-1"
-                        title="Injecter le visuel Défaite pendant 1 heure dans la boucle"
-                      >
-                        <Frown className="w-3 h-3" />
-                        <span>Simuler Défaite (1h)</span>
-                      </button>
+                        <button
+                          onClick={() => handleTriggerMatchOutcome(team, false, 68, 74)}
+                          className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
+                          title="Injecter le visuel Défaite pendant 1 heure dans la boucle TV"
+                        >
+                          <Frown className="w-3 h-3 text-rose-500" />
+                          <span>Injecter Défaite (1h)</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2180,6 +2778,190 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <span className="font-semibold text-slate-200 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">
                     {clubSettings.gymnasiumDefault}
                   </span>
+                </div>
+              </div>
+
+              {/* Filtre de sélection du week-end pour la passerelle */}
+              {socialContentType === 'matches' && (
+                <div className="bg-slate-900/90 border border-pink-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                      <Tv className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white uppercase font-bebas tracking-wide">
+                          SYNCHRONISATION AVEC LA SÉLECTION DU WEEK-END
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 text-[11px] font-bold font-mono">
+                          {matches.filter((m) => m.selectedForWeekend !== false).length} / {matches.length} matchs retenus
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Choisissez si les légendes et publications doivent inclure uniquement les rencontres cochées dans la sélection du week-end ou tous les matchs.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSocialOnlySelectedMatches(true);
+                        setAiCustomCaptions({});
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        socialOnlySelectedMatches
+                          ? 'bg-pink-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Matchs cochés du week-end ({matches.filter((m) => m.selectedForWeekend !== false).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSocialOnlySelectedMatches(false);
+                        setAiCustomCaptions({});
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        !socialOnlySelectedMatches
+                          ? 'bg-slate-800 text-white shadow-md'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Tous les matchs ({matches.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Module Assistant IA Générateur de Légendes */}
+              <div className="bg-gradient-to-r from-purple-950/60 via-slate-900 to-indigo-950/60 rounded-3xl border border-purple-500/30 p-5 space-y-4 shadow-xl relative overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-purple-600/30">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          IA Intégrée Gratuitement
+                        </span>
+                        <span className="text-xs text-slate-400">• Gemini 2.5 Flash</span>
+                      </div>
+                      <h4 className="text-lg font-black text-white font-bebas tracking-wide mt-0.5">
+                        ASSISTANT RÉDACTEUR IA • GÉNÉRATION DE TEXTES & LÉGENDES
+                      </h4>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAICaption('all')}
+                    disabled={aiLoading}
+                    className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all hover:scale-105 disabled:opacity-50"
+                  >
+                    {aiLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Génération en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-yellow-300" />
+                        <span>Générer les légendes avec l'IA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  {/* Ton & Style */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <span>Ton & Style de rédaction :</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAiTone('supporter')}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                          aiTone === 'supporter'
+                            ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Flame className="w-3.5 h-3.5 text-orange-400" />
+                        <span>🔥 Survolté / Supporter</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAiTone('officiel')}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                          aiTone === 'officiel'
+                            ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span>🏛️ Officiel / Club</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAiTone('fun')}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                          aiTone === 'fun'
+                            ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>⚡ TikTok / Jeune</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAiTone('buvette')}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all ${
+                          aiTone === 'buvette'
+                            ? 'bg-purple-600/30 border-purple-500 text-purple-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <Cake className="w-3.5 h-3.5 text-pink-400" />
+                        <span>🍿 Buvette & Ambiance</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Consignes spéciales */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <span>Instruction spéciale ou événement du jour (optionnel) :</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={aiExtraContext}
+                      onChange={(e) => setAiExtraContext(e.target.value)}
+                      placeholder="Ex: Soirée crêpes à la buvette, entrée gratuite, derby contre Charolles..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+                      <span>L'IA adaptera automatiquement les textes selon vos consignes.</span>
+                      {Object.keys(aiCustomCaptions).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAiCustomCaptions({})}
+                          className="text-purple-400 hover:underline font-bold"
+                        >
+                          Réinitialiser les textes
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2902,10 +3684,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black text-white font-bebas tracking-wide">
-                    DURÉE D'AFFICHAGE DE CHAQUE CATÉGORIE DU CARROUSEL
+                    DURÉE D'AFFICHAGE DE CHAQUE CATÉGORIE DU CARROUSEL (3 À 10 SECONDES)
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Ajustez le temps de passage en secondes de chaque slide sur la télévision.
+                    Ajustez le temps de passage (de 3s à 10s) de chaque slide sur la télévision.
                   </p>
                 </div>
               </div>
@@ -2925,29 +3707,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         <h4 className="text-base font-black text-white font-bebas">{cat.label}</h4>
                         <p className="text-xs text-slate-400">{cat.description}</p>
                       </div>
-                      <button
-                        onClick={() => handleToggleCategory(cat.id)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                          cat.enabled ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {cat.enabled ? 'Actif' : 'Désactivé'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleCategory(cat.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                            cat.enabled ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {cat.enabled ? 'Actif' : 'Désactivé'}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <input
                         type="range"
-                        min="5"
-                        max="60"
+                        min="3"
+                        max="10"
                         step="1"
-                        value={cat.durationSeconds}
+                        value={Math.min(10, Math.max(3, cat.durationSeconds))}
                         onChange={(e) => handleDurationChange(cat.id, parseInt(e.target.value, 10))}
                         className="flex-1 accent-orange-500 cursor-pointer"
                         disabled={!cat.enabled}
                       />
                       <span className="w-16 text-right font-mono font-bold text-sm text-orange-400">
-                        {cat.durationSeconds} sec
+                        {Math.min(10, Math.max(3, cat.durationSeconds))} sec
                       </span>
                     </div>
                   </div>
@@ -2971,13 +3755,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </p>
                 </div>
 
-                <button
-                  onClick={generateClubBirthdayTemplate}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 border border-slate-700 transition-colors whitespace-nowrap"
-                >
-                  <Download className="w-4 h-4 text-orange-400" />
-                  <span>Télécharger modèle Excel</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={generateClubBirthdayTemplate}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 border border-slate-700 transition-colors whitespace-nowrap"
+                  >
+                    <Download className="w-4 h-4 text-orange-400" />
+                    <span>Télécharger modèle Excel</span>
+                  </button>
+                </div>
               </div>
 
               {/* Upload Drop Area */}
@@ -3121,60 +3907,55 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="flex items-center gap-2.5">
                     <Trophy className="w-5 h-5 text-orange-400" />
                     <h3 className="text-lg font-black text-white font-bebas tracking-wide">
-                      TOUTES LES ÉQUIPES RÉCUPÉRÉES DE L'API FFBB (14 ÉQUIPES REGISTRÉES)
+                      TOUTES LES ÉQUIPES DU CLUB ({ffbbTeams.length} ÉQUIPES OFFICIELLES FFBB)
                     </h3>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Synchronisation FFBB Active
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> API FFBB Directe
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-400">
-                  L'API FFBB est configurée pour récupérer l'intégralité des équipes engagées par le club pour la saison 2026-2027 :
+                  Équipes officielles engagées par <strong>{clubSettings.name}</strong> ({clubSettings.codeFFBB}) pour la saison en cours, directement récupérées du registre FFBB :
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[
-                    { name: 'Seniors Garçons 1', div: 'Nationale 3 Masculine (N3M)', matches: 22, genre: 'M' },
-                    { name: 'Seniors Filles 1', div: 'Pré-Nationale Féminine (PNF)', matches: 18, genre: 'F' },
-                    { name: 'Seniors Garçons 2', div: 'Régionale 2 Masculine (R2M)', matches: 20, genre: 'M' },
-                    { name: 'U18 Masculins Région', div: 'Régionale 1 U18M (R1U18M)', matches: 18, genre: 'M' },
-                    { name: 'U18 Filles Région', div: 'Régionale 1 U18F (R1U18F)', matches: 16, genre: 'F' },
-                    { name: 'U15 Masculins 1', div: 'Départementale 1 U15M (D1U15M)', matches: 14, genre: 'M' },
-                    { name: 'U15 Filles 1', div: 'Départementale 1 U15F (D1U15F)', matches: 14, genre: 'F' },
-                    { name: 'U13 Masculins 1', div: 'Départementale 1 U13M (D1U13M)', matches: 12, genre: 'M' },
-                    { name: 'U13 Filles 1', div: 'Départementale 1 U13F (D1U13F)', matches: 12, genre: 'F' },
-                    { name: 'U11 Mixte 1', div: 'Départementale U11 Poule A', matches: 10, genre: 'Mixte' },
-                    { name: 'U11 Mixte 2', div: 'Départementale U11 Poule B', matches: 10, genre: 'Mixte' },
-                    { name: 'U9 Mini-Poussins', div: 'Plateaux Départementaux U9', matches: 8, genre: 'Mixte' },
-                    { name: 'U7 Baby Basket', div: 'École de Basketball & Éveil', matches: 6, genre: 'Mixte' },
-                    { name: 'Loisirs & Anciens', div: 'Championnat Loisir Senior 71', matches: 10, genre: 'Mixte' },
-                  ].map((team, idx) => (
+                  {ffbbTeams.map((team, idx) => (
                     <div
-                      key={idx}
+                      key={team.id || idx}
                       className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-2 hover:border-orange-500/40 transition-colors"
                     >
-                      <div>
-                        <div className="flex items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-bold text-white">{team.name}</span>
                           <span
-                            className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded ${
-                              team.genre === 'M'
+                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                              team.gender === 'M'
                                 ? 'bg-sky-500/20 text-sky-300'
-                                : team.genre === 'F'
+                                : team.gender === 'F'
                                 ? 'bg-pink-500/20 text-pink-300'
                                 : 'bg-amber-500/20 text-amber-300'
                             }`}
                           >
-                            {team.genre}
+                            {team.gender === 'F' ? 'Féminine' : team.gender === 'M' ? 'Masculine' : 'Mixte'}
+                          </span>
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                            {team.category}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{team.div}</p>
+                        <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                          {team.competition}
+                          {team.poule && (
+                            <span className="text-orange-400/90 font-medium"> • {team.poule}</span>
+                          )}
+                        </p>
                       </div>
 
                       <div className="text-right shrink-0">
                         <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20 block">
-                          {team.matches} matchs
+                          {team.matchesCount} matchs
                         </span>
                         <span className="text-[9px] text-slate-500 mt-1 block">OK FFBB</span>
                       </div>
@@ -3254,6 +4035,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           )}
         </div>
       </div>
+
+
     </div>
   );
 };

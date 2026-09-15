@@ -1,203 +1,242 @@
 import type { Context } from '@netlify/functions';
 
-export default async (req: Request, _context: Context) => {
-  const url = new URL(req.url);
-  const clubCode = (url.searchParams.get('code') || 'BFC0071015').trim();
-
-  try {
-    // 1. Try ffbb-api.desimone.fr API
-    const desimoneRes = await fetch(`https://ffbb-api.desimone.fr/rencontres?club_id=${encodeURIComponent(clubCode)}`, {
-      headers: { 'Accept': 'application/json' },
-    }).catch(() => null);
-
-    if (desimoneRes && desimoneRes.ok) {
-      const desimoneData = await desimoneRes.json();
-      const matchesData = Array.isArray(desimoneData) ? desimoneData : desimoneData.rencontres || desimoneData.matchs || [];
-      if (matchesData.length > 0) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            source: 'ffbb_api_desimone',
-            clubCode,
-            matches: matchesData,
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-
-    // 2. Attempt live fetch from FFBB endpoints
-    const liveRes = await fetch(`https://api.ffbb.com/items/rencontre?filter[organisme_domicile][code]=${clubCode}&limit=20`).catch(() => null);
-    if (liveRes && liveRes.ok) {
-      const data = await liveRes.json();
-      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            source: 'ffbb_live_api',
-            clubCode,
-            matches: data.data,
-          }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-  } catch (e) {
-    console.warn('[API FFBB] Interrogation direct API FFBB fallback...', e);
+async function resolveOrganismeId(codeOrName: string): Promise<string | null> {
+  const clean = codeOrName.trim();
+  if (clean.toUpperCase() === 'BFC0071024' || clean.toUpperCase().includes('CLAYETTE') || clean.toUpperCase() === 'SRC BASKET') {
+    return '9422';
+  }
+  if (/^\d+$/.test(clean)) {
+    return clean;
   }
 
-  // Fallback enriched data generator per clubCode
-  const today = new Date();
-  const nextSat = new Date(today);
-  nextSat.setDate(today.getDate() + (6 - today.getDay() + 7) % 7);
-  const nextSun = new Date(nextSat);
-  nextSun.setDate(nextSat.getDate() + 1);
-
-  const satFormatted = nextSat.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const sunFormatted = nextSun.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const prevSat = new Date(today);
-  prevSat.setDate(today.getDate() - ((today.getDay() + 1) % 7 + 1));
-  const prevSatFormatted = prevSat.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const upcomingMatches = [
-    {
-      id: `ffbb-${clubCode}-u1`,
-      date: satFormatted,
-      time: '20:30',
-      category: 'Seniors Garçons 1',
-      competition: 'Nationale 3 Masculine (Poule K)',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'JDA Dijon Basket 2',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-1092`,
-    },
-    {
-      id: `ffbb-${clubCode}-u2`,
-      date: satFormatted,
-      time: '18:00',
-      category: 'Seniors Filles 1',
-      competition: 'Pré-Nationale Féminine',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'AL Nuits-Saint-Georges',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-3041`,
-    },
-    {
-      id: `ffbb-${clubCode}-u3`,
-      date: sunFormatted,
-      time: '15:30',
-      category: 'U18 Masculins Région',
-      competition: 'Régionale 1 U18M',
-      teamHome: 'Élan Chalon CTC 2',
-      teamAway: 'BC Val de Saône',
-      isHomeMatch: false,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Le Colisée (Salle Annexe)',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-8472`,
-    },
-    {
-      id: `ffbb-${clubCode}-u4`,
-      date: sunFormatted,
-      time: '13:30',
-      category: 'U15 Filles 1',
-      competition: 'Départementale 1 U15F',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'US Saint-Rémy Basket',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      status: 'upcoming',
-      ffbbMatchNumber: `FFBB-${clubCode}-2019`,
-    },
-  ];
-
-  const pastResults = [
-    {
-      id: `ffbb-${clubCode}-r1`,
-      date: prevSatFormatted,
-      time: '20:30',
-      category: 'Seniors Garçons 1',
-      competition: 'Nationale 3 Masculine',
-      teamHome: 'Besançon Basket Club',
-      teamAway: 'BC Val de Saône',
-      isHomeMatch: false,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase des Montboucons',
-      city: 'Besançon',
-      homeScore: 72,
-      awayScore: 81,
-      status: 'finished',
-      result: 'win',
-      ffbbMatchNumber: `FFBB-${clubCode}-1091`,
-    },
-    {
-      id: `ffbb-${clubCode}-r2`,
-      date: prevSatFormatted,
-      time: '18:00',
-      category: 'Seniors Filles 1',
-      competition: 'Pré-Nationale Féminine',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'CS Louhans Basket',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      homeScore: 68,
-      awayScore: 54,
-      status: 'finished',
-      result: 'win',
-      ffbbMatchNumber: `FFBB-${clubCode}-3040`,
-    },
-    {
-      id: `ffbb-${clubCode}-r3`,
-      date: prevSatFormatted,
-      time: '15:30',
-      category: 'U18 Masculins Région',
-      competition: 'Régionale 1 U18M',
-      teamHome: 'BC Val de Saône',
-      teamAway: 'JDA Dijon 2',
-      isHomeMatch: true,
-      ourClubName: 'BC Val de Saône',
-      gymnasium: 'Gymnase de la Verrerie',
-      city: 'Chalon-sur-Saône',
-      homeScore: 62,
-      awayScore: 74,
-      status: 'finished',
-      result: 'loss',
-      ffbbMatchNumber: `FFBB-${clubCode}-8471`,
-    },
-  ];
-
-  return new Response(
-    JSON.stringify({
-      success: true,
-      source: 'ffbb_api_sync',
-      clubCode,
-      matches: upcomingMatches,
-      results: pastResults,
-      message: `API FFBB connectée : 4 rencontres à venir et 3 résultats récents synchronisés pour le club ${clubCode}`,
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+  try {
+    const res = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(clean)}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'ok' && data.club_resolu?.organisme_id) {
+        return String(data.club_resolu.organisme_id);
+      }
+      if (data.status === 'ambiguous' && Array.isArray(data.candidates) && data.candidates.length > 0) {
+        const exact = data.candidates.find((c: any) => c.code?.toUpperCase() === clean.toUpperCase());
+        return String(exact ? exact.organisme_id : data.candidates[0].organisme_id);
+      }
     }
-  );
+  } catch (err) {
+    console.error('[FFBB Netlify Resolver]:', err);
+  }
+  return null;
+}
+
+function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
+  badgeCategory: string;
+  displayName: string;
+  gender: 'M' | 'F' | 'Mixte';
+} {
+  const comp = (competition || '').trim();
+  const compLower = comp.toLowerCase();
+  const raw = (rawTeam || '').trim();
+  const rawLower = raw.toLowerCase();
+
+  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f');
+  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || rawLower.includes(' m');
+  const gender: 'M' | 'F' | 'Mixte' = isFem ? 'F' : (isMasc ? 'M' : 'Mixte');
+
+  const uMatch = compLower.match(/u\s*(\d+)/i) || rawLower.match(/u\s*(\d+)/i);
+  const numMatch = raw.match(/(\d+)$/) || comp.match(/équipe\s*(\d+)/i) || comp.match(/division\s*(\d+)/i);
+  const num = numMatch ? numMatch[1] : '1';
+
+  if (uMatch) {
+    const age = uMatch[1];
+    const gLetter = isFem ? 'F' : (isMasc ? 'M' : '');
+    const gWord = isFem ? 'Filles' : (isMasc ? 'Garçons' : 'Mixte');
+    return {
+      badgeCategory: `U${age} ${gLetter}${num}`.trim(),
+      displayName: `U${age} ${gWord} ${num}`.trim(),
+      gender,
+    };
+  }
+
+  if (compLower.includes('senior') || rawLower.includes('senior')) {
+    const gLetter = isFem ? 'F' : 'M';
+    const gWord = isFem ? 'Filles' : 'Garçons';
+    return {
+      badgeCategory: `Seniors ${gLetter}${num}`,
+      displayName: `Seniors ${gWord} ${num}`,
+      gender,
+    };
+  }
+
+  return {
+    badgeCategory: raw || 'Seniors',
+    displayName: raw || comp || 'Équipe Club',
+    gender,
+  };
+}
+
+export default async (req: Request, _context: Context) => {
+  const url = new URL(req.url);
+  const clubCode = (url.searchParams.get('code') || 'BFC0071024').trim();
+
+  try {
+    const orgId = await resolveOrganismeId(clubCode);
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          source: 'ffbb_api_desimone',
+          clubCode,
+          matches: [],
+          results: [],
+          totalCount: 0,
+          message: `Club FFBB "${clubCode}" non trouvé sur les registres officiels. Aucune fausse donnée générée.`,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const [matchesData, clubData, teamsData] = await Promise.all([
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+        headers: { 'Accept': 'application/json' },
+      }).then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
+
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+        headers: { 'Accept': 'application/json' },
+      }).then(r => r.ok ? r.json() : null).catch(() => null),
+
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+        headers: { 'Accept': 'application/json' },
+      }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+    ]);
+
+    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+    const clubNom = clubData?.nom || 'Sports Réunis Clayettois';
+    const clubCommune = clubData?.commune?.libelle || 'La Clayette';
+    const defaultGym = clubData?.salle?.libelle || 'COSEC';
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    const mappedMatches = rawMatches.map((m: any, idx: number) => {
+      const isHome = m.isHome ?? true;
+      const ourClubName = clubNom;
+      const opp = m.opponent || 'Adversaire Inconnu';
+      const teamHome = isHome ? ourClubName : opp;
+      const teamAway = isHome ? opp : ourClubName;
+
+      let gym = defaultGym;
+      if (m.location) {
+        const parts = m.location.split(',');
+        if (parts[0] && parts[0].trim()) {
+          gym = parts[0].trim();
+        }
+      }
+
+      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
+      const isPast = dateStr < todayStr;
+
+      const normCat = normalizeFFBBCategory(m.team, m.competition);
+      return {
+        id: `ffbb-${m.ffbbMatchId || idx}`,
+        date: dateStr,
+        time: m.time && m.time !== 'Horaire à fixer' ? m.time : '20:30',
+        category: normCat.badgeCategory,
+        competition: m.competition || 'Championnat FFBB',
+        teamHome,
+        teamAway,
+        isHomeMatch: isHome,
+        ourClubName,
+        gymnasium: gym,
+        city: isHome ? clubCommune : (m.location ? m.location.split(',').pop()?.trim() || '' : ''),
+        status: isPast ? 'finished' : 'upcoming',
+        result: null,
+        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
+        teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
+        opponentLogo: m.opponentLogo || undefined,
+        poule: m.poule || undefined,
+        pouleId: m.pouleId || undefined,
+      };
+    });
+
+    mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    const upcomingMatches = mappedMatches.filter((m: any) => m.status === 'upcoming');
+    const pastResults = mappedMatches.filter((m: any) => m.status === 'finished').reverse();
+
+    // Format and rank official teams with real match counts
+    const rawTeams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
+    const formattedTeams = rawTeams.map((t: any, idx: number) => {
+      const comp = t.competition || '';
+      const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
+      const teamMatches = mappedMatches.filter((m: any) => m.pouleId === t.poule_id || m.competition === comp);
+      const pouleName = teamMatches.find((m: any) => m.poule)?.poule;
+
+      return {
+        id: `team-${t.engagement_id || idx}`,
+        name: norm.displayName,
+        category: norm.badgeCategory,
+        gender: norm.gender,
+        competition: comp,
+        poule: pouleName,
+        pouleId: t.poule_id,
+        matchesCount: teamMatches.length,
+        status: 'active',
+      };
+    });
+
+    formattedTeams.sort((a: any, b: any) => {
+      const rank = (str: string) => {
+        if (str.includes('Seniors F')) return 1;
+        if (str.includes('Seniors G')) return 2;
+        if (str.includes('U18 F')) return 3;
+        if (str.includes('U18 G')) return 4;
+        if (str.includes('U15 F')) return 5;
+        if (str.includes('U13 F1')) return 6;
+        if (str.includes('U13 F2')) return 7;
+        if (str.includes('U13 G')) return 8;
+        if (str.includes('U11 F')) return 9;
+        if (str.includes('U11 G')) return 10;
+        return 99;
+      };
+      return rank(a.name) - rank(b.name);
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        source: 'ffbb_api_desimone',
+        clubCode,
+        organismeId: orgId,
+        clubName: clubNom,
+        city: clubCommune,
+        teams: formattedTeams,
+        matches: upcomingMatches,
+        results: pastResults,
+        totalCount: mappedMatches.length,
+        message: `API FFBB Officielle : ${upcomingMatches.length} rencontres à venir et ${pastResults.length} résultats récents pour ${clubNom}.`,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        source: 'ffbb_api_desimone',
+        clubCode,
+        matches: [],
+        results: [],
+        totalCount: 0,
+        error: err.message,
+        message: "Erreur lors de la récupération des données FFBB officielles. Aucune fausse donnée générée.",
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
 };
