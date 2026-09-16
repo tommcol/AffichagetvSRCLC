@@ -333,6 +333,40 @@ app.post("/api/social/publish", async (req, res) => {
 });
 
 // 8b. AI Social Caption Generator (Gemini API with smart fallback)
+function formatEuropeanDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const cleaned = dateStr.trim();
+  
+  // Try to match YYYY-MM-DD format
+  const yyyymmdd = cleaned.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+  if (yyyymmdd) {
+    return `${yyyymmdd[3]}/${yyyymmdd[2]}/${yyyymmdd[1]}`;
+  }
+
+  // Try to match DD-MM-YYYY or DD/MM/YYYY
+  const dd_mm_yyyy = cleaned.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (dd_mm_yyyy) {
+    return `${dd_mm_yyyy[1]}/${dd_mm_yyyy[2]}/${dd_mm_yyyy[3]}`;
+  }
+
+  // If it's a standard parsable string with year-month-day
+  try {
+    if (cleaned.includes("-") && cleaned.length >= 8) {
+      const parsed = new Date(cleaned);
+      if (!isNaN(parsed.getTime())) {
+        const day = String(parsed.getDate()).padStart(2, '0');
+        const month = String(parsed.getMonth() + 1).padStart(2, '0');
+        const year = parsed.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return cleaned;
+}
+
 app.post("/api/generate-caption", async (req, res) => {
   try {
     const {
@@ -347,13 +381,34 @@ app.post("/api/generate-caption", async (req, res) => {
       extraContext = "",
     } = req.body;
 
-    const matchesSummary = (matches || []).map((m: any) => 
-      `- ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'à Domicile vs ' + (m.teamAway || 'Adversaire') : 'à l\'Extérieur @ ' + (m.teamHome || 'Adversaire')} le ${m.date || ''} à ${m.time || ''}`
-    ).join("\n");
+    // Group matches by date
+    const matchesByDate: Record<string, any[]> = {};
+    for (const m of matches || []) {
+      const dateKey = m.date || 'Date non précisée';
+      if (!matchesByDate[dateKey]) {
+        matchesByDate[dateKey] = [];
+      }
+      matchesByDate[dateKey].push(m);
+    }
 
-    const resultsSummary = (results || []).map((r: any) =>
-      `- ${r.category || 'Équipe'} : ${r.homeScore ?? 0} - ${r.awayScore ?? 0} (${r.result === 'win' ? 'Victoire 🏆' : 'Défaite ❌'}) vs ${r.isHomeMatch ? (r.teamAway || 'Adversaire') : (r.teamHome || 'Adversaire')}`
-    ).join("\n");
+    // Sort dates or keep them in sequence
+    const sortedDates = Object.keys(matchesByDate).sort((a, b) => a.localeCompare(b));
+
+    const matchesSummary = sortedDates.map((dateStr) => {
+      const formattedDate = formatEuropeanDate(dateStr);
+      const matchesList = matchesByDate[dateStr].map((m) => {
+        const place = m.isHomeMatch ? `🏠 vs ${m.teamAway || 'Adversaire'}` : `🚗 @ ${m.teamHome || 'Adversaire'}`;
+        const timeStr = m.time ? ` à ${m.time}` : '';
+        const categoryStr = m.category || 'Équipe';
+        return `  • ${categoryStr} : ${place}${timeStr}`;
+      }).join("\n");
+      return `📅 ${formattedDate} :\n${matchesList}`;
+    }).join("\n\n");
+
+    const resultsSummary = (results || []).map((r: any) => {
+      const eurDate = r.date ? ` (le ${formatEuropeanDate(r.date)})` : '';
+      return `- ${r.category || 'Équipe'} : ${r.homeScore ?? 0} - ${r.awayScore ?? 0} (${r.result === 'win' ? 'Victoire 🏆' : 'Défaite ❌'}) vs ${r.isHomeMatch ? (r.teamAway || 'Adversaire') : (r.teamHome || 'Adversaire')}${eurDate}`;
+    }).join("\n");
 
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -371,9 +426,11 @@ ${extraContext ? `Instructions supplémentaires du club : ${extraContext}` : ""}
 
 Directives :
 1. Structurer clairement avec des sections lisibles et des emojis attrayants.
-2. Pour Instagram / Facebook, inclure une accroche percutante, la liste des rencontres/résultats, une incitation à venir encourager au gymnase / à la buvette.
-3. Pour TikTok, faire une version plus courte, dynamique et avec des hashtags tendance (#basketball #matchday #fyp etc.).
-4. Terminer par des hashtags pertinents pour le club.
+2. Toutes les dates mentionnées doivent obligatoirement utiliser le format européen jj/mm/annee (par exemple "18/09/2026") ou un format littéral en français (par exemple "Samedi 20 Septembre"), et jamais le format américain aaaa-mm-jj.
+3. Regrouper impérativement la liste des matchs par date (par exemple une section '📅 Samedi 20/09' ou '📅 Samedi 20 Septembre' avec les rencontres de cette journée listées dessous, au lieu de répéter la date devant chaque match).
+4. Pour Instagram / Facebook, inclure une accroche percutante, la liste des rencontres/résultats, une incitation à venir encourager au gymnase / à la buvette.
+5. Pour TikTok, faire une version plus courte, dynamique et avec des hashtags tendance (#basketball #matchday #fyp etc.).
+6. Terminer par des hashtags pertinents pour le club.
 Restitue uniquement le texte de la légende rédigé, sans guillemets ni meta-commentaires.`;
 
         const response = await ai.models.generateContent({

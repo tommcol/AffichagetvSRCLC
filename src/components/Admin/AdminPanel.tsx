@@ -64,6 +64,26 @@ import { FFBBService } from '../../services/ffbbService';
 import { parseExcelBirthdays, generateClubBirthdayTemplate } from '../../utils/excelBirthdayParser';
 
 
+const formatDateToEuropean = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const cleaned = dateStr.trim();
+  
+  // Try to match YYYY-MM-DD format
+  const yyyymmdd = cleaned.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+  if (yyyymmdd) {
+    return `${yyyymmdd[3]}/${yyyymmdd[2]}/${yyyymmdd[1]}`;
+  }
+
+  // Try to match DD-MM-YYYY or DD/MM/YYYY
+  const dd_mm_yyyy = cleaned.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (dd_mm_yyyy) {
+    return `${dd_mm_yyyy[1]}/${dd_mm_yyyy[2]}/${dd_mm_yyyy[3]}`;
+  }
+
+  return cleaned;
+};
+
+
 const DEFAULT_REAL_FFBB_TEAMS: FFBBTeamItem[] = [
   {
     id: 'team-200000005335541',
@@ -272,7 +292,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newMatchOpponent, setNewMatchOpponent] = useState('');
   const [newMatchDate, setNewMatchDate] = useState('Samedi 20 Septembre');
   const [newMatchTime, setNewMatchTime] = useState('20:30');
-  const [newMatchGymnasium, setNewMatchGymnasium] = useState(clubSettings.gymnasiumDefault || 'Gymnase de la Verrerie');
+  const [newMatchGymnasium, setNewMatchGymnasium] = useState(clubSettings.gymnasiumDefault || 'Gymnase intercommunal');
   const [newMatchIsHome, setNewMatchIsHome] = useState(true);
 
   // New Result Form State
@@ -322,6 +342,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [aiExtraContext, setAiExtraContext] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiCustomCaptions, setAiCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
+  const [customRewriteInput, setCustomRewriteInput] = useState<string>('');
+  const [customRewriteInstructions, setCustomRewriteInstructions] = useState<string>('');
+  const [customRewriteOutput, setCustomRewriteOutput] = useState<string>('');
+  const [isRewriting, setIsRewriting] = useState<boolean>(false);
+  const [syncStartDate, setSyncStartDate] = useState<string>('');
+  const [syncEndDate, setSyncEndDate] = useState<string>('');
   const [socialForm, setSocialForm] = useState({
     instagramHandle: clubSettings.instagramHandle || '@bc_valdesaone',
     facebookPage: clubSettings.facebookPage || 'BasketClubValDeSaone',
@@ -418,6 +444,53 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const handleCustomRewrite = async () => {
+    if (!customRewriteInput.trim()) return;
+    setIsRewriting(true);
+    try {
+      const response = await fetch('/api/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'instagram',
+          type: 'matches',
+          matches: [],
+          results: [],
+          clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
+          shortClub: clubSettings.shortName || 'BCVS',
+          gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+          tone: aiTone,
+          extraContext: `RÉÉCRITURE DE TEXTE - IGNORE LES AUTRES INSTRUCTIONS ET LES MATCHS : Corrige les fautes, optimise la tournure, et applique ces consignes d'amélioration : "${customRewriteInstructions || 'Améliorer le style et corriger l\'orthographe'}".
+Voici le texte brut que tu dois améliorer et réécrire :
+"${customRewriteInput}"
+Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni phrases d'introduction.`,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.caption) {
+        setCustomRewriteOutput(data.caption);
+      } else {
+        setCustomRewriteOutput(customRewriteInput);
+      }
+    } catch (err) {
+      console.error(err);
+      setCustomRewriteOutput(customRewriteInput);
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  const handleApplyRewriteToPlatform = (platform: 'instagram' | 'tiktok' | 'facebook' | 'all') => {
+    if (!customRewriteOutput) return;
+    setAiCustomCaptions((prev) => {
+      const next = { ...prev };
+      if (platform === 'all' || platform === 'instagram') next.instagram = customRewriteOutput;
+      if (platform === 'all' || platform === 'tiktok') next.tiktok = customRewriteOutput;
+      if (platform === 'all' || platform === 'facebook') next.facebook = customRewriteOutput;
+      return next;
+    });
   };
 
   const togglePreparedItem = (id: string) => {
@@ -675,6 +748,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setTimeout(() => setCopiedWebhook(false), 2500);
   };
 
+  const setFilterToCurrentWeekend = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    let daysToFriday = 5 - dayOfWeek;
+    if (dayOfWeek === 0) daysToFriday = -2;
+    else if (dayOfWeek === 6) daysToFriday = -1;
+    
+    const friday = new Date(today);
+    friday.setDate(today.getDate() + daysToFriday);
+    
+    const monday = new Date(friday);
+    monday.setDate(friday.getDate() + 3);
+    
+    setSyncStartDate(friday.toISOString().slice(0, 10));
+    setSyncEndDate(monday.toISOString().slice(0, 10));
+  };
+
   // Sync with FFBB
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
@@ -682,10 +772,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const res = await FFBBService.fetchClubData(clubSettings.codeFFBB);
       if (res.matches && res.matches.length > 0) {
-        onUpdateMatches(res.matches);
-        if (res.results && res.results.length > 0) {
-          onUpdateResults(res.results);
+        let filteredMatches = res.matches || [];
+        let filteredResults = res.results || [];
+
+        if (syncStartDate || syncEndDate) {
+          if (syncStartDate) {
+            filteredMatches = filteredMatches.filter((m) => m.date >= syncStartDate);
+            filteredResults = filteredResults.filter((r) => r.date >= syncStartDate);
+          }
+          if (syncEndDate) {
+            filteredMatches = filteredMatches.filter((m) => m.date <= syncEndDate);
+            filteredResults = filteredResults.filter((r) => r.date <= syncEndDate);
+          }
         }
+
+        onUpdateMatches(filteredMatches);
+        if (filteredResults.length > 0) {
+          onUpdateResults(filteredResults);
+        } else {
+          onUpdateResults([]); // empty results if none match
+        }
+
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
           setFfbbTeams(res.clubInfo.teamsList);
           try {
@@ -694,7 +801,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
         
         const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
-        setSyncMessage(`Synchronisation réussie (${sourceInfo}) ! ${res.matches.length} rencontres à venir, ${res.results?.length || 0} résultats, et ${res.clubInfo?.teamsList?.length || ffbbTeams.length} équipes officielles pour ${clubSettings.name || clubSettings.codeFFBB}.`);
+        const filterMsg = (syncStartDate || syncEndDate) 
+          ? ` (filtré du ${formatDateToEuropean(syncStartDate)} au ${formatDateToEuropean(syncEndDate)})` 
+          : '';
+        setSyncMessage(`Synchronisation réussie (${sourceInfo})${filterMsg} ! ${filteredMatches.length} rencontres importées, ${filteredResults.length} résultats, et ${res.clubInfo?.teamsList?.length || ffbbTeams.length} équipes officielles.`);
       } else {
         setSyncMessage(res.message || 'Calendrier FFBB officiel interrogé : aucune rencontre programmée pour ce club.');
       }
@@ -758,24 +868,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const homeMatches = targetMatches.filter((m) => m.isHomeMatch);
       const awayMatches = targetMatches.filter((m) => !m.isHomeMatch);
 
+      const buildGroupedMatchesText = (list: MatchItem[], isHome: boolean) => {
+        if (list.length === 0) {
+          return isHome ? "Aucun match à domicile" : "Aucun déplacement";
+        }
+        
+        // Group by date
+        const grouped: Record<string, MatchItem[]> = {};
+        list.forEach((m) => {
+          const d = m.date || 'Date non spécisée';
+          if (!grouped[d]) grouped[d] = [];
+          grouped[d].push(m);
+        });
+
+        // Sort dates
+        const sortedKeys = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+        return sortedKeys.map((dateStr) => {
+          const dateEur = formatDateToEuropean(dateStr);
+          const matchLines = grouped[dateStr].map((m) => {
+            const label = isHome ? `vs ${m.teamAway}` : `@ ${m.teamHome}`;
+            return `  • ${m.category} ${label} à ${m.time}`;
+          }).join('\n');
+          return `📅 ${dateEur} :\n${matchLines}`;
+        }).join('\n\n');
+      };
+
       if (platform === 'instagram') {
-        const homeList = homeMatches.length > 0
-          ? homeMatches.map((m) => `🏠 ${m.category} vs ${m.teamAway} — ${m.date} à ${m.time}`).join('\n')
-          : 'Aucun match à domicile';
-        const awayList = awayMatches.length > 0
-          ? awayMatches.map((m) => `🚗 ${m.category} @ ${m.teamHome} — ${m.date} à ${m.time}`).join('\n')
-          : 'Aucun déplacement';
+        const homeList = buildGroupedMatchesText(homeMatches, true);
+        const awayList = buildGroupedMatchesText(awayMatches, false);
 
         return `🔥 PROGRAMME DU WEEK-END • ${shortClub.toUpperCase()} 🔥\n\nVenez soutenir nos équipes en nombre ce week-end !\n\n📍 À DOMICILE (${clubSettings.gymnasiumDefault}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette & ambiance au rendez-vous ! 🔴⚪\n.\n.\n#Basket #MatchDay #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #TeamSpirit #FFBB #Basketball #GameDay\n📲 Suivez-nous : ${insta}`;
       } else if (platform === 'tiktok') {
         return `C'est le match day pour ${shortClub} ! 🏀🔥 Qui sera là pour faire du bruit ce week-end ? Rendez-vous sur le terrain ! ⚡💥\n\n#basketball #basket #matchday #pourtoi #fyp #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #foryou #viral #hoops #bball @${tiktok.replace(/^@/, '')}`;
       } else {
-        const homeList = homeMatches.length > 0
-          ? homeMatches.map((m) => `👉 ${m.category} vs ${m.teamAway} — ${m.date} à ${m.time}`).join('\n')
-          : 'Aucune rencontre à domicile.';
-        const awayList = awayMatches.length > 0
-          ? awayMatches.map((m) => `👉 ${m.category} @ ${m.teamHome} — ${m.date} à ${m.time}`).join('\n')
-          : 'Aucun déplacement.';
+        const homeList = buildGroupedMatchesText(homeMatches, true);
+        const awayList = buildGroupedMatchesText(awayMatches, false);
 
         return `🏀 PROGRAMME DU WEEK-END — ${clubName.toUpperCase()} 🏀\n\nCe week-end, nos équipes sont d'attaque pour défendre nos couleurs ! Retrouvez ci-dessous le calendrier complet des rencontres :\n\n📍 À DOMICILE (${clubSettings.gymnasiumDefault}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette et restauration sur place pour les matchs à domicile ! Venez encourager nos joueuses et joueurs ! 👏\n\nRetrouvez toute l'actualité du club sur notre page : fb.com/${fb}`;
       }
@@ -1136,24 +1264,85 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'matches' && (
             <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
-                <div>
-                  <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                    <span>PROGRAMME DES MATCHS DU WEEK-END ({matches.length})</span>
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
-                  </p>
+              <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <span>PROGRAMME DES MATCHS DU WEEK-END ({matches.length})</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setActiveTab('ffbb')}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-blue-600/20"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Synchroniser avec la FFBB</span>
-                  </button>
+                {/* Widget de Synchronisation Rapide FFBB Directe */}
+                <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 mt-2 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                      <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                        Synchronisation Rapide FFBB (Par dates)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={setFilterToCurrentWeekend}
+                        className="px-2.5 py-1 rounded bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all"
+                      >
+                        📅 Ce week-end
+                      </button>
+                      {(syncStartDate || syncEndDate) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSyncStartDate('');
+                            setSyncEndDate('');
+                          }}
+                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all"
+                        >
+                          Effacer le filtre
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de début :</span>
+                      <input
+                        type="date"
+                        value={syncStartDate}
+                        onChange={(e) => setSyncStartDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de fin :</span>
+                      <input
+                        type="date"
+                        value={syncEndDate}
+                        onChange={(e) => setSyncEndDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSyncFFBB}
+                      disabled={isSyncingFFBB}
+                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingFFBB ? 'Synchronisation...' : 'Récupérer depuis la FFBB'}</span>
+                    </button>
+                  </div>
+
+                  {syncMessage && (
+                    <p className="text-[11px] text-emerald-400 font-medium bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/20">
+                      {syncMessage}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1398,7 +1587,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             {m.category}
                           </span>
                           <span className="text-slate-600">•</span>
-                          <span className="text-slate-300 font-mono">{m.date} - {m.time}</span>
+                          <span className="text-slate-300 font-mono">{formatDateToEuropean(m.date)} - {m.time}</span>
                           {isLive && (
                             <span className="px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
@@ -1562,11 +1751,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs font-bold mb-1">
+                        <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
                           <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
                             {r.category}
                           </span>
                           <span className="text-slate-600">•</span>
+                          {r.date && r.date !== 'Week-end dernier' && (
+                            <>
+                              <span className="text-slate-400 font-mono text-[11px] font-bold">
+                                {formatDateToEuropean(r.date)}
+                              </span>
+                              <span className="text-slate-600">•</span>
+                            </>
+                          )}
                           <span className={isWin ? 'text-emerald-300' : 'text-rose-300'}>
                             {isWin ? 'VICTOIRE' : 'DÉFAITE'}
                           </span>
@@ -1987,19 +2184,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                 </div>
 
-                <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
-                  <Upload className="w-4 h-4" />
-                  <span>Déposer l'affiche de l'événement</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageFileChange(file, (dataUrl) => handleAddEvent(dataUrl));
-                    }}
-                  />
-                </label>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
+                    <Upload className="w-4 h-4" />
+                    <span>Déposer l'affiche de l'événement</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageFileChange(file, (dataUrl) => handleAddEvent(dataUrl));
+                      }}
+                    />
+                  </label>
+                  <p className="text-[10px] text-slate-400">
+                    💡 Vos affiches d'événements s'afficheront en plein écran haute fidélité sur les TV sans aucun texte superposé par-dessus pour préserver vos visuels !
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2963,6 +3165,121 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Petit diviseur et Outil de Réécriture */}
+                <div className="border-t border-purple-500/20 pt-4 mt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-pink-400 animate-pulse" />
+                    <h5 className="text-xs font-bold text-purple-200 tracking-wider uppercase">
+                      OPTIMISEUR & CORRECTEUR DE TEXTE RAPIDE (IA GEMINI)
+                    </h5>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Saisissez un texte brut en vrac ci-dessous (brouillon de match, annonce de dernière minute) : l'IA va le corriger, l'embellir et vous pourrez ensuite l'appliquer directement à vos réseaux d'un clic !
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Saisie brute et consignes */}
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-slate-300">Votre texte brut / brouillon :</span>
+                        <textarea
+                          value={customRewriteInput}
+                          onChange={(e) => setCustomRewriteInput(e.target.value)}
+                          placeholder="Saisissez votre texte brut ici... Ex: victoire facile des seniors filles contre Macon 78 a 42, match difficile mais super ambiance !"
+                          rows={3}
+                          className="w-full bg-slate-950 rounded-xl p-2.5 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-purple-500 resize-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-slate-300">Consignes de style de l'IA (Ex: limiter les emojis, écrire comme le coach...) :</span>
+                        <input
+                          type="text"
+                          value={customRewriteInstructions}
+                          onChange={(e) => setCustomRewriteInstructions(e.target.value)}
+                          placeholder="Ex: Limiter les émojis à 2 maximum, écrire avec l'autorité du coach..."
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCustomRewrite}
+                        disabled={isRewriting || !customRewriteInput.trim()}
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+                      >
+                        {isRewriting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Correction et amélioration en cours...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                            <span>Corriger & Améliorer le texte par l'IA</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Proposition de l'IA et Boutons d'application */}
+                    <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-3.5 flex flex-col justify-between space-y-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-emerald-400">Proposition optimisée par l'IA :</span>
+                          {customRewriteOutput && (
+                            <span className="text-[9px] uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30 font-bold">
+                              Prêt à appliquer
+                            </span>
+                          )}
+                        </div>
+                        {customRewriteOutput ? (
+                          <div className="text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            {customRewriteOutput}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-500 italic flex items-center justify-center h-28 border border-dashed border-slate-800 rounded-xl bg-slate-950/30 text-center px-4">
+                            Saisissez un texte à gauche et cliquez sur "Corriger & Améliorer" pour voir la proposition de l'IA ici.
+                          </div>
+                        )}
+                      </div>
+
+                      {customRewriteOutput && (
+                        <div className="space-y-2 pt-1 border-t border-slate-900">
+                          <span className="text-[10px] font-bold text-slate-400 block">Injecter cette proposition dans :</span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleApplyRewriteToPlatform('instagram')}
+                              className="py-1.5 px-2 rounded-lg bg-pink-950/40 hover:bg-pink-900 text-pink-300 border border-pink-500/20 font-bold text-[10px] transition-all text-center"
+                            >
+                              Instagram 📸
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApplyRewriteToPlatform('tiktok')}
+                              className="py-1.5 px-2 rounded-lg bg-cyan-950/40 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/20 font-bold text-[10px] transition-all text-center"
+                            >
+                              TikTok ⚡
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApplyRewriteToPlatform('facebook')}
+                              className="py-1.5 px-2 rounded-lg bg-blue-950/40 hover:bg-blue-900 text-blue-300 border border-blue-500/20 font-bold text-[10px] transition-all text-center"
+                            >
+                              Facebook 👥
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApplyRewriteToPlatform('all')}
+                              className="py-1.5 px-2 rounded-lg bg-purple-950/60 hover:bg-purple-900 text-purple-200 border border-purple-500/40 font-black text-[10px] transition-all text-center col-span-2 sm:col-span-1"
+                            >
+                              Partout ✨
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Anti-Doublon & Preparation Checklist (Trame 1 par 1) */}
@@ -3096,14 +3413,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <span className="text-[10px] text-slate-400">Format 1:1 Carré ou 9:16 Story</span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-pink-400 bg-pink-950/60 px-2 py-0.5 rounded-md border border-pink-500/20">
-                        {socialForm.instagramHandle}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateAICaption('instagram')}
+                          disabled={aiLoading}
+                          title="Régénérer avec l'IA"
+                          className="p-1.5 rounded-lg bg-pink-950/60 hover:bg-pink-900 text-pink-300 border border-pink-500/20 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <span className="text-[11px] font-mono font-bold text-pink-400 bg-pink-950/60 px-2 py-0.5 rounded-md border border-pink-500/20">
+                          {socialForm.instagramHandle}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto select-all">
-                      {getSocialCaption('instagram', socialContentType)}
-                    </div>
+                    <textarea
+                      value={getSocialCaption('instagram', socialContentType)}
+                      onChange={(e) => setAiCustomCaptions((prev) => ({ ...prev, instagram: e.target.value }))}
+                      rows={8}
+                      className="w-full bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto focus:outline-none focus:border-pink-500 resize-none"
+                    />
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2">
@@ -3146,14 +3477,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <span className="text-[10px] text-slate-400">Format Vertical 9:16 Plein Écran</span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-500/20">
-                        {socialForm.tiktokHandle}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateAICaption('tiktok')}
+                          disabled={aiLoading}
+                          title="Régénérer avec l'IA"
+                          className="p-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/20 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <span className="text-[11px] font-mono font-bold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-500/20">
+                          {socialForm.tiktokHandle}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto select-all">
-                      {getSocialCaption('tiktok', socialContentType)}
-                    </div>
+                    <textarea
+                      value={getSocialCaption('tiktok', socialContentType)}
+                      onChange={(e) => setAiCustomCaptions((prev) => ({ ...prev, tiktok: e.target.value }))}
+                      rows={8}
+                      className="w-full bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto focus:outline-none focus:border-cyan-500 resize-none"
+                    />
 
                     <div className="bg-cyan-950/30 border border-cyan-500/20 rounded-xl p-2.5 text-[11px] text-cyan-300 flex items-start gap-2">
                       <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-cyan-400" />
@@ -3201,14 +3546,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <span className="text-[10px] text-slate-400">Post avec détails gymnase & buvette</span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-500/20">
-                        {socialForm.facebookPage}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateAICaption('facebook')}
+                          disabled={aiLoading}
+                          title="Régénérer avec l'IA"
+                          className="p-1.5 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-500/20 transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <span className="text-[11px] font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-500/20">
+                          {socialForm.facebookPage}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto select-all">
-                      {getSocialCaption('facebook', socialContentType)}
-                    </div>
+                    <textarea
+                      value={getSocialCaption('facebook', socialContentType)}
+                      onChange={(e) => setAiCustomCaptions((prev) => ({ ...prev, facebook: e.target.value }))}
+                      rows={8}
+                      className="w-full bg-slate-950 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto focus:outline-none focus:border-blue-500 resize-none"
+                    />
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2">
@@ -3856,6 +4215,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <span>{isSyncingFFBB ? 'Synchronisation...' : 'Synchroniser les matchs'}</span>
                   </button>
                 </div>
+
+                {/* Petit Calendrier de Filtrage des Dates */}
+                <div className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700/40 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Filtre par dates / calendrier (Évite d'importer toute la saison) :</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Sélectionnez une période pour ne synchroniser que les matchs de ce week-end ou de ces dates.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={setFilterToCurrentWeekend}
+                        className="px-2.5 py-1 rounded bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all"
+                      >
+                        📅 Ce week-end
+                      </button>
+                      {(syncStartDate || syncEndDate) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSyncStartDate('');
+                            setSyncEndDate('');
+                          }}
+                          className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-bold transition-all"
+                        >
+                          Effacer le filtre
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de début :</span>
+                      <input
+                        type="date"
+                        value={syncStartDate}
+                        onChange={(e) => setSyncStartDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de fin :</span>
+                      <input
+                        type="date"
+                        value={syncEndDate}
+                        onChange={(e) => setSyncEndDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {syncMessage && (
                   <p className="text-xs text-emerald-400 font-medium bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/30">
                     {syncMessage}
