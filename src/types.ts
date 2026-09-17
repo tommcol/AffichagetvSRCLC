@@ -73,12 +73,114 @@ export interface ActiveMatchAlert {
 export type FinishedMatchNotification = ActiveMatchAlert;
 
 // Visual support templates for the generated slides (Matchs, Résultats, Anniversaires)
+export type FontFamilyOption =
+  | 'Bebas Neue'
+  | 'Teko'
+  | 'Montserrat'
+  | 'Outfit'
+  | 'Oswald'
+  | 'Anton'
+  | 'Russo One'
+  | 'Kanit'
+  | 'Poppins'
+  | 'Changa'
+  | 'Fredoka'
+  | 'Permanent Marker';
+
+export interface ForegroundMascotConfig {
+  enabled: boolean;
+  mediaUrl: string; // URL (video MP4 / WebM / image GIF / PNG)
+  mediaType: 'video' | 'image';
+  useChromaKey: boolean; // suppression automatique du fond vert
+  chromaKeyColor: string; // ex: "#00ff00"
+  chromaTolerance: number; // 0.1 à 0.6 (défaut 0.35)
+  chromaSmoothness: number; // 0.0 à 0.2 (défaut 0.08)
+  position: 'bottom-right' | 'bottom-left' | 'top-right' | 'center-right';
+  scale: number; // 0.6 à 1.5 (défaut 1.0)
+  opacity: number; // 0.2 à 1.0 (défaut 1.0)
+  animationStyle: 'bounce' | 'pulse' | 'float' | 'none';
+  showOnMatches: boolean;
+  showOnResults: boolean;
+  showOnBirthdays?: boolean; // Afficher sur le slide des anniversaires
+  onlyOnVictory: boolean;
+}
+
+export interface SlideDesignTheme {
+  primaryColor: string; // Couleur d'accentuation (ex: "#ea580c" ou "#dc2626")
+  secondaryColor: string; // Couleur secondaire (ex: "#0f172a")
+  cardBgColor: string; // Couleur de fond des cartes (ex: "#020617")
+  cardOpacity: number; // 0.1 à 1.0 (défaut 0.85)
+  cardBlur: number; // 0 à 20 (défaut 8)
+  fontFamilyHeader: FontFamilyOption; // 'Bebas Neue' | 'Montserrat' | 'Outfit' | 'Teko'
+  fontFamilyScore: FontFamilyOption; // 'Teko' | 'Bebas Neue' | 'Outfit' | 'Montserrat'
+  backgroundBrightness: number; // 0.1 à 1.0 (défaut 0.35)
+  backgroundBlur: number; // 0 à 20px (défaut 0)
+}
+
+// Élément superposé libre (Calque 3 et Calque 4 : mascotte, logo, badge derby, sponsor, sticker...)
+export interface OverlayLayerItem {
+  id?: string;
+  name?: string; // ex: "Mascotte", "Logo Officiel", "Badge Choc", "Partenaire"
+  enabled: boolean;
+  mediaUrl: string; // Image PNG / WebP / GIF ou Vidéo MP4 / WebM
+  mediaType: 'image' | 'video';
+  useChromaKey: boolean; // suppression du fond vert
+  chromaKeyColor: string; // ex: "#00ff00"
+  chromaTolerance: number; // 0.1 à 0.7 (défaut 0.35)
+  chromaSmoothness: number; // 0.0 à 0.2 (défaut 0.08)
+  x: number; // 0 à 100 (% horizontal par rapport à la gauche)
+  y: number; // 0 à 100 (% vertical par rapport au haut)
+  scale: number; // 0.2 à 4.0 (défaut 1.0)
+  opacity: number; // 0.1 à 1.0 (défaut 1.0)
+  animationStyle: 'bounce' | 'pulse' | 'float' | 'none';
+  fullScreen?: boolean; // Si activé, s'étend sur toute la page / plein écran 100%
+  objectFit?: 'contain' | 'cover'; // Mode d'affichage quand agrandi ('cover' par défaut pour 16:9)
+  onlyOnVictory?: boolean; // spécifique Résultats
+  // Trajectoire animée / Traversée d'écran (ex: mascotte marchant sur place avec traversée de droite à gauche)
+  motionTrajectory?: 'none' | 'right-to-left' | 'left-to-right';
+  motionDuration?: number; // Durée de la traversée en secondes (défaut 12)
+  flipHorizontal?: boolean; // Effet miroir horizontal pour ajuster l'orientation
+}
+
+// Paramétrage visuel dédié pour chaque catégorie (Matchs, Résultats, Anniversaires)
+export interface CategorySlideTheme {
+  // Calque 1 : Fond
+  backgroundUrl?: string; // Image ou vidéo propre à cette catégorie
+  backgroundBrightness?: number; // 0.05 à 2.0 (5% à 200%)
+  backgroundBlur?: number; // 0 à 20px
+
+  // Calque 2 : Cartes & Données
+  primaryColor?: string; // Couleur d'accentuation spécifique
+  cardBgColor?: string; // Couleur de fond des cartes
+  cardOpacity?: number; // 0.1 à 1.0 (opacité / transparence)
+  cardBlur?: number; // 0 à 24px (flou glassmorphism)
+  fontFamilyHeader?: FontFamilyOption; // Typographie des grands titres & équipes
+  fontFamilyScore?: FontFamilyOption; // Typographie dédiée aux scores & chiffres (Résultats)
+
+  // Calque 3 : Élément superposé 1 (libre : mascotte, logo, badge, etc.)
+  layer3?: OverlayLayerItem;
+
+  // Calque 4 : Élément superposé 2 (libre : identique au calque 3)
+  layer4?: OverlayLayerItem;
+
+  // Rétro-compatibilité
+  showMascot?: boolean;
+  mascotPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'center-right';
+  mascotOnlyOnVictory?: boolean;
+}
+
 export interface VisualTemplatesConfig {
   matchesBackgroundUrl: string;
   resultsBackgroundUrl: string;
   birthdaysBackgroundUrl: string;
   defaultVictoryBackgroundUrl: string;
   defaultDefeatBackgroundUrl: string;
+  theme?: SlideDesignTheme;
+  mascot?: ForegroundMascotConfig;
+  // Réglages par catégorie
+  matchesSettings?: CategorySlideTheme;
+  resultsSettings?: CategorySlideTheme;
+  birthdaysSettings?: CategorySlideTheme;
 }
 
 // Pre-made Win / Loss visuals per team in the club

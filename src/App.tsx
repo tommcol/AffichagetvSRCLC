@@ -35,7 +35,9 @@ import { BirthdaysSlide } from './components/slides/BirthdaysSlide';
 import { EventsSlide } from './components/slides/EventsSlide';
 import { MatchAlertSlide } from './components/slides/MatchAlertSlide';
 import { VisualExporterModal } from './components/VisualExporterModal';
+import { CarouselVideoExporterModal } from './components/CarouselVideoExporterModal';
 import { AdminPanel } from './components/Admin/AdminPanel';
+import { getEffectiveCategoryConfig } from './utils/themeUtils';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
@@ -48,6 +50,7 @@ import {
   Flame,
   Radio,
   Sliders,
+  Video,
 } from 'lucide-react';
 
 function loadStorage<T>(_key: string, fallback: T): T {
@@ -111,6 +114,7 @@ export default function App() {
     isOpen: false,
     type: 'matches',
   });
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
 
   // Chargement des données depuis le serveur au démarrage
   useEffect(() => {
@@ -579,6 +583,20 @@ export default function App() {
       )
     : undefined;
 
+  // Effective slide themes per category
+  const matchesEffective = useMemo(
+    () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+  const resultsEffective = useMemo(
+    () => getEffectiveCategoryConfig('results', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+  const birthdaysEffective = useMemo(
+    () => getEffectiveCategoryConfig('birthdays', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+
   // If in Admin Mode, render the full admin dashboard interface directly!
   if (viewMode === 'admin' && !adminAuthentifie) {
     const tenterConnexion = async (e: React.FormEvent) => {
@@ -660,6 +678,37 @@ export default function App() {
             handleToggleFullscreen();
           }}
           onOpenVisualExporter={(type) => setVisualModalState({ isOpen: true, type })}
+          onOpenVideoExporter={() => setIsVideoModalOpen(true)}
+        />
+
+        {/* Social Media Visual Exporter Modal */}
+        <VisualExporterModal
+          isOpen={visualModalState.isOpen}
+          onClose={() => setVisualModalState({ isOpen: false, type: 'matches' })}
+          type={visualModalState.type}
+          matches={matches}
+          results={results}
+          clubSettings={clubSettings}
+          specificNotification={activeAlerts[0] || null}
+          onOpenVideoExporter={() => setIsVideoModalOpen(true)}
+          visualTemplates={visualTemplates}
+        />
+
+        {/* Carousel Video Exporter Modal */}
+        <CarouselVideoExporterModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          matches={matches}
+          results={results}
+          sponsors={sponsors}
+          logos={logos}
+          photos={photos}
+          birthdays={birthdays}
+          events={events}
+          teamVisuals={teamVisuals}
+          visualTemplates={visualTemplates}
+          clubSettings={clubSettings}
+          activeAlerts={activeAlerts}
         />
       </div>
     );
@@ -730,9 +779,13 @@ export default function App() {
                   <MatchesSlide
                     matches={matches}
                     clubSettings={clubSettings}
-                    backgroundUrl={visualTemplates.matchesBackgroundUrl}
+                    backgroundUrl={matchesEffective.backgroundUrl}
                     onDownloadVisual={() => setVisualModalState({ isOpen: true, type: 'matches' })}
                     hideShareButton={true}
+                    theme={matchesEffective.theme}
+                    mascot={matchesEffective.mascot}
+                    layer3={matchesEffective.layer3}
+                    layer4={matchesEffective.layer4}
                   />
                 )}
 
@@ -740,9 +793,13 @@ export default function App() {
                   <ResultsSlide
                     results={results}
                     clubSettings={clubSettings}
-                    backgroundUrl={visualTemplates.resultsBackgroundUrl}
+                    backgroundUrl={resultsEffective.backgroundUrl}
                     onDownloadVisual={() => setVisualModalState({ isOpen: true, type: 'results' })}
                     hideShareButton={true}
+                    theme={resultsEffective.theme}
+                    mascot={resultsEffective.mascot}
+                    layer3={resultsEffective.layer3}
+                    layer4={resultsEffective.layer4}
                   />
                 )}
 
@@ -750,7 +807,11 @@ export default function App() {
                   <BirthdaysSlide
                     birthdays={birthdays}
                     clubSettings={clubSettings}
-                    backgroundUrl={visualTemplates.birthdaysBackgroundUrl}
+                    backgroundUrl={birthdaysEffective.backgroundUrl}
+                    theme={birthdaysEffective.theme}
+                    mascot={birthdaysEffective.mascot}
+                    layer3={birthdaysEffective.layer3}
+                    layer4={birthdaysEffective.layer4}
                   />
                 )}
 
@@ -857,6 +918,19 @@ export default function App() {
 
           <div className="w-px h-5 bg-slate-700 mx-0.5" />
 
+          {/* Quick Video Export Button */}
+          <button
+            onClick={() => setIsVideoModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+            title="Exporter et télécharger le carrousel en format vidéo (MP4 / WebM)"
+            id="btn-tv-video-exporter"
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Télécharger en Vidéo</span>
+          </button>
+
+          <div className="w-px h-5 bg-slate-700 mx-0.5" />
+
           {/* Fullscreen Button */}
           <button
             onClick={handleToggleFullscreen}
@@ -879,6 +953,27 @@ export default function App() {
         results={results}
         clubSettings={clubSettings}
         specificNotification={activeAlerts[0] || null}
+        onOpenVideoExporter={() => setIsVideoModalOpen(true)}
+        visualTemplates={visualTemplates}
+      />
+
+      {/* ========================================================================= */}
+      {/* 4. MODALS: CAROUSEL VIDEO EXPORTER (MP4 / WEBM) */}
+      {/* ========================================================================= */}
+      <CarouselVideoExporterModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        matches={matches}
+        results={results}
+        sponsors={sponsors}
+        logos={logos}
+        photos={photos}
+        birthdays={birthdays}
+        events={events}
+        teamVisuals={teamVisuals}
+        visualTemplates={visualTemplates}
+        clubSettings={clubSettings}
+        activeAlerts={activeAlerts}
       />
     </div>
   );

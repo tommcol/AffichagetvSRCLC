@@ -20,7 +20,9 @@ interface ActiveMatchAlert {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Support larger payloads (photos, logos, sponsor visuals, base64 exports)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // In-memory active alerts (injected into the TV loop for 1 hour)
 let activeAlerts: ActiveMatchAlert[] = [];
@@ -434,7 +436,7 @@ Directives :
 Restitue uniquement le texte de la légende rédigé, sans guillemets ni meta-commentaires.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.6-flash",
           contents: prompt,
         });
 

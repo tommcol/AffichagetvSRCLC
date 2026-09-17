@@ -14,6 +14,48 @@
     font-family: 'Teko', sans-serif;
     letter-spacing: 0.04em;
   }
+
+  .font-montserrat {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .font-oswald {
+    font-family: 'Oswald', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .font-anton {
+    font-family: 'Anton', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .font-russo {
+    font-family: 'Russo One', sans-serif;
+  }
+
+  .font-kanit {
+    font-family: 'Kanit', sans-serif;
+  }
+
+  .font-poppins {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .font-changa {
+    font-family: 'Changa', sans-serif;
+  }
+
+  .font-fredoka {
+    font-family: 'Fredoka', cursive, sans-serif;
+  }
+
+  .font-marker {
+    font-family: 'Permanent Marker', cursive, sans-serif;
+  }
+
+  .font-outfit {
+    font-family: 'Outfit', sans-serif;
+  }
 }
 
 @keyframes marquee {
@@ -35,3 +77,22 @@
 .animate-pulse-slow {
   animation: pulseSlow 3s ease-in-out infinite;
 }
+
+@keyframes traverseRightToLeft {
+  0% {
+    left: 115%;
+  }
+  100% {
+    left: -25%;
+  }
+}
+
+@keyframes traverseLeftToRight {
+  0% {
+    left: -25%;
+  }
+  100% {
+    left: 115%;
+  }
+}
+

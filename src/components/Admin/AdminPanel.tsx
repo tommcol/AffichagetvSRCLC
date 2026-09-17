@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
   Sliders,
@@ -38,9 +38,13 @@ import {
   Flame,
   Shuffle,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Settings,
   Pencil,
   Video,
+  Home,
+  Navigation,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -62,6 +66,8 @@ import { isMatchLive } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { FFBBService } from '../../services/ffbbService';
 import { parseExcelBirthdays, generateClubBirthdayTemplate } from '../../utils/excelBirthdayParser';
+import { MiniCalendarPicker, SingleDatePicker, formatDateToReadableFrench } from './MiniCalendarPicker';
+import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
 
 
 const formatDateToEuropean = (dateStr: string): string => {
@@ -228,6 +234,7 @@ interface AdminPanelProps {
   onRemoveAlert: (alertId: string) => void;
   onSwitchToTvMode: () => void;
   onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat') => void;
+  onOpenVideoExporter?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -261,6 +268,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRemoveAlert,
   onSwitchToTvMode,
   onOpenVisualExporter,
+  onOpenVideoExporter,
 }) => {
   const [activeTab, setActiveTab] = useState<
     | 'matches'
@@ -295,11 +303,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newMatchGymnasium, setNewMatchGymnasium] = useState(clubSettings.gymnasiumDefault || 'Gymnase intercommunal');
   const [newMatchIsHome, setNewMatchIsHome] = useState(true);
 
-  // New Result Form State
+  // New Result Form State (Synchronized with FFBB)
   const [newResultCategory, setNewResultCategory] = useState('Seniors Garçons 1');
+  const [newResultIsCustomCategory, setNewResultIsCustomCategory] = useState(false);
   const [newResultOpponent, setNewResultOpponent] = useState('');
-  const [newResultHomeScore, setNewResultHomeScore] = useState<string>('82');
-  const [newResultAwayScore, setNewResultAwayScore] = useState<string>('74');
+  const [newResultHomeScore, setNewResultHomeScore] = useState<string>('');
+  const [newResultAwayScore, setNewResultAwayScore] = useState<string>('');
+  const [newResultIsHome, setNewResultIsHome] = useState<boolean>(true);
+  const [selectedScheduledMatchId, setSelectedScheduledMatchId] = useState<string>('');
+  const [newResultSuccessMsg, setNewResultSuccessMsg] = useState<string | null>(null);
+  const [newResultErrorMsg, setNewResultErrorMsg] = useState<string | null>(null);
+  const [editingResult, setEditingResult] = useState<MatchItem | null>(null);
 
   // FFBB Sync State & Real Teams State
   const [isSyncingFFBB, setIsSyncingFFBB] = useState<boolean>(false);
@@ -348,6 +362,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isRewriting, setIsRewriting] = useState<boolean>(false);
   const [syncStartDate, setSyncStartDate] = useState<string>('');
   const [syncEndDate, setSyncEndDate] = useState<string>('');
+  const [showCalendarInMatches, setShowCalendarInMatches] = useState<boolean>(true);
+  const [showAddManualMatch, setShowAddManualMatch] = useState<boolean>(false);
+  const [newResultDate, setNewResultDate] = useState<string>('Hier');
   const [socialForm, setSocialForm] = useState({
     instagramHandle: clubSettings.instagramHandle || '@bc_valdesaone',
     facebookPage: clubSettings.facebookPage || 'BasketClubValDeSaone',
@@ -562,33 +579,155 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setNewMatchOpponent('');
   };
 
+  // Available synchronized FFBB teams from official club teams and matches
+  const availableFfbbTeams = useMemo(() => {
+    const list: { name: string; category?: string; gender?: string; competition?: string }[] = [];
+    const seen = new Set<string>();
+
+    // 1. From ffbbTeams
+    if (Array.isArray(ffbbTeams) && ffbbTeams.length > 0) {
+      ffbbTeams.forEach((t) => {
+        if (t.name && !seen.has(t.name.trim().toLowerCase())) {
+          seen.add(t.name.trim().toLowerCase());
+          list.push({
+            name: t.name,
+            category: t.category,
+            gender: t.gender,
+            competition: t.competition,
+          });
+        }
+      });
+    }
+
+    // 2. From matches
+    matches.forEach((m) => {
+      if (m.category && !seen.has(m.category.trim().toLowerCase())) {
+        seen.add(m.category.trim().toLowerCase());
+        list.push({
+          name: m.category,
+          category: m.category,
+          competition: m.competition,
+        });
+      }
+    });
+
+    // 3. Fallback to DEFAULT_REAL_FFBB_TEAMS if still empty
+    if (list.length === 0) {
+      DEFAULT_REAL_FFBB_TEAMS.forEach((t) => {
+        if (!seen.has(t.name.trim().toLowerCase())) {
+          seen.add(t.name.trim().toLowerCase());
+          list.push({
+            name: t.name,
+            category: t.category,
+            gender: t.gender,
+            competition: t.competition,
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [ffbbTeams, matches]);
+
+  // Handler for selecting an existing scheduled match from FFBB
+  const handleSelectScheduledMatch = (matchId: string) => {
+    setSelectedScheduledMatchId(matchId);
+    if (!matchId) return;
+
+    const selectedMatch = matches.find((m) => m.id === matchId);
+    if (selectedMatch) {
+      setNewResultCategory(selectedMatch.category);
+      setNewResultIsCustomCategory(false);
+      setNewResultOpponent(selectedMatch.isHomeMatch ? selectedMatch.teamAway : selectedMatch.teamHome);
+      setNewResultDate(selectedMatch.date || 'Hier');
+      setNewResultIsHome(selectedMatch.isHomeMatch ?? true);
+      setNewResultErrorMsg(null);
+      setNewResultSuccessMsg(
+        `Match sélectionné : ${selectedMatch.category} vs ${
+          selectedMatch.isHomeMatch ? selectedMatch.teamAway : selectedMatch.teamHome
+        }. Entrez maintenant les scores ci-dessous !`
+      );
+      setTimeout(() => setNewResultSuccessMsg(null), 3500);
+    }
+  };
+
   // Add Manual Result
   const handleAddResultManual = () => {
-    if (!newResultOpponent.trim()) return;
+    const cleanOpponent = newResultOpponent.trim();
+    if (!cleanOpponent) {
+      setNewResultErrorMsg("Veuillez indiquer le nom de l'équipe adverse.");
+      return;
+    }
+
+    if (newResultHomeScore.trim() === '' || newResultAwayScore.trim() === '') {
+      setNewResultErrorMsg("Veuillez saisir les scores des deux équipes.");
+      return;
+    }
+
+    const ourScore = parseInt(newResultHomeScore, 10);
+    const oppScore = parseInt(newResultAwayScore, 10);
+
+    if (isNaN(ourScore) || isNaN(oppScore)) {
+      setNewResultErrorMsg("Les scores doivent être des nombres entiers valides.");
+      return;
+    }
+
     const club = clubSettings.shortName || clubSettings.name || 'Notre Club';
-    const hScore = parseInt(newResultHomeScore) || 0;
-    const aScore = parseInt(newResultAwayScore) || 0;
-    const isWin = hScore > aScore;
+    const cat = newResultCategory.trim() || 'Seniors';
+    const isWin = ourScore > oppScore;
 
     const newRes: MatchItem = {
       id: `res-m-${Date.now()}`,
-      date: 'Week-end dernier',
+      date: newResultDate.trim() || 'Week-end dernier',
       time: 'Terminé',
-      category: newResultCategory.trim() || 'Seniors',
+      category: cat,
       competition: 'Régionale / Départementale',
-      teamHome: club,
-      teamAway: newResultOpponent.trim(),
-      isHomeMatch: true,
+      teamHome: newResultIsHome ? cat : cleanOpponent,
+      teamAway: newResultIsHome ? cleanOpponent : cat,
+      isHomeMatch: newResultIsHome,
       ourClubName: club,
-      gymnasium: clubSettings.gymnasiumDefault,
-      city: clubSettings.city,
-      homeScore: hScore,
-      awayScore: aScore,
+      gymnasium: newResultIsHome ? clubSettings.gymnasiumDefault : '',
+      city: newResultIsHome ? clubSettings.city : '',
+      homeScore: newResultIsHome ? ourScore : oppScore,
+      awayScore: newResultIsHome ? oppScore : ourScore,
       status: 'finished',
       result: isWin ? 'win' : 'loss',
     };
+
     onUpdateResults([newRes, ...results]);
+
+    // If this was from a scheduled match, also mark the scheduled match as finished with scores
+    if (selectedScheduledMatchId) {
+      onUpdateMatches(
+        matches.map((m) =>
+          m.id === selectedScheduledMatchId
+            ? {
+                ...m,
+                status: 'finished' as const,
+                homeScore: newRes.homeScore,
+                awayScore: newRes.awayScore,
+                result: newRes.result,
+              }
+            : m
+        )
+      );
+    }
+
     setNewResultOpponent('');
+    setNewResultHomeScore('');
+    setNewResultAwayScore('');
+    setSelectedScheduledMatchId('');
+    setNewResultErrorMsg(null);
+    setNewResultSuccessMsg(
+      `Résultat enregistré avec succès : ${cat} ${ourScore} - ${oppScore} ${cleanOpponent} (${isWin ? 'Victoire 🏆' : 'Défaite'}) !`
+    );
+    setTimeout(() => setNewResultSuccessMsg(null), 4500);
+  };
+
+  // Edit an existing result
+  const handleSaveEditedResult = (updated: MatchItem) => {
+    onUpdateResults(results.map((r) => (r.id === updated.id ? updated : r)));
+    setEditingResult(null);
   };
 
   if (!isOpen) return null;
@@ -1005,6 +1144,79 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
   };
 
+  // Horizontal Slider / Navigation for Categories
+  const tabsNavRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+  const isDraggingTabsRef = useRef(false);
+  const startXTabsRef = useRef(0);
+  const scrollLeftTabsRef = useRef(0);
+
+  const checkTabsScroll = () => {
+    if (tabsNavRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsNavRef.current;
+      setCanScrollLeft(scrollLeft > 8);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 8);
+    }
+  };
+
+  useEffect(() => {
+    checkTabsScroll();
+    const handleResize = () => checkTabsScroll();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (tabsNavRef.current) {
+      const distance = 350;
+      tabsNavRef.current.scrollBy({
+        left: direction === 'left' ? -distance : distance,
+        behavior: 'smooth',
+      });
+      setTimeout(checkTabsScroll, 350);
+    }
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (tabsNavRef.current) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        tabsNavRef.current.scrollLeft += e.deltaY;
+        checkTabsScroll();
+      }
+    }
+  };
+
+  const handleTabsMouseDown = (e: React.MouseEvent) => {
+    if (!tabsNavRef.current) return;
+    isDraggingTabsRef.current = true;
+    startXTabsRef.current = e.pageX - tabsNavRef.current.offsetLeft;
+    scrollLeftTabsRef.current = tabsNavRef.current.scrollLeft;
+  };
+
+  const handleTabsMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingTabsRef.current || !tabsNavRef.current) return;
+    const x = e.pageX - tabsNavRef.current.offsetLeft;
+    const walk = (x - startXTabsRef.current) * 1.5;
+    tabsNavRef.current.scrollLeft = scrollLeftTabsRef.current - walk;
+    checkTabsScroll();
+  };
+
+  const handleTabsMouseUpOrLeave = () => {
+    isDraggingTabsRef.current = false;
+  };
+
+  const handleSelectTab = (
+    tabName: Parameters<typeof setActiveTab>[0],
+    e?: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    setActiveTab(tabName);
+    if (e?.currentTarget) {
+      e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+    setTimeout(checkTabsScroll, 300);
+  };
+
   return (
     <div
       className={
@@ -1049,6 +1261,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-200">C</span> Switch TV
             </div>
 
+            {onOpenVideoExporter && (
+              <button
+                type="button"
+                onClick={onOpenVideoExporter}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/25 transition-all hover:scale-105 cursor-pointer"
+                title="Exporter et télécharger le carrousel en format vidéo (MP4 / WebM)"
+                id="btn-header-video-exporter"
+              >
+                <Video className="w-4 h-4 text-purple-200" />
+                <span>Télécharger en Vidéo</span>
+              </button>
+            )}
+
             {onOpenVisualExporter && (
               <button
                 onClick={() => onOpenVisualExporter(socialContentType)}
@@ -1086,175 +1311,222 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           </div>
         </div>
 
-        {/* Tab Navigation Menu */}
-        <div className="flex items-center gap-1.5 px-6 py-2.5 bg-slate-950 border-b border-slate-800 overflow-x-auto scrollbar-none text-xs md:text-sm">
-          <button
-            onClick={() => setActiveTab('matches')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'matches'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+        {/* Tab Navigation Menu with Horizontal Slider Controls */}
+        <div className="relative bg-slate-950 border-b border-slate-800 flex items-center group">
+          {/* Left Slide Button */}
+          <div
+            className={`absolute left-0 top-0 bottom-0 z-20 flex items-center pl-2 pr-6 bg-gradient-to-r from-slate-950 via-slate-950/95 to-transparent transition-opacity duration-200 ${
+              canScrollLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <Calendar className="w-4 h-4 text-orange-400" />
-            <span>Matchs du Week-end ({matches.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => scrollTabs('left')}
+              className="p-2 rounded-xl bg-slate-800/95 hover:bg-orange-600 text-slate-200 hover:text-white shadow-xl border border-slate-700/80 transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer"
+              title="Faire défiler les catégories vers la gauche"
+              aria-label="Faire défiler les catégories vers la gauche"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('results')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'results'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
+          {/* Scrollable Tabs Track */}
+          <div
+            ref={tabsNavRef}
+            onScroll={checkTabsScroll}
+            onWheel={handleTabsWheel}
+            onMouseDown={handleTabsMouseDown}
+            onMouseMove={handleTabsMouseMove}
+            onMouseUp={handleTabsMouseUpOrLeave}
+            onMouseLeave={handleTabsMouseUpOrLeave}
+            className="flex items-center gap-1.5 px-6 py-2.5 overflow-x-auto scroll-smooth text-xs md:text-sm w-full select-none cursor-grab active:cursor-grabbing scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            <Trophy className="w-4 h-4 text-emerald-400" />
-            <span>Résultats ({results.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('matches', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'matches'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Calendar className="w-4 h-4 text-orange-400" />
+              <span>Matchs du Week-end ({matches.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('photos')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'photos'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Camera className="w-4 h-4 text-amber-400" />
-            <span>Photos ({photos.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('results', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'results'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-emerald-400" />
+              <span>Résultats ({results.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('sponsors')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'sponsors'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Building2 className="w-4 h-4 text-yellow-400" />
-            <span>Sponsors ({sponsors.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('photos', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'photos'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Camera className="w-4 h-4 text-amber-400" />
+              <span>Photos ({photos.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('logos')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'logos'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <FolderPlus className="w-4 h-4 text-cyan-400" />
-            <span>Banque Logos ({logos.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('sponsors', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'sponsors'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-yellow-400" />
+              <span>Sponsors ({sponsors.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('events')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'events'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span>Événements ({events.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('logos', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'logos'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <FolderPlus className="w-4 h-4 text-cyan-400" />
+              <span>Banque Logos ({logos.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('excel')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'excel'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Cake className="w-4 h-4 text-pink-400" />
-            <span>Anniversaires ({birthdays.length})</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('events', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'events'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span>Événements ({events.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('templates')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'templates'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-sky-400" />
-            <span>Gabarits Graphiques</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('excel', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'excel'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Cake className="w-4 h-4 text-pink-400" />
+              <span>Anniversaires ({birthdays.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('team_visuals')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'team_visuals'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Shield className="w-4 h-4 text-emerald-400" />
-            <span>Visuels Victoire/Défaite</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('templates', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'templates'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-sky-400" />
+              <span>Studio & Calques</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('social')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'social'
-                ? 'bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 text-white shadow-md shadow-pink-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Share2 className="w-4 h-4 text-pink-400" />
-            <span>Passerelle Réseaux</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('team_visuals', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'team_visuals'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <span>Visuels Victoire/Défaite</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('telegram')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'telegram'
-                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Bot className="w-4 h-4 text-sky-400" />
-            <span>Bot Telegram</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('social', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'social'
+                  ? 'bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 text-white shadow-md shadow-pink-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Share2 className="w-4 h-4 text-pink-400" />
+              <span>Passerelle Réseaux</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('ffbb')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'ffbb'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <RefreshCw className="w-4 h-4 text-blue-400" />
-            <span>Sync FFBB</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('telegram', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'telegram'
+                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Bot className="w-4 h-4 text-sky-400" />
+              <span>Bot Telegram</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'categories'
-                ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Sliders className="w-4 h-4 text-amber-400" />
-            <span>Paramètres Club & Carrousel</span>
-          </button>
+            <button
+              onClick={(e) => handleSelectTab('ffbb', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'ffbb'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4 text-blue-400" />
+              <span>Sync FFBB</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('fullykiosk')}
-            className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-              activeTab === 'fullykiosk'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            <button
+              onClick={(e) => handleSelectTab('categories', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'categories'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Sliders className="w-4 h-4 text-amber-400" />
+              <span>Paramètres Club & Carrousel</span>
+            </button>
+
+            <button
+              onClick={(e) => handleSelectTab('fullykiosk', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'fullykiosk'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Tv className="w-4 h-4 text-amber-300" />
+              <span>Guide Fully Kiosk</span>
+            </button>
+          </div>
+
+          {/* Right Slide Button */}
+          <div
+            className={`absolute right-0 top-0 bottom-0 z-20 flex items-center pr-2 pl-6 bg-gradient-to-l from-slate-950 via-slate-950/95 to-transparent transition-opacity duration-200 ${
+              canScrollRight ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <Tv className="w-4 h-4 text-amber-300" />
-            <span>Guide Fully Kiosk</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => scrollTabs('right')}
+              className="p-2 rounded-xl bg-slate-800/95 hover:bg-orange-600 text-slate-200 hover:text-white shadow-xl border border-slate-700/80 transition-all hover:scale-110 active:scale-95 flex items-center justify-center cursor-pointer shadow-orange-500/10"
+              title="Faire défiler les catégories vers la droite"
+              aria-label="Faire défiler les catégories vers la droite"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Content Area */}
@@ -1276,20 +1548,28 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </div>
                 </div>
 
-                {/* Widget de Synchronisation Rapide FFBB Directe */}
+                {/* Widget de Synchronisation Rapide FFBB Directe avec Petit Calendrier Visuel */}
                 <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 mt-2 space-y-3.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
                     <div className="flex items-center gap-2">
                       <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
                       <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
-                        Synchronisation Rapide FFBB (Par dates)
+                        Synchronisation FFBB (Sélection par calendrier)
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setShowCalendarInMatches(!showCalendarInMatches)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold transition-all flex items-center gap-1 border border-slate-700"
+                      >
+                        <Calendar className="w-3 h-3 text-orange-400" />
+                        <span>{showCalendarInMatches ? 'Masquer le calendrier' : 'Afficher le calendrier'}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={setFilterToCurrentWeekend}
-                        className="px-2.5 py-1 rounded bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all"
                       >
                         📅 Ce week-end
                       </button>
@@ -1300,7 +1580,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             setSyncStartDate('');
                             setSyncEndDate('');
                           }}
-                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all"
+                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all"
                         >
                           Effacer le filtre
                         </button>
@@ -1308,35 +1588,103 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de début :</span>
-                      <input
-                        type="date"
-                        value={syncStartDate}
-                        onChange={(e) => setSyncStartDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
-                      />
+                  {/* Calendrier visuel interactif : zéro saisie manuelle requise */}
+                  {showCalendarInMatches ? (
+                    <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
+                      <div className="shrink-0 flex justify-center">
+                        <MiniCalendarPicker
+                          startDate={syncStartDate}
+                          endDate={syncEndDate}
+                          onChangeRange={(start, end) => {
+                            setSyncStartDate(start);
+                            setSyncEndDate(end);
+                          }}
+                          title="Petit calendrier interactif"
+                        />
+                      </div>
+
+                      <div className="flex-1 flex flex-col justify-between bg-slate-900/60 rounded-2xl p-4 border border-slate-800 space-y-4">
+                        <div className="space-y-2">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                            Période sélectionnée sur le calendrier :
+                          </span>
+                          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                            {syncStartDate && syncEndDate ? (
+                              <div className="space-y-0.5">
+                                <span className="text-xs font-bold text-orange-400 block">
+                                  Du {formatDateToReadableFrench(syncStartDate)}
+                                </span>
+                                <span className="text-xs font-bold text-orange-400 block">
+                                  Au {formatDateToReadableFrench(syncEndDate)}
+                                </span>
+                              </div>
+                            ) : syncStartDate ? (
+                              <span className="text-xs font-bold text-orange-400">
+                                À partir du {formatDateToReadableFrench(syncStartDate)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">
+                                Aucun filtre : toute la saison FFBB sera importée.
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            💡 <strong>Cliquez directement sur les jours du calendrier</strong> ci-contre ou sur les boutons rapides (<em>Ce week-end, Week-end +1, etc.</em>). Plus besoin de taper les dates au clavier !
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                          <button
+                            type="button"
+                            onClick={handleSyncFFBB}
+                            disabled={isSyncingFFBB}
+                            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/25 cursor-pointer"
+                          >
+                            <RefreshCw className={`w-4 h-4 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                            <span>
+                              {isSyncingFFBB
+                                ? 'Synchronisation FFBB en cours...'
+                                : syncStartDate && syncEndDate
+                                ? 'Récupérer les matchs pour cette période'
+                                : 'Récupérer les matchs FFBB'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de fin :</span>
-                      <input
-                        type="date"
-                        value={syncEndDate}
-                        onChange={(e) => setSyncEndDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
-                      />
+                  ) : (
+                    /* Vue compacte si le calendrier est replié */
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center gap-2 text-slate-300">
+                        <Calendar className="w-4 h-4 text-orange-400" />
+                        <span>
+                          {syncStartDate && syncEndDate ? (
+                            <>Période : <strong>{formatDateToReadableFrench(syncStartDate)}</strong> au <strong>{formatDateToReadableFrench(syncEndDate)}</strong></>
+                          ) : (
+                            <span className="text-slate-400 italic">Aucune période filtrée (Tous les matchs)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => setShowCalendarInMatches(true)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold"
+                        >
+                          Changer les dates
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSyncFFBB}
+                          disabled={isSyncingFFBB}
+                          className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                          <span>Synchroniser</span>
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleSyncFFBB}
-                      disabled={isSyncingFFBB}
-                      className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-600/20"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
-                      <span>{isSyncingFFBB ? 'Synchronisation...' : 'Récupérer depuis la FFBB'}</span>
-                    </button>
-                  </div>
+                  )}
 
                   {syncMessage && (
                     <p className="text-[11px] text-emerald-400 font-medium bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/20">
@@ -1400,8 +1748,121 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   >
                     Domicile uniquement
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddManualMatch(!showAddManualMatch)}
+                    className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Ajouter un match</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Formulaire manuel d'ajout de match avec Sélecteur de date Calendrier */}
+              {showAddManualMatch && (
+                <div className="bg-slate-900 border border-blue-500/40 rounded-3xl p-5 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h4 className="text-sm font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-blue-400" />
+                      <span>AJOUTER UNE RENCONTRE MANUELLE</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddManualMatch(false)}
+                      className="text-slate-400 hover:text-white text-xs"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1 font-bold">Catégorie :</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Seniors Garçons 1"
+                        value={newMatchCategory}
+                        onChange={(e) => setNewMatchCategory(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1 font-bold">Adversaire :</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Basket Club Mâcon"
+                        value={newMatchOpponent}
+                        onChange={(e) => setNewMatchOpponent(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1 font-bold">Date du match :</label>
+                      <SingleDatePicker
+                        value={newMatchDate}
+                        onChange={(french, iso) => setNewMatchDate(french || iso)}
+                        placeholder="Choisir la date..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1 font-bold">Heure :</label>
+                      <input
+                        type="time"
+                        value={newMatchTime}
+                        onChange={(e) => setNewMatchTime(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400 block mb-1 font-bold">Lieu :</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setNewMatchIsHome(true)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                            newMatchIsHome
+                              ? 'bg-orange-600 text-white shadow-md'
+                              : 'bg-slate-950 text-slate-400 border border-slate-800'
+                          }`}
+                        >
+                          Domicile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewMatchIsHome(false)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                            !newMatchIsHome
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-slate-950 text-slate-400 border border-slate-800'
+                          }`}
+                        >
+                          Extérieur
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleAddMatchManual();
+                        setShowAddManualMatch(false);
+                      }}
+                      disabled={!newMatchOpponent.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Enregistrer la rencontre</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Liste des matchs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1427,11 +1888,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
                             <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Date :</label>
-                            <input
-                              type="date"
+                            <SingleDatePicker
                               value={editingMatch.date}
-                              onChange={(e) => setEditingMatch({ ...editingMatch, date: e.target.value })}
-                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs"
+                              onChange={(french, iso) => setEditingMatch({ ...editingMatch, date: french || iso })}
+                              placeholder="Choisir la date..."
                             />
                           </div>
                           <div>
@@ -1633,6 +2093,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-ping' : 'bg-slate-500'}`}></span>
                           <span className="hidden md:inline">{isLive ? 'En cours' : 'Mettre en cours'}</span>
                         </button>
+                        {/* Bouton rapide Saisir le score */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectScheduledMatch(m.id);
+                            setActiveTab('results');
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+                          title="Saisir directement le score pour ce match"
+                        >
+                          <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="hidden sm:inline">Score</span>
+                        </button>
                         <button
                           onClick={() => setEditingMatch({ ...m })}
                           className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all"
@@ -1663,127 +2136,470 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
                   <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-amber-400" />
                     <span>RÉSULTATS ET SCORES DU WEEK-END ({results.length})</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Saisissez les résultats des matchs pour les afficher dans le carrousel TV et générer les visuels Victoire/Défaite.
+                    Saisissez les résultats des rencontres synchronisées avec la FFBB ou manuellement pour les afficher dans le carrousel TV et générer les affiches.
                   </p>
                 </div>
 
-
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{availableFfbbTeams.length} équipes FFBB synchronisées</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Formulaire de saisie rapide de résultat */}
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
-                <h4 className="text-sm font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                  <Plus className="w-4 h-4 text-emerald-400" />
-                  <span>SAISIR UN NOUVEAU RÉSULTAT</span>
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <label className="text-slate-400 block mb-1 font-bold">Catégorie :</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Seniors Garçons 1"
-                      value={newResultCategory}
-                      onChange={(e) => setNewResultCategory(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
-                    />
+              {/* Raccourci 1 : Pré-remplissage depuis un match programmé du week-end */}
+              {matches.length > 0 && (
+                <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/30 border border-amber-500/30 rounded-3xl p-4 sm:p-5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Saisie rapide 1-Clic depuis le calendrier du week-end :</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                      Pré-remplit catégorie, adversaire & date
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="text-slate-400 block mb-1 font-bold">Adversaire :</label>
+                  <select
+                    value={selectedScheduledMatchId}
+                    onChange={(e) => handleSelectScheduledMatch(e.target.value)}
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs text-white font-medium focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="">
+                      -- Cliquez ici pour choisir un match programmé (remplissage automatique) --
+                    </option>
+                    {matches.map((m) => {
+                      const opponentName = m.isHomeMatch ? m.teamAway : m.teamHome;
+                      const locationLabel = m.isHomeMatch ? '🏠 Domicile' : '🚗 Extérieur';
+                      return (
+                        <option key={m.id} value={m.id}>
+                          [{m.category}] {locationLabel} vs {opponentName} ({formatDateToEuropean(m.date)} - {m.time})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              {/* Formulaire de saisie de résultat */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <h4 className="text-sm font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-emerald-400" />
+                    <span>ENREGISTRER LE SCORE D'UN MATCH</span>
+                  </h4>
+
+                  {/* Toggle Domicile / Extérieur */}
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Lieu :</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewResultIsHome(true)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                        newResultIsHome
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Home className="w-3 h-3" />
+                      <span>À Domicile</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewResultIsHome(false)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                        !newResultIsHome
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Navigation className="w-3 h-3" />
+                      <span>À l'Extérieur</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notifications & Alertes Feedback */}
+                {newResultErrorMsg && (
+                  <div className="p-3 rounded-2xl bg-rose-950/60 border border-rose-500/60 text-rose-200 text-xs flex items-center gap-2 animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span className="font-semibold">{newResultErrorMsg}</span>
+                  </div>
+                )}
+
+                {newResultSuccessMsg && (
+                  <div className="p-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/60 text-emerald-200 text-xs flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-semibold">{newResultSuccessMsg}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 text-xs">
+                  
+                  {/* 1. Équipe FFBB Synchronisée (MENU DÉROULANT DEMANDÉ) */}
+                  <div className="lg:col-span-4 space-y-1.5">
+                    <label className="text-slate-300 block font-bold flex items-center gap-1.5">
+                      <Trophy className="w-3.5 h-3.5 text-orange-400" />
+                      <span>Équipe du club (Synchronisée FFBB) :</span>
+                    </label>
+
+                    <select
+                      value={newResultIsCustomCategory ? '__custom__' : newResultCategory}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__custom__') {
+                          setNewResultIsCustomCategory(true);
+                          setNewResultCategory('');
+                        } else {
+                          setNewResultIsCustomCategory(false);
+                          setNewResultCategory(val);
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 hover:border-orange-500 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:border-orange-500 transition-colors"
+                    >
+                      {availableFfbbTeams.map((t, idx) => (
+                        <option key={`${t.name}-${idx}`} value={t.name}>
+                          🏀 {t.name} {t.category ? `(${t.category})` : ''}
+                        </option>
+                      ))}
+                      <option value="__custom__">✏️ Autre équipe (Saisie manuelle personnalisée)</option>
+                    </select>
+
+                    {newResultIsCustomCategory && (
+                      <input
+                        type="text"
+                        placeholder="Ex: Baby Basket, Anciens, Loisirs..."
+                        value={newResultCategory}
+                        onChange={(e) => setNewResultCategory(e.target.value)}
+                        className="w-full bg-slate-950 border border-orange-500/70 rounded-xl px-3 py-2 text-white mt-1 animate-in fade-in"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+
+                  {/* 2. Adversaire */}
+                  <div className="lg:col-span-3 space-y-1.5">
+                    <label className="text-slate-300 block font-bold">
+                      Équipe adverse : <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="text"
                       placeholder="Ex: Basket Club Mâcon"
                       value={newResultOpponent}
-                      onChange={(e) => setNewResultOpponent(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      onChange={(e) => {
+                        setNewResultOpponent(e.target.value);
+                        if (newResultErrorMsg) setNewResultErrorMsg(null);
+                      }}
+                      className={`w-full bg-slate-950 border rounded-xl px-3 py-2.5 text-white font-medium focus:outline-none transition-colors ${
+                        newResultErrorMsg && !newResultOpponent.trim()
+                          ? 'border-rose-500 ring-1 ring-rose-500'
+                          : 'border-slate-700 hover:border-slate-600 focus:border-blue-500'
+                      }`}
                     />
                   </div>
 
-                  <div>
-                    <label className="text-slate-400 block mb-1 font-bold">Score Notre Club :</label>
+                  {/* 3. Date du match */}
+                  <div className="lg:col-span-2 space-y-1.5">
+                    <label className="text-slate-300 block font-bold">Date du match :</label>
+                    <SingleDatePicker
+                      value={newResultDate}
+                      onChange={(french, iso) => setNewResultDate(french || iso)}
+                      placeholder="Choisir date..."
+                    />
+                  </div>
+
+                  {/* 4. Score Notre Club */}
+                  <div className="lg:col-span-1.5 space-y-1.5">
+                    <label className="text-emerald-400 block font-bold truncate" title="Notre Club">
+                      Notre score : <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="number"
                       placeholder="82"
                       value={newResultHomeScore}
-                      onChange={(e) => setNewResultHomeScore(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono font-bold text-emerald-400"
+                      onChange={(e) => {
+                        setNewResultHomeScore(e.target.value);
+                        if (newResultErrorMsg) setNewResultErrorMsg(null);
+                      }}
+                      className="w-full bg-slate-950 border border-emerald-500/50 hover:border-emerald-400 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-emerald-400 focus:outline-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="text-slate-400 block mb-1 font-bold">Score Adversaire :</label>
+                  {/* 5. Score Adversaire */}
+                  <div className="lg:col-span-1.5 space-y-1.5">
+                    <label className="text-rose-400 block font-bold truncate" title="Adversaire">
+                      Score adv. : <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="number"
                       placeholder="74"
                       value={newResultAwayScore}
-                      onChange={(e) => setNewResultAwayScore(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono font-bold text-rose-400"
+                      onChange={(e) => {
+                        setNewResultAwayScore(e.target.value);
+                        if (newResultErrorMsg) setNewResultErrorMsg(null);
+                      }}
+                      className="w-full bg-slate-950 border border-rose-500/50 hover:border-rose-400 focus:border-rose-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-rose-400 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                {/* Score Live Preview Indicator */}
+                {newResultHomeScore.trim() !== '' && newResultAwayScore.trim() !== '' && (
+                  <div className="pt-2 flex items-center justify-between text-xs font-bold px-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400">Aperçu :</span>
+                      <span className="font-mono text-white text-sm">
+                        {newResultIsHome
+                          ? `${newResultCategory || 'Notre Club'} ${newResultHomeScore} - ${newResultAwayScore} ${newResultOpponent || 'Adversaire'}`
+                          : `${newResultOpponent || 'Adversaire'} ${newResultAwayScore} - ${newResultHomeScore} ${newResultCategory || 'Notre Club'}`}
+                      </span>
+                    </div>
+
+                    <div>
+                      {parseInt(newResultHomeScore, 10) > parseInt(newResultAwayScore, 10) ? (
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                          <span>🏆 Victoire (+{parseInt(newResultHomeScore, 10) - parseInt(newResultAwayScore, 10)} pts)</span>
+                        </span>
+                      ) : parseInt(newResultHomeScore, 10) < parseInt(newResultAwayScore, 10) ? (
+                        <span className="px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                          <span>Défaite (-{parseInt(newResultAwayScore, 10) - parseInt(newResultHomeScore, 10)} pts)</span>
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          Égalité
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Bouton d'enregistrement */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                  <div className="text-[11px] text-slate-400">
+                    💡 <em>Astuce : Vous pouvez aussi cliquer sur le bouton <strong>"Score"</strong> directement depuis la liste des matchs.</em>
+                  </div>
+
                   <button
+                    type="button"
                     onClick={handleAddResultManual}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
+                    className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black font-bebas text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+                    id="btn-save-manual-result"
                   >
-                    <Trophy className="w-4 h-4" />
-                    <span>Enregistrer ce résultat</span>
+                    <Trophy className="w-4 h-4 text-emerald-200" />
+                    <span>ENREGISTRER CE RÉSULTAT</span>
                   </button>
                 </div>
               </div>
 
-              {/* Liste des résultats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {results.map((r) => {
-                  const isWin = (r.homeScore || 0) > (r.awayScore || 0);
-                  return (
-                    <div
-                      key={r.id}
-                      className={`p-4 rounded-2xl border flex items-center justify-between gap-4 ${
-                        isWin
-                          ? 'bg-emerald-950/20 border-emerald-500/30'
-                          : 'bg-rose-950/20 border-rose-500/30'
-                      }`}
+              {/* Liste des résultats enregistrés */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>Résultats enregistrés ({results.length}) :</span>
+                  </h4>
+                  {results.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateResults([])}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 transition-colors"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
-                          <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
-                            {r.category}
-                          </span>
-                          <span className="text-slate-600">•</span>
-                          {r.date && r.date !== 'Week-end dernier' && (
-                            <>
-                              <span className="text-slate-400 font-mono text-[11px] font-bold">
-                                {formatDateToEuropean(r.date)}
+                      Effacer tous les résultats
+                    </button>
+                  )}
+                </div>
+
+                {results.length === 0 ? (
+                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center text-slate-500">
+                    <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">Aucun résultat enregistré pour le moment.</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Sélectionnez une équipe FFBB ci-dessus pour ajouter le score du week-end.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {results.map((r) => {
+                      const isWin = (r.homeScore || 0) > (r.awayScore || 0);
+                      return (
+                        <div
+                          key={r.id}
+                          className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all hover:border-slate-600 ${
+                            isWin
+                              ? 'bg-emerald-950/20 border-emerald-500/30'
+                              : 'bg-rose-950/20 border-rose-500/30'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
+                              <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                                {r.category}
                               </span>
                               <span className="text-slate-600">•</span>
-                            </>
-                          )}
-                          <span className={isWin ? 'text-emerald-300' : 'text-rose-300'}>
-                            {isWin ? 'VICTOIRE' : 'DÉFAITE'}
-                          </span>
+                              {r.date && r.date !== 'Week-end dernier' && (
+                                <>
+                                  <span className="text-slate-400 font-mono text-[11px] font-bold">
+                                    {formatDateToEuropean(r.date)}
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                </>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                  isWin ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                                }`}
+                              >
+                                {isWin ? 'VICTOIRE 🏆' : 'DÉFAITE'}
+                              </span>
+                            </div>
+                            <div className="text-base font-black text-white font-mono tracking-wider">
+                              {r.teamHome} {r.homeScore} - {r.awayScore} {r.teamAway}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setEditingResult({ ...r })}
+                              className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all"
+                              title="Modifier ce score ou la rencontre"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => onUpdateResults(results.filter((item) => item.id !== r.id))}
+                              className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all"
+                              title="Supprimer ce résultat"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="text-base font-black text-white font-mono tracking-wider">
-                          {r.teamHome} {r.homeScore} - {r.awayScore} {r.teamAway}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal d'édition d'un résultat existant */}
+              {editingResult && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                  <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h4 className="text-lg font-black text-white font-bebas flex items-center gap-2">
+                        <Pencil className="w-4 h-4 text-blue-400" />
+                        <span>MODIFIER LE RÉSULTAT</span>
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setEditingResult(null)}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="text-slate-400 block mb-1 font-bold">Catégorie :</label>
+                        <input
+                          type="text"
+                          value={editingResult.category}
+                          onChange={(e) => setEditingResult({ ...editingResult, category: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-slate-400 block mb-1 font-bold">Équipe 1 :</label>
+                          <input
+                            type="text"
+                            value={editingResult.teamHome}
+                            onChange={(e) => setEditingResult({ ...editingResult, teamHome: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block mb-1 font-bold">Équipe 2 :</label>
+                          <input
+                            type="text"
+                            value={editingResult.teamAway}
+                            onChange={(e) => setEditingResult({ ...editingResult, teamAway: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                          />
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-emerald-400 block mb-1 font-bold">Score Équipe 1 :</label>
+                          <input
+                            type="number"
+                            value={editingResult.homeScore ?? 0}
+                            onChange={(e) =>
+                              setEditingResult({
+                                ...editingResult,
+                                homeScore: parseInt(e.target.value, 10) || 0,
+                                result: (parseInt(e.target.value, 10) || 0) > (editingResult.awayScore || 0) ? 'win' : 'loss',
+                              })
+                            }
+                            className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-emerald-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-rose-400 block mb-1 font-bold">Score Équipe 2 :</label>
+                          <input
+                            type="number"
+                            value={editingResult.awayScore ?? 0}
+                            onChange={(e) =>
+                              setEditingResult({
+                                ...editingResult,
+                                awayScore: parseInt(e.target.value, 10) || 0,
+                                result: (editingResult.homeScore || 0) > (parseInt(e.target.value, 10) || 0) ? 'win' : 'loss',
+                              })
+                            }
+                            className="w-full bg-slate-950 border border-rose-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-rose-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-400 block mb-1 font-bold">Date :</label>
+                        <input
+                          type="text"
+                          value={editingResult.date}
+                          onChange={(e) => setEditingResult({ ...editingResult, date: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                       <button
-                        onClick={() => onUpdateResults(results.filter((item) => item.id !== r.id))}
-                        className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all shrink-0"
-                        title="Supprimer ce résultat"
+                        type="button"
+                        onClick={() => setEditingResult(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEditedResult(editingResult)}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md"
+                      >
+                        Sauvegarder
                       </button>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2473,13 +3289,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">Date :</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Samedi 26 Septembre"
+                        <label className="text-xs text-slate-400 block mb-1">Date de l'événement :</label>
+                        <SingleDatePicker
                           value={newEventDate}
-                          onChange={(e) => setNewEventDate(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                          onChange={(french) => setNewEventDate(french)}
+                          placeholder="Choisir la date sur le calendrier..."
                         />
                       </div>
                     </div>
@@ -2536,194 +3350,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* TAB 2: GABARITS & VISUELS SUPPORTS */}
           {/* ========================================================================= */}
           {activeTab === 'templates' && (
-            <div className="space-y-6">
-              <div className="bg-gradient-to-r from-orange-950/40 via-slate-900 to-slate-900 p-5 rounded-3xl border border-orange-500/30">
-                <div className="flex items-center gap-2 text-orange-400 font-bold text-xs uppercase tracking-wider mb-1">
-                  <Layers className="w-4 h-4" />
-                  <span>Emplacement pour vos futurs visuels supports</span>
-                </div>
-                <h3 className="text-xl font-black text-white font-bebas tracking-wide">
-                  GABARITS & FONDS VISUELS DU CLUB
-                </h3>
-                <p className="text-xs text-slate-300 max-w-3xl mt-1">
-                  Vous avez mentionné que vous fournirez plus tard vos propres visuels supports pour les <strong>Matchs à venir</strong>, 
-                  les <strong>Résultats du week-end précédent</strong> et les <strong>Anniversaires</strong>. 
-                  Vous pouvez dès maintenant déposer ou remplacer l'image de fond ici en 1 clic. L'application appliquera automatiquement vos couleurs et textes par-dessus.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Template 1: Matchs */}
-                <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-lg font-black text-white font-bebas">Gabarit Matchs à Venir</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
-                    </div>
-                    <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      {isVideoMedia(visualTemplates.matchesBackgroundUrl) ? (
-                        <video
-                          src={visualTemplates.matchesBackgroundUrl}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={visualTemplates.matchesBackgroundUrl}
-                          alt="Gabarit Matchs"
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
-                        <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          {isVideoMedia(visualTemplates.matchesBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Ce fond ou vidéo habille l'affiche des rencontres du club du week-end.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Remplacer</span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleImageFileChange(file, (dataUrl) =>
-                              onUpdateVisualTemplates({ ...visualTemplates, matchesBackgroundUrl: dataUrl })
-                            );
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Template 2: Résultats */}
-                <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-lg font-black text-white font-bebas">Gabarit Résultats Week-end</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
-                    </div>
-                    <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      {isVideoMedia(visualTemplates.resultsBackgroundUrl) ? (
-                        <video
-                          src={visualTemplates.resultsBackgroundUrl}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={visualTemplates.resultsBackgroundUrl}
-                          alt="Gabarit Résultats"
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
-                        <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          {isVideoMedia(visualTemplates.resultsBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Utilisé pour la récapitulation des victoires et défaites passées.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Remplacer</span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleImageFileChange(file, (dataUrl) =>
-                              onUpdateVisualTemplates({ ...visualTemplates, resultsBackgroundUrl: dataUrl })
-                            );
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Template 3: Anniversaires */}
-                <div className="rounded-3xl border border-slate-800 bg-slate-950/80 p-5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-lg font-black text-white font-bebas">Gabarit Anniversaires</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">16:9 • Image / Vidéo</span>
-                    </div>
-                    <div className="relative rounded-2xl overflow-hidden h-40 bg-slate-900 border border-slate-800 mb-3">
-                      {isVideoMedia(visualTemplates.birthdaysBackgroundUrl) ? (
-                        <video
-                          src={visualTemplates.birthdaysBackgroundUrl}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={visualTemplates.birthdaysBackgroundUrl}
-                          alt="Gabarit Anniversaires"
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center pointer-events-none">
-                        <span className="text-xs font-bold text-white px-3 py-1 rounded-lg bg-black/60 backdrop-blur-sm">
-                          {isVideoMedia(visualTemplates.birthdaysBackgroundUrl) ? 'Vidéo active' : 'Fond actif'}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Utilisé pour afficher les licenciés fêtant leur anniversaire dans la semaine.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <label className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer border border-slate-700 transition-all">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Remplacer</span>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleImageFileChange(file, (dataUrl) =>
-                              onUpdateVisualTemplates({ ...visualTemplates, birthdaysBackgroundUrl: dataUrl })
-                            );
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-8">
+              {/* Studio Graphique Workbench Live */}
+              <StudioGraphiqueWorkbench
+                visualTemplates={visualTemplates}
+                onUpdateVisualTemplates={onUpdateVisualTemplates}
+                matches={matches}
+                results={results}
+                birthdays={birthdays}
+                clubSettings={clubSettings}
+              />
             </div>
           )}
 
@@ -3955,6 +4591,37 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'categories' && (
             <div className="space-y-6">
+              {/* Option Video Export: Télécharger le Carrousel en Format Vidéo */}
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-950/50 via-pink-950/40 to-slate-900 border border-purple-500/40 shadow-xl shadow-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-600/30">
+                    <Video className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <span>TÉLÉCHARGER LE CARROUSEL EN FORMAT VIDÉO (MP4 / WEBM)</span>
+                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        16:9 TV & 9:16 Story
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                      Générez une vidéo complète et fluide du carrousel de votre club (Matchs, Résultats, Photos, Sponsors, Anniversaires...). Idéal pour diffuser via clé USB sur vos télés ou partager en Story / Reel / WhatsApp !
+                    </p>
+                  </div>
+                </div>
+
+                {onOpenVideoExporter && (
+                  <button
+                    type="button"
+                    onClick={onOpenVideoExporter}
+                    className="px-5 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white shadow-lg shadow-purple-600/30 flex items-center gap-2 shrink-0 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Télécharger en Vidéo</span>
+                  </button>
+                )}
+              </div>
+
               {/* Option 1: Mélange Équilibré de la Boucle TV */}
               <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -4222,10 +4889,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div>
                       <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-orange-400" />
-                        <span>Filtre par dates / calendrier (Évite d'importer toute la saison) :</span>
+                        <span>Filtre calendrier (Évite d'importer toute la saison) :</span>
                       </h4>
                       <p className="text-[10px] text-slate-400">
-                        Sélectionnez une période pour ne synchroniser que les matchs de ce week-end ou de ces dates.
+                        Sélectionnez directement vos dates sur le petit calendrier ci-dessous sans rien taper.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -4251,24 +4918,34 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de début :</span>
-                      <input
-                        type="date"
-                        value={syncStartDate}
-                        onChange={(e) => setSyncStartDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-mono"
+                  <div className="flex flex-col sm:flex-row gap-4 items-start pt-1">
+                    <div className="shrink-0 flex justify-center w-full sm:w-auto">
+                      <MiniCalendarPicker
+                        startDate={syncStartDate}
+                        endDate={syncEndDate}
+                        onChangeRange={(start, end) => {
+                          setSyncStartDate(start);
+                          setSyncEndDate(end);
+                        }}
+                        title="Calendrier FFBB"
                       />
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block mb-1 font-semibold">Date de fin :</span>
-                      <input
-                        type="date"
-                        value={syncEndDate}
-                        onChange={(e) => setSyncEndDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-orange-500 font-mono"
-                      />
+                    <div className="flex-1 bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 w-full">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Dates sélectionnées :
+                      </span>
+                      <div className="text-sm font-bold text-orange-400">
+                        {syncStartDate && syncEndDate ? (
+                          <>Du {formatDateToReadableFrench(syncStartDate)} au {formatDateToReadableFrench(syncEndDate)}</>
+                        ) : syncStartDate ? (
+                          <>À partir du {formatDateToReadableFrench(syncStartDate)}</>
+                        ) : (
+                          <span className="text-slate-400 font-normal italic">Tous les matchs de la saison FFBB</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Cliquez sur les cases du calendrier pour définir la période souhaitée, ou utilisez les raccourcis <strong>Ce week-end</strong> ou <strong>Week-end +1</strong> pour une sélection immédiate en 1 clic.
+                      </p>
                     </div>
                   </div>
                 </div>
