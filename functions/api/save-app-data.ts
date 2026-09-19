@@ -16,8 +16,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
   const { password, data } = body;
 
-  // TEMPORAIRE : vérification du mot de passe désactivée pendant la construction dans AI Studio.
-  // À RÉACTIVER avant la mise en ligne définitive (remettre la vérification ADMIN_PASSWORD).
+  const expectedPassword = env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
+  if (expectedPassword && password !== expectedPassword) {
+    return new Response(JSON.stringify({ error: 'Mot de passe incorrect' }), { status: 401 });
+  }
 
   if (!data) {
     return new Response(JSON.stringify({ error: 'Champ "data" requis' }), { status: 400 });
