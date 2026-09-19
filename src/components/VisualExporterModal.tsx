@@ -1699,12 +1699,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     type="button"
                     onClick={() => {
                       if (effectiveCategoryConfig) {
-                        setLayer2PrimaryColor(effectiveCategoryConfig.primaryColor || '#c80815');
-                        setLayer2TextColor(effectiveCategoryConfig.textColor || '#ffffff');
-                        setLayer2BadgeBgColor(effectiveCategoryConfig.badgeBgColor || effectiveCategoryConfig.primaryColor || '#c80815');
-                        setLayer2BadgeTextColor(effectiveCategoryConfig.badgeTextColor || '#ffffff');
-                        setLayer2FontHeader(effectiveCategoryConfig.fontFamilyHeader || 'Bebas Neue');
-                        setLayer2FontBody(effectiveCategoryConfig.fontFamilyBody || 'Montserrat');
+                        const ct = effectiveCategoryConfig.categoryTheme;
+                        setLayer2PrimaryColor(ct?.primaryColor || '#c80815');
+                        setLayer2TextColor(ct?.textColor || '#ffffff');
+                        setLayer2BadgeBgColor(ct?.badgeBgColor || ct?.primaryColor || '#c80815');
+                        setLayer2BadgeTextColor(ct?.badgeTextColor || '#ffffff');
+                        setLayer2FontHeader(ct?.fontFamilyHeader || 'Bebas Neue');
+                        setLayer2FontBody(ct?.fontFamilyBody || 'Montserrat');
                         setCustomBadgeTitle('');
                       }
                     }}

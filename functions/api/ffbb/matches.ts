@@ -95,15 +95,15 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     const [matchesData, clubData, teamsData] = await Promise.all([
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
 
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : null).catch(() => null),
 
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
     ]);

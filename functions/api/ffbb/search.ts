@@ -10,22 +10,38 @@ export const onRequest: PagesFunction = async (context) => {
   }
 
   try {
-    const desimoneRes = await fetch(`https://ffbb-api.desimone.fr/clubs?q=${encodeURIComponent(query)}`, {
+    const desimoneRes = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(query)}`, {
       headers: { 'Accept': 'application/json' },
     }).catch(() => null);
 
     if (desimoneRes && desimoneRes.ok) {
       const desimoneData = await desimoneRes.json();
-      const items = Array.isArray(desimoneData) ? desimoneData : desimoneData.clubs || desimoneData.results || [];
-      if (items.length > 0) {
+      const club = desimoneData?.club_resolu;
+      if (club) {
         return new Response(
           JSON.stringify({
             source: 'ffbb_api_desimone',
-            clubs: items.map((h: any) => ({
-              code: h.code || h.id || h.codeOrganisme || h.clubId || 'BFC0071',
-              name: h.nom || h.libelle || h.nomOrganisme || h.name || query,
-              city: h.ville || h.commune || h.town || 'Bourgogne',
-              committee: h.comite || h.ligue || h.department || 'Comité 71',
+            clubs: [
+              {
+                code: club.code || String(club.organisme_id || ''),
+                name: club.nom || query,
+                city: club.ville || '',
+                committee: club.departement || '',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (Array.isArray(desimoneData?.candidates) && desimoneData.candidates.length > 0) {
+        return new Response(
+          JSON.stringify({
+            source: 'ffbb_api_desimone',
+            clubs: desimoneData.candidates.map((h: any) => ({
+              code: h.code || String(h.organisme_id || ''),
+              name: h.nom || query,
+              city: h.ville || '',
+              committee: h.departement || '',
             })),
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } }

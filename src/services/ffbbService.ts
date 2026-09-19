@@ -58,6 +58,153 @@ export function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
 }
 
 /**
+ * Resolves FFBB club code or name to an organisme_id
+ */
+async function resolveOrganismeId(codeOrName: string): Promise<string | null> {
+  const clean = (codeOrName || '').trim();
+  if (
+    clean.toUpperCase() === 'BFC0071024' ||
+    clean.toUpperCase().includes('CLAYETTE') ||
+    clean.toUpperCase().includes('SRC BASKET') ||
+    clean.toUpperCase() === 'SRC'
+  ) {
+    return '9422';
+  }
+  if (/^\d+$/.test(clean)) {
+    return clean;
+  }
+
+  try {
+    const res = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(clean)}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'ok' && data.club_resolu?.organisme_id) {
+        return String(data.club_resolu.organisme_id);
+      }
+      if (data.status === 'ambiguous' && Array.isArray(data.candidates) && data.candidates.length > 0) {
+        const exact = data.candidates.find((c: any) => c.code?.toUpperCase() === clean.toUpperCase());
+        return String(exact ? exact.organisme_id : data.candidates[0].organisme_id);
+      }
+    }
+  } catch (err) {
+    console.warn('[FFBB Resolver client]:', err);
+  }
+  return null;
+}
+
+/**
+ * Direct client-side fetch from the official FFBB CORS-enabled endpoint
+ * (Guarantees synchronization works on Cloudflare static hosting)
+ */
+async function fetchClubDataDirect(clubCode: string): Promise<{
+  matches: MatchItem[];
+  results: MatchItem[];
+  clubInfo: FFBBClubInfo;
+  source?: string;
+  message?: string;
+} | null> {
+  try {
+    const orgId = await resolveOrganismeId(clubCode);
+    if (!orgId) return null;
+
+    const res = await fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const rawMatches = Array.isArray(data.matches) ? data.matches : [];
+    const clubNom = data.club || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    const mappedMatches: MatchItem[] = rawMatches.map((m: any, idx: number) => {
+      const isHome = m.isHome ?? true;
+      const ourClubName = clubNom;
+      const opp = m.opponent || 'Adversaire Inconnu';
+      const teamHome = isHome ? ourClubName : opp;
+      const teamAway = isHome ? opp : ourClubName;
+
+      let gym = 'Gymnase des Écharmeaux';
+      if (m.location) {
+        const parts = m.location.split(',');
+        if (parts[0] && parts[0].trim()) {
+          gym = parts[0].trim();
+        }
+      }
+
+      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
+      const isPast = dateStr < todayStr;
+      const normCat = normalizeFFBBCategory(m.team, m.competition);
+
+      return {
+        id: `ffbb-${m.ffbbMatchId || idx}`,
+        date: dateStr,
+        time: m.time && m.time !== 'Horaire à fixer' ? m.time : '20:30',
+        category: normCat.badgeCategory,
+        competition: m.competition || 'Championnat FFBB',
+        teamHome,
+        teamAway,
+        isHomeMatch: isHome,
+        ourClubName,
+        gymnasium: gym,
+        city: isHome ? 'La Clayette' : (m.location ? m.location.split(',').pop()?.trim() || '' : ''),
+        status: isPast ? 'finished' : 'upcoming',
+        result: null,
+        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
+        teamLogo: m.teamLogo || undefined,
+        opponentLogo: m.opponentLogo || undefined,
+        poule: m.poule || undefined,
+        pouleId: m.pouleId || undefined,
+      };
+    });
+
+    mappedMatches.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    const upcomingMatches = mappedMatches.filter(m => m.status === 'upcoming');
+    const pastResults = mappedMatches.filter(m => m.status === 'finished').reverse();
+
+    const distinctCategories = Array.from(new Set(mappedMatches.map(m => m.category))).filter(Boolean);
+    const teamsList: FFBBTeamItem[] = distinctCategories.map((cat, idx) => {
+      const catMatches = mappedMatches.filter(m => m.category === cat);
+      const sample = catMatches[0];
+      const norm = normalizeFFBBCategory(cat, sample?.competition);
+      return {
+        id: `cat-${idx}`,
+        name: norm.displayName,
+        category: norm.badgeCategory,
+        gender: norm.gender,
+        competition: sample?.competition || 'Championnat FFBB',
+        poule: sample?.poule,
+        pouleId: sample?.pouleId,
+        matchesCount: catMatches.length,
+        status: 'active' as const,
+      };
+    });
+
+    const clubInfo: FFBBClubInfo = {
+      clubCode,
+      clubName: clubNom,
+      league: 'Ligue Régionale & Comité Départemental FFBB',
+      season: '2026-2027',
+      teamsCount: teamsList.length,
+      teamsList,
+    };
+
+    return {
+      matches: upcomingMatches,
+      results: pastResults,
+      clubInfo,
+      source: 'ffbb_api_desimone',
+      message: `API FFBB Officielle : ${upcomingMatches.length} rencontres à venir pour ${clubNom}.`,
+    };
+  } catch (e) {
+    console.warn('Erreur appel direct ffbb.desimone.fr:', e);
+    return null;
+  }
+}
+
+/**
  * Service to handle FFBB API synchronization
  * Supports club code lookup, live match results, and match finished notifications
  */
@@ -68,15 +215,48 @@ export class FFBBService {
   static async searchClub(query: string): Promise<Array<{ code: string; name: string; city: string; committee: string }>> {
     try {
       const res = await fetch(`/api/ffbb/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
-        if (data.clubs && Array.isArray(data.clubs)) {
+        if (data.clubs && Array.isArray(data.clubs) && data.clubs.length > 0) {
           return data.clubs;
         }
       }
     } catch (e) {
-      console.warn("Erreur recherche API FFBB:", e);
+      // Continue to direct search
     }
+
+    // Direct search on ffbb.desimone.fr
+    try {
+      const clean = query.trim();
+      const res = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(clean)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'ok' && data.club_resolu) {
+          return [
+            {
+              code: data.club_resolu.code || (data.club_resolu.organisme_id ? String(data.club_resolu.organisme_id) : clean),
+              name: data.club_resolu.nom || clean,
+              city: data.club_resolu.ville || '',
+              committee: data.club_resolu.departement || 'FFBB',
+            },
+          ];
+        }
+        if (data.status === 'ambiguous' && Array.isArray(data.candidates) && data.candidates.length > 0) {
+          return data.candidates.map((c: any) => ({
+            code: c.code || String(c.organisme_id || ''),
+            name: c.nom || '',
+            city: c.ville || '',
+            committee: c.departement || '',
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur recherche directe FFBB:', e);
+    }
+
     return [
       {
         code: query.toUpperCase().startsWith("BFC") ? query.toUpperCase() : `BFC${query.toUpperCase()}`,
@@ -99,7 +279,8 @@ export class FFBBService {
   }> {
     try {
       const res = await fetch(`/api/ffbb/matches?code=${encodeURIComponent(clubCode)}`);
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         const matches: MatchItem[] = data.matches || [];
         const results: MatchItem[] = data.results || [];
@@ -177,7 +358,16 @@ export class FFBBService {
         };
       }
     } catch (e) {
-      console.error("Erreur appel API FFBB officielle:", e);
+      console.warn("Proxy local non disponible, passage à l'appel direct FFBB:", e);
+    }
+
+    // Direct fetch from ffbb.desimone.fr (works reliably on Cloudflare)
+    const directData = await fetchClubDataDirect(clubCode);
+    if (directData && (directData.matches.length > 0 || directData.results.length > 0)) {
+      return directData;
+    }
+    if (directData) {
+      return directData;
     }
 
     // When API fails or has no matches: RETURN EMPTY DATA — NEVER INVENT FAKE MATCHES
