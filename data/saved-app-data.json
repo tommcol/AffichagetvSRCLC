@@ -1,0 +1,804 @@
+{
+  "clubSettings": {
+    "name": "Sports Réunis Clayettois",
+    "shortName": "SRC Basket",
+    "codeFFBB": "BFC0071024",
+    "logoUrl": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=160&auto=format&fit=crop&q=80",
+    "primaryColor": "#C8102E",
+    "secondaryColor": "#0f172a",
+    "city": "La Clayette",
+    "gymnasiumDefault": "Gymnase intercommunal",
+    "victoryNotificationMinutes": 60,
+    "tickerText": "🏀 Bienvenue au Gymnase intercommunal de La Clayette ! Merci à l'ensemble de nos partenaires et bénévoles !",
+    "showClock": false,
+    "autoPlayCarousel": true,
+    "instagramHandle": "",
+    "facebookPage": "",
+    "tiktokHandle": "",
+    "socialWebhookUrl": "",
+    "purePhotoSlidesOnly": true,
+    "hideTextOverlays": true
+  },
+  "categories": [
+    {
+      "id": "matches",
+      "label": "Matchs du Week-end",
+      "shortLabel": "Matchs",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Calendar",
+      "description": "Rencontres à venir pour l'ensemble des équipes du club"
+    },
+    {
+      "id": "results",
+      "label": "Résultats du Week-end",
+      "shortLabel": "Résultats",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Trophy",
+      "description": "Scores et bilans des matchs précédents (Victoires & Défaites)"
+    },
+    {
+      "id": "sponsors",
+      "label": "Nos Partenaires & Sponsors",
+      "shortLabel": "Sponsors",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Building2",
+      "description": "Mise en avant des entreprises et sponsors officiels du club"
+    },
+    {
+      "id": "logos",
+      "label": "Banque de Logos & Organismes",
+      "shortLabel": "Logos",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "FolderPlus",
+      "description": "Affichage des logos et visuels de la banque (Club, Comité, Ligue...)"
+    },
+    {
+      "id": "photos",
+      "label": "Photos & Vie du Club",
+      "shortLabel": "Photos",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Camera",
+      "description": "Galerie d'images, stages, entraînements et coulisses"
+    },
+    {
+      "id": "birthdays",
+      "label": "Anniversaires de la Semaine",
+      "shortLabel": "Anniversaires",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Cake",
+      "description": "Licenciés, coaches et bénévoles fêtant leur anniversaire"
+    },
+    {
+      "id": "events",
+      "label": "Événements & Rendez-vous",
+      "shortLabel": "Événements",
+      "enabled": true,
+      "durationSeconds": 5,
+      "icon": "Sparkles",
+      "description": "Soirées club, tournois 3x3, stages vacances et assemblée générale"
+    }
+  ],
+  "matches": [
+    {
+      "id": "ffbb-200000014702996",
+      "date": "2026-09-19",
+      "time": "13:30",
+      "category": "U11 F1",
+      "competition": "Départementale féminine U11 - Division 3",
+      "teamHome": "SPORTS REUNIS CLAYETTOIS",
+      "teamAway": "ST MARTIN/ESTREAUX AS - 1",
+      "isHomeMatch": true,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "COSEC",
+      "city": "CLAYETTE",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014702996",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/9b7196a4-ba6b-482a-a28e-abc35fd7c343",
+      "poule": "Poule E",
+      "pouleId": "200000003058517",
+      "selectedForWeekend": false
+    },
+    {
+      "id": "ffbb-200000014683280",
+      "date": "2026-09-19",
+      "time": "14:00",
+      "category": "U18 F1",
+      "competition": "Départementale féminine U18 - Division 3",
+      "teamHome": "AS THIZY BOURG - 1",
+      "teamAway": "SPORTS REUNIS CLAYETTOIS",
+      "isHomeMatch": false,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "GM BOUDIER - LA CONDEMINE",
+      "city": "69240 BOURG-DE-THIZY",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014683280",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/65fca615-182f-4ad2-8543-a45118bc3069",
+      "poule": "Poule D",
+      "pouleId": "200000003058138",
+      "selectedForWeekend": false
+    },
+    {
+      "id": "ffbb-200000014683694",
+      "date": "2026-09-19",
+      "time": "15:00",
+      "category": "U13 F2",
+      "competition": "Départementale féminine U13 - Division 3",
+      "teamHome": "SPORTS REUNIS CLAYETTOIS",
+      "teamAway": "ST MARTIN/ESTREAUX AS - 1",
+      "isHomeMatch": true,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "COSEC",
+      "city": "CLAYETTE",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014683694",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/9b7196a4-ba6b-482a-a28e-abc35fd7c343",
+      "poule": "Poule F",
+      "pouleId": "200000003058048"
+    },
+    {
+      "id": "ffbb-200000014688126",
+      "date": "2026-09-19",
+      "time": "15:30",
+      "category": "U11 M1",
+      "competition": "Départementale masculine U11 - Division 3",
+      "teamHome": "ASSOCIATION SAINT DENIS MARS BASKET - 2",
+      "teamAway": "SPORTS REUNIS CLAYETTOIS",
+      "isHomeMatch": false,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "SALLE OMNISPORTS",
+      "city": "42750 MARS",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014688126",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/962ebe98-edcd-42da-97b1-0863bea60978",
+      "poule": "Poule F",
+      "pouleId": "200000003058489"
+    },
+    {
+      "id": "ffbb-200000014683691",
+      "date": "2026-09-19",
+      "time": "16:30",
+      "category": "U13 F1",
+      "competition": "Départementale féminine U13 - Division 3",
+      "teamHome": "MARCIGNY BASKET CLUB - 1",
+      "teamAway": "SPORTS REUNIS CLAYETTOIS",
+      "isHomeMatch": false,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "GYMNASE MUNICIPAL (salle 1)",
+      "city": "71110 MARCIGNY",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014683691",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "poule": "Poule E",
+      "pouleId": "200000003058047"
+    },
+    {
+      "id": "ffbb-200000014684594",
+      "date": "2026-09-19",
+      "time": "16:45",
+      "category": "U13 M1",
+      "competition": "Départementale masculine U13 - Division 3",
+      "teamHome": "SPORTS REUNIS CLAYETTOIS",
+      "teamAway": "ST JEAN ST MAURICE LES LOUPS - 2",
+      "isHomeMatch": true,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "COSEC",
+      "city": "CLAYETTE",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014684594",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "poule": "Poule F",
+      "pouleId": "200000003058036"
+    },
+    {
+      "id": "ffbb-200000014586163",
+      "date": "2026-09-19",
+      "time": "18:30",
+      "category": "Seniors F1",
+      "competition": "Départementale féminine seniors - Division 3",
+      "teamHome": "ASSOCIATION SAINT DENIS MARS BASKET - 2",
+      "teamAway": "SPORTS REUNIS CLAYETTOIS",
+      "isHomeMatch": false,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "SALLE MUNICIPALE EREA",
+      "city": "42750 SAINT-DENIS-DE-CABANNE",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014586163",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/962ebe98-edcd-42da-97b1-0863bea60978",
+      "poule": "Poule C",
+      "pouleId": "200000003054576"
+    },
+    {
+      "id": "ffbb-200000014685769",
+      "date": "2026-09-19",
+      "time": "18:30",
+      "category": "U15 F1",
+      "competition": "Départementale féminine U15 - Division 3",
+      "teamHome": "SPORTS REUNIS CLAYETTOIS",
+      "teamAway": "MABLY CLP - 1",
+      "isHomeMatch": true,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "COSEC",
+      "city": "CLAYETTE",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014685769",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/985fbab6-507e-4171-84c9-297d9dd67708",
+      "poule": "Poule D",
+      "pouleId": "200000003058157"
+    },
+    {
+      "id": "ffbb-200000014683928",
+      "date": "2026-09-20",
+      "time": "11:00",
+      "category": "U18 M1",
+      "competition": "Départementale masculine U18 - Division 3",
+      "teamHome": "AS THIZY BOURG - 3",
+      "teamAway": "SPORTS REUNIS CLAYETTOIS",
+      "isHomeMatch": false,
+      "ourClubName": "SPORTS REUNIS CLAYETTOIS",
+      "gymnasium": "GM BOUDIER - LA CONDEMINE",
+      "city": "69240 BOURG-DE-THIZY",
+      "status": "upcoming",
+      "result": null,
+      "ffbbMatchNumber": "FFBB-200000014683928",
+      "teamLogo": "https://api.ffbb.com/assets/f91aefdc-2b1f-4e38-868b-92dd8b16e500",
+      "opponentLogo": "https://api.ffbb.com/assets/65fca615-182f-4ad2-8543-a45118bc3069",
+      "poule": "Poule D",
+      "pouleId": "200000003058058"
+    }
+  ],
+  "results": [],
+  "sponsors": [
+    {
+      "id": "sponsor-1789742083770-0-ml5f4",
+      "name": "Annonce Basket Ecran Motiv Interim 169",
+      "tier": "silver",
+      "logoUrl": "/uploads/annonce_Basket_Ecran_motiv_interim_169-1789742088747-wqptjs.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-1-5ji2n",
+      "name": "Bbc",
+      "tier": "silver",
+      "logoUrl": "/uploads/bbc-1789742088750-vpgzmz.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-2-qd9xq",
+      "name": "BPCoaching Ecran M02169",
+      "tier": "silver",
+      "logoUrl": "/uploads/BPCoaching_ecran-M02169-1789742088758-b4prlc.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-3-v9ta3",
+      "name": "Chofaye",
+      "tier": "silver",
+      "logoUrl": "/uploads/chofaye-1789742088767-19ypx2.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-4-jwkxa",
+      "name": "CMBP LOGO BBL Blanc Photo",
+      "tier": "silver",
+      "logoUrl": "/uploads/CMBP_LOGO_BBL_Blanc_photo-1789742088785-ptaorn.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-6-yjlmr",
+      "name": "Delphin",
+      "tier": "silver",
+      "logoUrl": "/uploads/delphin-1789742088792-xr54vs.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-7-3ft67",
+      "name": "FP 1",
+      "tier": "silver",
+      "logoUrl": "/uploads/FP_1-1789742088792-liwolc.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-8-dxoes",
+      "name": "Hotel Bourgogne",
+      "tier": "silver",
+      "logoUrl": "/uploads/hotel_bourgogne-1789742088800-191nx6.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742083770-9-l5994",
+      "name": "LOGO CMA 241115 092239[1].pdf",
+      "tier": "silver",
+      "logoUrl": "/uploads/LOGO_CMA_241115_092239_1__pdf-1789742088802-1tmtnt.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-0-w4kie",
+      "name": "Armel",
+      "tier": "silver",
+      "logoUrl": "/uploads/armel-1789742115119-x7q3t1.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-1-loa28",
+      "name": "BricomarchÃ©",
+      "tier": "silver",
+      "logoUrl": "/uploads/bricomarch__-1789742115119-xwpp5z.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-2-jbqyl",
+      "name": "Carte Visite Alexis Vidal Couleurs Optimisees (1)",
+      "tier": "silver",
+      "logoUrl": "/uploads/Carte_Visite_Alexis_Vidal_Couleurs_Optim-1789742115120-0yhn8j.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-3-jycph",
+      "name": "David",
+      "tier": "silver",
+      "logoUrl": "/uploads/david-1789742115132-rnu6hg.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-4-xvmjp",
+      "name": "DOMAINE DES GANDINES Logo",
+      "tier": "silver",
+      "logoUrl": "/uploads/DOMAINE_DES_GANDINES_logo-1789742115133-0oommx.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-5-6enq4",
+      "name": "Duperray",
+      "tier": "silver",
+      "logoUrl": "/uploads/duperray-1789742115136-39fdex.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-6-15tqw",
+      "name": "Gemini Generated Image C9547oc9547oc954",
+      "tier": "silver",
+      "logoUrl": "/uploads/Gemini_Generated_Image_c9547oc9547oc954-1789742115136-tw9grc.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-7-0nqlm",
+      "name": "Les Lunettes D'hector",
+      "tier": "silver",
+      "logoUrl": "/uploads/les__lunettes_d_hector-1789742115146-i26j1h.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-8-6aft0",
+      "name": "Logo CMA BETON[1].pdf",
+      "tier": "silver",
+      "logoUrl": "/uploads/Logo_CMA_BETON_1__pdf-1789742115146-u1vx4i.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-9-uh1t9",
+      "name": "Morel Boisson",
+      "tier": "silver",
+      "logoUrl": "/uploads/morel_boisson-1789742115147-06e209.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-10-dbvbr",
+      "name": "Noly169",
+      "tier": "silver",
+      "logoUrl": "/uploads/Noly169-1789742115152-j3wd6p.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-11-8h9du",
+      "name": "SRCbascket2026 02b",
+      "tier": "silver",
+      "logoUrl": "/uploads/SRCbascket2026_02b-1789742115155-97d7iv.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-13-9dxx9",
+      "name": "Transfroid Logo Menu 226x56 1",
+      "tier": "silver",
+      "logoUrl": "/uploads/transfroid-logo-menu-226x56-1-1789742115179-6spnz2.png",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    },
+    {
+      "id": "sponsor-1789742110134-14-bjrnh",
+      "name": "U Express Distribution Saint Bonnet De Joux Logo 1",
+      "tier": "silver",
+      "logoUrl": "/uploads/u-express-distribution-saint-bonnet-de-j-1789742115181-15h21b.jpg",
+      "categoryFolder": "Partenaires Locaux",
+      "isVideo": false,
+      "mediaType": "image"
+    }
+  ],
+  "logos": [
+    {
+      "id": "logo-1789742102063-0-umizf",
+      "name": "Final Comp Logo1",
+      "logoUrl": "/uploads/Final_Comp_logo1-1789742088644-m45e5r.mp4",
+      "category": "club",
+      "isTransparent": false,
+      "isVideo": true,
+      "mediaType": "video"
+    },
+    {
+      "id": "logo-1789742102063-1-f0lwp",
+      "name": "Final Comp",
+      "logoUrl": "/uploads/Final_Comp_logo1-1789742088644-m45e5r.mp4",
+      "category": "club",
+      "isTransparent": false,
+      "isVideo": true,
+      "mediaType": "video"
+    },
+    {
+      "id": "logo-1789742102063-2-tzv6k",
+      "name": "Video Logo 1",
+      "logoUrl": "/uploads/_scene_description_action_scowty_2025082-1789744885170-exufiz.mp4",
+      "category": "club",
+      "isTransparent": false,
+      "isVideo": true,
+      "mediaType": "video"
+    },
+    {
+      "id": "logo-1789745306785-0-97woe",
+      "name": "Scowty Interdiction Boire Manger",
+      "logoUrl": "/uploads/Scowty_interdiction_boire_manger-1789745311817-5z7n87.mp4",
+      "category": "club",
+      "isTransparent": false,
+      "isVideo": true,
+      "mediaType": "video"
+    }
+  ],
+  "photos": [],
+  "birthdays": [
+    {
+      "id": "bd-parsed-70-1789742164142",
+      "fullName": "Juliette COMBIER",
+      "firstName": "Juliette",
+      "lastName": "COMBIER",
+      "birthDate": "2012-09-18",
+      "birthDayFormatted": "Vendredi 18 Septembre",
+      "age": 14,
+      "teamCategory": "U15",
+      "isThisWeek": true
+    }
+  ],
+  "events": [],
+  "teamVisuals": [
+    {
+      "id": "tv-sf",
+      "teamName": "SENIORS F",
+      "shortAliases": [
+        "seniors f",
+        "seniors filles",
+        "sf"
+      ],
+      "category": "Seniors Féminines",
+      "winVisualUrl": "https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u18f",
+      "teamName": "U18F",
+      "shortAliases": [
+        "u18f",
+        "u18 filles"
+      ],
+      "category": "Jeunes U18",
+      "winVisualUrl": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u15f",
+      "teamName": "U15F",
+      "shortAliases": [
+        "u15f",
+        "u15 filles"
+      ],
+      "category": "Jeunes U15",
+      "winVisualUrl": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u13f1",
+      "teamName": "U13F-1",
+      "shortAliases": [
+        "u13f-1",
+        "u13f1",
+        "u13 filles 1"
+      ],
+      "category": "Jeunes U13",
+      "winVisualUrl": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u13f2",
+      "teamName": "U13F-2",
+      "shortAliases": [
+        "u13f-2",
+        "u13f2",
+        "u13 filles 2"
+      ],
+      "category": "Jeunes U13",
+      "winVisualUrl": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u11f",
+      "teamName": "U11F",
+      "shortAliases": [
+        "u11f",
+        "u11 filles"
+      ],
+      "category": "École de Basket U11",
+      "winVisualUrl": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u18m",
+      "teamName": "U18M",
+      "shortAliases": [
+        "u18m",
+        "u18 garcons"
+      ],
+      "category": "Jeunes U18",
+      "winVisualUrl": "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u13m",
+      "teamName": "U13M",
+      "shortAliases": [
+        "u13m",
+        "u13 garcons"
+      ],
+      "category": "Jeunes U13",
+      "winVisualUrl": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": "tv-u11m",
+      "teamName": "U11M",
+      "shortAliases": [
+        "u11m",
+        "u11 garcons"
+      ],
+      "category": "École de Basket U11",
+      "winVisualUrl": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1600&auto=format&fit=crop&q=80",
+      "lossVisualUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1600&auto=format&fit=crop&q=80"
+    }
+  ],
+  "visualTemplates": {
+    "matchesBackgroundUrl": "/uploads/Sans_titre__8_-1789743126958-p8vkyh.png",
+    "resultsBackgroundUrl": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1920&auto=format&fit=crop&q=80",
+    "birthdaysBackgroundUrl": "/uploads/fond_anniversaire-1789742199801-hgncrm.png",
+    "defaultVictoryBackgroundUrl": "https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=1920&auto=format&fit=crop&q=80",
+    "defaultDefeatBackgroundUrl": "https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1920&auto=format&fit=crop&q=80",
+    "theme": {
+      "primaryColor": "#ea580c",
+      "secondaryColor": "#0f172a",
+      "cardBgColor": "#020617",
+      "cardOpacity": 0.85,
+      "cardBlur": 8,
+      "fontFamilyHeader": "Bebas Neue",
+      "fontFamilyScore": "Teko",
+      "backgroundBrightness": 0.4,
+      "backgroundBlur": 0
+    },
+    "matchesSettings": {
+      "backgroundUrl": "/uploads/Sans_titre__8_-1789743126958-p8vkyh.png",
+      "primaryColor": "#ea580c",
+      "cardBgColor": "#020617",
+      "cardOpacity": 0.85,
+      "cardBlur": 8,
+      "fontFamilyHeader": "Bebas Neue",
+      "backgroundBrightness": 0.65,
+      "backgroundBlur": 0,
+      "showMascot": true,
+      "mascotPosition": "bottom-right",
+      "layer3": {
+        "name": "Mascotte / Élément 1",
+        "enabled": false,
+        "mediaUrl": "",
+        "mediaType": "image",
+        "useChromaKey": true,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 88,
+        "y": 80,
+        "scale": 1,
+        "opacity": 1,
+        "animationStyle": "float"
+      },
+      "layer4": {
+        "name": "Badge / Logo 2",
+        "enabled": false,
+        "mediaUrl": "",
+        "mediaType": "image",
+        "useChromaKey": false,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 12,
+        "y": 80,
+        "scale": 0.9,
+        "opacity": 1,
+        "animationStyle": "none"
+      }
+    },
+    "resultsSettings": {
+      "backgroundUrl": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1920&auto=format&fit=crop&q=80",
+      "primaryColor": "#ea580c",
+      "cardBgColor": "#020617",
+      "cardOpacity": 0.85,
+      "cardBlur": 8,
+      "fontFamilyHeader": "Bebas Neue",
+      "fontFamilyScore": "Teko",
+      "backgroundBrightness": 0.4,
+      "backgroundBlur": 0,
+      "showMascot": true,
+      "mascotPosition": "bottom-right",
+      "mascotOnlyOnVictory": false,
+      "layer3": {
+        "name": "Mascotte / Élément 1",
+        "enabled": false,
+        "mediaUrl": "",
+        "mediaType": "image",
+        "useChromaKey": true,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 88,
+        "y": 80,
+        "scale": 1,
+        "opacity": 1,
+        "animationStyle": "float",
+        "onlyOnVictory": false
+      },
+      "layer4": {
+        "name": "Badge / Logo 2",
+        "enabled": false,
+        "mediaUrl": "",
+        "mediaType": "image",
+        "useChromaKey": false,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 12,
+        "y": 80,
+        "scale": 0.9,
+        "opacity": 1,
+        "animationStyle": "none"
+      }
+    },
+    "birthdaysSettings": {
+      "backgroundUrl": "/uploads/fond_anniversaire-1789742199801-hgncrm.png",
+      "primaryColor": "#f59e0b",
+      "cardBgColor": "#150f04",
+      "cardOpacity": 0.1,
+      "cardBlur": 10,
+      "fontFamilyHeader": "Fredoka",
+      "backgroundBrightness": 1,
+      "backgroundBlur": 0,
+      "showMascot": true,
+      "mascotPosition": "bottom-right",
+      "layer3": {
+        "name": "Mascotte Fête",
+        "enabled": true,
+        "mediaUrl": "/uploads/_scene_description_action_scowty_2025082-1789744885170-exufiz.mp4",
+        "mediaType": "video",
+        "useChromaKey": true,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 100,
+        "y": 85,
+        "scale": 1.9,
+        "opacity": 1,
+        "animationStyle": "float",
+        "flipHorizontal": false,
+        "fullScreen": false,
+        "motionTrajectory": "right-to-left",
+        "motionDuration": 12
+      },
+      "layer4": {
+        "name": "Badge Confettis",
+        "enabled": false,
+        "mediaUrl": "",
+        "mediaType": "image",
+        "useChromaKey": false,
+        "chromaKeyColor": "#00ff00",
+        "chromaTolerance": 0.35,
+        "chromaSmoothness": 0.08,
+        "x": 12,
+        "y": 80,
+        "scale": 0.9,
+        "opacity": 1,
+        "animationStyle": "none"
+      }
+    },
+    "mascot": {
+      "enabled": false,
+      "mediaUrl": "",
+      "mediaType": "video",
+      "useChromaKey": true,
+      "chromaKeyColor": "#00ff00",
+      "chromaTolerance": 0.35,
+      "chromaSmoothness": 0.08,
+      "position": "bottom-right",
+      "scale": 1,
+      "opacity": 1,
+      "animationStyle": "float",
+      "showOnMatches": true,
+      "showOnResults": true,
+      "showOnBirthdays": true,
+      "onlyOnVictory": false
+    }
+  }
+}

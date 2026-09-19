@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, Building2, ExternalLink, Heart, Sparkles, Star } from 'lucide-react';
 import { SponsorItem, ClubSettings } from '../../types';
+import { isVideoMedia } from '../../utils/mediaUtils';
 
 interface SponsorsSlideProps {
   sponsor?: SponsorItem;
@@ -23,7 +24,12 @@ export const SponsorsSlide: React.FC<SponsorsSlideProps> = ({
 }) => {
   // Single sponsor per slide mode - 100% Pure Full-Screen Visual Image or Video without text overlays or cards
   if (sponsor) {
-    const isVid = sponsor.isVideo || sponsor.mediaType === 'video' || sponsor.logoUrl?.includes('.mp4') || sponsor.logoUrl?.startsWith('data:video/');
+    const isVid = Boolean(
+      sponsor.isVideo ||
+      sponsor.mediaType === 'video' ||
+      isVideoMedia(sponsor.logoUrl)
+    );
+
     return (
       <div className="relative w-full h-full flex items-center justify-center p-4 md:p-8 bg-slate-950 overflow-hidden select-none">
         {/* Ambient dark background backdrop */}
@@ -40,11 +46,16 @@ export const SponsorsSlide: React.FC<SponsorsSlideProps> = ({
         {/* Pure 100% Full-Screen Sponsor Image/Logo or Video */}
         {isVid ? (
           <video
+            key={`sponsor-vid-${sponsor.id || sponsor.logoUrl}`}
             src={sponsor.logoUrl}
             autoPlay
             loop={!onVideoEnded}
             muted
             playsInline
+            preload="auto"
+            onCanPlay={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
             onTimeUpdate={(e) => {
               const vid = e.currentTarget;
               if (onVideoTimeUpdate && vid.duration) {
@@ -52,10 +63,15 @@ export const SponsorsSlide: React.FC<SponsorsSlideProps> = ({
               }
             }}
             onEnded={onVideoEnded}
+            onError={() => {
+              console.warn('Erreur lecture vidéo sponsor, passage au suivant');
+              if (onVideoEnded) onVideoEnded();
+            }}
             className="relative z-10 max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all duration-700"
           />
         ) : (
           <img
+            key={`sponsor-img-${sponsor.id || sponsor.logoUrl}`}
             src={sponsor.logoUrl}
             alt={sponsor.name}
             className="relative z-10 max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all duration-700"

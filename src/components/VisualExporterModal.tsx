@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   Download,
   X,
@@ -17,17 +17,31 @@ import {
   Radio,
   Flame,
   CheckCircle2,
-  Video,
   Image as ImageIcon,
   Home,
   Navigation,
   PauseCircle,
   Layers,
   Edit3,
+  ChevronLeft,
+  ChevronRight,
+  Sliders,
+  Eye,
+  EyeOff,
+  Palette,
+  Upload,
+  Trash2,
+  Plus,
+  Sun,
+  RotateCcw,
+  Maximize2,
+  Type,
 } from 'lucide-react';
 import { toPng } from 'html-to-image';
-import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig } from '../types';
+import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption } from '../types';
 import { formatMatchDayAndDate } from '../utils/matchDateHelper';
+import { getEffectiveCategoryConfig } from '../utils/themeUtils';
+import { getExportFontEmbedCSS, AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 interface VisualExporterModalProps {
@@ -38,7 +52,6 @@ interface VisualExporterModalProps {
   results: MatchItem[];
   clubSettings: ClubSettings;
   specificNotification?: FinishedMatchNotification | null;
-  onOpenVideoExporter?: () => void;
   visualTemplates?: VisualTemplatesConfig;
 }
 
@@ -104,16 +117,23 @@ function formatPosterMatchDate(dateStr?: string, timeStr?: string): string {
 const AutoFitTeamName: React.FC<{
   name: string;
   isExempt?: boolean;
-}> = ({ name, isExempt }) => {
+  isCompact?: boolean;
+  count?: number;
+  aspectRatio?: PosterAspectRatio;
+  fontHeader?: FontFamilyOption;
+  textColor?: string;
+}> = ({ name, isExempt, isCompact, count = 4, aspectRatio, fontHeader, textColor = '#ffffff' }) => {
   const clean = (name || '').trim();
   const len = clean.length;
 
   if (isExempt || clean.toLowerCase() === 'exempt') {
     return (
-      <div className="w-full h-full flex items-center justify-center text-center px-2 pointer-events-none select-none">
+      <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
         <span
-          className="font-montserrat font-black text-white uppercase tracking-wider text-[15px] drop-shadow-sm"
-          style={{ lineHeight: 1.15 }}
+          className={`font-montserrat font-black text-white uppercase tracking-wider drop-shadow-sm ${
+            count >= 6 || aspectRatio === '16:9' ? 'text-[11px]' : count >= 5 ? 'text-[12px]' : 'text-[14px]'
+          }`}
+          style={{ lineHeight: 1.1 }}
         >
           Exempt
         </span>
@@ -121,42 +141,80 @@ const AutoFitTeamName: React.FC<{
     );
   }
 
-  // Dynamic font sizing based on string length
-  let fontSize = '14.5px';
+  // Dynamic font sizing based on string length, aspect ratio and total match count
+  const compactMode = isCompact || count >= 6 || (aspectRatio === '16:9' && count >= 3);
+  let fontSize = '14px';
   let lineHeight = '1.15';
+  let maxHeight = '36px';
 
-  if (len <= 11) {
-    // e.g. "U11 Filles", "U15 Filles", "SG1"
-    fontSize = '14.5px';
-    lineHeight = '1.15';
-  } else if (len <= 17) {
-    // e.g. "Seniors Filles", "Mably CLP - 1", "U18 Garçons"
-    fontSize = '12.5px';
-    lineHeight = '1.12';
-  } else if (len <= 23) {
-    // e.g. "St-Martin/Estreaux", "AS Saint Denis Mars"
-    fontSize = '11px';
-    lineHeight = '1.08';
-  } else if (len <= 28) {
-    // e.g. "ST Jean ST Maurice Les Loups", "Marcigny Basket Club"
-    fontSize = '10px';
-    lineHeight = '1.05';
+  if (compactMode) {
+    if (len <= 10) {
+      fontSize = '12px';
+      lineHeight = '1.1';
+    } else if (len <= 16) {
+      fontSize = '10.5px';
+      lineHeight = '1.05';
+    } else if (len <= 22) {
+      fontSize = '9px';
+      lineHeight = '1.0';
+    } else if (len <= 28) {
+      fontSize = '8px';
+      lineHeight = '0.95';
+    } else {
+      fontSize = '7.5px';
+      lineHeight = '0.9';
+    }
+    maxHeight = '24px';
+  } else if (count === 5) {
+    if (len <= 11) {
+      fontSize = '13px';
+      lineHeight = '1.12';
+    } else if (len <= 17) {
+      fontSize = '11.5px';
+      lineHeight = '1.08';
+    } else if (len <= 23) {
+      fontSize = '10px';
+      lineHeight = '1.04';
+    } else if (len <= 28) {
+      fontSize = '9px';
+      lineHeight = '1.0';
+    } else {
+      fontSize = '8px';
+      lineHeight = '0.95';
+    }
+    maxHeight = '28px';
   } else {
-    // Extra long names
-    fontSize = '8.5px';
-    lineHeight = '1.0';
+    // 1 to 4 matches
+    if (len <= 11) {
+      fontSize = '14.5px';
+      lineHeight = '1.15';
+    } else if (len <= 17) {
+      fontSize = '12.5px';
+      lineHeight = '1.12';
+    } else if (len <= 23) {
+      fontSize = '11px';
+      lineHeight = '1.08';
+    } else if (len <= 28) {
+      fontSize = '10px';
+      lineHeight = '1.05';
+    } else {
+      fontSize = '8.5px';
+      lineHeight = '1.0';
+    }
+    maxHeight = '36px';
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
+    <div className="w-full h-full flex items-center justify-center text-center px-1 pointer-events-none select-none">
       <span
-        className="font-montserrat font-extrabold text-white text-center uppercase tracking-tight block max-w-full drop-shadow-sm"
+        className={`${getFontFamilyClass(fontHeader)} font-extrabold text-center uppercase tracking-tight block max-w-full drop-shadow-sm`}
         style={{
           fontSize,
           lineHeight,
+          color: textColor,
           wordBreak: 'break-word',
           overflowWrap: 'break-word',
-          maxHeight: '38px',
+          maxHeight,
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
@@ -178,7 +236,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   results,
   clubSettings,
   specificNotification,
-  onOpenVideoExporter,
   visualTemplates,
 }) => {
   const [contentType, setContentType] = useState<'matches' | 'results' | 'notification'>(
@@ -203,6 +260,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Background image customization
   const [customBgImage, setCustomBgImage] = useState<string | null>(null);
+
+  // Calque 1 (Arrière-plan / Fond) visual settings
+  const [layer1Brightness, setLayer1Brightness] = useState<number>(0.55); // 0.1 to 1.5 (default 55%)
+  const [layer1Blur, setLayer1Blur] = useState<number>(6); // 0 to 25 px (default 6px)
+  const [layer1Scale, setLayer1Scale] = useState<number>(1.05); // 1.0 to 2.5 (default 105%)
+  const [layer1Grayscale, setLayer1Grayscale] = useState<boolean>(true); // default N&B
+  const [layer1Contrast, setLayer1Contrast] = useState<number>(1.25); // 0.8 to 2.0 (default 125%)
 
   const [selectedSocialTab, setSelectedSocialTab] = useState<'instagram' | 'tiktok' | 'facebook' | 'webhook'>('instagram');
 
@@ -283,29 +347,146 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   }, [customBadgeTitle, contentType, posterFilter, specificNotification]);
 
+  // Limit of matches to display per visual (auto or manual 3-6)
+  const [matchesLimit, setMatchesLimit] = useState<number | 'auto'>('auto');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Background source selection
+  const [bgSource, setBgSource] = useState<'default' | 'studio' | 'custom'>('default');
+
+  // Studio Graphique effective category config (Layer 1, Layer 3, Layer 4)
+  const categoryType = contentType === 'results' ? 'results' : 'matches';
+  const effectiveCategoryConfig = useMemo(() => {
+    return getEffectiveCategoryConfig(categoryType, visualTemplates, clubSettings);
+  }, [categoryType, visualTemplates, clubSettings]);
+
+  // Calque 2 (Cartes, Polices & Pastilles) controls
+  const [layer2PrimaryColor, setLayer2PrimaryColor] = useState<string>('#c80815');
+  const [layer2TextColor, setLayer2TextColor] = useState<string>('#ffffff');
+  const [layer2BadgeBgColor, setLayer2BadgeBgColor] = useState<string>('#c80815');
+  const [layer2BadgeTextColor, setLayer2BadgeTextColor] = useState<string>('#ffffff');
+  const [layer2FontHeader, setLayer2FontHeader] = useState<FontFamilyOption>('Bebas Neue');
+  const [layer2FontBody, setLayer2FontBody] = useState<FontFamilyOption>('Montserrat');
+
+  useEffect(() => {
+    if (effectiveCategoryConfig) {
+      if (effectiveCategoryConfig.primaryColor) setLayer2PrimaryColor(effectiveCategoryConfig.primaryColor);
+      if (effectiveCategoryConfig.textColor) setLayer2TextColor(effectiveCategoryConfig.textColor);
+      if (effectiveCategoryConfig.badgeBgColor) {
+        setLayer2BadgeBgColor(effectiveCategoryConfig.badgeBgColor);
+      } else if (effectiveCategoryConfig.primaryColor) {
+        setLayer2BadgeBgColor(effectiveCategoryConfig.primaryColor);
+      }
+      if (effectiveCategoryConfig.badgeTextColor) setLayer2BadgeTextColor(effectiveCategoryConfig.badgeTextColor);
+      if (effectiveCategoryConfig.fontFamilyHeader) setLayer2FontHeader(effectiveCategoryConfig.fontFamilyHeader);
+      if (effectiveCategoryConfig.fontFamilyBody) setLayer2FontBody(effectiveCategoryConfig.fontFamilyBody);
+    }
+  }, [effectiveCategoryConfig]);
+
+  // Calque 3 (Mascotte / Décor Studio) controls
+  const [customLayer3Image, setCustomLayer3Image] = useState<string | null>(null);
+  const [showStudioLayer3, setShowStudioLayer3] = useState<boolean>(true);
+  const [studioLayer3Pos, setStudioLayer3Pos] = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'center'>('bottom-right');
+  const [studioLayer3Scale, setStudioLayer3Scale] = useState<number>(0.85);
+  const layer3FileInputRef = useRef<HTMLInputElement>(null);
+
+  // Calque 4 (Sponsor / Logo Studio) controls
+  const [customLayer4Image, setCustomLayer4Image] = useState<string | null>(null);
+  const [showStudioLayer4, setShowStudioLayer4] = useState<boolean>(true);
+  const [studioLayer4Pos, setStudioLayer4Pos] = useState<'top-right' | 'bottom-left' | 'bottom-right' | 'center'>('top-right');
+  const [studioLayer4Scale, setStudioLayer4Scale] = useState<number>(0.75);
+  const layer4FileInputRef = useRef<HTMLInputElement>(null);
+
+  // Effective Layer 3 and Layer 4 URLs
+  const effectiveLayer3Url = useMemo(() => {
+    if (customLayer3Image) return customLayer3Image;
+    if (effectiveCategoryConfig.layer3?.mediaUrl) return effectiveCategoryConfig.layer3.mediaUrl;
+    return '';
+  }, [customLayer3Image, effectiveCategoryConfig.layer3?.mediaUrl]);
+
+  const effectiveLayer4Url = useMemo(() => {
+    if (customLayer4Image) return customLayer4Image;
+    if (effectiveCategoryConfig.layer4?.mediaUrl) return effectiveCategoryConfig.layer4.mediaUrl;
+    return '';
+  }, [customLayer4Image, effectiveCategoryConfig.layer4?.mediaUrl]);
+
+  const handleLayer3Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setCustomLayer3Image(event.target.result as string);
+          setShowStudioLayer3(true);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLayer4Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setCustomLayer4Image(event.target.result as string);
+          setShowStudioLayer4(true);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Max number of matches to display per aspect ratio to ensure no overflow
   const maxDisplayMatches = useMemo(() => {
+    if (matchesLimit !== 'auto') {
+      return matchesLimit;
+    }
     if (aspectRatio === '9:16') return 6;
-    if (aspectRatio === '4:5') return 4;
-    if (aspectRatio === '1:1') return 3;
-    return 4; // 16:9
-  }, [aspectRatio]);
+    if (aspectRatio === '4:5') return 6;
+    if (aspectRatio === '1:1') return 4;
+    return 6; // 16:9
+  }, [aspectRatio, matchesLimit]);
 
-  // Active items for display on the card
+  // Active source items list for pagination
+  const allSourceItems = useMemo(() => {
+    if (contentType === 'results') return results;
+    return filteredMatches;
+  }, [contentType, results, filteredMatches]);
+
+  // Total pages
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(allSourceItems.length / maxDisplayMatches));
+  }, [allSourceItems.length, maxDisplayMatches]);
+
+  // Auto-reset current page when filter or limits change
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // Active items for display on the card (paginated)
   const displayedMatches = useMemo(() => {
-    return filteredMatches.slice(0, maxDisplayMatches);
-  }, [filteredMatches, maxDisplayMatches]);
+    const start = (currentPage - 1) * maxDisplayMatches;
+    return filteredMatches.slice(start, start + maxDisplayMatches);
+  }, [filteredMatches, currentPage, maxDisplayMatches]);
 
   const displayedResults = useMemo(() => {
-    return results.slice(0, maxDisplayMatches);
-  }, [results, maxDisplayMatches]);
+    const start = (currentPage - 1) * maxDisplayMatches;
+    return results.slice(start, start + maxDisplayMatches);
+  }, [results, currentPage, maxDisplayMatches]);
 
   // Effective background image URL
   const effectiveBgUrl = useMemo(() => {
     if (customBgImage) return customBgImage;
+    if (bgSource === 'studio' && effectiveCategoryConfig.backgroundUrl) {
+      return effectiveCategoryConfig.backgroundUrl;
+    }
     if (visualTemplates?.matchesBackgroundUrl) return visualTemplates.matchesBackgroundUrl;
     return defaultPosterBg;
-  }, [customBgImage, visualTemplates]);
+  }, [customBgImage, bgSource, effectiveCategoryConfig.backgroundUrl, visualTemplates]);
 
   // Captions for social media
   const generatedCaptions = useMemo(() => {
@@ -372,10 +553,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     if (!cardRef.current) return;
     try {
       setIsExporting(true);
+      const fontEmbedCSS = await getExportFontEmbedCSS();
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
         quality: 1,
         pixelRatio: 2.5,
+        fontEmbedCSS,
       });
 
       const link = document.createElement('a');
@@ -399,10 +582,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     if (!cardRef.current) return;
     try {
       setIsSharing(true);
+      const fontEmbedCSS = await getExportFontEmbedCSS();
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
         quality: 0.95,
         pixelRatio: 2,
+        fontEmbedCSS,
       });
 
       const res = await fetch(dataUrl);
@@ -512,7 +697,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-6xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh]">
+      <div className="relative w-full max-w-[96vw] xl:max-w-[94vw] 2xl:max-w-[1700px] h-[94vh] max-h-[96vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950">
@@ -580,21 +765,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               >
                 <Zap className="w-3.5 h-3.5" />
                 <span>Alerte Victoire/Défaite</span>
-              </button>
-            )}
-
-            {onOpenVideoExporter && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenVideoExporter();
-                }}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold font-bebas tracking-wider uppercase transition-all flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-md cursor-pointer ml-1 active:scale-95"
-                title="Exporter et télécharger le carrousel complet en vidéo (MP4 / WebM)"
-              >
-                <Video className="w-3.5 h-3.5 text-purple-200" />
-                <span>Export Vidéo (Carrousel)</span>
               </button>
             )}
           </div>
@@ -760,6 +930,25 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 <span>Paysage (16:9)</span>
               </button>
             </div>
+
+            {/* Match limit / Capacity selector (Up to 6 matches) */}
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+              <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Capacité :</span>
+              {(['auto', 3, 4, 5, 6] as const).map((limit) => (
+                <button
+                  key={limit}
+                  onClick={() => setMatchesLimit(limit)}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                    matchesLimit === limit
+                      ? 'bg-red-700 text-white shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                  title={limit === 'auto' ? 'Automatique selon le format' : `Forcer ${limit} matchs par visuel`}
+                >
+                  {limit === 'auto' ? 'Auto' : `${limit} m`}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -810,6 +999,40 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </div>
             </div>
 
+            {/* PAGINATION BAR (When matches exceed capacity) */}
+            {totalPages > 1 && (
+              <div className="w-full flex items-center justify-between bg-gradient-to-r from-red-950/80 via-slate-900 to-red-950/80 border border-red-800/50 rounded-2xl px-3 py-1.5 mb-2.5 shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Précédent</span>
+                </button>
+
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-black text-white font-montserrat uppercase tracking-wider">
+                    Visuel {currentPage} / {totalPages}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {contentType === 'matches' ? 'Matchs' : 'Résultats'} {(currentPage - 1) * maxDisplayMatches + 1} à {Math.min(currentPage * maxDisplayMatches, allSourceItems.length)} sur {allSourceItems.length}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                >
+                  <span>Suivant</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Quick Badge Text Editor */}
             <div className="w-full flex items-center gap-2 px-2 mb-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1 shrink-0">
@@ -846,7 +1069,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   ? 'max-w-[340px] aspect-[9/16] p-5 sm:p-6 rounded-3xl'
                   : aspectRatio === '1:1'
                   ? 'max-w-[400px] aspect-square p-4 sm:p-5 rounded-3xl'
-                  : 'max-w-[540px] aspect-[16/9] p-4 sm:p-5 rounded-3xl'
+                  : 'max-w-[620px] aspect-[16/9] p-3.5 sm:p-4 rounded-3xl'
               }`}
               style={{
                 backgroundColor: '#111111',
@@ -855,12 +1078,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
               {visualTheme === 'poster-red' && (
                 <>
-                  {/* Photo background with grayscale & blur */}
-                  <img
-                    src={effectiveBgUrl}
-                    alt="Fond affiche basket"
-                    className="absolute inset-0 w-full h-full object-cover pointer-events-none filter grayscale contrast-125 brightness-[0.55] blur-[6px] transform scale-105"
-                  />
+                  {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    <img
+                      src={effectiveBgUrl}
+                      alt="Fond affiche basket"
+                      className="w-full h-full object-cover pointer-events-none transition-all duration-75"
+                      style={{
+                        filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
+                        transform: `scale(${layer1Scale})`,
+                      }}
+                      crossOrigin="anonymous"
+                    />
+                  </div>
 
                   {/* Radial vignette overlay for maximum readability & high contrast */}
                   <div
@@ -873,32 +1103,92 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   {/* Subtle sports lighting accent */}
                   <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-64 h-32 bg-red-600/20 blur-3xl pointer-events-none" />
 
+                  {/* STUDIO LAYER 3: MASCOTTE / DÉCOR GRAPHISME */}
+                  {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
+                    <div
+                      className={`absolute pointer-events-none z-10 transition-all ${
+                        studioLayer3Pos === 'bottom-right'
+                          ? 'bottom-3 right-3'
+                          : studioLayer3Pos === 'bottom-left'
+                          ? 'bottom-3 left-3'
+                          : studioLayer3Pos === 'top-right'
+                          ? 'top-14 right-3'
+                          : 'bottom-8 left-1/2 -translate-x-1/2'
+                      }`}
+                      style={{
+                        opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
+                        transform: `scale(${studioLayer3Scale}) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
+                        transformOrigin: studioLayer3Pos === 'bottom-right' ? 'bottom right' : studioLayer3Pos === 'bottom-left' ? 'bottom left' : 'center center',
+                        maxHeight: '38%',
+                        maxWidth: '38%',
+                      }}
+                    >
+                      <img
+                        src={effectiveLayer3Url}
+                        alt="Calque 3"
+                        className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]"
+                        crossOrigin="anonymous"
+                      />
+                    </div>
+                  )}
+
+                  {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
+                  {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
+                    <div
+                      className={`absolute pointer-events-none z-10 transition-all ${
+                        studioLayer4Pos === 'top-right'
+                          ? 'top-3 right-3'
+                          : studioLayer4Pos === 'bottom-left'
+                          ? 'bottom-3 left-3'
+                          : studioLayer4Pos === 'bottom-right'
+                          ? 'bottom-3 right-3'
+                          : 'top-3 left-3'
+                      }`}
+                      style={{
+                        opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
+                        transform: `scale(${studioLayer4Scale})`,
+                        transformOrigin: studioLayer4Pos.includes('right') ? 'top right' : 'top left',
+                        maxHeight: '24%',
+                        maxWidth: '30%',
+                      }}
+                    >
+                      <img
+                        src={effectiveLayer4Url}
+                        alt="Calque 4"
+                        className="max-h-full max-w-full object-contain filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
+                        crossOrigin="anonymous"
+                      />
+                    </div>
+                  )}
+
                   {/* CONTENT WRAPPER */}
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-between">
+                  <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
                     
                     {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
                     <div className="w-full flex flex-col items-center">
                       
                       {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
-                      <div className="flex gap-1.5 transform -skew-x-[25deg] mb-2 z-10">
+                      <div className={`flex gap-1.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-1' : 'mb-1.5'} z-10`}>
                         {[...Array(6)].map((_, i) => (
                           <div
                             key={i}
-                            className="w-2 h-4.5 bg-[#c80815] rounded-[1px] shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
+                            className={`${aspectRatio === '16:9' ? 'w-1.5 h-2.5' : 'w-2 h-4'} rounded-[1px] shadow-[0_2px_4px_rgba(0,0,0,0.6)]`}
+                            style={{ backgroundColor: layer2PrimaryColor }}
                           />
                         ))}
                       </div>
 
                       {/* Header Badge: DOMICILE / EXTÉRIEUR / EXEMPT / RÉSULTATS */}
                       <div
-                        className="text-white font-montserrat font-black uppercase tracking-wider text-center border-t border-white/20 z-10"
+                        className={`font-black uppercase tracking-wider text-center border-t border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
                         style={{
-                          background: 'linear-gradient(180deg, #c80815 0%, #900008 100%)',
-                          fontSize: aspectRatio === '1:1' ? '22px' : '26px',
-                          padding: '6px 34px',
+                          background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                          color: layer2BadgeTextColor,
+                          fontSize: aspectRatio === '16:9' ? '17px' : (aspectRatio === '1:1' ? '20px' : (displayedMatches.length >= 6 ? '22px' : '25px')),
+                          padding: aspectRatio === '16:9' ? '3px 22px' : (displayedMatches.length >= 6 ? '4px 28px' : '6px 34px'),
                           borderRadius: '12px',
                           boxShadow: '0 6px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
-                          marginBottom: aspectRatio === '1:1' ? '12px' : '18px',
+                          marginBottom: aspectRatio === '16:9' ? '5px' : (displayedMatches.length >= 6 ? '8px' : (aspectRatio === '1:1' ? '10px' : '14px')),
                           lineHeight: '1.2',
                         }}
                       >
@@ -908,7 +1198,23 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                     {/* MATCHES LIST BODY */}
                     {contentType === 'matches' && (
-                      <div className="w-full flex-1 flex flex-col justify-center gap-3 my-1">
+                      <div
+                        className={`w-full flex-1 ${
+                          aspectRatio === '16:9' && displayedMatches.length >= 4
+                            ? 'grid grid-cols-2 gap-x-4 gap-y-1.5 items-center my-auto px-1'
+                            : `flex flex-col justify-center my-0.5 ${
+                                aspectRatio === '16:9'
+                                  ? 'max-w-[88%] mx-auto pr-8 gap-1.5'
+                                  : displayedMatches.length >= 6
+                                  ? 'gap-1'
+                                  : displayedMatches.length === 5
+                                  ? 'gap-1.5'
+                                  : displayedMatches.length === 4
+                                  ? 'gap-2'
+                                  : 'gap-3'
+                              }`
+                        }`}
+                      >
                         {displayedMatches.map((m) => {
                           const isExempt =
                             posterFilter === 'exempt' ||
@@ -917,14 +1223,21 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                           const teamLeft = m.isHomeMatch ? m.category : m.category;
                           const teamRight = isExempt ? 'Exempt' : (m.isHomeMatch ? m.teamAway : m.teamHome);
+                          const count = displayedMatches.length;
+
+                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '26px' : '30px') : (count >= 6 ? '28px' : count === 5 ? '32px' : count === 4 ? '38px' : '42px');
+                          const headerFontSize = aspectRatio === '16:9' ? '9.5px' : (count >= 6 ? '9.5px' : count === 5 ? '10.5px' : count === 4 ? '11.5px' : (aspectRatio === '1:1' ? '11px' : '12.5px'));
+                          const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
+                          const vsBadgeSize = aspectRatio === '16:9' ? 'w-5 h-5 text-[8.5px]' : (count >= 6 ? 'w-5 h-5 text-[8.5px]' : count === 5 ? 'w-6 h-6 text-[9.5px]' : 'w-7 h-7 text-[10.5px]');
 
                           return (
                             <div key={m.id} className="w-full flex flex-col items-center">
                               {/* Match Date Header: Samedi 19 septembre | 13h30 */}
                               <div
-                                className="font-montserrat font-bold text-[#e0e0e0] text-center mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}
                                 style={{
-                                  fontSize: aspectRatio === '1:1' ? '11px' : '12.5px',
+                                  fontSize: headerFontSize,
+                                  color: layer2TextColor,
                                   letterSpacing: '0.4px',
                                 }}
                               >
@@ -932,24 +1245,27 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                               </div>
 
                               {/* Match Row: [Team Left Pill] (vs) [Team Right Pill] */}
-                              <div className="w-full flex items-center justify-between gap-2">
+                              <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2">
                                 
                                 {/* Home / Category Pill with Auto-adaptive font */}
                                 <div
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
-                                    height: '42px',
-                                    background: 'linear-gradient(180deg, #c80815 0%, #900008 100%)',
+                                    height: pillHeight,
+                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={teamLeft} />
+                                  <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
 
                                 {/* Center Round VS Badge */}
                                 <div
-                                  className="w-7 h-7 rounded-full bg-white text-[#111111] font-montserrat font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] lowercase select-none"
-                                  style={{ fontSize: '10.5px' }}
+                                  className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
+                                  style={{
+                                    backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
+                                    color: layer2BadgeBgColor || '#111111',
+                                  }}
                                 >
                                   vs
                                 </div>
@@ -958,12 +1274,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 <div
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
-                                    height: '42px',
-                                    background: 'linear-gradient(180deg, #c80815 0%, #900008 100%)',
+                                    height: pillHeight,
+                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={teamRight} isExempt={isExempt} />
+                                  <AutoFitTeamName name={teamRight} isExempt={isExempt} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
                               </div>
                             </div>
@@ -974,18 +1290,40 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                     {/* RESULTS LIST BODY */}
                     {contentType === 'results' && (
-                      <div className="w-full flex-1 flex flex-col justify-center gap-3 my-1">
+                      <div
+                        className={`w-full flex-1 ${
+                          aspectRatio === '16:9' && displayedResults.length >= 4
+                            ? 'grid grid-cols-2 gap-x-4 gap-y-1.5 items-center my-auto px-1'
+                            : `flex flex-col justify-center my-0.5 ${
+                                aspectRatio === '16:9'
+                                  ? 'max-w-[88%] mx-auto pr-8 gap-1.5'
+                                  : displayedResults.length >= 6
+                                  ? 'gap-1'
+                                  : displayedResults.length === 5
+                                  ? 'gap-1.5'
+                                  : displayedResults.length === 4
+                                  ? 'gap-2'
+                                  : 'gap-3'
+                              }`
+                        }`}
+                      >
                         {displayedResults.map((r) => {
                           const isWin = r.result === 'win';
                           const scoreDisplay = `${r.homeScore ?? 0} - ${r.awayScore ?? 0}`;
+                          const count = displayedResults.length;
+
+                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '26px' : '30px') : (count >= 6 ? '28px' : count === 5 ? '32px' : count === 4 ? '38px' : '42px');
+                          const headerFontSize = aspectRatio === '16:9' ? '9.5px' : (count >= 6 ? '9.5px' : count === 5 ? '10.5px' : count === 4 ? '11.5px' : (aspectRatio === '1:1' ? '11px' : '12.5px'));
+                          const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
 
                           return (
                             <div key={r.id} className="w-full flex flex-col items-center">
                               {/* Date / Category */}
                               <div
-                                className="font-montserrat font-bold text-[#e0e0e0] text-center mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center gap-1.5"
+                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center gap-1.5`}
                                 style={{
-                                  fontSize: aspectRatio === '1:1' ? '11px' : '12.5px',
+                                  fontSize: headerFontSize,
+                                  color: layer2TextColor,
                                   letterSpacing: '0.4px',
                                 }}
                               >
@@ -997,22 +1335,28 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                               </div>
 
                               {/* Row */}
-                              <div className="w-full flex items-center justify-between gap-2">
+                              <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2">
                                 <div
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
-                                    height: '42px',
+                                    height: pillHeight,
                                     background: isWin
                                       ? 'linear-gradient(180deg, #059669 0%, #064e3b 100%)'
-                                      : 'linear-gradient(180deg, #c80815 0%, #900008 100%)',
+                                      : `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={r.teamHome} />
+                                  <AutoFitTeamName name={r.teamHome} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
 
                                 <div
-                                  className="px-2.5 h-7 rounded-full bg-white text-[#111111] font-montserrat font-black flex items-center justify-center shrink-0 shadow-md text-xs font-mono"
+                                  className={`px-2 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
+                                    count >= 6 ? 'h-6 text-[10px]' : 'h-7 text-xs'
+                                  } font-mono`}
+                                  style={{
+                                    backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
+                                    color: layer2BadgeBgColor || '#111111',
+                                  }}
                                 >
                                   {scoreDisplay}
                                 </div>
@@ -1020,14 +1364,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 <div
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
-                                    height: '42px',
+                                    height: pillHeight,
                                     background: isWin
                                       ? 'linear-gradient(180deg, #059669 0%, #064e3b 100%)'
-                                      : 'linear-gradient(180deg, #c80815 0%, #900008 100%)',
+                                      : `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={r.teamAway} />
+                                  <AutoFitTeamName name={r.teamAway} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
                               </div>
                             </div>
@@ -1067,20 +1411,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       </div>
                     )}
 
-                    {/* FOOTER NOTICE / GYMNASIUM */}
-                    <div className="w-full pt-2 flex items-center justify-between text-[9px] font-montserrat font-bold text-slate-300/80 border-t border-white/15">
-                      <span className="truncate max-w-[170px]">{clubSettings.gymnasiumDefault}</span>
-                      <span className="font-mono text-white/90">
-                        {clubSettings.instagramHandle || `#${clubSettings.shortName}`}
-                      </span>
-                    </div>
                   </div>
 
                   {/* 3 Zebra White Stripes in Bottom Right (Signature look from reference images) */}
-                  <div className="absolute -bottom-3 -right-3 flex flex-col gap-2.5 -rotate-45 pointer-events-none z-20">
-                    <div className="w-28 h-3 bg-white shadow-md" />
-                    <div className="w-28 h-3 bg-white shadow-md" />
-                    <div className="w-28 h-3 bg-white shadow-md" />
+                  <div
+                    className={`absolute pointer-events-none z-20 flex flex-col -rotate-45 ${
+                      aspectRatio === '16:9'
+                        ? '-bottom-4 -right-4 gap-1.5'
+                        : '-bottom-3 -right-3 gap-2.5'
+                    }`}
+                  >
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
                   </div>
                 </>
               )}
@@ -1122,11 +1465,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         </div>
                       ))}
                     </div>
-
-                    <div className="border-t border-white/20 pt-1 text-[9px] text-slate-300 flex justify-between">
-                      <span>{clubSettings.gymnasiumDefault}</span>
-                      <span>{clubSettings.instagramHandle || clubSettings.shortName}</span>
-                    </div>
                   </div>
                 </>
               )}
@@ -1159,11 +1497,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         </div>
                       ))}
                     </div>
-
-                    <div className="border-t border-white/10 pt-1 text-[9px] text-slate-400 flex justify-between">
-                      <span>{clubSettings.gymnasiumDefault}</span>
-                      <span>{clubSettings.instagramHandle || clubSettings.shortName}</span>
-                    </div>
                   </div>
                 </>
               )}
@@ -1171,10 +1504,646 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* RIGHT: SOCIAL BRIDGE CONTROLS (INSTAGRAM, TIKTOK, FACEBOOK, WEBHOOK) */}
+          {/* RIGHT: STUDIO LAYERS & SOCIAL BRIDGE CONTROLS */}
           {/* ========================================================================= */}
-          <div className="lg:col-span-6 flex flex-col justify-between space-y-4">
+          <div className="lg:col-span-6 flex flex-col justify-between space-y-3.5">
             
+            {/* STUDIO GRAPHIQUE & CALQUES OPTIONS */}
+            <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Calques & Options Studio Graphique</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Calques 1 à 4
+                </span>
+              </div>
+
+              {/* CALQUE 1 : FOND & RÉGLAGES VISUELS */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <ImageIcon className="w-3.5 h-3.5 text-red-500" />
+                    <span>Calque 1 (Arrière-plan / Fond)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLayer1Brightness(0.55);
+                      setLayer1Blur(6);
+                      setLayer1Scale(1.05);
+                      setLayer1Grayscale(true);
+                      setLayer1Contrast(1.25);
+                    }}
+                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800 transition-colors"
+                    title="Réinitialiser les réglages par défaut du fond"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5 text-slate-400" />
+                    <span>Réinit.</span>
+                  </button>
+                </div>
+
+                {/* Source buttons */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBgSource('default');
+                      setCustomBgImage(null);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      bgSource === 'default' && !customBgImage
+                        ? 'bg-red-950/80 border-red-600 text-white shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🔴 Standard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBgSource('studio');
+                      setCustomBgImage(null);
+                    }}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      bgSource === 'studio' && !customBgImage
+                        ? 'bg-amber-950/80 border-amber-600 text-white shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                    title={effectiveCategoryConfig.backgroundUrl ? 'Utiliser le fond configuré dans Studio Graphique' : 'Fond studio'}
+                  >
+                    🎨 Fond Studio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      customBgImage
+                        ? 'bg-blue-950/80 border-blue-500 text-white shadow-sm'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    📷 Photo Perso
+                  </button>
+                </div>
+
+                {/* Sliders for Luminosité, Flou, Taille, Contraste */}
+                <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                  {/* Luminosité */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
+                      <Sun className="w-3 h-3 text-amber-400" />
+                      <span>Luminosité :</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 max-w-[170px]">
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1.5"
+                        step="0.05"
+                        value={layer1Brightness}
+                        onChange={(e) => setLayer1Brightness(parseFloat(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                        {Math.round(layer1Brightness * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Flou (Blur) */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
+                      <Sliders className="w-3 h-3 text-cyan-400" />
+                      <span>Flou :</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 max-w-[170px]">
+                      <input
+                        type="range"
+                        min="0"
+                        max="25"
+                        step="1"
+                        value={layer1Blur}
+                        onChange={(e) => setLayer1Blur(parseInt(e.target.value, 10))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                        {layer1Blur}px
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Taille / Zoom (Scale) */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-300">
+                      <Maximize2 className="w-3 h-3 text-purple-400" />
+                      <span>Taille (Zoom) :</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 max-w-[170px]">
+                      <input
+                        type="range"
+                        min="1"
+                        max="2.5"
+                        step="0.05"
+                        value={layer1Scale}
+                        onChange={(e) => setLayer1Scale(parseFloat(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">
+                        {Math.round(layer1Scale * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Style Noir & Blanc / Couleur & Contraste */}
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={layer1Grayscale}
+                        onChange={(e) => setLayer1Grayscale(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-900 text-red-600 focus:ring-red-500 h-3.5 w-3.5"
+                      />
+                      <span>Noir & Blanc</span>
+                    </label>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400">Contraste :</span>
+                      <input
+                        type="range"
+                        min="0.8"
+                        max="2.0"
+                        step="0.05"
+                        value={layer1Contrast}
+                        onChange={(e) => setLayer1Contrast(parseFloat(e.target.value))}
+                        className="w-16 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-500"
+                      />
+                      <span className="text-[10px] font-mono text-slate-400 w-7 text-right">
+                        {Math.round(layer1Contrast * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CALQUE 2 : CARTES, POLICES & PASTILLES */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <Palette className="w-3.5 h-3.5 text-orange-500" />
+                    <span>Calque 2 (Cartes, Polices & Pastilles)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (effectiveCategoryConfig) {
+                        setLayer2PrimaryColor(effectiveCategoryConfig.primaryColor || '#c80815');
+                        setLayer2TextColor(effectiveCategoryConfig.textColor || '#ffffff');
+                        setLayer2BadgeBgColor(effectiveCategoryConfig.badgeBgColor || effectiveCategoryConfig.primaryColor || '#c80815');
+                        setLayer2BadgeTextColor(effectiveCategoryConfig.badgeTextColor || '#ffffff');
+                        setLayer2FontHeader(effectiveCategoryConfig.fontFamilyHeader || 'Bebas Neue');
+                        setLayer2FontBody(effectiveCategoryConfig.fontFamilyBody || 'Montserrat');
+                        setCustomBadgeTitle('');
+                      }
+                    }}
+                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-900 border border-slate-800 transition-colors"
+                    title="Réinitialiser le style de la catégorie"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5 text-slate-400" />
+                    <span>Réinit.</span>
+                  </button>
+                </div>
+
+                {/* Surcharge Titre du Badge */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                    Titre du Badge (Surcharge) :
+                  </label>
+                  <input
+                    type="text"
+                    value={customBadgeTitle}
+                    onChange={(e) => setCustomBadgeTitle(e.target.value)}
+                    placeholder={`Ex: ${posterFilter === 'home' ? 'DOMICILE' : posterFilter === 'away' ? 'EXTÉRIEUR' : 'RÉSULTATS'}`}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                  />
+                </div>
+
+                {/* Palette de Couleurs : Accentuation, Texte, Pastilles */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-slate-800/80">
+                  {/* Accentuation */}
+                  <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-300 truncate">Accentuation</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <input
+                        type="color"
+                        value={layer2PrimaryColor}
+                        onChange={(e) => setLayer2PrimaryColor(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                      />
+                      <span className="text-[9px] font-mono text-orange-400 truncate">
+                        {layer2PrimaryColor}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Texte Principal */}
+                  <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-300 truncate">Couleur Texte</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <input
+                        type="color"
+                        value={layer2TextColor}
+                        onChange={(e) => setLayer2TextColor(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                      />
+                      <span className="text-[9px] font-mono text-amber-400 truncate">
+                        {layer2TextColor}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pastilles / Badges */}
+                  <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold text-slate-300 truncate">Pastilles</span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <input
+                        type="color"
+                        value={layer2BadgeBgColor}
+                        onChange={(e) => setLayer2BadgeBgColor(e.target.value)}
+                        className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                      />
+                      <span className="text-[9px] font-mono text-sky-400 truncate">
+                        {layer2BadgeBgColor}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Texte des Pastilles */}
+                <div className="bg-slate-900 p-1.5 rounded-lg border border-slate-800/80 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <input
+                      type="color"
+                      value={layer2BadgeTextColor}
+                      onChange={(e) => setLayer2BadgeTextColor(e.target.value)}
+                      className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                    />
+                    <span className="text-[10px] font-bold text-slate-300 truncate">
+                      Texte des Pastilles
+                    </span>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setLayer2BadgeTextColor('#ffffff')}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-white text-[9px] font-bold border border-slate-700"
+                    >
+                      Blanc
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLayer2BadgeTextColor('#000000')}
+                      className="px-2 py-0.5 rounded bg-slate-200 hover:bg-white text-black text-[9px] font-bold"
+                    >
+                      Noir
+                    </button>
+                  </div>
+                </div>
+
+                {/* Polices Titres & Corps */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-1 flex items-center gap-1">
+                      <Type className="w-3 h-3 text-orange-400" />
+                      <span>Police Titres</span>
+                    </label>
+                    <select
+                      value={layer2FontHeader}
+                      onChange={(e) => setLayer2FontHeader(e.target.value as FontFamilyOption)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:outline-none focus:border-red-500"
+                    >
+                      {AVAILABLE_FONTS.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-1 flex items-center gap-1">
+                      <Type className="w-3 h-3 text-amber-400" />
+                      <span>Police Corps</span>
+                    </label>
+                    <select
+                      value={layer2FontBody}
+                      onChange={(e) => setLayer2FontBody(e.target.value as FontFamilyOption)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:outline-none focus:border-red-500"
+                    >
+                      {AVAILABLE_FONTS.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* CALQUE 3 : MASCOTTE / ÉLÉMENT GRAPHIQUE */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
+                <input
+                  type="file"
+                  ref={layer3FileInputRef}
+                  onChange={handleLayer3Upload}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Calque 3 (Mascotte / Décor)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showStudioLayer3}
+                        onChange={(e) => setShowStudioLayer3(e.target.checked)}
+                        className="rounded accent-red-600 w-3.5 h-3.5"
+                      />
+                      <span className="text-[11px] text-slate-400 font-bold">Actif</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Layer 3 Media Selection & Upload */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    {effectiveLayer3Url ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-900 border border-slate-700/80 rounded-lg p-1.5">
+                        <div className="w-9 h-9 bg-black/60 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                          <img
+                            src={effectiveLayer3Url}
+                            alt="Aperçu Calque 3"
+                            className="max-h-full max-w-full object-contain"
+                            crossOrigin="anonymous"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-bold text-white truncate block">
+                            {customLayer3Image ? 'Image personnalisée' : effectiveCategoryConfig.layer3?.name || 'Image Studio'}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono">
+                            Prêt pour l'affiche
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => layer3FileInputRef.current?.click()}
+                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] flex items-center gap-1"
+                            title="Remplacer l'image"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>Changer</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomLayer3Image(null);
+                              setShowStudioLayer3(false);
+                            }}
+                            className="p-1 rounded bg-rose-950/60 hover:bg-rose-900 text-rose-300 text-[10px]"
+                            title="Supprimer cette image"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => layer3FileInputRef.current?.click()}
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-white border border-red-800/60 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>+ Importer une image (PNG/JPG)</span>
+                        </button>
+                        {clubSettings.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomLayer3Image(clubSettings.logoUrl);
+                              setShowStudioLayer3(true);
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold"
+                            title="Utiliser le logo du club"
+                          >
+                            🛡️ Logo
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Manual URL input */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={customLayer3Image || ''}
+                      onChange={(e) => {
+                        setCustomLayer3Image(e.target.value || null);
+                        if (e.target.value) setShowStudioLayer3(true);
+                      }}
+                      placeholder="Ou coller une URL d'image PNG..."
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-md px-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Position & Scale */}
+                {showStudioLayer3 && (
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Position :</span>
+                      <select
+                        value={studioLayer3Pos}
+                        onChange={(e) => setStudioLayer3Pos(e.target.value as any)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
+                      >
+                        <option value="bottom-right">Bas Droite</option>
+                        <option value="bottom-left">Bas Gauche</option>
+                        <option value="top-right">Haut Droite</option>
+                        <option value="center">Centre Bas</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Taille ({Math.round(studioLayer3Scale * 100)}%) :</span>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="1.5"
+                        step="0.05"
+                        value={studioLayer3Scale}
+                        onChange={(e) => setStudioLayer3Scale(parseFloat(e.target.value))}
+                        className="w-full accent-red-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CALQUE 4 : SPONSOR / LOGO */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
+                <input
+                  type="file"
+                  ref={layer4FileInputRef}
+                  onChange={handleLayer4Upload}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <Layers className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Calque 4 (Sponsor / Logo)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showStudioLayer4}
+                        onChange={(e) => setShowStudioLayer4(e.target.checked)}
+                        className="rounded accent-blue-600 w-3.5 h-3.5"
+                      />
+                      <span className="text-[11px] text-slate-400 font-bold">Actif</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Layer 4 Media Selection & Upload */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    {effectiveLayer4Url ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-900 border border-slate-700/80 rounded-lg p-1.5">
+                        <div className="w-9 h-9 bg-black/60 rounded border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                          <img
+                            src={effectiveLayer4Url}
+                            alt="Aperçu Calque 4"
+                            className="max-h-full max-w-full object-contain"
+                            crossOrigin="anonymous"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] font-bold text-white truncate block">
+                            {customLayer4Image ? 'Logo personnalisé' : effectiveCategoryConfig.layer4?.name || 'Sponsor Studio'}
+                          </span>
+                          <span className="text-[10px] text-blue-400 font-mono">
+                            Prêt pour l'affiche
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => layer4FileInputRef.current?.click()}
+                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] flex items-center gap-1"
+                            title="Remplacer le logo/sponsor"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>Changer</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomLayer4Image(null);
+                              setShowStudioLayer4(false);
+                            }}
+                            className="p-1 rounded bg-rose-950/60 hover:bg-rose-900 text-rose-300 text-[10px]"
+                            title="Supprimer ce logo/sponsor"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => layer4FileInputRef.current?.click()}
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-white border border-blue-800/60 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>+ Importer un logo / sponsor</span>
+                        </button>
+                        {clubSettings.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomLayer4Image(clubSettings.logoUrl);
+                              setShowStudioLayer4(true);
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold"
+                            title="Utiliser le logo du club"
+                          >
+                            🛡️ Logo
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Manual URL input */}
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={customLayer4Image || ''}
+                      onChange={(e) => {
+                        setCustomLayer4Image(e.target.value || null);
+                        if (e.target.value) setShowStudioLayer4(true);
+                      }}
+                      placeholder="Ou coller une URL d'image..."
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-md px-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Position & Scale */}
+                {showStudioLayer4 && (
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Position :</span>
+                      <select
+                        value={studioLayer4Pos}
+                        onChange={(e) => setStudioLayer4Pos(e.target.value as any)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
+                      >
+                        <option value="top-right">Haut Droite</option>
+                        <option value="bottom-left">Bas Gauche</option>
+                        <option value="bottom-right">Bas Droite</option>
+                        <option value="center">Haut Gauche</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-0.5">Taille ({Math.round(studioLayer4Scale * 100)}%) :</span>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="1.5"
+                        step="0.05"
+                        value={studioLayer4Scale}
+                        onChange={(e) => setStudioLayer4Scale(parseFloat(e.target.value))}
+                        className="w-full accent-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Social Platform Tabs */}
             <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 space-y-2.5">
               <div className="flex items-center justify-between">

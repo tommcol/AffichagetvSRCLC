@@ -65,7 +65,17 @@ import {
 import { isMatchLive } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { FFBBService } from '../../services/ffbbService';
-import { parseExcelBirthdays, generateClubBirthdayTemplate } from '../../utils/excelBirthdayParser';
+import {
+  parseExcelBirthdays,
+  generateClubBirthdayTemplate,
+  getWeekBounds,
+  filterAndSortBirthdaysForWeek,
+  formatFrenchBirthday,
+  extractFirstName,
+  extractCleanCategory,
+  sortBirthdaysByHierarchy,
+  formatDisplayCategory,
+} from '../../utils/excelBirthdayParser';
 import { MiniCalendarPicker, SingleDatePicker, formatDateToReadableFrench } from './MiniCalendarPicker';
 import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
 
@@ -234,7 +244,6 @@ interface AdminPanelProps {
   onRemoveAlert: (alertId: string) => void;
   onSwitchToTvMode: () => void;
   onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat') => void;
-  onOpenVideoExporter?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -268,7 +277,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRemoveAlert,
   onSwitchToTvMode,
   onOpenVisualExporter,
-  onOpenVideoExporter,
 }) => {
   const [activeTab, setActiveTab] = useState<
     | 'matches'
@@ -292,6 +300,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
+
+  // Sous-onglets par catégorie pour intégrer directement le Studio Calques sur place
+  const [matchesSubTab, setMatchesSubTab] = useState<'list' | 'calques'>('list');
+  const [resultsSubTab, setResultsSubTab] = useState<'list' | 'calques'>('list');
+  const [birthdaysSubTab, setBirthdaysSubTab] = useState<'list' | 'calques'>('list');
 
 
 
@@ -339,11 +352,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
   const [telegramBotToken, setTelegramBotToken] = useState<string>('');
 
-  // Excel parsing state
+  // Excel & Birthday parsing/editing state
   const [isParsingExcel, setIsParsingExcel] = useState<boolean>(false);
   const [excelSuccessMsg, setExcelSuccessMsg] = useState<string | null>(null);
   const [excelErrors, setExcelErrors] = useState<string[]>([]);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const [birthdayWeekOffset, setBirthdayWeekOffset] = useState<number>(0);
+  const [allMembersPool, setAllMembersPool] = useState<BirthdayItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('club_all_members_pool');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [editingBirthdayId, setEditingBirthdayId] = useState<string | null>(null);
+  const [editBdayFirstName, setEditBdayFirstName] = useState<string>('');
+  const [editBdayCategory, setEditBdayCategory] = useState<string>('');
+  const [editBdayDate, setEditBdayDate] = useState<string>('');
+
+  // Adding manual birthday
+  const [isAddingManualBday, setIsAddingManualBday] = useState<boolean>(false);
+  const [manualBdayFirstName, setManualBdayFirstName] = useState<string>('');
+  const [manualBdayCategory, setManualBdayCategory] = useState<string>('U15');
+  const [manualBdayDate, setManualBdayDate] = useState<string>('');
 
   // Social Media Bridge State & Anti-Doublon Tracking
   const [socialContentType, setSocialContentType] = useState<'matches' | 'results'>('matches');
@@ -540,6 +574,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
     setNewLogoName('');
   };
+
+  // Drag & drop and batch upload states
+  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
+  const [isDraggingSponsors, setIsDraggingSponsors] = useState(false);
+  const [isDraggingLogos, setIsDraggingLogos] = useState(false);
+  const [isDraggingEvents, setIsDraggingEvents] = useState(false);
+  const [uploadFeedback, setUploadFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [newPhotoTitle, setNewPhotoTitle] = useState('');
   const [newPhotoFolder, setNewPhotoFolder] = useState('Équipe Fanion');
@@ -749,21 +790,333 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     onUpdateCategories(updated);
   };
 
-  // Generic image & video upload helper to DataURL
-  const handleMediaFileChange = (file: File, callback: (url: string, isVideo: boolean) => void) => {
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        callback(e.target.result as string, isVideo);
+  // Helpers for multi-file batch upload & cleaning names
+  const cleanNameFromFileName = (fileName: string): string => {
+    const withoutExt = fileName.replace(/\.[^/.]+$/, '');
+    const cleaned = withoutExt
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return 'Élément';
+    return cleaned
+      .split(' ')
+      .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
+      .join(' ');
+  };
+
+  // Upload file asynchronously via server streaming endpoint (prevents browser RAM exhaustion / crash)
+  const uploadSingleFile = async (file: File): Promise<{ url: string; isVideo: boolean; fileName: string }> => {
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|m4v)$/i.test(file.name);
+
+    // 1. Prioritize direct server upload
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          return {
+            url: data.url,
+            isVideo: data.mediaType === 'video' || isVideo,
+            fileName: data.fileName || file.name,
+          };
+        }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Upload serveur direct indisponible, bascule sur ObjectURL/FileReader local:', err);
+    }
+
+    // 2. Safe local fallback
+    return new Promise((resolve) => {
+      // For videos, use blob URL to avoid huge base64 strings in memory
+      if (isVideo) {
+        try {
+          const blobUrl = URL.createObjectURL(file);
+          resolve({ url: blobUrl, isVideo: true, fileName: file.name });
+          return;
+        } catch {
+          // fallback
+        }
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve({
+          url: (e.target?.result as string) || '',
+          isVideo,
+          fileName: file.name,
+        });
+      };
+      reader.onerror = () => {
+        resolve({
+          url: URL.createObjectURL(file),
+          isVideo,
+          fileName: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Upload multiple files in batch via server
+  const uploadMultipleFiles = async (
+    files: FileList | File[]
+  ): Promise<Array<{ url: string; isVideo: boolean; fileName: string }>> => {
+    const fileArray = Array.from(files).filter(
+      (f) =>
+        f.type.startsWith('image/') ||
+        f.type.startsWith('video/') ||
+        /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    if (fileArray.length === 0) return [];
+
+    // 1. Try batch upload API
+    try {
+      const formData = new FormData();
+      fileArray.forEach((f) => formData.append('files', f));
+
+      const res = await fetch('/api/upload-multiple', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.files) && data.files.length > 0) {
+          return data.files.map((df: any) => ({
+            url: df.url,
+            isVideo: df.mediaType === 'video' || /\.(mp4|webm|mov|m4v)$/i.test(df.fileName),
+            fileName: df.fileName,
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('Upload multiple via API indisponible, bascule par fichier:', err);
+    }
+
+    // 2. Fallback: upload one by one
+    const results: Array<{ url: string; isVideo: boolean; fileName: string }> = [];
+    for (const f of fileArray) {
+      const single = await uploadSingleFile(f);
+      results.push(single);
+    }
+    return results;
+  };
+
+  // Batch upload Photos & Videos (Multiple files & Drag-and-Drop)
+  const handleBatchPhotosUpload = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    if (fileArray.length === 0) return;
+
+    setUploadFeedback({
+      message: `⏳ Téléversement de ${fileArray.length} fichier(s) en cours...`,
+      type: 'success',
+    });
+
+    try {
+      const results = await uploadMultipleFiles(fileArray);
+      const now = Date.now();
+      const newPhotos: ClubPhotoItem[] = results.map((res, idx) => {
+        const title = fileArray.length === 1 && newPhotoTitle.trim()
+          ? newPhotoTitle.trim()
+          : cleanNameFromFileName(res.fileName);
+        return {
+          id: `photo-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+          title,
+          categoryFolder: newPhotoFolder || 'Général',
+          imageUrl: res.url,
+          date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+          caption: fileArray.length === 1 && newPhotoCaption.trim() ? newPhotoCaption.trim() : undefined,
+          isVideo: res.isVideo,
+          mediaType: res.isVideo ? 'video' : 'image',
+        };
+      });
+
+      onUpdatePhotos([...newPhotos, ...photos]);
+      setNewPhotoTitle('');
+      setNewPhotoCaption('');
+      setUploadFeedback({
+        message: `✅ ${newPhotos.length} photo(s) / vidéo(s) ajoutée(s) avec succès !`,
+        type: 'success',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    } catch (err) {
+      setUploadFeedback({
+        message: '❌ Erreur lors du chargement des fichiers',
+        type: 'error',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    }
+  };
+
+  // Batch upload Sponsors & Partners
+  const handleBatchSponsorsUpload = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    if (fileArray.length === 0) return;
+
+    setUploadFeedback({
+      message: `⏳ Téléversement de ${fileArray.length} partenaire(s) en cours...`,
+      type: 'success',
+    });
+
+    try {
+      const results = await uploadMultipleFiles(fileArray);
+      const now = Date.now();
+      const newSponsors: SponsorItem[] = results.map((res, idx) => {
+        const name = fileArray.length === 1 && newSponsorName.trim()
+          ? newSponsorName.trim()
+          : cleanNameFromFileName(res.fileName);
+        return {
+          id: `sponsor-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+          name,
+          tier: newSponsorTier,
+          logoUrl: res.url,
+          tagline: fileArray.length === 1 && newSponsorTagline.trim() ? newSponsorTagline.trim() : undefined,
+          categoryFolder: newSponsorFolder,
+          isVideo: res.isVideo,
+          mediaType: res.isVideo ? 'video' : 'image',
+        };
+      });
+
+      onUpdateSponsors([...sponsors, ...newSponsors]);
+      setNewSponsorName('');
+      setNewSponsorTagline('');
+      setUploadFeedback({
+        message: `✅ ${newSponsors.length} partenaire(s) ajouté(s) avec succès !`,
+        type: 'success',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    } catch (err) {
+      setUploadFeedback({
+        message: '❌ Erreur lors du chargement des partenaires',
+        type: 'error',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    }
+  };
+
+  // Batch upload Logos
+  const handleBatchLogosUpload = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    if (fileArray.length === 0) return;
+
+    setUploadFeedback({
+      message: `⏳ Téléversement de ${fileArray.length} logo(s) en cours...`,
+      type: 'success',
+    });
+
+    try {
+      const results = await uploadMultipleFiles(fileArray);
+      const now = Date.now();
+      const newLogos: ClubLogoItem[] = results.map((res, idx) => {
+        const name = fileArray.length === 1 && newLogoName.trim()
+          ? newLogoName.trim()
+          : cleanNameFromFileName(res.fileName);
+        return {
+          id: `logo-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+          name,
+          logoUrl: res.url,
+          category: newLogoCategory,
+          isTransparent: !res.isVideo,
+          isVideo: res.isVideo,
+          mediaType: res.isVideo ? 'video' : 'image',
+        };
+      });
+
+      if (onUpdateLogos) {
+        onUpdateLogos([...logos, ...newLogos]);
+      }
+      setNewLogoName('');
+      setUploadFeedback({
+        message: `✅ ${newLogos.length} logo(s) ajouté(s) avec succès !`,
+        type: 'success',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    } catch (err) {
+      setUploadFeedback({
+        message: '❌ Erreur lors du chargement des logos',
+        type: 'error',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    }
+  };
+
+  // Batch upload Event Posters
+  const handleBatchEventsUpload = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
+    );
+    if (fileArray.length === 0) return;
+
+    setUploadFeedback({
+      message: `⏳ Téléversement de ${fileArray.length} affiche(s) en cours...`,
+      type: 'success',
+    });
+
+    try {
+      const results = await uploadMultipleFiles(fileArray);
+      const now = Date.now();
+      const newEvents: ClubEventItem[] = results.map((res, idx) => {
+        const title = fileArray.length === 1 && newEventTitle.trim()
+          ? newEventTitle.trim()
+          : cleanNameFromFileName(res.fileName);
+        return {
+          id: `event-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+          title,
+          date: newEventDate.trim() || 'Prochainement',
+          time: newEventTime.trim() || undefined,
+          location: newEventLocation.trim() || clubSettings.gymnasiumDefault,
+          description: newEventDesc.trim() || 'Tous les licenciés et supporters sont les bienvenus !',
+          badge: newEventBadge,
+          categoryFolder: 'Événements',
+          imageUrl: res.url,
+          isVideo: res.isVideo,
+          mediaType: res.isVideo ? 'video' : 'image',
+        };
+      });
+
+      onUpdateEvents([...events, ...newEvents]);
+      setNewEventTitle('');
+      setNewEventDate('');
+      setNewEventTime('');
+      setNewEventDesc('');
+      setUploadFeedback({
+        message: `✅ ${newEvents.length} affiche(s) d'événement(s) ajoutée(s) !`,
+        type: 'success',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    } catch (err) {
+      setUploadFeedback({
+        message: '❌ Erreur lors du chargement des affiches',
+        type: 'error',
+      });
+      setTimeout(() => setUploadFeedback(null), 4000);
+    }
+  };
+
+  // Generic image & video upload helper via server upload
+  const handleMediaFileChange = (file: File, callback: (url: string, isVideo: boolean) => void) => {
+    uploadSingleFile(file).then((res) => {
+      callback(res.url, res.isVideo);
+    });
   };
 
   // Legacy helper for places that only expect an image URL but can also receive videos
   const handleImageFileChange = (file: File, callback: (dataUrl: string) => void) => {
-    handleMediaFileChange(file, (url) => callback(url));
+    uploadSingleFile(file).then((res) => {
+      callback(res.url);
+    });
   };
 
   // Add a new photo/video to photos folder
@@ -955,7 +1308,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
   };
 
-  // Excel upload handler
+  // Excel upload handler & Birthday week handlers
   const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -965,25 +1318,136 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setExcelErrors([]);
 
     try {
-      const result = await parseExcelBirthdays(file);
-      if (result.weekBirthdays && result.weekBirthdays.length > 0) {
-        onUpdateBirthdays(result.weekBirthdays);
+      const result = await parseExcelBirthdays(file, new Date(), birthdayWeekOffset);
+      if (result.allMembers && result.allMembers.length > 0) {
+        setAllMembersPool(result.allMembers);
+        try {
+          localStorage.setItem('club_all_members_pool', JSON.stringify(result.allMembers));
+        } catch (e) {}
+
+        const filtered = filterAndSortBirthdaysForWeek(result.allMembers, new Date(), birthdayWeekOffset);
+        onUpdateBirthdays(filtered);
+
+        const bounds = getWeekBounds(new Date(), birthdayWeekOffset);
         setExcelSuccessMsg(
-          `${result.weekBirthdays.length} anniversaire(s) cette semaine extrait(s) avec succès du fichier ${file.name} !`
+          `Fichier ${file.name} importé avec succès (${result.allMembers.length} licenciés trouvés). ${filtered.length} anniversaire(s) sélectionné(s) pour la ${bounds.shortLabel} !`
         );
-      } else if (result.totalParsed > 0) {
-        setExcelSuccessMsg(`Fichier ${file.name} lu avec succès (${result.totalParsed} licenciés), mais aucun anniversaire ne tombe dans la semaine actuelle.`);
       } else if (result.errors && result.errors.length > 0) {
         setExcelErrors(result.errors);
       } else {
         setExcelErrors(['Aucun licencié trouvé dans ce fichier']);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setExcelErrors(['Erreur inattendue lors du traitement du fichier Excel']);
+      setExcelErrors([err.message || 'Erreur inattendue lors du traitement du fichier Excel']);
     } finally {
       setIsParsingExcel(false);
       if (excelInputRef.current) excelInputRef.current.value = '';
+    }
+  };
+
+  const handleSelectWeekOffset = (offset: number) => {
+    setBirthdayWeekOffset(offset);
+    if (allMembersPool.length > 0) {
+      const filtered = filterAndSortBirthdaysForWeek(allMembersPool, new Date(), offset);
+      onUpdateBirthdays(filtered);
+    }
+  };
+
+  const handleStartEditBirthday = (item: BirthdayItem) => {
+    setEditingBirthdayId(item.id);
+    const firstName = item.firstName || (item.fullName ? item.fullName.trim().split(/\s+/)[0] : '');
+    setEditBdayFirstName(firstName);
+    setEditBdayCategory(item.teamCategory || '');
+    setEditBdayDate(item.birthDate || '');
+  };
+
+  const handleSaveEditBirthday = (id: string) => {
+    const cleanFirst = editBdayFirstName.trim();
+    if (!cleanFirst) return;
+    const cleanCat = formatDisplayCategory(editBdayCategory.trim() || 'Club', undefined, cleanFirst);
+
+    const updateList = (list: BirthdayItem[]) =>
+      list.map((b) => {
+        if (b.id !== id) return b;
+        let newFormatted = b.birthDayFormatted;
+        if (editBdayDate) {
+          const d = new Date(editBdayDate);
+          if (!isNaN(d.getTime())) {
+            newFormatted = formatFrenchBirthday(d);
+          }
+        }
+        return {
+          ...b,
+          firstName: cleanFirst,
+          fullName: cleanFirst,
+          teamCategory: cleanCat,
+          birthDate: editBdayDate || b.birthDate,
+          birthDayFormatted: newFormatted,
+        };
+      });
+
+    const updatedBirthdays = sortBirthdaysByHierarchy(updateList(birthdays));
+    onUpdateBirthdays(updatedBirthdays);
+
+    if (allMembersPool.length > 0) {
+      const updatedPool = sortBirthdaysByHierarchy(updateList(allMembersPool));
+      setAllMembersPool(updatedPool);
+      try {
+        localStorage.setItem('club_all_members_pool', JSON.stringify(updatedPool));
+      } catch (e) {}
+    }
+
+    setEditingBirthdayId(null);
+  };
+
+  const handleCancelEditBirthday = () => {
+    setEditingBirthdayId(null);
+  };
+
+  const handleAddManualBirthday = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualBdayFirstName.trim()) return;
+
+    const cleanFirst = manualBdayFirstName.trim();
+    const cleanCat = formatDisplayCategory(manualBdayCategory.trim() || 'Club', undefined, cleanFirst);
+    const dateObj = manualBdayDate ? new Date(manualBdayDate) : new Date();
+    const formattedDate = formatFrenchBirthday(dateObj);
+
+    const newItem: BirthdayItem = {
+      id: `bday-manual-${Date.now()}`,
+      firstName: cleanFirst,
+      fullName: cleanFirst,
+      teamCategory: cleanCat,
+      birthDate: manualBdayDate || new Date().toISOString().split('T')[0],
+      birthDayFormatted: formattedDate,
+      isThisWeek: true,
+    };
+
+    const nextList = sortBirthdaysByHierarchy([newItem, ...birthdays]);
+    onUpdateBirthdays(nextList);
+
+    const nextPool = sortBirthdaysByHierarchy([newItem, ...allMembersPool]);
+    setAllMembersPool(nextPool);
+    try {
+      localStorage.setItem('club_all_members_pool', JSON.stringify(nextPool));
+    } catch (e) {}
+
+    setManualBdayFirstName('');
+    setManualBdayCategory('U15');
+    setManualBdayDate('');
+    setIsAddingManualBday(false);
+  };
+
+  const handleDeleteBirthday = (id: string) => {
+    const nextList = birthdays.filter((b) => b.id !== id);
+    onUpdateBirthdays(nextList);
+    if (allMembersPool.length > 0) {
+      const nextPool = allMembersPool.filter((b) => b.id !== id);
+      setAllMembersPool(nextPool);
+      try {
+        localStorage.setItem('club_all_members_pool', JSON.stringify(nextPool));
+      } catch (e) {}
     }
   };
 
@@ -1261,19 +1725,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-200">C</span> Switch TV
             </div>
 
-            {onOpenVideoExporter && (
-              <button
-                type="button"
-                onClick={onOpenVideoExporter}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-purple-600/25 transition-all hover:scale-105 cursor-pointer"
-                title="Exporter et télécharger le carrousel en format vidéo (MP4 / WebM)"
-                id="btn-header-video-exporter"
-              >
-                <Video className="w-4 h-4 text-purple-200" />
-                <span>Télécharger en Vidéo</span>
-              </button>
-            )}
-
             {onOpenVisualExporter && (
               <button
                 onClick={() => onOpenVisualExporter(socialContentType)}
@@ -1427,18 +1878,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
-              onClick={(e) => handleSelectTab('templates', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'templates'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Layers className="w-4 h-4 text-sky-400" />
-              <span>Studio & Calques</span>
-            </button>
-
-            <button
               onClick={(e) => handleSelectTab('team_visuals', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                 activeTab === 'team_visuals'
@@ -1531,11 +1970,86 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
         {/* Content Area */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {/* Global Batch Upload Feedback Toast */}
+          {uploadFeedback && (
+            <div
+              className={`p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xl animate-in fade-in slide-in-from-top-3 ${
+                uploadFeedback.type === 'success'
+                  ? 'bg-emerald-950/90 border border-emerald-500/80 text-emerald-200'
+                  : 'bg-rose-950/90 border border-rose-500/80 text-rose-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {uploadFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                )}
+                <span className="text-xs sm:text-sm font-bold">{uploadFeedback.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUploadFeedback(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white text-xs"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {/* ========================================================================= */}
           {/* TAB 1: MATCHS À VENIR */}
           {/* ========================================================================= */}
           {activeTab === 'matches' && (
             <div className="space-y-6">
+              {/* Barre de sous-onglets : Matchs vs Studio Calques */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMatchesSubTab('list')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      matchesSubTab === 'list'
+                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30 ring-1 ring-orange-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 text-orange-400" />
+                    <span>Matchs & Calendrier ({matches.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMatchesSubTab('calques')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      matchesSubTab === 'calques'
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>🎨 Design & Studio Calques Matchs</span>
+                  </button>
+                </div>
+
+                <span className="text-[11px] text-slate-400 hidden sm:inline-block pr-2 font-medium">
+                  {matchesSubTab === 'list' ? 'Saisie & Import FFBB des rencontres' : 'Fond, mascottes & visuels 16:9 de cette diapositive'}
+                </span>
+              </div>
+
+              {matchesSubTab === 'calques' ? (
+                <StudioGraphiqueWorkbench
+                  visualTemplates={visualTemplates}
+                  onUpdateVisualTemplates={onUpdateVisualTemplates}
+                  matches={matches}
+                  results={results}
+                  birthdays={birthdays}
+                  clubSettings={clubSettings}
+                  defaultCategory="matches"
+                  hideCategorySelector={true}
+                  onNavigateToCategoryTab={() => setMatchesSubTab('list')}
+                />
+              ) : (
+                <>
               <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
@@ -1546,6 +2060,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
                     </p>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMatchesSubTab('calques')}
+                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>Régler le fond & les calques de la diapositive</span>
+                  </button>
                 </div>
 
                 {/* Widget de Synchronisation Rapide FFBB Directe avec Petit Calendrier Visuel */}
@@ -2125,6 +2648,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   );
                 })}
               </div>
+              </>
+              )}
             </div>
           )}
 
@@ -2133,6 +2658,55 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'results' && (
             <div className="space-y-6">
+              {/* Barre de sous-onglets : Résultats vs Studio Calques */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResultsSubTab('list')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      resultsSubTab === 'list'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Trophy className="w-4 h-4 text-emerald-400" />
+                    <span>Scores & Résultats ({results.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setResultsSubTab('calques')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      resultsSubTab === 'calques'
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>🎨 Design & Studio Calques Résultats</span>
+                  </button>
+                </div>
+
+                <span className="text-[11px] text-slate-400 hidden sm:inline-block pr-2 font-medium">
+                  {resultsSubTab === 'list' ? 'Saisie des scores du week-end' : 'Fond, mascottes de victoire & visuels 16:9'}
+                </span>
+              </div>
+
+              {resultsSubTab === 'calques' ? (
+                <StudioGraphiqueWorkbench
+                  visualTemplates={visualTemplates}
+                  onUpdateVisualTemplates={onUpdateVisualTemplates}
+                  matches={matches}
+                  results={results}
+                  birthdays={birthdays}
+                  clubSettings={clubSettings}
+                  defaultCategory="results"
+                  hideCategorySelector={true}
+                  onNavigateToCategoryTab={() => setResultsSubTab('list')}
+                />
+              ) : (
+                <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
                   <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
@@ -2144,10 +2718,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setResultsSubTab('calques')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>Régler le fond & visuels de victoire</span>
+                  </button>
                   <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{availableFfbbTeams.length} équipes FFBB synchronisées</span>
+                    <span>{availableFfbbTeams.length} équipes FFBB</span>
                   </span>
                 </div>
               </div>
@@ -2600,6 +3182,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </div>
                 </div>
               )}
+              </>
+              )}
             </div>
           )}
 
@@ -2621,19 +3205,44 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
               </div>
 
-              {/* Upload Box for Photos */}
-              <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                <Camera className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+              {/* Upload Box for Photos (Drag & Drop + Multi-Files) */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingPhotos(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setIsDraggingPhotos(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingPhotos(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingPhotos(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleBatchPhotosUpload(e.dataTransfer.files);
+                  }
+                }}
+                className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                  isDraggingPhotos
+                    ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                    : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                }`}
+              >
+                <Camera className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingPhotos ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                 <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                  AJOUTER DES PHOTOS AU CARROUSEL TV
+                  AJOUTER DES PHOTOS OU VIDÉOS AU CARROUSEL TV
                 </h4>
                 <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                  Sélectionnez un fichier image (JPG, PNG). Les photos seront affichées en plein écran.
+                  Glissez un ou <strong className="text-orange-300">plusieurs fichiers en même temps</strong> ou cliquez pour importer par lot (JPG, PNG, WebP, MP4, WebM).
                 </p>
 
                 <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
                   <div>
-                    <label className="text-xs text-slate-400 block mb-1">Titre de la photo :</label>
+                    <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si lot) :</label>
                     <input
                       type="text"
                       placeholder="Ex: Victoire Seniors"
@@ -2656,17 +3265,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                 <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                   <Upload className="w-4 h-4" />
-                  <span>Choisir une photo ou vidéo (MP4/WebM)</span>
+                  <span>Choisir un ou plusieurs fichiers (Photos / Vidéos)</span>
                   <input
                     type="file"
+                    multiple
                     accept="image/*,video/*,.mp4,.webm,.mov"
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleMediaFileChange(file, handleAddPhoto);
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleBatchPhotosUpload(e.target.files);
+                      }
                     }}
                   />
                 </label>
+                <div className="mt-2 text-[11px] text-slate-400">
+                  📁 Astuce : Vous pouvez sélectionner des dizaines de photos d'un coup avec Ctrl+A ou Shift !
+                </div>
               </div>
 
               {/* Photo & Video Gallery Grid */}
@@ -2682,13 +3296,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <div className="relative h-32 bg-black">
                           <video
                             src={p.imageUrl}
-                            autoPlay
-                            loop
+                            preload="metadata"
                             muted
                             playsInline
+                            loop
+                            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.pause();
+                              e.currentTarget.currentTime = 0;
+                            }}
                             className="w-full h-32 object-cover"
                           />
-                          <span className="absolute bottom-1 right-1 text-[9px] font-black bg-orange-500 text-slate-950 px-1 py-0.5 rounded uppercase">
+                          <span className="absolute bottom-1 right-1 text-[9px] font-black bg-orange-500 text-slate-950 px-1 py-0.5 rounded uppercase pointer-events-none">
                             VIDÉO
                           </span>
                         </div>
@@ -2736,15 +3355,43 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
               </div>
 
-              <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                <Building2 className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingSponsors(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setIsDraggingSponsors(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingSponsors(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingSponsors(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleBatchSponsorsUpload(e.dataTransfer.files);
+                  }
+                }}
+                className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                  isDraggingSponsors
+                    ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                    : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                }`}
+              >
+                <Building2 className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingSponsors ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                 <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                  AJOUTER UN PARTENAIRE
+                  AJOUTER DES PARTENAIRES & SPONSORS
                 </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                  Glissez un ou <strong className="text-orange-300">plusieurs logos en même temps</strong>. Les noms des partenaires seront automatiquement extraits du nom de vos fichiers !
+                </p>
 
                 <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-left">
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-slate-400 block mb-1">Nom du Partenaire :</label>
+                    <label className="text-xs text-slate-400 block mb-1">Nom (optionnel si import groupé) :</label>
                     <input
                       type="text"
                       placeholder="Ex: Boulangerie Ducoin"
@@ -2770,17 +3417,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                 <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                   <Upload className="w-4 h-4" />
-                  <span>Déposer un logo ou clip vidéo partenaire</span>
+                  <span>Déposer un ou plusieurs logos / clips partenaires</span>
                   <input
                     type="file"
+                    multiple
                     accept="image/*,video/*,.mp4,.webm,.mov"
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleMediaFileChange(file, handleAddSponsor);
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleBatchSponsorsUpload(e.target.files);
+                      }
                     }}
                   />
                 </label>
+                <div className="mt-2 text-[11px] text-slate-400">
+                  📁 Astuce : Vous pouvez sélectionner plusieurs logos d'un coup (PNG, SVG, JPG, MP4).
+                </div>
               </div>
 
               {/* Sponsors Grid */}
@@ -2796,10 +3448,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         {isVid ? (
                           <video
                             src={sp.logoUrl}
-                            autoPlay
-                            loop
+                            preload="metadata"
                             muted
                             playsInline
+                            loop
+                            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.pause();
+                              e.currentTarget.currentTime = 0;
+                            }}
                             className="max-h-full max-w-full object-contain rounded-lg"
                           />
                         ) : (
@@ -2811,7 +3468,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           />
                         )}
                         {isVid && (
-                          <span className="absolute bottom-0.5 right-0.5 text-[8px] font-black bg-orange-500 text-slate-950 px-1 py-0.5 rounded uppercase">
+                          <span className="absolute bottom-0.5 right-0.5 text-[8px] font-black bg-orange-500 text-slate-950 px-1 py-0.5 rounded uppercase pointer-events-none">
                             VIDÉO
                           </span>
                         )}
@@ -2850,22 +3507,47 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
               </div>
 
-              {/* Upload Box for Logos */}
-              <div className="border-2 border-dashed border-slate-700 hover:border-cyan-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                <Upload className="w-10 h-10 text-cyan-400 mx-auto mb-2" />
+              {/* Upload Box for Logos (Drag & Drop + Multi-Files) */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingLogos(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setIsDraggingLogos(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingLogos(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingLogos(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleBatchLogosUpload(e.dataTransfer.files);
+                  }
+                }}
+                className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                  isDraggingLogos
+                    ? 'border-cyan-400 bg-cyan-950/40 scale-[1.01] shadow-xl shadow-cyan-500/20'
+                    : 'border-slate-700 hover:border-cyan-500/80 bg-slate-950/60'
+                }`}
+              >
+                <Upload className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingLogos ? 'text-cyan-400 scale-125 animate-bounce' : 'text-cyan-400'}`} />
                 <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                  AJOUTER UN NOUVEAU LOGO / VIDÉO
+                  AJOUTER DES LOGOS OU CLIPS VIDÉOS
                 </h4>
                 <p className="text-xs text-slate-400 mb-4 max-w-md mx-auto">
-                  Formats acceptés : PNG / SVG transparents, JPG, ou séquences vidéos courtes (MP4 / WebM).
+                  Glissez un ou <strong className="text-cyan-300">plusieurs fichiers de logos en même temps</strong> (PNG / SVG transparents, JPG, ou MP4/WebM).
                 </p>
 
                 <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
                   <div>
-                    <label className="text-xs text-slate-400 block mb-1">Nom du Logo / Média :</label>
+                    <label className="text-xs text-slate-400 block mb-1">Nom (optionnel si import groupé) :</label>
                     <input
                       type="text"
-                      placeholder="Ex: Logo Officiel HD ou Clip Animé"
+                      placeholder="Ex: Logo Officiel HD"
                       value={newLogoName}
                       onChange={(e) => setNewLogoName(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
@@ -2889,17 +3571,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                 <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                   <Upload className="w-4 h-4" />
-                  <span>Importer un fichier (Image PNG/SVG ou Vidéo MP4)</span>
+                  <span>Importer un ou plusieurs fichiers (PNG/SVG/MP4)</span>
                   <input
                     type="file"
+                    multiple
                     accept="image/*,video/*,.mp4,.webm,.mov"
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleMediaFileChange(file, handleAddLogo);
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleBatchLogosUpload(e.target.files);
+                      }
                     }}
                   />
                 </label>
+                <div className="mt-2 text-[11px] text-slate-400">
+                  📁 Astuce : Vous pouvez sélectionner plusieurs logos pour les intégrer en un seul clic !
+                </div>
               </div>
 
               {/* Logos Grid */}
@@ -2915,10 +3602,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         {isVid ? (
                           <video
                             src={lg.logoUrl}
-                            autoPlay
-                            loop
+                            preload="metadata"
                             muted
                             playsInline
+                            loop
+                            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.pause();
+                              e.currentTarget.currentTime = 0;
+                            }}
                             className="max-h-full max-w-full object-contain rounded-lg"
                           />
                         ) : (
@@ -2930,7 +3622,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           />
                         )}
                         {isVid && (
-                          <span className="absolute bottom-1 right-1 text-[9px] font-black bg-cyan-500 text-slate-950 px-1 py-0.5 rounded uppercase">
+                          <span className="absolute bottom-1 right-1 text-[9px] font-black bg-cyan-500 text-slate-950 px-1 py-0.5 rounded uppercase pointer-events-none">
                             VIDÉO
                           </span>
                         )}
@@ -2971,15 +3663,44 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
               </div>
 
-              <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                <Sparkles className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+              {/* Upload Box for Events (Drag & Drop + Multi-Files) */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingEvents(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setIsDraggingEvents(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDraggingEvents(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingEvents(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleBatchEventsUpload(e.dataTransfer.files);
+                  }
+                }}
+                className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                  isDraggingEvents
+                    ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                    : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                }`}
+              >
+                <Sparkles className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingEvents ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                 <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                  AJOUTER UNE AFFICHE D'ÉVÉNEMENT
+                  AJOUTER DES AFFICHES D'ÉVÉNEMENTS
                 </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                  Glissez une ou <strong className="text-orange-300">plusieurs affiches d'événements d'un coup</strong> (tournois, soirées, lotos, stages).
+                </p>
 
                 <div className="max-w-xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
                   <div>
-                    <label className="text-xs text-slate-400 block mb-1">Titre de l'événement :</label>
+                    <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si import groupé) :</label>
                     <input
                       type="text"
                       placeholder="Ex: Soirée Fondue du club"
@@ -3003,14 +3724,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div className="flex flex-col items-center justify-center gap-2">
                   <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                     <Upload className="w-4 h-4" />
-                    <span>Déposer l'affiche de l'événement</span>
+                    <span>Déposer une ou plusieurs affiches d'événements</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      multiple
+                      accept="image/*,video/*,.mp4,.webm,.mov"
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageFileChange(file, (dataUrl) => handleAddEvent(dataUrl));
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleBatchEventsUpload(e.target.files);
+                        }
                       }}
                     />
                   </label>
@@ -3105,18 +3828,43 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               {selectedFolderCategory === 'photos' && (
                 <div className="space-y-4">
                   {/* Upload Box for Photos */}
-                  <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                    <Camera className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPhotos(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPhotos(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPhotos(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPhotos(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleBatchPhotosUpload(e.dataTransfer.files);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                      isDraggingPhotos
+                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                    }`}
+                  >
+                    <Camera className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingPhotos ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                     <h4 className="text-lg font-black text-white font-bebas tracking-wide">
                       AJOUTER DES PHOTOS AU DOSSIER "VIE DU CLUB"
                     </h4>
                     <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Glissez vos photos ici ou sélectionnez un fichier image (JPG, PNG). Elles seront immédiatement intégrées au carrousel TV.
+                      Glissez vos photos ici ou sélectionnez <strong className="text-orange-300">plusieurs images ou vidéos d'un coup</strong> (JPG, PNG, MP4, WebM).
                     </p>
 
                     <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">Titre de la photo :</label>
+                        <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si lot) :</label>
                         <input
                           type="text"
                           placeholder="Ex: Victoire en prolongation"
@@ -3139,14 +3887,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                     <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                       <Upload className="w-4 h-4" />
-                      <span>Choisir une photo sur l'ordinateur</span>
+                      <span>Choisir un ou plusieurs fichiers (Photos / Vidéos)</span>
                       <input
                         type="file"
-                        accept="image/*"
+                        multiple
+                        accept="image/*,video/*,.mp4,.webm,.mov"
                         className="hidden"
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageFileChange(file, handleAddPhoto);
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleBatchPhotosUpload(e.target.files);
+                          }
                         }}
                       />
                     </label>
@@ -3186,18 +3936,43 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               {selectedFolderCategory === 'sponsors' && (
                 <div className="space-y-4">
                   {/* Upload Box for Sponsors */}
-                  <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                    <Building2 className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingSponsors(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setIsDraggingSponsors(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingSponsors(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingSponsors(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleBatchSponsorsUpload(e.dataTransfer.files);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                      isDraggingSponsors
+                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                    }`}
+                  >
+                    <Building2 className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingSponsors ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                     <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      AJOUTER UN SPONSOR OU PARTENAIRE
+                      AJOUTER UN OU PLUSIEURS SPONSORS
                     </h4>
                     <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Déposez le logo ou l'affiche du partenaire pour l'intégrer au carrousel TV.
+                      Déposez un ou <strong className="text-orange-300">plusieurs logos de partenaires en même temps</strong> (PNG, SVG, JPG, MP4).
                     </p>
 
                     <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-left">
                       <div className="sm:col-span-2">
-                        <label className="text-xs text-slate-400 block mb-1">Nom de l'entreprise :</label>
+                        <label className="text-xs text-slate-400 block mb-1">Nom (optionnel si lot) :</label>
                         <input
                           type="text"
                           placeholder="Ex: Boulangerie Ducoin"
@@ -3223,14 +3998,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                     <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                       <Upload className="w-4 h-4" />
-                      <span>Déposer le logo du partenaire</span>
+                      <span>Déposer un ou plusieurs logos partenaires</span>
                       <input
                         type="file"
-                        accept="image/*"
+                        multiple
+                        accept="image/*,video/*,.mp4,.webm,.mov"
                         className="hidden"
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageFileChange(file, handleAddSponsor);
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleBatchSponsorsUpload(e.target.files);
+                          }
                         }}
                       />
                     </label>
@@ -3268,18 +4045,43 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               {/* Sub-view: Events Folder */}
               {selectedFolderCategory === 'events' && (
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-slate-700 hover:border-orange-500/80 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
-                    <Sparkles className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingEvents(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setIsDraggingEvents(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingEvents(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingEvents(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleBatchEventsUpload(e.dataTransfer.files);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
+                      isDraggingEvents
+                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
+                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                    }`}
+                  >
+                    <Sparkles className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingEvents ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
                     <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      AJOUTER UNE AFFICHE D'ÉVÉNEMENT (TOURNOI, SOIRÉE, STAGE)
+                      AJOUTER UNE OU PLUSIEURS AFFICHES D'ÉVÉNEMENTS (TOURNOI, SOIRÉE, STAGE)
                     </h4>
                     <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Cette affiche apparaîtra en plein écran dans la rotation TV.
+                      Glissez une ou <strong className="text-orange-300">plusieurs affiches en même temps</strong>.
                     </p>
 
                     <div className="max-w-xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1">Titre de l'événement :</label>
+                        <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si lot) :</label>
                         <input
                           type="text"
                           placeholder="Ex: Soirée Fondue du club"
@@ -3300,14 +4102,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                     <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
                       <Upload className="w-4 h-4" />
-                      <span>Déposer l'affiche de l'événement</span>
+                      <span>Déposer une ou plusieurs affiches d'événements</span>
                       <input
                         type="file"
-                        accept="image/*"
+                        multiple
+                        accept="image/*,video/*,.mp4,.webm,.mov"
                         className="hidden"
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageFileChange(file, (dataUrl) => handleAddEvent(dataUrl));
+                          if (e.target.files && e.target.files.length > 0) {
+                            handleBatchEventsUpload(e.target.files);
+                          }
                         }}
                       />
                     </label>
@@ -3610,13 +4414,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <span>Résultats du week-end ({results.length})</span>
                   </button>
                 </div>
-
-                <div className="text-xs text-slate-400 flex items-center gap-2">
-                  <span>Gymnase par défaut :</span>
-                  <span className="font-semibold text-slate-200 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">
-                    {clubSettings.gymnasiumDefault}
-                  </span>
-                </div>
               </div>
 
               {/* Filtre de sélection du week-end pour la passerelle */}
@@ -3918,119 +4715,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
               </div>
 
-              {/* Anti-Doublon & Preparation Checklist (Trame 1 par 1) */}
-              <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-5 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <h4 className="text-base font-black text-white font-bebas tracking-wide">
-                      PRÉPARATION 1 PAR 1 À PARTIR D'UNE TRAME • SUIVI ANTI-DOUBLONS
-                    </h4>
-                  </div>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {socialContentType === 'matches' ? `${matches.length} matchs` : `${results.length} résultats`} •{' '}
-                    <strong className="text-emerald-400">
-                      {socialContentType === 'matches'
-                        ? matches.filter((m) => preparedItemIds.includes(m.id)).length
-                        : results.filter((r) => preparedItemIds.includes(r.id)).length} prêts
-                    </strong>
-                  </span>
-                </div>
 
-                <p className="text-xs text-slate-400">
-                  Cochez chaque affiche au fur et à mesure que vous la préparez ou la publiez pour éviter tout doublon de publication.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
-                  {socialContentType === 'matches'
-                    ? matches.map((m) => {
-                        const isPrep = preparedItemIds.includes(m.id);
-                        return (
-                          <div
-                            key={m.id}
-                            className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                              isPrep
-                                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
-                                : 'bg-slate-950 border-slate-800 text-slate-200'
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-400">
-                                <span>{m.category}</span>
-                                <span className="text-slate-600">•</span>
-                                <span>{m.time}</span>
-                              </div>
-                              <div className="text-xs font-bold text-white truncate">
-                                {m.teamHome} vs {m.teamAway}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => togglePreparedItem(m.id)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
-                                isPrep
-                                  ? 'bg-emerald-600 text-white shadow-sm'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                              }`}
-                            >
-                              {isPrep ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Prêt / Publié</span>
-                                </>
-                              ) : (
-                                <span>Marquer comme prêt</span>
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })
-                    : results.map((r) => {
-                        const isPrep = preparedItemIds.includes(r.id);
-                        return (
-                          <div
-                            key={r.id}
-                            className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                              isPrep
-                                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
-                                : 'bg-slate-950 border-slate-800 text-slate-200'
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400">
-                                <span>{r.category}</span>
-                                <span className="text-slate-600">•</span>
-                                <span>Score : {r.homeScore} - {r.awayScore}</span>
-                              </div>
-                              <div className="text-xs font-bold text-white truncate">
-                                {r.teamHome} vs {r.teamAway}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => togglePreparedItem(r.id)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
-                                isPrep
-                                  ? 'bg-emerald-600 text-white shadow-sm'
-                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                              }`}
-                            >
-                              {isPrep ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Prêt / Publié</span>
-                                </>
-                              ) : (
-                                <span>Marquer comme prêt</span>
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
-                </div>
-              </div>
 
               {/* Grid: 3 Platform Captions (Instagram, TikTok, Facebook) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -4591,37 +5276,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'categories' && (
             <div className="space-y-6">
-              {/* Option Video Export: Télécharger le Carrousel en Format Vidéo */}
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-950/50 via-pink-950/40 to-slate-900 border border-purple-500/40 shadow-xl shadow-purple-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-pink-600 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-600/30">
-                    <Video className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-base font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                      <span>TÉLÉCHARGER LE CARROUSEL EN FORMAT VIDÉO (MP4 / WEBM)</span>
-                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        16:9 TV & 9:16 Story
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                      Générez une vidéo complète et fluide du carrousel de votre club (Matchs, Résultats, Photos, Sponsors, Anniversaires...). Idéal pour diffuser via clé USB sur vos télés ou partager en Story / Reel / WhatsApp !
-                    </p>
-                  </div>
-                </div>
-
-                {onOpenVideoExporter && (
-                  <button
-                    type="button"
-                    onClick={onOpenVideoExporter}
-                    className="px-5 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white shadow-lg shadow-purple-600/30 flex items-center gap-2 shrink-0 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Télécharger en Vidéo</span>
-                  </button>
-                )}
-              </div>
-
               {/* Option 1: Mélange Équilibré de la Boucle TV */}
               <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -4767,44 +5421,290 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 7: ANNIVERSAIRES (EXCEL) */}
+          {/* TAB 7: ANNIVERSAIRES (EXCEL & GESTION PAR SEMAINE) */}
           {/* ========================================================================= */}
           {activeTab === 'excel' && (
             <div className="space-y-6">
+              {/* Barre de sous-onglets : Licenciés vs Studio Calques */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBirthdaysSubTab('list')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      birthdaysSubTab === 'list'
+                        ? 'bg-pink-600 text-white shadow-md shadow-pink-600/30 ring-1 ring-pink-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Cake className="w-4 h-4 text-pink-400" />
+                    <span>Licenciés & Import Excel ({birthdays.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBirthdaysSubTab('calques')}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      birthdaysSubTab === 'calques'
+                        ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-1 ring-sky-400/40'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>🎨 Design & Studio Calques Anniversaires</span>
+                  </button>
+                </div>
+
+                <span className="text-[11px] text-slate-400 hidden sm:inline-block pr-2 font-medium">
+                  {birthdaysSubTab === 'list' ? 'Gestion des licenciés & extraction hebdomadaire' : 'Fond festif, stickers & visuels 16:9'}
+                </span>
+              </div>
+
+              {birthdaysSubTab === 'calques' ? (
+                <StudioGraphiqueWorkbench
+                  visualTemplates={visualTemplates}
+                  onUpdateVisualTemplates={onUpdateVisualTemplates}
+                  matches={matches}
+                  results={results}
+                  birthdays={birthdays}
+                  clubSettings={clubSettings}
+                  defaultCategory="birthdays"
+                  hideCategorySelector={true}
+                  onNavigateToCategoryTab={() => setBirthdaysSubTab('list')}
+                />
+              ) : (
+                <>
+              {/* Header & Description */}
               <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-black text-white font-bebas tracking-wide">
-                    EXTRACTION AUTOMATIQUE DES ANNIVERSAIRES DEPUIS EXCEL
-                  </h3>
-                  <p className="text-xs text-slate-400 max-w-2xl">
-                    Déposez votre fichier Excel (.xlsx, .xls) ou CSV de vos licenciés. L'application filtre automatiquement les personnes fêtant leur anniversaire dans la semaine en cours.
+                  <div className="flex items-center gap-2">
+                    <Cake className="w-5 h-5 text-pink-400" />
+                    <h3 className="text-lg font-black text-white font-bebas tracking-wide">
+                      GESTION & EXTRACTION DES ANNIVERSAIRES PAR SEMAINE
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                    Importez votre fichier Excel (.xlsx, .csv) de licenciés ou ajoutez-les manuellement.
+                    <span className="text-pink-400 font-semibold ml-1">
+                      Sur l'écran TV, seuls le Prénom et la Catégorie sont diffusés
+                    </span> pour un rendu grand format ultra-lisible.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setBirthdaysSubTab('calques')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    <span>Régler le fond & visuels festifs</span>
+                  </button>
+                  <button
+                    onClick={() => setIsAddingManualBday(!isAddingManualBday)}
+                    className="px-4 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-lg shadow-pink-600/20 whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isAddingManualBday ? 'Fermer formulaire' : 'Ajouter un licencié'}</span>
+                  </button>
                   <button
                     onClick={generateClubBirthdayTemplate}
                     className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 border border-slate-700 transition-colors whitespace-nowrap"
+                    title="Télécharger le modèle Excel prêt à l'emploi"
                   >
                     <Download className="w-4 h-4 text-orange-400" />
-                    <span>Télécharger modèle Excel</span>
+                    <span>Modèle Excel</span>
                   </button>
                 </div>
               </div>
 
+              {/* Formulaire d'ajout manuel de licencié */}
+              {isAddingManualBday && (
+                <form
+                  onSubmit={handleAddManualBirthday}
+                  className="bg-slate-900 p-5 rounded-3xl border-2 border-pink-500/40 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-pink-400" />
+                      AJOUTER UN LICENCIÉ (PRÉNOM & CATÉGORIE)
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingManualBday(false)}
+                      className="text-slate-400 hover:text-white p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Prénom du licencié *
+                      </label>
+                      <input
+                        type="text"
+                        value={manualBdayFirstName}
+                        onChange={(e) => setManualBdayFirstName(e.target.value)}
+                        placeholder="Ex: Lucas, Emma, Juliette..."
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Catégorie / Équipe (avec F ou M) *
+                      </label>
+                      <input
+                        type="text"
+                        value={manualBdayCategory}
+                        onChange={(e) => setManualBdayCategory(e.target.value)}
+                        placeholder="Ex: U15F, U15M, U13F, Seniors F..."
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
+                        required
+                      />
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {['U7', 'U9', 'U11F', 'U11M', 'U13F', 'U13M', 'U15F', 'U15M', 'U17F', 'U17M', 'U18M', 'Seniors F', 'Seniors M', 'Loisirs', 'Coach', 'Bureau'].map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setManualBdayCategory(cat)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                              manualBdayCategory === cat
+                                ? 'bg-pink-600 text-white'
+                                : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Date de naissance (ou date fête)
+                      </label>
+                      <input
+                        type="date"
+                        value={manualBdayDate}
+                        onChange={(e) => setManualBdayDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-sm focus:border-pink-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingManualBday(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold shadow-md shadow-pink-600/30 flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Enregistrer le licencié
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Barre de tri et sélection par Semaine */}
+              <div className="bg-slate-900/90 p-4 rounded-3xl border border-slate-700/80 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Filtrer par semaine :
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-pink-950/80 text-pink-300 border border-pink-500/30">
+                      {getWeekBounds(new Date(), birthdayWeekOffset).label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleSelectWeekOffset(birthdayWeekOffset - 1)}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs flex items-center gap-1 transition-colors"
+                      title="Semaine précédente"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span className="hidden sm:inline">Précédente</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectWeekOffset(0)}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        birthdayWeekOffset === 0
+                          ? 'bg-pink-600 text-white border-pink-500 shadow-md shadow-pink-600/30'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border-slate-700'
+                      }`}
+                    >
+                      Cette semaine
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectWeekOffset(birthdayWeekOffset + 1)}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs flex items-center gap-1 transition-colors"
+                      title="Semaine suivante"
+                    >
+                      <span className="hidden sm:inline">Suivante</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Boutons de raccourcis rapides de semaines */}
+                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-800">
+                  <span className="text-[11px] text-slate-400">Raccourcis :</span>
+                  {[
+                    { offset: -1, label: 'Semaine -1' },
+                    { offset: 0, label: 'Semaine actuelle (0)' },
+                    { offset: 1, label: 'Semaine +1' },
+                    { offset: 2, label: 'Semaine +2' },
+                    { offset: 3, label: 'Semaine +3' },
+                  ].map((w) => (
+                    <button
+                      key={w.offset}
+                      onClick={() => handleSelectWeekOffset(w.offset)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        birthdayWeekOffset === w.offset
+                          ? 'bg-pink-500/20 text-pink-300 border border-pink-500/50'
+                          : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                  {allMembersPool.length > 0 && (
+                    <button
+                      onClick={() => onUpdateBirthdays(allMembersPool)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 ml-auto"
+                    >
+                      Afficher tous ({allMembersPool.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Upload Drop Area */}
-              <div className="border-2 border-dashed border-slate-700 hover:border-pink-500 rounded-3xl p-8 bg-slate-950/60 text-center transition-all">
-                <Cake className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-                <h4 className="text-xl font-black text-white font-bebas tracking-wide">
-                  IMPORTER LE FICHIER DES LICENCIÉS DU CLUB
+              <div className="border-2 border-dashed border-slate-700 hover:border-pink-500 rounded-3xl p-6 bg-slate-950/60 text-center transition-all">
+                <Cake className="w-10 h-10 text-pink-400 mx-auto mb-2" />
+                <h4 className="text-lg font-black text-white font-bebas tracking-wide">
+                  IMPORTER OU METTRE À JOUR LE FICHIER EXCEL (.XLSX, .CSV)
                 </h4>
-                <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                  Colonnes détectées automatiquement : Nom, Prénom, Date de Naissance, Équipe / Catégorie.
+                <p className="text-xs text-slate-400 max-w-md mx-auto mb-3">
+                  Détection automatique : Prénom, Nom, Date de Naissance, Catégorie / Équipe.
                 </p>
 
-                <label className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs md:text-sm cursor-pointer shadow-lg shadow-pink-600/20 transition-all hover:scale-105">
+                <label className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs md:text-sm cursor-pointer shadow-lg shadow-pink-600/20 transition-all hover:scale-105">
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>{isParsingExcel ? 'Extraction en cours...' : 'Sélectionner le fichier Excel (.xlsx)'}</span>
+                  <span>{isParsingExcel ? 'Extraction en cours...' : 'Sélectionner le fichier Excel'}</span>
                   <input
                     ref={excelInputRef}
                     type="file"
@@ -4823,33 +5723,203 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
               )}
 
-              {/* Current Birthdays preview */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Anniversaires enregistrés pour cette semaine ({birthdays.length})
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {birthdays.map((b) => (
-                    <div
-                      key={b.id}
-                      className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-sm font-bold text-white">{b.fullName}</p>
-                        <p className="text-xs text-pink-400">{b.birthDayFormatted} {b.age ? `(${b.age} ans)` : ''}</p>
-                        <span className="text-[10px] text-slate-400">{b.teamCategory}</span>
-                      </div>
-                      <button
-                        onClick={() => onUpdateBirthdays(birthdays.filter((item) => item.id !== b.id))}
-                        className="p-1 text-slate-500 hover:text-red-400"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {excelErrors.length > 0 && (
+                <div className="p-4 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-300 text-sm space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-red-400">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Avertissements lors de l'import :</span>
+                  </div>
+                  {excelErrors.map((err, idx) => (
+                    <p key={idx} className="text-xs text-red-300/90 pl-6">• {err}</p>
                   ))}
                 </div>
+              )}
+
+              {/* Liste des Anniversaires diffusés avec Modification & Suppression */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>Anniversaires retenus pour la diffusion TV ({birthdays.length})</span>
+                    <span className="text-xs font-normal text-slate-400">
+                      (Affichage : Prénom + Catégorie)
+                    </span>
+                  </h4>
+                  {birthdays.length > 0 && (
+                    <button
+                      onClick={() => onUpdateBirthdays([])}
+                      className="text-xs text-red-400 hover:text-red-300 underline"
+                    >
+                      Tout effacer
+                    </button>
+                  )}
+                </div>
+
+                {birthdays.length === 0 ? (
+                  <div className="p-8 rounded-3xl bg-slate-950 border border-slate-800 text-center text-slate-400 space-y-2">
+                    <Cake className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-sm font-bold text-slate-300">Aucun anniversaire pour cette sélection</p>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Changez de semaine avec les boutons ci-dessus, importez un fichier Excel ou cliquez sur "Ajouter un licencié".
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {birthdays.map((b) => {
+                      const isEditing = editingBirthdayId === b.id;
+                      const displayName = b.firstName || (b.fullName ? b.fullName.trim().split(/\s+/)[0] : 'Licencié');
+
+                      if (isEditing) {
+                        return (
+                          <div
+                            key={b.id}
+                            className="p-4 rounded-2xl bg-slate-900 border-2 border-pink-500 shadow-xl space-y-3 animate-in fade-in"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-pink-400 uppercase tracking-wider">
+                                MODIFIER LE LICENCIÉ
+                              </span>
+                              <button
+                                onClick={handleCancelEditBirthday}
+                                className="text-slate-400 hover:text-white p-1"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-300 mb-0.5">
+                                  Prénom (affiché sur la TV) :
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editBdayFirstName}
+                                  onChange={(e) => setEditBdayFirstName(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white text-xs font-bold focus:border-pink-500 focus:outline-none"
+                                  placeholder="Prénom"
+                                  autoFocus
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-300 mb-0.5">
+                                  Catégorie / Équipe (avec F ou M) :
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editBdayCategory}
+                                  onChange={(e) => setEditBdayCategory(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white text-xs font-bold focus:border-pink-500 focus:outline-none"
+                                  placeholder="Ex: U15F, U15M, U13F, Seniors F"
+                                />
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {['U7', 'U9', 'U11F', 'U11M', 'U13F', 'U13M', 'U15F', 'U15M', 'U17F', 'U17M', 'U18M', 'Seniors F', 'Seniors M', 'Loisirs', 'Coach', 'Bureau'].map((cat) => (
+                                    <button
+                                      key={cat}
+                                      type="button"
+                                      onClick={() => setEditBdayCategory(cat)}
+                                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-colors ${
+                                        editBdayCategory === cat
+                                          ? 'bg-pink-600 text-white'
+                                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                                      }`}
+                                    >
+                                      {cat}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-semibold text-slate-300 mb-0.5">
+                                  Date de naissance :
+                                </label>
+                                <input
+                                  type="date"
+                                  value={editBdayDate}
+                                  onChange={(e) => setEditBdayDate(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white text-xs focus:border-pink-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                              <button
+                                onClick={handleCancelEditBirthday}
+                                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                onClick={() => handleSaveEditBirthday(b.id)}
+                                className="px-4 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-pink-600/30"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Enregistrer
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const displayCat = formatDisplayCategory(b.teamCategory, b.gender, displayName);
+
+                      return (
+                        <div
+                          key={b.id}
+                          className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-between gap-3 group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-white shrink-0 shadow-md"
+                              style={{ backgroundColor: clubSettings.primaryColor || '#ea580c' }}
+                            >
+                              <Cake className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-base font-black text-white truncate font-bebas tracking-wide">
+                                {displayName}
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className="px-2 py-0.5 rounded-lg text-[11px] font-black text-white shrink-0 shadow-sm uppercase tracking-wider font-mono"
+                                  style={{ backgroundColor: `${clubSettings.primaryColor || '#ea580c'}cc` }}
+                                >
+                                  {displayCat}
+                                </span>
+                                {b.birthDayFormatted && (
+                                  <span className="text-[11px] text-pink-400 font-medium">
+                                    🎂 {b.birthDayFormatted}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handleStartEditBirthday(b)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                              title="Modifier (Prénom, Catégorie, Date)"
+                            >
+                              <Pencil className="w-4 h-4 text-orange-400" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBirthday(b.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+              </>
+              )}
             </div>
           )}
 

@@ -12,6 +12,8 @@ interface FreeOverlayLayerProps {
   onSelect?: () => void;
   onPositionChange?: (x: number, y: number) => void;
   containerRef?: React.RefObject<HTMLDivElement | null>;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (percent: number) => void;
 }
 
 const hexToRgb = (hex: string) => {
@@ -36,6 +38,8 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   onSelect,
   onPositionChange,
   containerRef,
+  onVideoEnded,
+  onVideoTimeUpdate,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -43,6 +47,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [videoError, setVideoError] = useState(false);
+  const [actualDuration, setActualDuration] = useState<number | null>(null);
 
   const isEnabled = Boolean(layer && layer.enabled && layer.mediaUrl);
   const isVisibleForVictory = !layer?.onlyOnVictory || isVictoryContext;
@@ -62,7 +67,30 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
-    video.loop = true;
+    video.loop = !onVideoEnded;
+
+    if (onVideoEnded) {
+      video.onended = () => {
+        onVideoEnded();
+      };
+      video.onerror = () => {
+        console.warn('Erreur lecture vidéo FreeOverlayLayer, passage');
+        onVideoEnded();
+      };
+    } else {
+      video.onended = null;
+      video.onerror = null;
+    }
+
+    if (onVideoTimeUpdate) {
+      video.ontimeupdate = () => {
+        if (video.duration) {
+          onVideoTimeUpdate((video.currentTime / video.duration) * 100);
+        }
+      };
+    } else {
+      video.ontimeupdate = null;
+    }
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
@@ -76,7 +104,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
           setIsPlaying(false);
         });
     }
-  }, [shouldRender, isVideo, layer?.mediaUrl]);
+  }, [shouldRender, isVideo, layer?.mediaUrl, onVideoEnded, onVideoTimeUpdate]);
 
   // Real-time Canvas Chroma Key for videos
   useEffect(() => {
@@ -234,7 +262,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   const currentY = layer.y ?? (isMotionActive ? 78 : 50);
   const currentScale = layer.scale ?? 1.0;
   const currentOpacity = layer.opacity ?? 1.0;
-  const motionDuration = layer.motionDuration ?? 12;
+  const motionDuration = actualDuration && isVideo ? actualDuration : (layer.motionDuration ?? 12);
   const isFlipped = Boolean(layer.flipHorizontal);
 
   // Calcul de la largeur en fonction de l'échelle (de 10rem à toute la largeur)
@@ -349,13 +377,30 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
               ref={videoRef}
               src={layer.mediaUrl}
               autoPlay
-              loop
+              loop={!onVideoEnded}
               muted
               playsInline
               crossOrigin="anonymous"
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-              onError={() => setVideoError(true)}
+              onLoadedMetadata={(e) => {
+                if (e.currentTarget.duration) {
+                  setActualDuration(e.currentTarget.duration);
+                }
+              }}
+              onEnded={() => {
+                if (onVideoEnded) onVideoEnded();
+              }}
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget;
+                if (onVideoTimeUpdate && v.duration) {
+                  onVideoTimeUpdate((v.currentTime / v.duration) * 100);
+                }
+              }}
+              onError={() => {
+                setVideoError(true);
+                if (onVideoEnded) onVideoEnded();
+              }}
               style={
                 isFullScreenMode
                   ? {

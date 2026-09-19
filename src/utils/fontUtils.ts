@@ -27,3 +27,32 @@ export const getFontFamilyClass = (font?: FontFamilyOption): string => {
   const match = AVAILABLE_FONTS.find((f) => f.id === font);
   return match ? match.className : 'font-outfit font-bold';
 };
+
+// Global cache for inlined font CSS used in html-to-image (to avoid cross-origin sheet.cssRules errors)
+let cachedFontEmbedCSS: string | null = null;
+
+export const getExportFontEmbedCSS = async (): Promise<string> => {
+  if (cachedFontEmbedCSS !== null) {
+    return cachedFontEmbedCSS;
+  }
+
+  try {
+    const linkEl = typeof document !== 'undefined'
+      ? document.querySelector<HTMLLinkElement>('link[href*="fonts.googleapis.com"]')
+      : null;
+    const fontUrl = linkEl?.href ||
+      'https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Changa:wght@600;700;800&family=Fredoka:wght@600;700&family=Kanit:wght@600;700;800;900&family=Montserrat:wght@700;800;900&family=Oswald:wght@500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Permanent+Marker&family=Poppins:wght@600;700;800;900&family=Russo+One&family=Teko:wght@600;700&display=swap';
+
+    const res = await fetch(fontUrl);
+    if (res.ok) {
+      cachedFontEmbedCSS = await res.text();
+      return cachedFontEmbedCSS;
+    }
+  } catch (err) {
+    console.warn('Google Fonts prefetch notice for exporter:', err);
+  }
+
+  // Fallback to empty string to ensure html-to-image does not crawl document.styleSheets
+  cachedFontEmbedCSS = '';
+  return cachedFontEmbedCSS;
+};

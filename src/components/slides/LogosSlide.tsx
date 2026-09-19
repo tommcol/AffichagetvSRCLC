@@ -1,6 +1,7 @@
 import React from 'react';
-import { Award, FolderClosed } from 'lucide-react';
+import { Award } from 'lucide-react';
 import { ClubLogoItem } from '../../types';
+import { isVideoMedia } from '../../utils/mediaUtils';
 
 interface LogosSlideProps {
   logo?: ClubLogoItem;
@@ -19,9 +20,14 @@ export const LogosSlide: React.FC<LogosSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  // Single logo per slide mode - 100% Pure Full-Screen Visual Image or Video without text overlays
+  // Single logo per slide mode - 100% Pure Full-Screen Visual Image or Video without text overlays or floating pills
   if (logo) {
-    const isVid = logo.isVideo || logo.mediaType === 'video' || logo.logoUrl?.includes('.mp4') || logo.logoUrl?.startsWith('data:video/');
+    const isVid = Boolean(
+      logo.isVideo ||
+      logo.mediaType === 'video' ||
+      isVideoMedia(logo.logoUrl)
+    );
+
     return (
       <div className="relative w-full h-full flex items-center justify-center p-4 md:p-8 bg-slate-950 overflow-hidden select-none">
         {/* Ambient dark background backdrop */}
@@ -38,11 +44,16 @@ export const LogosSlide: React.FC<LogosSlideProps> = ({
         {/* Pure 100% Full-Screen Logo Image or Video */}
         {isVid ? (
           <video
+            key={`logo-vid-${logo.id || logo.logoUrl}`}
             src={logo.logoUrl}
             autoPlay
             loop={!onVideoEnded}
             muted
             playsInline
+            preload="auto"
+            onCanPlay={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
             onTimeUpdate={(e) => {
               const vid = e.currentTarget;
               if (onVideoTimeUpdate && vid.duration) {
@@ -50,24 +61,21 @@ export const LogosSlide: React.FC<LogosSlideProps> = ({
               }
             }}
             onEnded={onVideoEnded}
+            onError={() => {
+              console.warn('Erreur lecture vidéo logo, passage au suivant');
+              if (onVideoEnded) onVideoEnded();
+            }}
             className="relative z-10 max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all duration-700"
           />
         ) : (
           <img
+            key={`logo-img-${logo.id || logo.logoUrl}`}
             src={logo.logoUrl}
             alt={logo.name}
             className="relative z-10 max-h-full max-w-full object-contain rounded-2xl shadow-2xl transition-all duration-700"
             referrerPolicy="no-referrer"
           />
         )}
-
-        {/* Small Elegant floating tag to identify the category */}
-        <div className="absolute top-6 left-6 z-20 flex items-center gap-2 bg-slate-900/80 border border-slate-700/50 px-3 py-1.5 rounded-full backdrop-blur-md">
-          <FolderClosed className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="text-slate-300 text-xs font-bold font-bebas uppercase tracking-wider">
-            {logo.category === 'club' ? 'Logo du Club' : logo.category === 'sponsor' ? 'Partenaire' : logo.category === 'comite' ? 'Comité' : logo.category === 'ligue' ? 'Ligue' : logo.name}
-          </span>
-        </div>
       </div>
     );
   }

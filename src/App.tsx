@@ -26,18 +26,11 @@ import {
   TeamVisualItem,
   VisualTemplatesConfig,
 } from './types';
-import { MatchesSlide } from './components/slides/MatchesSlide';
-import { ResultsSlide } from './components/slides/ResultsSlide';
-import { SponsorsSlide } from './components/slides/SponsorsSlide';
-import { LogosSlide } from './components/slides/LogosSlide';
-import { PhotosSlide } from './components/slides/PhotosSlide';
-import { BirthdaysSlide } from './components/slides/BirthdaysSlide';
-import { EventsSlide } from './components/slides/EventsSlide';
-import { MatchAlertSlide } from './components/slides/MatchAlertSlide';
+import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
-import { CarouselVideoExporterModal } from './components/CarouselVideoExporterModal';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { getEffectiveCategoryConfig } from './utils/themeUtils';
+import { isVideoMedia } from './utils/mediaUtils';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
@@ -50,7 +43,6 @@ import {
   Flame,
   Radio,
   Sliders,
-  Video,
 } from 'lucide-react';
 
 function loadStorage<T>(_key: string, fallback: T): T {
@@ -67,6 +59,12 @@ interface CarouselSlide {
   photo?: ClubPhotoItem;
   event?: ClubEventItem;
   logo?: ClubLogoItem;
+  matchesPage?: {
+    homeMatches: MatchItem[];
+    awayMatches: MatchItem[];
+    pageNumber: number;
+    totalPages: number;
+  };
   itemIndex?: number;
   totalItems?: number;
   durationSeconds: number;
@@ -114,11 +112,10 @@ export default function App() {
     isOpen: false,
     type: 'matches',
   });
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
 
   // Chargement des données depuis le serveur au démarrage
   useEffect(() => {
-    fetch('/.netlify/functions/get-app-data')
+    fetch('/api/get-app-data')
       .then((res) => res.json())
       .then((res: { data: any }) => {
         if (res.data) {
@@ -153,7 +150,7 @@ export default function App() {
 
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
-      fetch('/.netlify/functions/save-app-data', {
+      fetch('/api/save-app-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,7 +196,7 @@ export default function App() {
   useEffect(() => {
     const fetchServerAlerts = async () => {
       try {
-        const res = await fetch('/.netlify/functions/get-alerts');
+        const res = await fetch('/api/get-alerts');
         if (res.ok) {
           const data = await res.json();
           if (data.alerts && Array.isArray(data.alerts)) {
@@ -219,7 +216,7 @@ export default function App() {
     };
 
     fetchServerAlerts();
-    const interval = setInterval(fetchServerAlerts, 15000);
+    const interval = setInterval(fetchServerAlerts, 300000);
     return () => clearInterval(interval);
   }, []);
 
@@ -257,7 +254,7 @@ export default function App() {
       }));
     }
 
-    // 2. Standard Category Pools
+    // 2. Standard Category Pools (only add categories that actually contain content/photos)
     enabledCategories.forEach((cat) => {
       if (cat.id === 'sponsors') {
         if (sponsors.length > 0) {
@@ -271,16 +268,6 @@ export default function App() {
             durationSeconds: cat.durationSeconds,
             label: `Sponsor: ${sp.name}`,
           }));
-        } else {
-          pools['sponsors'] = [
-            {
-              id: `cat-${cat.id}`,
-              type: 'category' as const,
-              categoryId: cat.id,
-              durationSeconds: cat.durationSeconds,
-              label: cat.label,
-            },
-          ];
         }
       } else if (cat.id === 'photos') {
         if (photos.length > 0) {
@@ -294,16 +281,6 @@ export default function App() {
             durationSeconds: cat.durationSeconds,
             label: `Photo: ${ph.title || `Photo ${idx + 1}`}`,
           }));
-        } else {
-          pools['photos'] = [
-            {
-              id: `cat-${cat.id}`,
-              type: 'category' as const,
-              categoryId: cat.id,
-              durationSeconds: cat.durationSeconds,
-              label: cat.label,
-            },
-          ];
         }
       } else if (cat.id === 'logos') {
         if (logos.length > 0) {
@@ -317,16 +294,6 @@ export default function App() {
             durationSeconds: cat.durationSeconds,
             label: `Logo: ${lg.name}`,
           }));
-        } else {
-          pools['logos'] = [
-            {
-              id: `cat-${cat.id}`,
-              type: 'category' as const,
-              categoryId: cat.id,
-              durationSeconds: cat.durationSeconds,
-              label: cat.label,
-            },
-          ];
         }
       } else if (cat.id === 'events') {
         if (events.length > 0) {
@@ -340,8 +307,58 @@ export default function App() {
             durationSeconds: cat.durationSeconds,
             label: `Événement: ${ev.title}`,
           }));
-        } else {
-          pools['events'] = [
+        }
+      } else if (cat.id === 'matches') {
+        const weekendMatches = matches.filter((m) => m.selectedForWeekend !== false);
+        const sortMatches = (a: MatchItem, b: MatchItem) => {
+          const dateA = a.date || '';
+          const dateB = b.date || '';
+          if (dateA !== dateB) return dateA.localeCompare(dateB);
+          return (a.time || '').localeCompare(b.time || '');
+        };
+        const homeList = weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatches);
+        const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
+
+        if (weekendMatches.length > 0) {
+          const totalPages = Math.max(
+            1,
+            Math.ceil(homeList.length / 4),
+            Math.ceil(awayList.length / 4)
+          );
+
+          pools['matches'] = Array.from({ length: totalPages }, (_, pageIdx) => {
+            const pageHome = homeList.slice(pageIdx * 4, (pageIdx + 1) * 4);
+            const pageAway = awayList.slice(pageIdx * 4, (pageIdx + 1) * 4);
+            return {
+              id: `cat-matches-page-${pageIdx + 1}`,
+              type: 'category' as const,
+              categoryId: 'matches' as const,
+              matchesPage: {
+                homeMatches: pageHome,
+                awayMatches: pageAway,
+                pageNumber: pageIdx + 1,
+                totalPages,
+              },
+              durationSeconds: cat.durationSeconds,
+              label: totalPages > 1 ? `Matchs (Page ${pageIdx + 1}/${totalPages})` : cat.label,
+            };
+          });
+        }
+      } else if (cat.id === 'results') {
+        if (results.length > 0) {
+          pools['results'] = [
+            {
+              id: `cat-${cat.id}`,
+              type: 'category' as const,
+              categoryId: cat.id,
+              durationSeconds: cat.durationSeconds,
+              label: cat.label,
+            },
+          ];
+        }
+      } else if (cat.id === 'birthdays') {
+        if (birthdays.length > 0) {
+          pools['birthdays'] = [
             {
               id: `cat-${cat.id}`,
               type: 'category' as const,
@@ -364,13 +381,19 @@ export default function App() {
       }
     });
 
+    const fallbackSlide: CarouselSlide = {
+      id: 'fallback-standby',
+      type: 'category',
+      categoryId: 'standby',
+      durationSeconds: 15,
+      label: clubSettings.name || 'Club',
+    };
+
     if (!isBalanced) {
       // Sequential Mode
       const sequentialList: CarouselSlide[] = [];
       Object.keys(pools).forEach((k) => sequentialList.push(...pools[k]));
-      return sequentialList.length > 0
-        ? sequentialList
-        : [{ id: 'fallback', type: 'category', categoryId: 'photos', durationSeconds: 15, label: 'Photos' }];
+      return sequentialList.length > 0 ? sequentialList : [fallbackSlide];
     }
 
     // Balanced Mode (Mélange Équilibré Intercalé - Une seule fois chaque visuel)
@@ -378,7 +401,7 @@ export default function App() {
     const poolKeys = Object.keys(pools);
 
     if (poolKeys.length === 0) {
-      return [{ id: 'fallback', type: 'category', categoryId: 'photos', durationSeconds: 15, label: 'Photos' }];
+      return [fallbackSlide];
     }
 
     interface SpacedItem {
@@ -418,10 +441,8 @@ export default function App() {
       balancedList.push(item.slide);
     });
 
-    return balancedList.length > 0
-      ? balancedList
-      : [{ id: 'fallback', type: 'category', categoryId: 'photos', durationSeconds: 15, label: 'Photos' }];
-  }, [activeAlerts, categories, sponsors, logos, photos, events, clubSettings.balancedLoopMode]);
+    return balancedList.length > 0 ? balancedList : [fallbackSlide];
+  }, [activeAlerts, categories, sponsors, logos, photos, events, matches, results, birthdays, clubSettings.name, clubSettings.balancedLoopMode]);
 
   // Keep index within playlist boundaries
   const activeSlideIndex = currentSlideIndex % carouselPlaylist.length;
@@ -440,25 +461,60 @@ export default function App() {
     return Math.min(10, Math.max(3, currentSlide.durationSeconds || 6));
   }, [currentSlide, categories]);
 
+  // Effective slide themes per category
+  const matchesEffective = useMemo(
+    () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+  const resultsEffective = useMemo(
+    () => getEffectiveCategoryConfig('results', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+  const birthdaysEffective = useMemo(
+    () => getEffectiveCategoryConfig('birthdays', visualTemplates, clubSettings),
+    [visualTemplates, clubSettings]
+  );
+
   const isCurrentSlideVideo = useMemo(() => {
     if (!currentSlide) return false;
     
     if (currentSlide.type === 'category') {
       if (currentSlide.categoryId === 'photos' && currentSlide.photo) {
         const ph = currentSlide.photo;
-        return !!(ph.isVideo || ph.mediaType === 'video' || ph.imageUrl?.includes('.mp4') || ph.imageUrl?.startsWith('data:video/'));
+        return !!(ph.isVideo || ph.mediaType === 'video' || isVideoMedia(ph.imageUrl));
       }
       if (currentSlide.categoryId === 'sponsors' && currentSlide.sponsor) {
         const sp = currentSlide.sponsor;
-        return !!(sp.isVideo || sp.mediaType === 'video' || sp.logoUrl?.includes('.mp4') || sp.logoUrl?.startsWith('data:video/'));
+        return !!(sp.isVideo || sp.mediaType === 'video' || isVideoMedia(sp.logoUrl));
       }
       if (currentSlide.categoryId === 'logos' && currentSlide.logo) {
         const lg = currentSlide.logo;
-        return !!(lg.isVideo || lg.mediaType === 'video' || lg.logoUrl?.includes('.mp4') || lg.logoUrl?.startsWith('data:video/'));
+        return !!(lg.isVideo || lg.mediaType === 'video' || isVideoMedia(lg.logoUrl));
+      }
+      if (currentSlide.categoryId === 'birthdays') {
+        const bgVid = birthdaysEffective.backgroundUrl && isVideoMedia(birthdaysEffective.backgroundUrl);
+        const l3Vid = birthdaysEffective.layer3?.enabled && (birthdaysEffective.layer3.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer3.mediaUrl));
+        const l4Vid = birthdaysEffective.layer4?.enabled && (birthdaysEffective.layer4.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer4.mediaUrl));
+        const mascotVid = birthdaysEffective.mascot?.enabled && birthdaysEffective.mascot.mediaType === 'video' && birthdaysEffective.mascot.mediaUrl;
+        return !!(bgVid || l3Vid || l4Vid || mascotVid);
+      }
+      if (currentSlide.categoryId === 'matches') {
+        const bgVid = matchesEffective.backgroundUrl && isVideoMedia(matchesEffective.backgroundUrl);
+        const l3Vid = matchesEffective.layer3?.enabled && (matchesEffective.layer3.mediaType === 'video' || isVideoMedia(matchesEffective.layer3.mediaUrl));
+        const l4Vid = matchesEffective.layer4?.enabled && (matchesEffective.layer4.mediaType === 'video' || isVideoMedia(matchesEffective.layer4.mediaUrl));
+        const mascotVid = matchesEffective.mascot?.enabled && matchesEffective.mascot.mediaType === 'video' && matchesEffective.mascot.mediaUrl;
+        return !!(bgVid || l3Vid || l4Vid || mascotVid);
+      }
+      if (currentSlide.categoryId === 'results') {
+        const bgVid = resultsEffective.backgroundUrl && isVideoMedia(resultsEffective.backgroundUrl);
+        const l3Vid = resultsEffective.layer3?.enabled && (resultsEffective.layer3.mediaType === 'video' || isVideoMedia(resultsEffective.layer3.mediaUrl));
+        const l4Vid = resultsEffective.layer4?.enabled && (resultsEffective.layer4.mediaType === 'video' || isVideoMedia(resultsEffective.layer4.mediaUrl));
+        const mascotVid = resultsEffective.mascot?.enabled && resultsEffective.mascot.mediaType === 'video' && resultsEffective.mascot.mediaUrl;
+        return !!(bgVid || l3Vid || l4Vid || mascotVid);
       }
     }
     return false;
-  }, [currentSlide]);
+  }, [currentSlide, birthdaysEffective, matchesEffective, resultsEffective]);
 
   // Slide navigation
   const nextSlide = useCallback(() => {
@@ -477,7 +533,15 @@ export default function App() {
       setProgressPercent(0);
       return;
     }
-    if (isCurrentSlideVideo) return; // Video controls its own duration and next-slide trigger
+
+    // If current slide is a video, run a safety fallback timer (max 60s) in case video does not fire onEnded
+    if (isCurrentSlideVideo) {
+      const maxVideoSafetyTimer = setTimeout(() => {
+        console.warn('Watchdog vidéo: passage automatique à la slide suivante');
+        nextSlide();
+      }, 60000);
+      return () => clearTimeout(maxVideoSafetyTimer);
+    }
 
     setProgressPercent(0);
     const startTime = Date.now();
@@ -560,7 +624,7 @@ export default function App() {
   const handleAddAlert = async (alert: ActiveMatchAlert) => {
     setActiveAlerts((prev) => [alert, ...prev.filter((a) => a.id !== alert.id)]);
     try {
-      await fetch('/.netlify/functions/add-alert', {
+      await fetch('/api/add-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(alert),
@@ -572,7 +636,7 @@ export default function App() {
 
   const handleRemoveAlert = (id: string) => {
     setActiveAlerts((prev) => prev.filter((a) => a.id !== id));
-    fetch(`/.netlify/functions/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch(() => {});
   };
 
   // Find matching team visual if current slide is an alert
@@ -583,27 +647,13 @@ export default function App() {
       )
     : undefined;
 
-  // Effective slide themes per category
-  const matchesEffective = useMemo(
-    () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-  const resultsEffective = useMemo(
-    () => getEffectiveCategoryConfig('results', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-  const birthdaysEffective = useMemo(
-    () => getEffectiveCategoryConfig('birthdays', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-
   // If in Admin Mode, render the full admin dashboard interface directly!
   if (viewMode === 'admin' && !adminAuthentifie) {
     const tenterConnexion = async (e: React.FormEvent) => {
       e.preventDefault();
       setErreurAuthAdmin('');
       try {
-        const res = await fetch('/.netlify/functions/save-app-data', {
+        const res = await fetch('/api/save-app-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -678,7 +728,6 @@ export default function App() {
             handleToggleFullscreen();
           }}
           onOpenVisualExporter={(type) => setVisualModalState({ isOpen: true, type })}
-          onOpenVideoExporter={() => setIsVideoModalOpen(true)}
         />
 
         {/* Social Media Visual Exporter Modal */}
@@ -690,25 +739,7 @@ export default function App() {
           results={results}
           clubSettings={clubSettings}
           specificNotification={activeAlerts[0] || null}
-          onOpenVideoExporter={() => setIsVideoModalOpen(true)}
           visualTemplates={visualTemplates}
-        />
-
-        {/* Carousel Video Exporter Modal */}
-        <CarouselVideoExporterModal
-          isOpen={isVideoModalOpen}
-          onClose={() => setIsVideoModalOpen(false)}
-          matches={matches}
-          results={results}
-          sponsors={sponsors}
-          logos={logos}
-          photos={photos}
-          birthdays={birthdays}
-          events={events}
-          teamVisuals={teamVisuals}
-          visualTemplates={visualTemplates}
-          clubSettings={clubSettings}
-          activeAlerts={activeAlerts}
         />
       </div>
     );
@@ -732,100 +763,23 @@ export default function App() {
             transition={{ duration: 0.6, ease: 'easeInOut' }}
             className="w-full h-full flex items-center justify-center"
           >
-            {/* Case A: Active 1-Hour Victory / Defeat Alert Slide */}
-            {currentSlide.type === 'alert' && currentSlide.alert && (
-              <MatchAlertSlide alert={currentSlide.alert} teamVisual={matchingTeamVisual} />
-            )}
-
-            {/* Case B: Standard Category Visuals */}
-            {currentSlide.type === 'category' && (
-              <>
-                {currentSlide.categoryId === 'photos' && (
-                  <PhotosSlide
-                    photo={currentSlide.photo}
-                    photos={photos}
-                    itemIndex={currentSlide.itemIndex}
-                    totalItems={currentSlide.totalItems}
-                    hideTextOverlay={clubSettings.hideTextOverlays ?? true}
-                    onVideoEnded={nextSlide}
-                    onVideoTimeUpdate={setProgressPercent}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'sponsors' && (
-                  <SponsorsSlide
-                    sponsor={currentSlide.sponsor}
-                    sponsors={sponsors}
-                    itemIndex={currentSlide.itemIndex}
-                    totalItems={currentSlide.totalItems}
-                    clubSettings={clubSettings}
-                    onVideoEnded={nextSlide}
-                    onVideoTimeUpdate={setProgressPercent}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'logos' && (
-                  <LogosSlide
-                    logo={currentSlide.logo}
-                    logos={logos}
-                    itemIndex={currentSlide.itemIndex}
-                    totalItems={currentSlide.totalItems}
-                    onVideoEnded={nextSlide}
-                    onVideoTimeUpdate={setProgressPercent}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'matches' && (
-                  <MatchesSlide
-                    matches={matches}
-                    clubSettings={clubSettings}
-                    backgroundUrl={matchesEffective.backgroundUrl}
-                    onDownloadVisual={() => setVisualModalState({ isOpen: true, type: 'matches' })}
-                    hideShareButton={true}
-                    theme={matchesEffective.theme}
-                    mascot={matchesEffective.mascot}
-                    layer3={matchesEffective.layer3}
-                    layer4={matchesEffective.layer4}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'results' && (
-                  <ResultsSlide
-                    results={results}
-                    clubSettings={clubSettings}
-                    backgroundUrl={resultsEffective.backgroundUrl}
-                    onDownloadVisual={() => setVisualModalState({ isOpen: true, type: 'results' })}
-                    hideShareButton={true}
-                    theme={resultsEffective.theme}
-                    mascot={resultsEffective.mascot}
-                    layer3={resultsEffective.layer3}
-                    layer4={resultsEffective.layer4}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'birthdays' && (
-                  <BirthdaysSlide
-                    birthdays={birthdays}
-                    clubSettings={clubSettings}
-                    backgroundUrl={birthdaysEffective.backgroundUrl}
-                    theme={birthdaysEffective.theme}
-                    mascot={birthdaysEffective.mascot}
-                    layer3={birthdaysEffective.layer3}
-                    layer4={birthdaysEffective.layer4}
-                  />
-                )}
-
-                {currentSlide.categoryId === 'events' && (
-                  <EventsSlide
-                    event={currentSlide.event}
-                    events={events}
-                    itemIndex={currentSlide.itemIndex}
-                    totalItems={currentSlide.totalItems}
-                    clubSettings={clubSettings}
-                  />
-                )}
-              </>
-            )}
+            <TVSlideRenderer
+              slide={currentSlide}
+              clubSettings={clubSettings}
+              matches={matches}
+              results={results}
+              sponsors={sponsors}
+              logos={logos}
+              photos={photos}
+              birthdays={birthdays}
+              events={events}
+              teamVisuals={teamVisuals}
+              visualTemplates={visualTemplates}
+              onVideoEnded={nextSlide}
+              onVideoTimeUpdate={setProgressPercent}
+              onDownloadVisual={(type) => setVisualModalState({ isOpen: true, type })}
+              hideShareButton={true}
+            />
           </motion.div>
         </AnimatePresence>
 
@@ -916,21 +870,6 @@ export default function App() {
             </div>
           )}
 
-          <div className="w-px h-5 bg-slate-700 mx-0.5" />
-
-          {/* Quick Video Export Button */}
-          <button
-            onClick={() => setIsVideoModalOpen(true)}
-            className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
-            title="Exporter et télécharger le carrousel en format vidéo (MP4 / WebM)"
-            id="btn-tv-video-exporter"
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Télécharger en Vidéo</span>
-          </button>
-
-          <div className="w-px h-5 bg-slate-700 mx-0.5" />
-
           {/* Fullscreen Button */}
           <button
             onClick={handleToggleFullscreen}
@@ -953,27 +892,7 @@ export default function App() {
         results={results}
         clubSettings={clubSettings}
         specificNotification={activeAlerts[0] || null}
-        onOpenVideoExporter={() => setIsVideoModalOpen(true)}
         visualTemplates={visualTemplates}
-      />
-
-      {/* ========================================================================= */}
-      {/* 4. MODALS: CAROUSEL VIDEO EXPORTER (MP4 / WEBM) */}
-      {/* ========================================================================= */}
-      <CarouselVideoExporterModal
-        isOpen={isVideoModalOpen}
-        onClose={() => setIsVideoModalOpen(false)}
-        matches={matches}
-        results={results}
-        sponsors={sponsors}
-        logos={logos}
-        photos={photos}
-        birthdays={birthdays}
-        events={events}
-        teamVisuals={teamVisuals}
-        visualTemplates={visualTemplates}
-        clubSettings={clubSettings}
-        activeAlerts={activeAlerts}
       />
     </div>
   );

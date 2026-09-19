@@ -10,6 +10,10 @@ import { getFontFamilyClass } from '../../utils/fontUtils';
 
 interface MatchesSlideProps {
   matches: MatchItem[];
+  customHomeMatches?: MatchItem[];
+  customAwayMatches?: MatchItem[];
+  pageNumber?: number;
+  totalPages?: number;
   clubSettings: ClubSettings;
   onDownloadVisual: () => void;
   backgroundUrl?: string;
@@ -22,10 +26,16 @@ interface MatchesSlideProps {
   onLayerPositionChange?: (layerNum: 3 | 4, x: number, y: number) => void;
   selectedLayerNum?: 3 | 4 | null;
   onSelectLayer?: (layerNum: 3 | 4) => void;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (percent: number) => void;
 }
 
 export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   matches,
+  customHomeMatches,
+  customAwayMatches,
+  pageNumber,
+  totalPages,
   clubSettings,
   onDownloadVisual,
   backgroundUrl,
@@ -38,7 +48,26 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   onLayerPositionChange,
   selectedLayerNum,
   onSelectLayer,
+  onVideoEnded,
+  onVideoTimeUpdate,
 }) => {
+  // Video priority and synchronization determination
+  const isBgVideo = Boolean(backgroundUrl && isVideoMedia(backgroundUrl));
+  const isLayer3Video = Boolean(
+    layer3?.enabled && (layer3.mediaType === 'video' || isVideoMedia(layer3.mediaUrl))
+  );
+  const isLayer4Video = Boolean(
+    layer4?.enabled && (layer4.mediaType === 'video' || isVideoMedia(layer4.mediaUrl))
+  );
+  const isMascotVideo = Boolean(
+    !layer3 && mascot?.enabled && mascot.mediaType === 'video' && mascot.mediaUrl
+  );
+
+  const layer3HasControl = isLayer3Video;
+  const layer4HasControl = !isLayer3Video && isLayer4Video;
+  const mascotHasControl = !isLayer3Video && !isLayer4Video && isMascotVideo;
+  const bgHasControl = !isLayer3Video && !isLayer4Video && !isMascotVideo && isBgVideo;
+
   // Horloge en temps réel pour actualiser automatiquement le statut "EN COURS"
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
 
@@ -51,10 +80,14 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
   // Visual Theme resolution
   const primaryColor = theme?.primaryColor || clubSettings.primaryColor || '#ea580c';
+  const textColor = theme?.textColor || '#ffffff';
+  const badgeBgColor = theme?.badgeBgColor || primaryColor;
+  const badgeTextColor = theme?.badgeTextColor || '#ffffff';
   const cardBg = theme?.cardBgColor || '#020617';
   const cardOpacity = theme?.cardOpacity ?? 0.85;
   const cardBlur = theme?.cardBlur ?? 8;
   const headerFont = theme?.fontFamilyHeader || 'Bebas Neue';
+  const bodyFont = theme?.fontFamilyBody || 'Montserrat';
   const bgBrightness = theme?.backgroundBrightness ?? 0.35;
   const bgBlur = theme?.backgroundBlur ?? 0;
 
@@ -76,53 +109,81 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
   // Only display matches that are checked/selected for the weekend (selectedForWeekend !== false)
   const weekendMatches = matches.filter((m) => m.selectedForWeekend !== false);
-  const homeMatches = weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatchesChronologically);
-  const awayMatches = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatchesChronologically);
+  const homeMatches = customHomeMatches !== undefined
+    ? customHomeMatches
+    : weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatchesChronologically);
+  const awayMatches = customAwayMatches !== undefined
+    ? customAwayMatches
+    : weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatchesChronologically);
 
-  // Adaptive sizing helper based on match count per column for distant TV viewing
+  // Adaptive sizing helper: cards automatically expand (flex-1) to fill 100% of vertical height
   const getColumnSizing = (count: number) => {
-    if (count <= 2) {
+    if (count <= 1) {
       return {
-        containerLayout: 'flex-1 flex flex-col justify-evenly gap-4 md:gap-6 min-h-0',
-        cardPadding: 'p-6 md:p-8 lg:p-9 rounded-3xl',
-        categoryBadge: 'text-sm md:text-base lg:text-lg px-4 py-1.5 rounded-xl font-black tracking-wide',
-        competitionText: 'text-sm md:text-base lg:text-lg font-semibold text-slate-300',
-        teamNames: 'text-2xl md:text-3xl lg:text-4xl font-black tracking-wide leading-tight',
-        vsBadge: 'text-xl md:text-2xl font-black px-2',
-        metaRow: 'mt-3 gap-5 text-sm md:text-base lg:text-lg',
+        containerLayout: 'flex-1 flex flex-col gap-3 min-h-0',
+        cardPadding: 'p-6 md:p-8 lg:p-10 rounded-3xl',
+        categoryBadge: 'text-base md:text-lg lg:text-xl px-5 py-2 rounded-2xl font-black tracking-wider',
+        competitionText: 'text-sm md:text-base lg:text-lg font-bold text-slate-200',
+        teamNames: 'text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-wide leading-tight',
+        vsBadge: 'text-xl md:text-2xl lg:text-3xl font-black px-3',
+        metaRow: 'mt-4 gap-4 md:gap-6 text-base md:text-lg lg:text-xl',
+        metaDateText: 'text-lg md:text-xl lg:text-2xl xl:text-3xl font-black uppercase',
         metaIcon: 'w-5 h-5 md:w-6 md:h-6',
-        timeText: 'font-mono font-black text-white text-lg md:text-xl lg:text-2xl',
-        statusBadge: 'px-4 py-2 md:px-5 md:py-2.5 rounded-2xl text-sm md:text-base lg:text-lg font-black uppercase tracking-wide shadow-lg',
+        timeText: 'font-mono font-black text-white text-xl md:text-2xl lg:text-3xl',
+        gymnasiumText: 'text-base md:text-lg lg:text-xl font-semibold text-slate-200',
+        statusBadge: 'px-5 py-2.5 rounded-2xl text-sm md:text-base lg:text-lg font-black uppercase tracking-wider shadow-lg',
         statusIcon: 'w-5 h-5 md:w-6 md:h-6',
       };
     }
-    if (count <= 4) {
+    if (count === 2) {
       return {
-        containerLayout: 'flex-1 flex flex-col justify-evenly gap-3 md:gap-4 min-h-0',
-        cardPadding: 'p-4 md:p-5 lg:p-6 rounded-2xl',
-        categoryBadge: 'text-xs md:text-sm lg:text-base px-3.5 py-1 rounded-xl font-black tracking-wide',
-        competitionText: 'text-xs md:text-sm lg:text-base font-medium text-slate-300',
-        teamNames: 'text-xl md:text-2xl lg:text-3xl font-black tracking-wide leading-snug',
-        vsBadge: 'text-base md:text-lg font-black px-1.5',
-        metaRow: 'mt-2 gap-4 text-xs md:text-sm lg:text-base',
+        containerLayout: 'flex-1 flex flex-col gap-3 min-h-0',
+        cardPadding: 'p-5 md:p-6 lg:p-8 rounded-2xl',
+        categoryBadge: 'text-sm md:text-base lg:text-lg px-4 py-1.5 rounded-xl font-black tracking-wider',
+        competitionText: 'text-xs md:text-sm lg:text-base font-bold text-slate-200',
+        teamNames: 'text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black tracking-wide leading-tight',
+        vsBadge: 'text-lg md:text-xl lg:text-2xl font-black px-2.5',
+        metaRow: 'mt-3 gap-3 md:gap-5 text-sm md:text-base lg:text-lg',
+        metaDateText: 'text-base md:text-lg lg:text-xl xl:text-2xl font-black uppercase',
         metaIcon: 'w-4 h-4 md:w-5 md:h-5',
-        timeText: 'font-mono font-bold text-white text-base md:text-lg lg:text-xl',
-        statusBadge: 'px-3.5 py-1.5 md:px-4 md:py-2 rounded-xl text-xs md:text-sm lg:text-base font-black uppercase tracking-wide shadow-md',
+        timeText: 'font-mono font-black text-white text-lg md:text-xl lg:text-2xl',
+        gymnasiumText: 'text-sm md:text-base lg:text-lg font-semibold text-slate-200',
+        statusBadge: 'px-4 py-2 rounded-xl text-xs md:text-sm lg:text-base font-black uppercase tracking-wide shadow-md',
         statusIcon: 'w-4 h-4 md:w-5 md:h-5',
       };
     }
+    if (count === 3) {
+      return {
+        containerLayout: 'flex-1 flex flex-col gap-2.5 min-h-0',
+        cardPadding: 'p-4 md:p-5 lg:p-6 rounded-2xl',
+        categoryBadge: 'text-xs md:text-sm lg:text-base px-3.5 py-1 rounded-xl font-black tracking-wider',
+        competitionText: 'text-xs md:text-sm lg:text-base font-bold text-slate-200 truncate max-w-[340px]',
+        teamNames: 'text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black tracking-wide leading-tight',
+        vsBadge: 'text-base md:text-lg lg:text-xl font-black px-2',
+        metaRow: 'mt-2.5 gap-3 md:gap-4 text-xs md:text-sm lg:text-base',
+        metaDateText: 'text-sm md:text-base lg:text-lg xl:text-xl font-black uppercase',
+        metaIcon: 'w-4 h-4 md:w-5 md:h-5',
+        timeText: 'font-mono font-black text-white text-sm md:text-base lg:text-lg xl:text-xl',
+        gymnasiumText: 'text-xs md:text-sm lg:text-base font-semibold text-slate-200',
+        statusBadge: 'px-4 py-1.5 rounded-xl text-xs md:text-sm lg:text-base font-black uppercase tracking-wide shadow-md',
+        statusIcon: 'w-4 h-4 md:w-5 md:h-5',
+      };
+    }
+    // 4 matches
     return {
-      containerLayout: 'space-y-3 flex-1 overflow-y-auto pr-1 min-h-0',
-      cardPadding: 'p-3.5 md:p-4 rounded-2xl',
-      categoryBadge: 'text-xs px-2.5 py-0.5 rounded-lg font-black tracking-wide',
-      competitionText: 'text-xs text-slate-400',
-      teamNames: 'text-base md:text-xl font-black tracking-wide',
-      vsBadge: 'text-sm font-black px-1',
-      metaRow: 'mt-1.5 gap-2.5 text-xs',
-      metaIcon: 'w-3.5 h-3.5',
-      timeText: 'font-mono font-bold text-slate-200 text-xs md:text-sm',
-      statusBadge: 'px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wide',
-      statusIcon: 'w-3.5 h-3.5',
+      containerLayout: 'flex-1 flex flex-col gap-2 min-h-0',
+      cardPadding: 'p-3 md:p-4 lg:p-4.5 rounded-xl',
+      categoryBadge: 'text-xs md:text-sm lg:text-base px-3 py-1 rounded-lg font-black tracking-wider',
+      competitionText: 'text-xs md:text-sm font-bold text-slate-200 truncate max-w-[280px]',
+      teamNames: 'text-lg md:text-xl lg:text-2xl xl:text-3xl font-black tracking-wide leading-tight',
+      vsBadge: 'text-sm md:text-base lg:text-lg font-black px-1.5',
+      metaRow: 'mt-2 gap-2.5 md:gap-3.5 text-xs md:text-sm lg:text-base',
+      metaDateText: 'text-xs md:text-sm lg:text-base xl:text-lg font-black uppercase',
+      metaIcon: 'w-3.5 h-3.5 md:w-4 md:h-4',
+      timeText: 'font-mono font-black text-white text-xs md:text-sm lg:text-base xl:text-lg',
+      gymnasiumText: 'text-xs md:text-sm lg:text-base font-semibold text-slate-200',
+      statusBadge: 'px-3 py-1 rounded-lg text-xs md:text-sm font-black uppercase tracking-wide shadow-sm',
+      statusIcon: 'w-3.5 h-3.5 md:w-4 md:h-4',
     };
   };
 
@@ -140,9 +201,21 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             <video
               src={backgroundUrl}
               autoPlay
-              loop
+              loop={!bgHasControl || !onVideoEnded}
               muted
               playsInline
+              onTimeUpdate={(e) => {
+                const vid = e.currentTarget;
+                if (bgHasControl && onVideoTimeUpdate && vid.duration) {
+                  onVideoTimeUpdate((vid.currentTime / vid.duration) * 100);
+                }
+              }}
+              onEnded={() => {
+                if (bgHasControl && onVideoEnded) onVideoEnded();
+              }}
+              onError={() => {
+                if (bgHasControl && onVideoEnded) onVideoEnded();
+              }}
               className="w-full h-full object-cover"
               style={{
                 filter: `brightness(${bgBrightness}) blur(${bgBlur}px)`,
@@ -171,20 +244,32 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       {/* ========================================================================= */}
       {/* CALQUE 2 : SECOND PLAN - DONNÉES DYNAMIQUES DU CLUB (MATCHS & HEURES) */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 md:p-8 lg:p-10 xl:p-12">
+      <div className="relative z-10 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
         {/* Slide Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-          <div>
-            <h2 className={`text-4xl md:text-5xl lg:text-6xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-2 md:pb-3">
+          <div className="flex items-center gap-3">
+            <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
               LES RENCONTRES DU WEEK-END
             </h2>
+            {totalPages && totalPages > 1 && (
+              <span
+                className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black font-mono tracking-wider border shadow-md"
+                style={{
+                  backgroundColor: `${primaryColor}30`,
+                  color: primaryColor,
+                  borderColor: `${primaryColor}70`,
+                }}
+              >
+                PAGE {pageNumber || 1} / {totalPages}
+              </span>
+            )}
           </div>
 
           {/* Passerelle Réseaux Sociaux Button */}
           {!hideShareButton && (
             <button
               onClick={onDownloadVisual}
-              className="self-start sm:self-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 hover:from-pink-500 hover:to-orange-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
+              className="self-start sm:self-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 hover:from-pink-500 hover:to-orange-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
               id="btn-download-matches-visual"
               title="Passerelle Réseaux Sociaux : Générer pour Instagram, TikTok et Facebook"
             >
@@ -206,28 +291,28 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 my-4 md:my-6 flex-1 items-stretch min-h-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 my-2 md:my-3 flex-1 items-stretch min-h-0">
             {/* DOMICILE COLUMN */}
             <div
               style={cardBackdropStyle}
-              className="border border-slate-800/90 rounded-3xl p-6 lg:p-7 shadow-xl flex flex-col h-full min-h-0"
+              className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
             >
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
                   <div
-                    className="p-2 rounded-xl text-white shadow-md"
+                    className="p-1.5 md:p-2 rounded-xl text-white shadow-md"
                     style={{ backgroundColor: primaryColor }}
                   >
-                    <Home className="w-5 h-5 md:w-6 md:h-6" />
+                    <Home className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <div>
-                    <h3 className={`text-xl md:text-2xl lg:text-3xl font-black uppercase text-white ${getFontFamilyClass(headerFont)}`}>
+                    <h3 className={`text-lg md:text-xl lg:text-2xl font-black uppercase text-white ${getFontFamilyClass(headerFont)}`}>
                       À DOMICILE • {clubSettings.gymnasiumDefault}
                     </h3>
                   </div>
                 </div>
                 <span
-                  className="px-3.5 py-1 rounded-full text-xs md:text-sm font-bold font-mono border"
+                  className="px-3 py-0.5 rounded-full text-xs md:text-sm font-bold font-mono border"
                   style={{
                     backgroundColor: `${primaryColor}25`,
                     color: primaryColor,
@@ -255,7 +340,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                     return (
                       <div
                         key={m.id}
-                        className={`relative ${homeSizing.cardPadding} border shadow-lg transition-all flex flex-col justify-between ${
+                        className={`relative flex-1 min-h-0 ${homeSizing.cardPadding} border shadow-lg transition-all flex flex-col justify-between ${
                           isFinished
                             ? isWin
                               ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-50'
@@ -265,31 +350,31 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                       >
                         <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800/60">
                           <span
-                            className={`${homeSizing.categoryBadge} ${getFontFamilyClass(headerFont)} bg-slate-800`}
-                            style={{ color: primaryColor }}
+                            className={`${homeSizing.categoryBadge} ${getFontFamilyClass(headerFont)}`}
+                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
                           >
                             {m.category}
                           </span>
-                          <span className={homeSizing.competitionText}>{m.competition}</span>
+                          <span className={`${homeSizing.competitionText} ${getFontFamilyClass(bodyFont)}`} style={{ color: textColor }}>{m.competition}</span>
                         </div>
 
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
                             <div className={`${homeSizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
-                              <span style={{ color: isClubHome ? primaryColor : '#ffffff' }}>
+                              <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={homeSizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
-                              <span style={{ color: isClubAway ? primaryColor : '#ffffff' }}>
+                              <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>
                             </div>
                             <div className={`flex items-center flex-wrap ${homeSizing.metaRow}`}>
                               <span className="flex items-center gap-1.5 shrink-0">
                                 <Calendar className={`${homeSizing.metaIcon} shrink-0`} style={{ color: primaryColor }} />
-                                <span className={`font-bold uppercase text-sm md:text-base lg:text-lg ${getFontFamilyClass(headerFont)}`} style={{ color: primaryColor }}>
+                                <span className={`font-black uppercase ${homeSizing.metaDateText} ${getFontFamilyClass(headerFont)}`} style={{ color: primaryColor }}>
                                   {dateInfo.display}
                                 </span>
                               </span>
@@ -303,8 +388,8 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                               {m.gymnasium && (
                                 <>
                                   <span className="text-slate-600 hidden sm:inline">•</span>
-                                  <span className="flex items-center gap-1 text-slate-300 text-xs md:text-sm truncate">
-                                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className={`flex items-center gap-1.5 text-slate-200 ${homeSizing.gymnasiumText} truncate`}>
+                                    <MapPin className={`${homeSizing.metaIcon} text-slate-400 shrink-0`} />
                                     <span>{m.gymnasium}</span>
                                   </span>
                                 </>
@@ -349,20 +434,20 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             {/* EXTÉRIEUR COLUMN */}
             <div
               style={cardBackdropStyle}
-              className="border border-slate-800/90 rounded-3xl p-6 lg:p-7 shadow-xl flex flex-col h-full min-h-0"
+              className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
             >
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                    <Plane className="w-5 h-5 md:w-6 md:h-6" />
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 md:p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    <Plane className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <div>
-                    <h3 className={`text-xl md:text-2xl lg:text-3xl font-black uppercase text-white ${getFontFamilyClass(headerFont)}`}>
+                    <h3 className={`text-lg md:text-xl lg:text-2xl font-black uppercase text-white ${getFontFamilyClass(headerFont)}`}>
                       À L'EXTÉRIEUR
                     </h3>
                   </div>
                 </div>
-                <span className="px-3.5 py-1 rounded-full bg-blue-500/15 text-blue-300 text-xs md:text-sm font-bold font-mono">
+                <span className="px-3 py-0.5 rounded-full bg-blue-500/15 text-blue-300 text-xs md:text-sm font-bold font-mono">
                   {awayMatches.length} Matchs
                 </span>
               </div>
@@ -384,7 +469,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                     return (
                       <div
                         key={m.id}
-                        className={`relative ${awaySizing.cardPadding} border shadow-lg transition-all flex flex-col justify-between ${
+                        className={`relative flex-1 min-h-0 ${awaySizing.cardPadding} border shadow-lg transition-all flex flex-col justify-between ${
                           isFinished
                             ? isWin
                               ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-50'
@@ -393,29 +478,32 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                         }`}
                       >
                         <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800/60">
-                          <span className={`${awaySizing.categoryBadge} ${getFontFamilyClass(headerFont)} bg-slate-800 text-blue-300`}>
+                          <span
+                            className={`${awaySizing.categoryBadge} ${getFontFamilyClass(headerFont)}`}
+                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                          >
                             {m.category}
                           </span>
-                          <span className={awaySizing.competitionText}>{m.competition}</span>
+                          <span className={`${awaySizing.competitionText} ${getFontFamilyClass(bodyFont)}`} style={{ color: textColor }}>{m.competition}</span>
                         </div>
 
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
                             <div className={`${awaySizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
-                              <span style={{ color: isClubHome ? primaryColor : '#ffffff' }}>
+                              <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={awaySizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
-                              <span style={{ color: isClubAway ? primaryColor : '#ffffff' }}>
+                              <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>
                             </div>
                             <div className={`flex items-center flex-wrap ${awaySizing.metaRow}`}>
                               <span className="flex items-center gap-1.5 shrink-0">
                                 <Calendar className={`${awaySizing.metaIcon} text-blue-400 shrink-0`} />
-                                <span className={`font-bold uppercase text-sm md:text-base lg:text-lg text-blue-300 ${getFontFamilyClass(headerFont)}`}>
+                                <span className={`font-black uppercase ${awaySizing.metaDateText} text-blue-300 ${getFontFamilyClass(headerFont)}`}>
                                   {dateInfo.display}
                                 </span>
                               </span>
@@ -429,8 +517,8 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                               {m.city && (
                                 <>
                                   <span className="text-slate-600 hidden sm:inline">•</span>
-                                  <span className="flex items-center gap-1 text-slate-300 text-xs md:text-sm truncate">
-                                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span className={`flex items-center gap-1.5 text-slate-200 ${awaySizing.gymnasiumText} truncate`}>
+                                    <MapPin className={`${awaySizing.metaIcon} text-slate-400 shrink-0`} />
                                     <span>{m.city}</span>
                                   </span>
                                 </>
@@ -486,9 +574,16 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           isSelected={selectedLayerNum === 3}
           onSelect={() => onSelectLayer?.(3)}
           onPositionChange={(x, y) => onLayerPositionChange?.(3, x, y)}
+          onVideoEnded={layer3HasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={layer3HasControl ? onVideoTimeUpdate : undefined}
         />
       ) : (
-        <ChromaKeyMascot mascot={mascot} slideType="matches" />
+        <ChromaKeyMascot
+          mascot={mascot}
+          slideType="matches"
+          onVideoEnded={mascotHasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={mascotHasControl ? onVideoTimeUpdate : undefined}
+        />
       )}
 
       {/* ========================================================================= */}
@@ -502,6 +597,8 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           isSelected={selectedLayerNum === 4}
           onSelect={() => onSelectLayer?.(4)}
           onPositionChange={(x, y) => onLayerPositionChange?.(4, x, y)}
+          onVideoEnded={layer4HasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={layer4HasControl ? onVideoTimeUpdate : undefined}
         />
       )}
     </div>

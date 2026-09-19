@@ -53,6 +53,9 @@ interface StudioGraphiqueWorkbenchProps {
   results: MatchItem[];
   birthdays: BirthdayItem[];
   clubSettings: ClubSettings;
+  defaultCategory?: 'matches' | 'results' | 'birthdays';
+  hideCategorySelector?: boolean;
+  onNavigateToCategoryTab?: (tab: 'matches' | 'results' | 'excel') => void;
 }
 
 const BRIGHTNESS_PRESETS = [
@@ -110,17 +113,52 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
       ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30'
       : 'bg-purple-600/20 text-purple-400 border-purple-500/30';
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const isVideo = file.type.startsWith('video');
+    const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          onChange({
+            ...layer,
+            mediaUrl: data.url,
+            mediaType: isVideo ? 'video' : 'image',
+            enabled: true,
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Direct upload failed:', err);
+    }
+
+    // Fallback
+    if (isVideo) {
+      onChange({
+        ...layer,
+        mediaUrl: URL.createObjectURL(file),
+        mediaType: 'video',
+        enabled: true,
+      });
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       if (typeof ev.target?.result === 'string') {
         onChange({
           ...layer,
           mediaUrl: ev.target.result,
-          mediaType: isVideo ? 'video' : 'image',
+          mediaType: 'image',
           enabled: true,
         });
       }
@@ -711,13 +749,28 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   results,
   birthdays,
   clubSettings,
+  defaultCategory,
+  hideCategorySelector = false,
+  onNavigateToCategoryTab,
 }) => {
   // Navigation par catégorie
-  const [activeCategory, setActiveCategory] = useState<'matches' | 'results' | 'birthdays'>('matches');
+  const [activeCategory, setActiveCategory] = useState<'matches' | 'results' | 'birthdays'>(
+    defaultCategory || 'matches'
+  );
+
+  useEffect(() => {
+    if (defaultCategory) {
+      setActiveCategory(defaultCategory);
+      setPreviewMode(defaultCategory);
+    }
+  }, [defaultCategory]);
+
   // Calque actif en cours d'édition dans l'accordéon (1, 2, 3 ou 4)
   const [activeLayerTab, setActiveLayerTab] = useState<1 | 2 | 3 | 4>(1);
   // Mode d'aperçu 16:9
-  const [previewMode, setPreviewMode] = useState<'matches' | 'results' | 'birthdays'>('matches');
+  const [previewMode, setPreviewMode] = useState<'matches' | 'results' | 'birthdays'>(
+    defaultCategory || 'matches'
+  );
   // Mode Plein Écran
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Mode de cadrage plein écran : 'fitted' (cadre 16:9) ou 'full' (occupe 100% de la fenêtre sans bordure)
@@ -799,26 +852,64 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     setPreviewMode(cat);
   };
 
+  const getCategoryThemeColor = () => {
+    if (activeCategory === 'matches') return 'from-orange-950/40 border-orange-500/30 text-orange-400 bg-orange-600';
+    if (activeCategory === 'results') return 'from-emerald-950/40 border-emerald-500/30 text-emerald-400 bg-emerald-600';
+    return 'from-pink-950/40 border-pink-500/30 text-pink-400 bg-pink-600';
+  };
+
   return (
     <div className="space-y-6" id="studio-graphique-workbench">
       {/* En-tête Studio Graphique */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-orange-950/40 via-slate-900 to-slate-950 p-6 rounded-3xl border border-orange-500/30">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r ${getCategoryThemeColor().split(' ')[0]} via-slate-900 to-slate-950 p-5 sm:p-6 rounded-3xl border ${getCategoryThemeColor().split(' ')[1]}`}>
         <div>
-          <div className="flex items-center gap-2 text-orange-400 font-bold text-xs uppercase tracking-wider mb-1">
+          <div className={`flex items-center gap-2 font-bold text-xs uppercase tracking-wider mb-1 ${getCategoryThemeColor().split(' ')[2]}`}>
             <Layers className="w-4 h-4" />
-            <span>Architecture Universelle 4 Calques par Catégorie</span>
+            <span>
+              {hideCategorySelector
+                ? activeCategory === 'matches'
+                  ? 'Diapositive 16:9 • Matchs à Venir'
+                  : activeCategory === 'results'
+                  ? 'Diapositive 16:9 • Résultats & Scores'
+                  : 'Diapositive 16:9 • Anniversaires'
+                : 'Architecture Universelle 4 Calques par Catégorie'}
+            </span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-black text-white font-bebas tracking-wide">
-            STUDIO CALQUES : MATCHS, RÉSULTATS & ANNIVERSAIRES
+          <h2 className="text-2xl md:text-3xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+            <span>
+              {hideCategorySelector
+                ? activeCategory === 'matches'
+                  ? '🎨 STUDIO CALQUES : DIAPOSITIVE MATCHS'
+                  : activeCategory === 'results'
+                  ? '🎨 STUDIO CALQUES : DIAPOSITIVE RÉSULTATS'
+                  : '🎨 STUDIO CALQUES : DIAPOSITIVE ANNIVERSAIRES'
+                : 'STUDIO CALQUES : MATCHS, RÉSULTATS & ANNIVERSAIRES'}
+            </span>
           </h2>
           <p className="text-xs md:text-sm text-slate-300 max-w-3xl mt-1">
-            Réglez chaque catégorie indépendamment sur 4 calques superposés : Fond d'ambiance (Calque 1), 
-            Cartes et typographies (Calque 2), et deux éléments libres déplaçables à la souris (Calques 3 et 4).
+            {hideCategorySelector
+              ? `Réglez les 4 calques de cette diapositive : Fond (Calque 1), Cartes & Données (Calque 2), et 2 mascottes/overlays libres avec suppression de fond vert (Calques 3 & 4).`
+              : `Réglez chaque catégorie indépendamment sur 4 calques superposés : Fond d'ambiance (Calque 1), Cartes et typographies (Calque 2), et deux éléments libres déplaçables à la souris (Calques 3 et 4).`}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {onNavigateToCategoryTab && (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeCategory === 'matches') onNavigateToCategoryTab('matches');
+                else if (activeCategory === 'results') onNavigateToCategoryTab('results');
+                else onNavigateToCategoryTab('excel');
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all"
+            >
+              <span>➜ Revenir aux données</span>
+            </button>
+          )}
+
           <button
+            type="button"
             onClick={() => setIsFullscreen(true)}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-black text-xs shadow-lg shadow-orange-600/30 transition-all"
           >
@@ -828,44 +919,46 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
         </div>
       </div>
 
-      {/* SÉLECTEUR DE CATÉGORIE PRINCIPALE */}
-      <div className="grid grid-cols-3 gap-3 bg-slate-900/90 p-2 rounded-2xl border border-slate-800">
-        <button
-          onClick={() => handleSelectCategory('matches')}
-          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
-            activeCategory === 'matches'
-              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          <span>🏀 Matchs à venir</span>
-        </button>
+      {/* SÉLECTEUR DE CATÉGORIE PRINCIPALE (Masqué si dispatché directement dans la catégorie) */}
+      {!hideCategorySelector && (
+        <div className="grid grid-cols-3 gap-3 bg-slate-900/90 p-2 rounded-2xl border border-slate-800">
+          <button
+            onClick={() => handleSelectCategory('matches')}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
+              activeCategory === 'matches'
+                ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>🏀 Matchs à venir</span>
+          </button>
 
-        <button
-          onClick={() => handleSelectCategory('results')}
-          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
-            activeCategory === 'results'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
-        >
-          <Trophy className="w-4 h-4" />
-          <span>🏆 Résultats du week-end</span>
-        </button>
+          <button
+            onClick={() => handleSelectCategory('results')}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
+              activeCategory === 'results'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Trophy className="w-4 h-4" />
+            <span>🏆 Résultats du week-end</span>
+          </button>
 
-        <button
-          onClick={() => handleSelectCategory('birthdays')}
-          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
-            activeCategory === 'birthdays'
-              ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
-        >
-          <Cake className="w-4 h-4" />
-          <span>🎂 Anniversaires du club</span>
-        </button>
-      </div>
+          <button
+            onClick={() => handleSelectCategory('birthdays')}
+            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs md:text-sm font-black transition-all ${
+              activeCategory === 'birthdays'
+                ? 'bg-pink-600 text-white shadow-lg shadow-pink-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Cake className="w-4 h-4" />
+            <span>🎂 Anniversaires du club</span>
+          </button>
+        </div>
+      )}
 
       {/* GRILLE PRINCIPALE : CONTRÔLES À GAUCHE, CANEVAS 16:9 INTERACTIF À DROITE */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
@@ -960,11 +1053,35 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                     <span>Fichier</span>
                     <input
                       type="file"
-                      accept="image/*,video/mp4,video/webm"
+                      accept="image/*,video/mp4,video/webm,video/*"
                       className="hidden"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          const res = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            if (data.url) {
+                              updateCurrentCategoryTheme({ backgroundUrl: data.url });
+                              return;
+                            }
+                          }
+                        } catch (err) {
+                          console.warn('Direct upload failed:', err);
+                        }
+
+                        if (isVideo) {
+                          updateCurrentCategoryTheme({ backgroundUrl: URL.createObjectURL(file) });
+                          return;
+                        }
+
                         const reader = new FileReader();
                         reader.onload = (ev) => {
                           if (typeof ev.target?.result === 'string') {
@@ -1087,21 +1204,99 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 ))}
               </div>
 
-              {/* Couleur d'accentuation */}
-              <div className="flex items-center gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800">
-                <input
-                  type="color"
-                  value={currentEffective.categoryTheme.primaryColor || '#ea580c'}
-                  onChange={(e) => updateCurrentCategoryTheme({ primaryColor: e.target.value })}
-                  className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
-                />
-                <div className="flex-1">
-                  <span className="text-xs font-bold text-slate-200 block">
-                    Couleur d'Accentuation
-                  </span>
-                  <span className="text-[11px] font-mono text-orange-400">
-                    {currentEffective.categoryTheme.primaryColor}
-                  </span>
+              {/* Couleurs Personnalisées (Accentuation, Texte & Pastilles) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* Couleur d'accentuation */}
+                <div className="flex items-center gap-2.5 bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800">
+                  <input
+                    type="color"
+                    value={currentEffective.categoryTheme.primaryColor || '#ea580c'}
+                    onChange={(e) => updateCurrentCategoryTheme({ primaryColor: e.target.value })}
+                    className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0 shrink-0"
+                    title="Couleur d'accentuation générale"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] font-bold text-slate-200 block truncate">
+                      Accentuation
+                    </span>
+                    <span className="text-[10px] font-mono text-orange-400 block truncate">
+                      {currentEffective.categoryTheme.primaryColor || '#ea580c'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Couleur du texte / police */}
+                <div className="flex items-center gap-2.5 bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800">
+                  <input
+                    type="color"
+                    value={currentEffective.categoryTheme.textColor || '#ffffff'}
+                    onChange={(e) => updateCurrentCategoryTheme({ textColor: e.target.value })}
+                    className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0 shrink-0"
+                    title="Couleur du texte principal"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] font-bold text-slate-200 block truncate">
+                      Couleur Texte
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-400 block truncate">
+                      {currentEffective.categoryTheme.textColor || '#ffffff'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Couleur des pastilles / badges */}
+                <div className="flex items-center gap-2.5 bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800">
+                  <input
+                    type="color"
+                    value={currentEffective.categoryTheme.badgeBgColor || currentEffective.categoryTheme.primaryColor || '#dc2626'}
+                    onChange={(e) => updateCurrentCategoryTheme({ badgeBgColor: e.target.value })}
+                    className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0 shrink-0"
+                    title="Couleur de fond des pastilles (ex: U13M, Domicile)"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] font-bold text-slate-200 block truncate">
+                      Pastilles / Badges
+                    </span>
+                    <span className="text-[10px] font-mono text-sky-400 block truncate">
+                      {currentEffective.categoryTheme.badgeBgColor || 'Auto'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Couleur du texte dans les pastilles */}
+              <div className="flex items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={currentEffective.categoryTheme.badgeTextColor || '#ffffff'}
+                    onChange={(e) => updateCurrentCategoryTheme({ badgeTextColor: e.target.value })}
+                    className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">
+                      Couleur Texte des Pastilles
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Texte à l'intérieur des badges de catégorie et statut
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ badgeTextColor: '#ffffff' })}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold border border-slate-700"
+                  >
+                    Blanc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ badgeTextColor: '#000000' })}
+                    className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-white text-black text-[10px] font-bold"
+                  >
+                    Noir
+                  </button>
                 </div>
               </div>
 
@@ -1149,24 +1344,46 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </div>
 
               {/* Typographie Titres & Équipes */}
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5 flex items-center gap-1.5">
-                  <Type className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Police des Titres & Équipes</span>
-                </label>
-                <select
-                  value={currentEffective.categoryTheme.fontFamilyHeader || 'Bebas Neue'}
-                  onChange={(e) =>
-                    updateCurrentCategoryTheme({ fontFamilyHeader: e.target.value as any })
-                  }
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
-                >
-                  {AVAILABLE_FONTS.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} ({f.category})
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5 flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Police Titres & Équipes</span>
+                  </label>
+                  <select
+                    value={currentEffective.categoryTheme.fontFamilyHeader || 'Bebas Neue'}
+                    onChange={(e) =>
+                      updateCurrentCategoryTheme({ fontFamilyHeader: e.target.value as any })
+                    }
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                  >
+                    {AVAILABLE_FONTS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1.5 flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Police Corps & Infos</span>
+                  </label>
+                  <select
+                    value={currentEffective.categoryTheme.fontFamilyBody || 'Montserrat'}
+                    onChange={(e) =>
+                      updateCurrentCategoryTheme({ fontFamilyBody: e.target.value as any })
+                    }
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                  >
+                    {AVAILABLE_FONTS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name} ({f.category})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Pour Résultats : Police dédiée aux Scores ! */}

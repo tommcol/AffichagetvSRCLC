@@ -6,6 +6,8 @@ interface ChromaKeyMascotProps {
   isVictoryContext?: boolean;
   slideType?: 'matches' | 'results' | 'birthdays';
   className?: string;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (percent: number) => void;
 }
 
 // Parse Hex Chroma Color (default #00ff00)
@@ -27,6 +29,8 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
   isVictoryContext = false,
   slideType,
   className = '',
+  onVideoEnded,
+  onVideoTimeUpdate,
 }) => {
   // MUST declare all hooks unconditionally at top level (Rules of Hooks)
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -213,12 +217,24 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
               ref={videoRef}
               src={mascot.mediaUrl}
               autoPlay
-              loop
+              loop={!onVideoEnded}
               muted
               playsInline
               {...(isHttpUrl ? { crossOrigin: 'anonymous' } : {})}
               onLoadedData={() => setVideoLoaded(true)}
-              onError={() => setCanvasError(true)}
+              onEnded={() => {
+                if (onVideoEnded) onVideoEnded();
+              }}
+              onTimeUpdate={(e) => {
+                const v = e.currentTarget;
+                if (onVideoTimeUpdate && v.duration) {
+                  onVideoTimeUpdate((v.currentTime / v.duration) * 100);
+                }
+              }}
+              onError={() => {
+                setCanvasError(true);
+                if (onVideoEnded) onVideoEnded();
+              }}
               className="hidden"
             />
             {/* Real-time processed Canvas with green background stripped */}
@@ -233,9 +249,21 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
             ref={videoRef}
             src={mascot.mediaUrl}
             autoPlay
-            loop
+            loop={!onVideoEnded}
             muted
             playsInline
+            onEnded={() => {
+              if (onVideoEnded) onVideoEnded();
+            }}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget;
+              if (onVideoTimeUpdate && v.duration) {
+                onVideoTimeUpdate((v.currentTime / v.duration) * 100);
+              }
+            }}
+            onError={() => {
+              if (onVideoEnded) onVideoEnded();
+            }}
             className="w-48 sm:w-60 md:w-80 lg:w-96 max-h-[46vh] object-contain"
           />
         )}

@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
@@ -20,9 +22,42 @@ interface ActiveMatchAlert {
 const app = express();
 const PORT = 3000;
 
-// Support larger payloads (photos, logos, sponsor visuals, base64 exports)
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Setup upload directory
+const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+const DATA_DIR = path.join(process.cwd(), "data");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Multer storage for high-performance direct streaming of videos and photos
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || (file.mimetype.startsWith("video/") ? ".mp4" : ".png");
+    const cleanBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+    const uniqueSuffix = Date.now() + "-" + Math.random().toString(36).substring(2, 8);
+    cb(null, `${cleanBase}-${uniqueSuffix}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // Up to 500MB per video/file
+  },
+});
+
+// Support larger JSON payloads (photos, logos, sponsor visuals, base64 exports)
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
+
+// Serve uploaded videos and images statically with proper caching and byte-range streaming
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 // In-memory active alerts (injected into the TV loop for 1 hour)
 let activeAlerts: ActiveMatchAlert[] = [];
@@ -117,8 +152,106 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
 
+// 1b. Direct File Upload (Images & Videos) - High performance, zero RAM exhaustion
+app.post("/api/upload", upload.single("file"), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Aucun fichier reçu" });
+    }
+
+    const publicUrl = `/uploads/${req.file.filename}`;
+    const isVideo = req.file.mimetype.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(req.file.filename);
+
+    console.log(`[UPLOAD] Fichier téléversé : ${req.file.originalname} -> ${publicUrl} (${(req.file.size / (1024 * 1024)).toFixed(2)} MB)`);
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      fileName: req.file.originalname,
+      mediaType: isVideo ? "video" : "image",
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    });
+  } catch (err: any) {
+    console.error("Erreur lors de l'upload:", err);
+    return res.status(500).json({ error: err.message || "Erreur lors du traitement du fichier" });
+  }
+});
+
+// 1c. Batch File Upload (Multiple Images / Videos in 1 request)
+app.post("/api/upload-multiple", upload.array("files", 30), (req, res) => {
+  try {
+    const rawFiles = req.files as Express.Multer.File[] | undefined;
+    if (!rawFiles || rawFiles.length === 0) {
+      return res.status(400).json({ error: "Aucun fichier reçu" });
+    }
+
+    const uploadedFiles = rawFiles.map((file) => {
+      const publicUrl = `/uploads/${file.filename}`;
+      const isVideo = file.mimetype.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(file.filename);
+      return {
+        url: publicUrl,
+        fileName: file.originalname,
+        mediaType: isVideo ? "video" : "image",
+        size: file.size,
+        mimetype: file.mimetype,
+      };
+    });
+
+    console.log(`[UPLOAD MULTIPLE] ${uploadedFiles.length} fichiers téléversés avec succès`);
+
+    return res.json({
+      success: true,
+      files: uploadedFiles,
+      count: uploadedFiles.length,
+    });
+  } catch (err: any) {
+    console.error("Erreur upload multiple:", err);
+    return res.status(500).json({ error: err.message || "Erreur upload multiple" });
+  }
+});
+
+// 1d. Persistent App Data Storage (Server-side JSON file)
+const APP_DATA_FILE = path.join(DATA_DIR, "saved-app-data.json");
+
+const getSavedAppData = () => {
+  try {
+    if (fs.existsSync(APP_DATA_FILE)) {
+      const raw = fs.readFileSync(APP_DATA_FILE, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error("Erreur lecture saved-app-data:", err);
+  }
+  return null;
+};
+
+const saveAppDataToFile = (data: any) => {
+  try {
+    fs.writeFileSync(APP_DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+    return true;
+  } catch (err) {
+    console.error("Erreur écriture saved-app-data:", err);
+    return false;
+  }
+};
+
+app.get(["/api/app-data", "/.netlify/functions/get-app-data"], (req, res) => {
+  const data = getSavedAppData();
+  res.json({ success: true, data });
+});
+
+app.post(["/api/app-data", "/.netlify/functions/save-app-data"], (req, res) => {
+  const { data } = req.body || {};
+  if (!data) {
+    return res.status(400).json({ error: "Champ data requis" });
+  }
+  const ok = saveAppDataToFile(data);
+  res.json({ ok, success: ok });
+});
+
 // 2. Active 1-hour alerts list (polled by the TV carousel)
-app.get("/api/alerts", (req, res) => {
+app.get(["/api/alerts", "/.netlify/functions/get-alerts"], (req, res) => {
   cleanExpiredAlerts();
   res.json({
     alerts: activeAlerts,
@@ -127,7 +260,7 @@ app.get("/api/alerts", (req, res) => {
 });
 
 // 3. Create or inject alert manually / via FFBB
-app.post("/api/alerts", (req, res) => {
+app.post(["/api/alerts", "/.netlify/functions/add-alert"], (req, res) => {
   const { team, isWin, ourScore, opponentScore, opponent, customImageUrl, triggeredBy = "manual", durationMinutes = 60 } = req.body;
 
   if (!team) {

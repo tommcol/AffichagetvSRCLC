@@ -20,6 +20,8 @@ interface ResultsSlideProps {
   onLayerPositionChange?: (layerNum: 3 | 4, x: number, y: number) => void;
   selectedLayerNum?: 3 | 4 | null;
   onSelectLayer?: (layerNum: 3 | 4) => void;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (percent: number) => void;
 }
 
 export const ResultsSlide: React.FC<ResultsSlideProps> = ({
@@ -36,18 +38,41 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onLayerPositionChange,
   selectedLayerNum,
   onSelectLayer,
+  onVideoEnded,
+  onVideoTimeUpdate,
 }) => {
   const totalWins = results.filter((r) => r.result === 'win').length;
   const totalLosses = results.filter((r) => r.result === 'loss').length;
   const hasVictory = totalWins > 0;
 
+  // Video priority and synchronization determination
+  const isBgVideo = Boolean(backgroundUrl && isVideoMedia(backgroundUrl));
+  const isLayer3Video = Boolean(
+    layer3?.enabled && (layer3.mediaType === 'video' || isVideoMedia(layer3.mediaUrl))
+  );
+  const isLayer4Video = Boolean(
+    layer4?.enabled && (layer4.mediaType === 'video' || isVideoMedia(layer4.mediaUrl))
+  );
+  const isMascotVideo = Boolean(
+    !layer3 && mascot?.enabled && mascot.mediaType === 'video' && mascot.mediaUrl
+  );
+
+  const layer3HasControl = isLayer3Video;
+  const layer4HasControl = !isLayer3Video && isLayer4Video;
+  const mascotHasControl = !isLayer3Video && !isLayer4Video && isMascotVideo;
+  const bgHasControl = !isLayer3Video && !isLayer4Video && !isMascotVideo && isBgVideo;
+
   // Visual Theme resolution
   const primaryColor = theme?.primaryColor || clubSettings.primaryColor || '#ea580c';
+  const textColor = theme?.textColor || '#ffffff';
+  const badgeBgColor = theme?.badgeBgColor || primaryColor;
+  const badgeTextColor = theme?.badgeTextColor || '#ffffff';
   const cardBg = theme?.cardBgColor || '#020617';
   const cardOpacity = theme?.cardOpacity ?? 0.85;
   const cardBlur = theme?.cardBlur ?? 8;
   const headerFont = theme?.fontFamilyHeader || 'Bebas Neue';
   const scoreFont = theme?.fontFamilyScore || 'Teko';
+  const bodyFont = theme?.fontFamilyBody || 'Montserrat';
   const bgBrightness = theme?.backgroundBrightness ?? 0.35;
   const bgBlur = theme?.backgroundBlur ?? 0;
 
@@ -136,9 +161,21 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             <video
               src={backgroundUrl}
               autoPlay
-              loop
+              loop={!bgHasControl || !onVideoEnded}
               muted
               playsInline
+              onTimeUpdate={(e) => {
+                const vid = e.currentTarget;
+                if (bgHasControl && onVideoTimeUpdate && vid.duration) {
+                  onVideoTimeUpdate((vid.currentTime / vid.duration) * 100);
+                }
+              }}
+              onEnded={() => {
+                if (bgHasControl && onVideoEnded) onVideoEnded();
+              }}
+              onError={() => {
+                if (bgHasControl && onVideoEnded) onVideoEnded();
+              }}
               className="w-full h-full object-cover"
               style={{
                 filter: `brightness(${bgBrightness}) blur(${bgBlur}px)`,
@@ -236,7 +273,10 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                 >
                   {/* Category & Badge Top */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-800/80">
-                    <span className={`${sizing.categoryBadge} ${getFontFamilyClass(headerFont)} bg-slate-800 text-white shadow-md`}>
+                    <span
+                      className={`${sizing.categoryBadge} ${getFontFamilyClass(headerFont)} shadow-md`}
+                      style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                    >
                       {r.category}
                     </span>
 
@@ -253,7 +293,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   </div>
 
                   {/* Competition & Location */}
-                  <div className={`${sizing.competitionText} truncate`}>
+                  <div className={`${sizing.competitionText} ${getFontFamilyClass(bodyFont)} truncate`} style={{ color: textColor }}>
                     {r.competition} • {r.isHomeMatch ? 'À Domicile' : 'À l\'Extérieur'}
                   </div>
 
@@ -337,9 +377,17 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           isSelected={selectedLayerNum === 3}
           onSelect={() => onSelectLayer?.(3)}
           onPositionChange={(x, y) => onLayerPositionChange?.(3, x, y)}
+          onVideoEnded={layer3HasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={layer3HasControl ? onVideoTimeUpdate : undefined}
         />
       ) : (
-        <ChromaKeyMascot mascot={mascot} isVictoryContext={hasVictory} slideType="results" />
+        <ChromaKeyMascot
+          mascot={mascot}
+          isVictoryContext={hasVictory}
+          slideType="results"
+          onVideoEnded={mascotHasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={mascotHasControl ? onVideoTimeUpdate : undefined}
+        />
       )}
 
       {/* ========================================================================= */}
@@ -354,6 +402,8 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           isSelected={selectedLayerNum === 4}
           onSelect={() => onSelectLayer?.(4)}
           onPositionChange={(x, y) => onLayerPositionChange?.(4, x, y)}
+          onVideoEnded={layer4HasControl ? onVideoEnded : undefined}
+          onVideoTimeUpdate={layer4HasControl ? onVideoTimeUpdate : undefined}
         />
       )}
     </div>

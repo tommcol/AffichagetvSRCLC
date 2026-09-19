@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Calendar, User, Sparkles } from 'lucide-react';
 import { ClubPhotoItem } from '../../types';
+import { isVideoMedia } from '../../utils/mediaUtils';
 
 interface PhotosSlideProps {
   photo?: ClubPhotoItem;
@@ -39,7 +40,11 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
     );
   }
 
-  const isVid = currentPhoto.isVideo || currentPhoto.mediaType === 'video' || currentPhoto.imageUrl?.includes('.mp4') || currentPhoto.imageUrl?.startsWith('data:video/');
+  const isVid = Boolean(
+    currentPhoto.isVideo ||
+    currentPhoto.mediaType === 'video' ||
+    isVideoMedia(currentPhoto.imageUrl)
+  );
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950 flex items-center justify-center select-none">
@@ -55,12 +60,16 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
       <div className="relative w-full h-full flex items-center justify-center z-10">
         {isVid ? (
           <video
-            key={currentPhoto.id}
+            key={`photo-vid-${currentPhoto.id || currentPhoto.imageUrl}`}
             src={currentPhoto.imageUrl}
             autoPlay
             loop={!onVideoEnded}
             muted
             playsInline
+            preload="auto"
+            onCanPlay={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
             onTimeUpdate={(e) => {
               const vid = e.currentTarget;
               if (onVideoTimeUpdate && vid.duration) {
@@ -68,11 +77,15 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
               }
             }}
             onEnded={onVideoEnded}
+            onError={() => {
+              console.warn('Erreur lecture vidéo photo, passage au suivant');
+              if (onVideoEnded) onVideoEnded();
+            }}
             className="w-full h-full object-contain md:object-cover transition-all duration-1000 ease-out"
           />
         ) : (
           <img
-            key={currentPhoto.id}
+            key={`photo-img-${currentPhoto.id || currentPhoto.imageUrl}`}
             src={currentPhoto.imageUrl}
             alt={currentPhoto.title}
             className="w-full h-full object-contain md:object-cover transition-all duration-1000 ease-out"

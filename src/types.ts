@@ -1,4 +1,4 @@
-export type SlideCategory = 'photos' | 'sponsors' | 'matches' | 'results' | 'birthdays' | 'events' | 'active_alert' | 'logos';
+export type SlideCategory = 'photos' | 'sponsors' | 'matches' | 'results' | 'birthdays' | 'events' | 'active_alert' | 'logos' | 'standby';
 
 export interface CategoryConfig {
   id: SlideCategory;
@@ -156,6 +156,10 @@ export interface CategorySlideTheme {
   cardBlur?: number; // 0 à 24px (flou glassmorphism)
   fontFamilyHeader?: FontFamilyOption; // Typographie des grands titres & équipes
   fontFamilyScore?: FontFamilyOption; // Typographie dédiée aux scores & chiffres (Résultats)
+  fontFamilyBody?: FontFamilyOption; // Typographie du corps de texte (dates, lieux, sous-titres)
+  textColor?: string; // Couleur personnalisée du texte / police principal
+  badgeBgColor?: string; // Couleur personnalisée des pastilles / badges (ex: U13M, DOMICILE)
+  badgeTextColor?: string; // Couleur du texte à l'intérieur des pastilles / badges
 
   // Calque 3 : Élément superposé 1 (libre : mascotte, logo, badge, etc.)
   layer3?: OverlayLayerItem;
@@ -196,10 +200,13 @@ export interface TeamVisualItem {
 export interface BirthdayItem {
   id: string;
   fullName: string;
+  firstName?: string; // Prénom du licencié (affiché sur la TV)
+  lastName?: string;  // Nom de famille
+  gender?: 'F' | 'M' | 'Mixte' | string;
   birthDate: string; // YYYY-MM-DD or DD/MM/YYYY
   birthDayFormatted: string; // e.g. "Jeudi 18 Septembre"
   age?: number;
-  teamCategory: string; // e.g. "U15 Garçons", "Coach Seniors", "Bénévole Buvette"
+  teamCategory: string; // e.g. "U15F", "U15M", "Seniors F", "Coach"
   photoUrl?: string;
   isThisWeek: boolean;
   isVideo?: boolean;
@@ -281,5 +288,26 @@ export interface ClubSettings {
   purePhotoSlidesOnly?: boolean; // Mode 100% photo/image pur sans aucun texte superposé
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos
   balancedLoopMode?: boolean; // Alternance équilibrée des catégories (1 match, 1 sponsor, 1 photo, 1 résultat...)
+}
+
+export interface CarouselSlide {
+  id: string;
+  type: 'category' | 'alert';
+  categoryId?: SlideCategory;
+  alert?: ActiveMatchAlert;
+  sponsor?: SponsorItem;
+  photo?: ClubPhotoItem;
+  event?: ClubEventItem;
+  logo?: ClubLogoItem;
+  matchesPage?: {
+    homeMatches: MatchItem[];
+    awayMatches: MatchItem[];
+    pageNumber: number;
+    totalPages: number;
+  };
+  itemIndex?: number;
+  totalItems?: number;
+  durationSeconds: number;
+  label: string;
 }
 
