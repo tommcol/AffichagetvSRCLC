@@ -95,15 +95,15 @@ export const onRequest: PagesFunction = async (context) => {
     }
 
     const [matchesData, clubData, teamsData] = await Promise.all([
-      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
 
-      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : null).catch(() => null),
 
-      fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
         headers: { 'Accept': 'application/json' },
       }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
     ]);
@@ -132,11 +132,33 @@ export const onRequest: PagesFunction = async (context) => {
       const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
       const isPast = dateStr < todayStr;
 
+      // Extract accurate match time
+      let matchTime = '';
+      if (m.time && m.time !== 'Horaire à fixer' && String(m.time).trim() !== '') {
+        let t = String(m.time).trim().replace(/[hH]/g, ':');
+        if (/^\d{1,2}:\d{2}$/.test(t)) {
+          if (t.length === 4) t = '0' + t;
+          matchTime = t;
+        } else {
+          matchTime = t;
+        }
+      } else if (m.date_rencontre && String(m.date_rencontre).includes('T')) {
+        const parts = String(m.date_rencontre).split('T')[1];
+        if (parts && parts.length >= 5) {
+          const hhmm = parts.slice(0, 5);
+          if (hhmm !== '00:00') matchTime = hhmm;
+        }
+      }
+
+      if (!matchTime) {
+        matchTime = 'Horaire à fixer';
+      }
+
       const normCat = normalizeFFBBCategory(m.team, m.competition);
       return {
         id: `ffbb-${m.ffbbMatchId || idx}`,
         date: dateStr,
-        time: m.time && m.time !== 'Horaire à fixer' ? m.time : '20:30',
+        time: matchTime,
         category: normCat.badgeCategory,
         competition: m.competition || 'Championnat FFBB',
         teamHome,
@@ -155,7 +177,13 @@ export const onRequest: PagesFunction = async (context) => {
       };
     });
 
-    mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    mappedMatches.sort((a: any, b: any) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      const timeA = a.time === 'Horaire à fixer' ? '99:99' : a.time;
+      const timeB = b.time === 'Horaire à fixer' ? '99:99' : b.time;
+      return timeA.localeCompare(timeB);
+    });
     const upcomingMatches = mappedMatches.filter((m: any) => m.status === 'upcoming');
     const pastResults = mappedMatches.filter((m: any) => m.status === 'finished').reverse();
 

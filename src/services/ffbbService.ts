@@ -109,10 +109,17 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
     const orgId = await resolveOrganismeId(clubCode);
     if (!orgId) return null;
 
-    const res = await fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+    // Prefer ffbb-api.desimone.fr which provides the real official match schedules/hours
+    let res = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
       headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
+    }).catch(() => null);
+
+    if (!res || !res.ok) {
+      res = await fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+        headers: { Accept: 'application/json' },
+      }).catch(() => null);
+    }
+    if (!res || !res.ok) return null;
 
     const data = await res.json();
     const rawMatches = Array.isArray(data.matches) ? data.matches : [];
@@ -138,10 +145,32 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
       const isPast = dateStr < todayStr;
       const normCat = normalizeFFBBCategory(m.team, m.competition);
 
+      // Extract accurate match time
+      let matchTime = '';
+      if (m.time && m.time !== 'Horaire à fixer' && String(m.time).trim() !== '') {
+        let t = String(m.time).trim().replace(/[hH]/g, ':');
+        if (/^\d{1,2}:\d{2}$/.test(t)) {
+          if (t.length === 4) t = '0' + t;
+          matchTime = t;
+        } else {
+          matchTime = t;
+        }
+      } else if (m.date_rencontre && String(m.date_rencontre).includes('T')) {
+        const parts = String(m.date_rencontre).split('T')[1];
+        if (parts && parts.length >= 5) {
+          const hhmm = parts.slice(0, 5);
+          if (hhmm !== '00:00') matchTime = hhmm;
+        }
+      }
+
+      if (!matchTime) {
+        matchTime = 'Horaire à fixer';
+      }
+
       return {
         id: `ffbb-${m.ffbbMatchId || idx}`,
         date: dateStr,
-        time: m.time && m.time !== 'Horaire à fixer' ? m.time : '20:30',
+        time: matchTime,
         category: normCat.badgeCategory,
         competition: m.competition || 'Championnat FFBB',
         teamHome,
@@ -160,7 +189,13 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
       };
     });
 
-    mappedMatches.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    mappedMatches.sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      const timeA = a.time === 'Horaire à fixer' ? '99:99' : a.time;
+      const timeB = b.time === 'Horaire à fixer' ? '99:99' : b.time;
+      return timeA.localeCompare(timeB);
+    });
     const upcomingMatches = mappedMatches.filter(m => m.status === 'upcoming');
     const pastResults = mappedMatches.filter(m => m.status === 'finished').reverse();
 

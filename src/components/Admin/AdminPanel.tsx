@@ -2420,9 +2420,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           <div>
                             <label className="text-slate-400 block text-[10px] font-bold mb-0.5">Heure :</label>
                             <input
-                              type="time"
-                              value={editingMatch.time}
+                              type="text"
+                              value={editingMatch.time || ''}
                               onChange={(e) => setEditingMatch({ ...editingMatch, time: e.target.value })}
+                              placeholder="ex: 14:30 ou Horaire à fixer"
                               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs"
                             />
                           </div>
