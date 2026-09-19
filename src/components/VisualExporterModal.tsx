@@ -369,17 +369,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [layer2FontBody, setLayer2FontBody] = useState<FontFamilyOption>('Montserrat');
 
   useEffect(() => {
-    if (effectiveCategoryConfig) {
-      if (effectiveCategoryConfig.primaryColor) setLayer2PrimaryColor(effectiveCategoryConfig.primaryColor);
-      if (effectiveCategoryConfig.textColor) setLayer2TextColor(effectiveCategoryConfig.textColor);
-      if (effectiveCategoryConfig.badgeBgColor) {
-        setLayer2BadgeBgColor(effectiveCategoryConfig.badgeBgColor);
-      } else if (effectiveCategoryConfig.primaryColor) {
-        setLayer2BadgeBgColor(effectiveCategoryConfig.primaryColor);
+    if (effectiveCategoryConfig && effectiveCategoryConfig.categoryTheme) {
+      const ct = effectiveCategoryConfig.categoryTheme;
+      if (ct.primaryColor) setLayer2PrimaryColor(ct.primaryColor);
+      if (ct.textColor) setLayer2TextColor(ct.textColor);
+      if (ct.badgeBgColor) {
+        setLayer2BadgeBgColor(ct.badgeBgColor);
+      } else if (ct.primaryColor) {
+        setLayer2BadgeBgColor(ct.primaryColor);
       }
-      if (effectiveCategoryConfig.badgeTextColor) setLayer2BadgeTextColor(effectiveCategoryConfig.badgeTextColor);
-      if (effectiveCategoryConfig.fontFamilyHeader) setLayer2FontHeader(effectiveCategoryConfig.fontFamilyHeader);
-      if (effectiveCategoryConfig.fontFamilyBody) setLayer2FontBody(effectiveCategoryConfig.fontFamilyBody);
+      if (ct.badgeTextColor) setLayer2BadgeTextColor(ct.badgeTextColor);
+      if (ct.fontFamilyHeader) setLayer2FontHeader(ct.fontFamilyHeader);
+      if (ct.fontFamilyBody) setLayer2FontBody(ct.fontFamilyBody);
     }
   }, [effectiveCategoryConfig]);
 

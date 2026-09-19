@@ -113,6 +113,10 @@ export interface SlideDesignTheme {
   cardBlur: number; // 0 à 20 (défaut 8)
   fontFamilyHeader: FontFamilyOption; // 'Bebas Neue' | 'Montserrat' | 'Outfit' | 'Teko'
   fontFamilyScore: FontFamilyOption; // 'Teko' | 'Bebas Neue' | 'Outfit' | 'Montserrat'
+  fontFamilyBody?: FontFamilyOption;
+  textColor?: string;
+  badgeBgColor?: string;
+  badgeTextColor?: string;
   backgroundBrightness: number; // 0.1 à 1.0 (défaut 0.35)
   backgroundBlur: number; // 0 à 20px (défaut 0)
 }

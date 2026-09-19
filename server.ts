@@ -236,12 +236,12 @@ const saveAppDataToFile = (data: any) => {
   }
 };
 
-app.get(["/api/app-data", "/.netlify/functions/get-app-data"], (req, res) => {
+app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data"], (req, res) => {
   const data = getSavedAppData();
   res.json({ success: true, data });
 });
 
-app.post(["/api/app-data", "/.netlify/functions/save-app-data"], (req, res) => {
+app.post(["/api/app-data", "/api/save-app-data", "/.netlify/functions/save-app-data"], (req, res) => {
   const { data } = req.body || {};
   if (!data) {
     return res.status(400).json({ error: "Champ data requis" });
@@ -251,7 +251,7 @@ app.post(["/api/app-data", "/.netlify/functions/save-app-data"], (req, res) => {
 });
 
 // 2. Active 1-hour alerts list (polled by the TV carousel)
-app.get(["/api/alerts", "/.netlify/functions/get-alerts"], (req, res) => {
+app.get(["/api/alerts", "/api/get-alerts", "/.netlify/functions/get-alerts"], (req, res) => {
   cleanExpiredAlerts();
   res.json({
     alerts: activeAlerts,
@@ -260,7 +260,7 @@ app.get(["/api/alerts", "/.netlify/functions/get-alerts"], (req, res) => {
 });
 
 // 3. Create or inject alert manually / via FFBB
-app.post(["/api/alerts", "/.netlify/functions/add-alert"], (req, res) => {
+app.post(["/api/alerts", "/api/add-alert", "/.netlify/functions/add-alert"], (req, res) => {
   const { team, isWin, ourScore, opponentScore, opponent, customImageUrl, triggeredBy = "manual", durationMinutes = 60 } = req.body;
 
   if (!team) {
@@ -290,8 +290,8 @@ app.post(["/api/alerts", "/.netlify/functions/add-alert"], (req, res) => {
 });
 
 // 4. Delete an alert
-app.delete("/api/alerts/:id", (req, res) => {
-  const { id } = req.params;
+app.all(["/api/alerts/:id", "/api/delete-alert", "/.netlify/functions/delete-alert"], (req, res) => {
+  const id = req.params.id || (req.query.id as string);
   activeAlerts = activeAlerts.filter((a) => a.id !== id);
   res.json({ success: true, count: activeAlerts.length });
 });
