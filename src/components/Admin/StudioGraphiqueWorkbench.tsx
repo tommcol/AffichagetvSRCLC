@@ -1427,6 +1427,50 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 </div>
               </div>
 
+              {/* Mode d'affichage des résultats (Score / Mention / Les 2) */}
+              {activeCategory === 'results' && (
+                <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="text-xs font-bold text-slate-200 block">
+                    Mode d'Affichage des Résultats sur la Diapo :
+                  </span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ resultDisplayMode: 'both' })}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all text-center ${
+                        (currentEffective.categoryTheme.resultDisplayMode || 'both') === 'both'
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      Score + Mention
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ resultDisplayMode: 'score' })}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all text-center ${
+                        currentEffective.categoryTheme.resultDisplayMode === 'score'
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      Score Seul
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ resultDisplayMode: 'status' })}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all text-center ${
+                        currentEffective.categoryTheme.resultDisplayMode === 'status'
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      Victoire / Défaite
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Opacité & Flou des cartes */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800">

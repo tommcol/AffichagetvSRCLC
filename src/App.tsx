@@ -88,7 +88,7 @@ export default function App() {
   const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>([]);
   const [dataChargee, setDataChargee] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminAuthentifie, setAdminAuthentifie] = useState(true);
+  const [adminAuthentifie, setAdminAuthentifie] = useState(false);
   const [erreurAuthAdmin, setErreurAuthAdmin] = useState('');
 
   // Controls & TV playback state

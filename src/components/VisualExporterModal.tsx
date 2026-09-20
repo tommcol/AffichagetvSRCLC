@@ -406,6 +406,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [layer2BadgeTextColor, setLayer2BadgeTextColor] = useState<string>('#ffffff');
   const [layer2FontHeader, setLayer2FontHeader] = useState<FontFamilyOption>('Bebas Neue');
   const [layer2FontBody, setLayer2FontBody] = useState<FontFamilyOption>('Montserrat');
+  const [resultDisplayMode, setResultDisplayMode] = useState<'both' | 'score' | 'status'>('both');
 
   useEffect(() => {
     if (effectiveCategoryConfig && effectiveCategoryConfig.categoryTheme) {
@@ -420,6 +421,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       if (ct.badgeTextColor) setLayer2BadgeTextColor(ct.badgeTextColor);
       if (ct.fontFamilyHeader) setLayer2FontHeader(ct.fontFamilyHeader);
       if (ct.fontFamilyBody) setLayer2FontBody(ct.fontFamilyBody);
+      if (ct.resultDisplayMode) setResultDisplayMode(ct.resultDisplayMode);
     }
   }, [effectiveCategoryConfig]);
 
@@ -1123,6 +1125,41 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   <span className="hidden xs:inline">Options</span>
                 </button>
               </div>
+
+              {contentType === 'results' && (
+                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/80">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Résultat :</span>
+                  <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setResultDisplayMode('both')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                        resultDisplayMode === 'both' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Score + Mention
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResultDisplayMode('score')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                        resultDisplayMode === 'score' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Score seul
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResultDisplayMode('status')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                        resultDisplayMode === 'status' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Victoire / Défaite
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Header info & Quick background / title customizer */}
@@ -1485,7 +1522,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                             <div key={r.id} className="w-full flex flex-col items-center">
                               {/* Date / Category */}
                               <div
-                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center gap-1.5`}
+                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center justify-center gap-1.5`}
                                 style={{
                                   fontSize: headerFontSize,
                                   color: layer2TextColor,
@@ -1493,10 +1530,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 }}
                               >
                                 <span>{r.category}</span>
-                                <span>•</span>
-                                <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
-                                  {isWin ? 'VICTOIRE' : 'DÉFAITE'}
-                                </span>
+                                {resultDisplayMode !== 'score' && (
+                                  <>
+                                    <span>•</span>
+                                    <span className={isWin ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
+                                      {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                                    </span>
+                                  </>
+                                )}
                               </div>
 
                               {/* Row */}
@@ -1505,9 +1546,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
                                     height: pillHeight,
-                                    background: isWin
-                                      ? 'linear-gradient(180deg, #059669 0%, #064e3b 100%)'
-                                      : `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
@@ -1515,24 +1554,26 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 </div>
 
                                 <div
-                                  className={`px-2 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
+                                  className={`px-2.5 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
                                     count >= 6 ? 'h-6 text-[10px]' : 'h-7 text-xs'
-                                  } font-mono`}
+                                  } ${resultDisplayMode === 'status' ? 'font-sans uppercase tracking-wider text-[10px]' : 'font-mono'}`}
                                   style={{
                                     backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                    color: layer2BadgeBgColor || '#111111',
+                                    color: resultDisplayMode === 'status'
+                                      ? (isWin ? '#047857' : '#be123c')
+                                      : (layer2BadgeBgColor || '#111111'),
                                   }}
                                 >
-                                  {scoreDisplay}
+                                  {resultDisplayMode === 'status'
+                                    ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
+                                    : scoreDisplay}
                                 </div>
 
                                 <div
                                   className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
                                   style={{
                                     height: pillHeight,
-                                    background: isWin
-                                      ? 'linear-gradient(180deg, #059669 0%, #064e3b 100%)'
-                                      : `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
@@ -2071,6 +2112,53 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Option d'Affichage du Résultat (Score / Victoire-Défaite / Les 2) */}
+                {contentType === 'results' && (
+                  <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 space-y-1.5">
+                    <div className="text-[10px] font-bold text-slate-300 uppercase flex items-center justify-between">
+                      <span>Affichage du Résultat :</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setResultDisplayMode('both')}
+                        className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                          resultDisplayMode === 'both'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                        title="Afficher le score au centre ET la mention Victoire / Défaite"
+                      >
+                        Score + Mention
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setResultDisplayMode('score')}
+                        className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                          resultDisplayMode === 'score'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                        title="Afficher uniquement le score (ex: 68 - 59)"
+                      >
+                        Score Seul
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setResultDisplayMode('status')}
+                        className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
+                          resultDisplayMode === 'status'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                        title="Afficher uniquement la mention (Victoire / Défaite)"
+                      >
+                        Victoire / Défaite
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Polices Titres & Corps */}
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">

@@ -70,6 +70,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   const textColor = theme?.textColor || '#ffffff';
   const badgeBgColor = theme?.badgeBgColor || primaryColor;
   const badgeTextColor = theme?.badgeTextColor || '#ffffff';
+  const resultDisplayMode = theme?.resultDisplayMode || 'both';
   const cardBg = theme?.cardBgColor || '#020617';
   const cardOpacity = theme?.cardOpacity ?? 0.85;
   const cardBlur = theme?.cardBlur ?? 8;
@@ -266,22 +267,34 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                     }`}
                   />
 
-                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE */}
+                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE ou SCORE */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-800/80 relative z-10">
-                    <div
-                      className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
-                        isWin
-                          ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400/80 shadow-emerald-500/50'
-                          : 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white ring-2 ring-rose-400/80 shadow-rose-600/50'
-                      }`}
-                    >
-                      {isWin ? (
-                        <Trophy className={`${sizing.outcomeIcon} animate-bounce shrink-0 text-amber-300 drop-shadow`} />
-                      ) : (
-                        <XCircle className={`${sizing.outcomeIcon} shrink-0 text-white/90`} />
-                      )}
-                      <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
-                    </div>
+                    {resultDisplayMode !== 'score' ? (
+                      <div
+                        className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
+                          isWin
+                            ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400/80 shadow-emerald-500/50'
+                            : 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white ring-2 ring-rose-400/80 shadow-rose-600/50'
+                        }`}
+                      >
+                        {isWin ? (
+                          <Trophy className={`${sizing.outcomeIcon} animate-bounce shrink-0 text-amber-300 drop-shadow`} />
+                        ) : (
+                          <XCircle className={`${sizing.outcomeIcon} shrink-0 text-white/90`} />
+                        )}
+                        <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                      </div>
+                    ) : (
+                      <div
+                        className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase tracking-wider text-white font-black shadow-md`}
+                        style={{
+                          background: `linear-gradient(135deg, ${badgeBgColor} 0%, ${badgeBgColor}dd 100%)`,
+                          color: badgeTextColor,
+                        }}
+                      >
+                        <span>SCORE : {r.homeScore ?? 0} - {r.awayScore ?? 0}</span>
+                      </div>
+                    )}
 
                     <span className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs md:text-sm lg:text-base text-slate-300 font-bold shrink-0">
                       {isHome ? '🏠 Domicile' : '🚗 Extérieur'}
@@ -303,7 +316,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                       {r.category}
                     </div>
 
-                    {/* Rencontre / Adversaires SANS SCORE */}
+                    {/* Rencontre / Adversaires & Score */}
                     <div className={`w-full mt-3 ${sizing.matchupBox}`}>
                       <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap">
                         <span
@@ -316,9 +329,27 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           {r.teamHome}
                         </span>
 
-                        <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs md:text-sm font-black text-slate-400 tracking-wider">
-                          CONTRE
-                        </span>
+                        {resultDisplayMode === 'status' ? (
+                          <span
+                            className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md"
+                            style={{
+                              backgroundColor: badgeBgColor || '#0f172a',
+                              color: badgeTextColor || '#ffffff',
+                            }}
+                          >
+                            {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                          </span>
+                        ) : (
+                          <span
+                            className="px-4 py-1.5 rounded-2xl text-base md:text-2xl font-mono font-black tracking-wider shadow-lg border border-slate-700/80"
+                            style={{
+                              backgroundColor: '#090d16',
+                              color: isWin ? '#34d399' : '#f43f5e',
+                            }}
+                          >
+                            {r.homeScore ?? 0} - {r.awayScore ?? 0}
+                          </span>
+                        )}
 
                         <span
                           className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${

@@ -117,6 +117,7 @@ export interface SlideDesignTheme {
   textColor?: string;
   badgeBgColor?: string;
   badgeTextColor?: string;
+  resultDisplayMode?: 'both' | 'score' | 'status';
   backgroundBrightness: number; // 0.1 à 1.0 (défaut 0.35)
   backgroundBlur: number; // 0 à 20px (défaut 0)
   backgroundMediaType?: 'image' | 'video';
