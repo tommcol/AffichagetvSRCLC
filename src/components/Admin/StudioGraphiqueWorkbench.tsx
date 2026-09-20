@@ -24,6 +24,7 @@ import {
   Pause,
   HelpCircle,
   Monitor,
+  Video,
 } from 'lucide-react';
 import {
   VisualTemplatesConfig,
@@ -37,6 +38,8 @@ import { MatchesSlide } from '../slides/MatchesSlide';
 import { ResultsSlide } from '../slides/ResultsSlide';
 import { BirthdaysSlide } from '../slides/BirthdaysSlide';
 import { AVAILABLE_FONTS } from '../../utils/fontUtils';
+import { isVideoMedia, registerVideoBlob } from '../../utils/mediaUtils';
+import { saveMediaBlob, getMediaBlobUrl } from '../../utils/indexedDBStorage';
 import {
   getEffectiveCategoryConfig,
   DEFAULT_MATCHES_THEME,
@@ -778,6 +781,9 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   // Calque sélectionné interactivement à la souris (3 ou 4)
   const [selectedLayerNum, setSelectedLayerNum] = useState<3 | 4 | null>(null);
 
+  // Mode d'affichage mobile : 'preview' (Aperçu TV 16:9) ou 'controls' (Réglages des Calques)
+  const [mobileStudioTab, setMobileStudioTab] = useState<'preview' | 'controls'>('preview');
+
   const previewCanvasRef = useRef<HTMLDivElement | null>(null);
 
   // Configuration effective pour chaque catégorie
@@ -846,6 +852,28 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
+
+  // Restauration automatique des vidéos locales stockées dans IndexedDB
+  useEffect(() => {
+    const restoreVideos = async () => {
+      try {
+        const storedUrl = await getMediaBlobUrl(`category_bg_${activeCategory}`);
+        if (storedUrl) {
+          registerVideoBlob(storedUrl);
+          const currentUrl = currentEffective.categoryTheme.backgroundUrl;
+          if (!currentUrl || currentUrl.startsWith('blob:')) {
+            updateCurrentCategoryTheme({
+              backgroundUrl: storedUrl,
+              backgroundMediaType: 'video',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erreur restauration vidéo IndexedDB:', e);
+      }
+    };
+    restoreVideos();
+  }, [activeCategory]);
 
   const handleSelectCategory = (cat: 'matches' | 'results' | 'birthdays') => {
     setActiveCategory(cat);
@@ -960,10 +988,41 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* BOUTONS NAVIGATION MOBILE : VISIBLE UNIQUEMENT SUR TÉLÉPHONE (< xl)      */}
+      {/* ========================================================================= */}
+      <div className="flex xl:hidden items-center justify-between p-2 bg-slate-900/95 rounded-2xl border border-slate-800 gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => setMobileStudioTab('preview')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
+            mobileStudioTab === 'preview'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
+              : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <Eye className="w-4 h-4" />
+          <span>Aperçu TV 16:9</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileStudioTab('controls')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
+            mobileStudioTab === 'controls'
+              ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
+              : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Réglages des Calques</span>
+        </button>
+      </div>
+
       {/* GRILLE PRINCIPALE : CONTRÔLES À GAUCHE, CANEVAS 16:9 INTERACTIF À DROITE */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* COLONNE GAUCHE (5 colonnes) : LES 4 CALQUES DE LA CATÉGORIE */}
-        <div className="xl:col-span-5 space-y-4">
+        <div className={`xl:col-span-5 space-y-4 ${mobileStudioTab === 'controls' ? 'block' : 'hidden'} xl:block`}>
           {/* BARRE DES 4 CALQUES */}
           <div className="grid grid-cols-4 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
             <button
@@ -1044,8 +1103,15 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   <input
                     type="text"
                     value={currentEffective.categoryTheme.backgroundUrl || ''}
-                    onChange={(e) => updateCurrentCategoryTheme({ backgroundUrl: e.target.value })}
-                    placeholder="URL image ou vidéo..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const isVid = isVideoMedia(val);
+                      updateCurrentCategoryTheme({
+                        backgroundUrl: val,
+                        backgroundMediaType: isVid ? 'video' : currentEffective.categoryTheme.backgroundMediaType || 'image',
+                      });
+                    }}
+                    placeholder="URL image ou vidéo (ex: /video.mp4 ou https://...)"
                     className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
                   />
                   <label className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 text-xs font-bold border border-orange-500/30 cursor-pointer transition-all shrink-0">
@@ -1059,6 +1125,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                         const file = e.target.files?.[0];
                         if (!file) return;
                         const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+                        
                         try {
                           const formData = new FormData();
                           formData.append('file', file);
@@ -1069,7 +1136,10 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                           if (res.ok) {
                             const data = await res.json();
                             if (data.url) {
-                              updateCurrentCategoryTheme({ backgroundUrl: data.url });
+                              updateCurrentCategoryTheme({
+                                backgroundUrl: data.url,
+                                backgroundMediaType: isVideo ? 'video' : 'image',
+                              });
                               return;
                             }
                           }
@@ -1078,20 +1148,77 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                         }
 
                         if (isVideo) {
-                          updateCurrentCategoryTheme({ backgroundUrl: URL.createObjectURL(file) });
+                          // Sauvegarde persistante dans IndexedDB pour ne jamais perdre la vidéo au rechargement
+                          const blobUrl = await saveMediaBlob(`category_bg_${activeCategory}`, file);
+                          registerVideoBlob(blobUrl);
+                          updateCurrentCategoryTheme({
+                            backgroundUrl: blobUrl,
+                            backgroundMediaType: 'video',
+                          });
                           return;
                         }
 
                         const reader = new FileReader();
                         reader.onload = (ev) => {
                           if (typeof ev.target?.result === 'string') {
-                            updateCurrentCategoryTheme({ backgroundUrl: ev.target.result });
+                            updateCurrentCategoryTheme({
+                              backgroundUrl: ev.target.result,
+                              backgroundMediaType: 'image',
+                            });
                           }
                         };
                         reader.readAsDataURL(file);
                       }}
                     />
                   </label>
+                </div>
+
+                {/* Sélecteur de Type de média explicite (Image / Vidéo) */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-400 font-medium">Type détecté :</span>
+                  <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ backgroundMediaType: 'image' })}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        (currentEffective.categoryTheme.backgroundMediaType || (isVideoMedia(currentEffective.categoryTheme.backgroundUrl) ? 'video' : 'image')) === 'image'
+                          ? 'bg-slate-800 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <ImageIcon className="w-3 h-3" />
+                      <span>Image</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentEffective.categoryTheme.backgroundUrl) {
+                          registerVideoBlob(currentEffective.categoryTheme.backgroundUrl);
+                        }
+                        updateCurrentCategoryTheme({ backgroundMediaType: 'video' });
+                      }}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        (currentEffective.categoryTheme.backgroundMediaType || (isVideoMedia(currentEffective.categoryTheme.backgroundUrl) ? 'video' : 'image')) === 'video'
+                          ? 'bg-orange-600 text-white shadow-sm shadow-orange-950'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <Video className="w-3 h-3 text-white" />
+                      <span>Vidéo (MP4/WebM)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Info stockage vidéo Cloudflare */}
+                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                    <HelpCircle className="w-3 h-3 shrink-0" />
+                    <span>Diffusion de vidéo sur Cloudflare :</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    • <strong>Fichier local :</strong> Les vidéos sélectionnées depuis votre ordinateur sont enregistrées en cache persistant dans ce navigateur.<br />
+                    • <strong>Pour diffuser sur TOUTES les TV :</strong> Placez simplement votre vidéo dans le dossier <code className="text-orange-300 bg-slate-900 px-1 py-0.5 rounded">public/</code> de votre projet (ex: <code className="text-orange-300 bg-slate-900 px-1 py-0.5 rounded">public/resultats.mp4</code>) et entrez <code className="text-orange-300 bg-slate-900 px-1 py-0.5 rounded">/resultats.mp4</code> comme URL. Cloudflare la distribuera gratuitement et à pleine vitesse partout !
+                  </p>
                 </div>
               </div>
 
@@ -1448,10 +1575,22 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               onChange={(updated) => updateCurrentCategoryTheme({ layer4: updated })}
             />
           )}
+
+          {/* Raccourci vers aperçu sur smartphone */}
+          <div className="block xl:hidden pt-2">
+            <button
+              type="button"
+              onClick={() => setMobileStudioTab('preview')}
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-orange-600/30"
+            >
+              <Eye className="w-4 h-4" />
+              <span>Voir l'aperçu TV 16:9 en direct</span>
+            </button>
+          </div>
         </div>
 
         {/* COLONNE DROITE (7 colonnes) : APERÇU 16:9 INTERACTIF DIRECT */}
-        <div className="xl:col-span-7 space-y-3 sticky top-4">
+        <div className={`xl:col-span-7 space-y-3 sticky top-4 ${mobileStudioTab === 'preview' ? 'block' : 'hidden'} xl:block`}>
           <div className="flex items-center justify-between bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-800">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-orange-400" />
@@ -1550,6 +1689,18 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
             </div>
             <span className="font-mono text-emerald-400">✓ Synchronisé en direct</span>
           </div>
+
+          {/* Raccourci vers réglages sur smartphone */}
+          <div className="block xl:hidden pt-2">
+            <button
+              type="button"
+              onClick={() => setMobileStudioTab('controls')}
+              className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 text-xs font-bold flex items-center justify-center gap-1.5"
+            >
+              <Sliders className="w-4 h-4 text-orange-400" />
+              <span>Modifier les calques (Fond, Textes, Éléments)</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1561,11 +1712,11 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
           fullscreenFillMode === 'full' ? 'p-0' : 'p-2 sm:p-6'
         }`}>
           {/* Barre d'outils plein écran */}
-          <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700 shadow-xl">
+          <div className="absolute top-2 sm:top-4 right-2 sm:right-4 left-2 sm:left-auto z-50 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 pointer-events-auto">
+            <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
               <button
                 onClick={() => setPreviewMode('matches')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'matches' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -1573,7 +1724,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </button>
               <button
                 onClick={() => setPreviewMode('results')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'results' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -1581,39 +1732,39 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </button>
               <button
                 onClick={() => setPreviewMode('birthdays')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'birthdays' ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                🎂 Anniversaires
+                🎂 Anniv
               </button>
             </div>
 
             {/* Mode Agrandir sur toute la page / Cadre 16:9 */}
-            <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700 shadow-xl">
+            <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
               <button
                 onClick={() => setFullscreenFillMode('full')}
                 title="Occuper 100% de l'écran sans bandes noires"
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-all ${
                   fullscreenFillMode === 'full'
                     ? 'bg-emerald-600 text-white shadow'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                <span>Toute la page</span>
+                <span className="hidden sm:inline">Plein Écran</span>
               </button>
               <button
                 onClick={() => setFullscreenFillMode('fitted')}
                 title="Conserver les proportions 16:9 dans un cadre"
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 transition-all ${
                   fullscreenFillMode === 'fitted'
                     ? 'bg-slate-700 text-white shadow'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <Monitor className="w-3.5 h-3.5" />
-                <span>Cadre 16:9</span>
+                <span className="hidden sm:inline">Cadre 16:9</span>
               </button>
             </div>
 
@@ -1624,10 +1775,10 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 }
                 setIsFullscreen(false);
               }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-xl transition-all"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] sm:text-xs shadow-xl transition-all shrink-0"
             >
-              <Minimize2 className="w-4 h-4" />
-              <span>Quitter (Échap)</span>
+              <Minimize2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              <span>Quitter</span>
             </button>
           </div>
 

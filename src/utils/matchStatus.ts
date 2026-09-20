@@ -123,3 +123,68 @@ export function isMatchFinished(match: MatchItem, now: Date = new Date()): boole
   if (match.status === 'finished') return true;
   return getMatchTimingStatus(match, now) === 'finished';
 }
+
+/**
+ * Détermine si notre club joue à domicile pour ce match
+ */
+export function isClubHomeMatch(
+  match: MatchItem,
+  clubName: string = 'Sports Réunis Clayettois',
+  clubShortName: string = 'SRC Basket'
+): boolean {
+  if (typeof match.isHomeMatch === 'boolean') {
+    return match.isHomeMatch;
+  }
+  const home = (match.teamHome || '').toLowerCase();
+  const away = (match.teamAway || '').toLowerCase();
+  const cName = (clubName || '').toLowerCase();
+  const cShort = (clubShortName || '').toLowerCase();
+
+  const isHomeClay =
+    home.includes('clayette') ||
+    home.includes('clayettois') ||
+    (cName && home.includes(cName)) ||
+    (cShort && home.includes(cShort));
+  const isAwayClay =
+    away.includes('clayette') ||
+    away.includes('clayettois') ||
+    (cName && away.includes(cName)) ||
+    (cShort && away.includes(cShort));
+
+  if (isHomeClay && !isAwayClay) return true;
+  if (isAwayClay && !isHomeClay) return false;
+  return true;
+}
+
+/**
+ * Extrait le score de notre club et de l'adversaire
+ */
+export function getMatchOurAndOpponentScores(
+  match: MatchItem,
+  clubName?: string,
+  clubShortName?: string
+): { ourScore?: number; oppScore?: number; isHome: boolean } {
+  const isHome = isClubHomeMatch(match, clubName, clubShortName);
+  const ourScore = isHome ? match.homeScore : match.awayScore;
+  const oppScore = isHome ? match.awayScore : match.homeScore;
+  return { ourScore, oppScore, isHome };
+}
+
+/**
+ * Détermine avec certitude si le match est une VICTOIRE ou une DÉFAITE pour notre club
+ * (prend rigoureusement en compte si le match se joue à domicile ou à l'extérieur)
+ */
+export function isMatchWin(
+  match: MatchItem,
+  clubName?: string,
+  clubShortName?: string
+): boolean {
+  const { ourScore, oppScore } = getMatchOurAndOpponentScores(match, clubName, clubShortName);
+  if (ourScore !== undefined && oppScore !== undefined) {
+    return ourScore > oppScore;
+  }
+  if (match.result === 'win') return true;
+  if (match.result === 'loss') return false;
+  return false;
+}
+

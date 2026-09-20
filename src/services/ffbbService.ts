@@ -126,7 +126,47 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
     const clubNom = data.club || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    const mappedMatches: MatchItem[] = rawMatches.map((m: any, idx: number) => {
+    // Extract unique poule IDs to query scores
+    const pouleIds = Array.from(new Set(rawMatches.map((m: any) => m.pouleId).filter(Boolean)));
+    const scoreMap = new Map<string, { score1: number; score2: number; joue: boolean }>();
+
+    if (pouleIds.length > 0) {
+      try {
+        const pouleResults = await Promise.all(
+          pouleIds.map((pid) =>
+            fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
+              headers: { Accept: 'application/json' },
+            }).then(r => r.ok ? r.json() : null).catch(() => null)
+          )
+        );
+
+        for (const p of pouleResults) {
+          if (p && Array.isArray(p.rencontres)) {
+            for (const r of p.rencontres) {
+              if (r.id) {
+                const hasScore = r.resultatEquipe1 && r.resultatEquipe1 !== 'None' && r.resultatEquipe1 !== 'null';
+                const isPlayed = r.joue === 1 || hasScore;
+                if (isPlayed && hasScore) {
+                  scoreMap.set(String(r.id), {
+                    score1: parseInt(r.resultatEquipe1, 10) || 0,
+                    score2: parseInt(r.resultatEquipe2, 10) || 0,
+                    joue: true,
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur chargement poules FFBB direct:', err);
+      }
+    }
+
+    const mappedMatches: MatchItem[] = [];
+    const resultsList: MatchItem[] = [];
+
+    for (let idx = 0; idx < rawMatches.length; idx++) {
+      const m = rawMatches[idx];
       const isHome = m.isHome ?? true;
       const ourClubName = clubNom;
       const opp = m.opponent || 'Adversaire Inconnu';
@@ -142,8 +182,23 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
       }
 
       const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
-      const isPast = dateStr < todayStr;
       const normCat = normalizeFFBBCategory(m.team, m.competition);
+      const matchId = String(m.ffbbMatchId || idx);
+      const pouleScore = scoreMap.get(matchId);
+      const hasPouleScore = pouleScore && pouleScore.joue;
+      const isPast = dateStr < todayStr || Boolean(hasPouleScore);
+
+      let homeScore: number | undefined = undefined;
+      let awayScore: number | undefined = undefined;
+      let matchResult: 'win' | 'loss' | null = null;
+
+      if (hasPouleScore && pouleScore) {
+        homeScore = pouleScore.score1;
+        awayScore = pouleScore.score2;
+        const ourScore = isHome ? homeScore : awayScore;
+        const oppScore = isHome ? awayScore : homeScore;
+        matchResult = ourScore > oppScore ? 'win' : ourScore < oppScore ? 'loss' : null;
+      }
 
       // Extract accurate match time
       let matchTime = '';
@@ -167,8 +222,8 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
         matchTime = 'Horaire à fixer';
       }
 
-      return {
-        id: `ffbb-${m.ffbbMatchId || idx}`,
+      const matchItem: MatchItem = {
+        id: `ffbb-${matchId}`,
         date: dateStr,
         time: matchTime,
         category: normCat.badgeCategory,
@@ -180,14 +235,22 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
         gymnasium: gym,
         city: isHome ? 'La Clayette' : (m.location ? m.location.split(',').pop()?.trim() || '' : ''),
         status: isPast ? 'finished' : 'upcoming',
-        result: null,
+        result: matchResult,
+        homeScore,
+        awayScore,
         ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
         teamLogo: m.teamLogo || undefined,
         opponentLogo: m.opponentLogo || undefined,
         poule: m.poule || undefined,
         pouleId: m.pouleId || undefined,
       };
-    });
+
+      if (hasPouleScore) {
+        resultsList.push(matchItem);
+      } else {
+        mappedMatches.push(matchItem);
+      }
+    }
 
     mappedMatches.sort((a, b) => {
       const dateCmp = a.date.localeCompare(b.date);
@@ -196,8 +259,10 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
       const timeB = b.time === 'Horaire à fixer' ? '99:99' : b.time;
       return timeA.localeCompare(timeB);
     });
+    resultsList.sort((a, b) => b.date.localeCompare(a.date));
+
     const upcomingMatches = mappedMatches.filter(m => m.status === 'upcoming');
-    const pastResults = mappedMatches.filter(m => m.status === 'finished').reverse();
+    const pastResults = resultsList;
 
     const distinctCategories = Array.from(new Set(mappedMatches.map(m => m.category))).filter(Boolean);
     const teamsList: FFBBTeamItem[] = distinctCategories.map((cat, idx) => {

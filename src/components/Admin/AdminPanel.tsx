@@ -62,7 +62,7 @@ import {
   VisualTemplatesConfig,
   FFBBTeamItem,
 } from '../../types';
-import { isMatchLive } from '../../utils/matchStatus';
+import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { FFBBService } from '../../services/ffbbService';
 import {
@@ -1511,14 +1511,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         return `🏀 PROGRAMME DU WEEK-END — ${clubName.toUpperCase()} 🏀\n\nCe week-end, nos équipes sont d'attaque pour défendre nos couleurs ! Retrouvez ci-dessous le calendrier complet des rencontres :\n\n📍 À DOMICILE (${clubSettings.gymnasiumDefault}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette et restauration sur place pour les matchs à domicile ! Venez encourager nos joueuses et joueurs ! 👏\n\nRetrouvez toute l'actualité du club sur notre page : fb.com/${fb}`;
       }
     } else {
-      const wins = results.filter((r) => r.result === 'win').length;
-      const losses = results.filter((r) => r.result === 'loss').length;
+      const wins = results.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+      const losses = results.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
 
       if (platform === 'instagram') {
         const resultsList = results.map((r) => {
-          const opponent = r.isHomeMatch ? r.teamAway : r.teamHome;
+          const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+          const opponent = isHome ? r.teamAway : r.teamHome;
+          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
           const score = `${r.homeScore ?? '-'} - ${r.awayScore ?? '-'}`;
-          return `${r.result === 'win' ? '✅' : '❌'} ${r.category} : ${score} (${r.isHomeMatch ? 'vs ' + opponent : '@ ' + opponent})`;
+          return `${isWin ? '✅' : '❌'} ${r.category} : ${score} (${isHome ? 'vs ' + opponent : '@ ' + opponent})`;
         }).join('\n');
 
         return `🏆 RÉSULTATS DU WEEK-END • ${shortClub.toUpperCase()} 🏆\n\nBilan de nos équipes : ${wins} Victoire(s) et ${losses} Défaite(s) ! 💥\n\n${resultsList}\n\nFélicitations à l'ensemble des joueuses, joueurs et entraîneurs pour leur engagement ! Merci également aux arbitres, OTM et supporters ! 👏❤️\n.\n.\n#BasketResultats #Victoire #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #Basket #FFBB #Team`;
@@ -1526,9 +1528,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         return `Le bilan du week-end pour ${shortClub} : ${wins} Victoires et ${losses} Défaites ! 🏀🔥 Identifie ton coéquipier en commentaire 👇\n\n#basket #resultats #victoire #basketball #pourtoi #fyp #bball #hooper @${tiktok.replace(/^@/, '')}`;
       } else {
         const resultsList = results.map((r) => {
-          const opponent = r.isHomeMatch ? r.teamAway : r.teamHome;
+          const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+          const opponent = isHome ? r.teamAway : r.teamHome;
+          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
           const score = `${r.homeScore ?? '-'} - ${r.awayScore ?? '-'}`;
-          return `• ${r.category} : ${score} contre ${opponent} (${r.result === 'win' ? 'VICTOIRE ✌️' : 'DÉFAITE'})`;
+          return `• ${r.category} : ${score} contre ${opponent} (${isWin ? 'VICTOIRE ✌️' : 'DÉFAITE'})`;
         }).join('\n');
 
         return `🏆 BILAN DU WEEK-END — TOUS LES RÉSULTATS 🏆\n\nUn beau week-end sportif pour ${clubName} avec un bilan global de ${wins} victoire(s) et ${losses} défaite(s) :\n\n${resultsList}\n\nBravo à toutes nos équipes pour l'état d'esprit irréprochable et la détermination sur chaque ballon ! Un immense merci à nos fidèles supporters et bénévoles présents dans les gradins !\n\nAllez ${shortClub} ! ❤️🤍`;
@@ -2715,11 +2719,20 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <span>RÉSULTATS ET SCORES DU WEEK-END ({results.length})</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Saisissez les résultats des rencontres synchronisées avec la FFBB ou manuellement pour les afficher dans le carrousel TV et générer les affiches.
+                    Les résultats et scores officiels sont mis à jour automatiquement depuis la FFBB toutes les 3 minutes et affichés en direct sur la TV.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleSyncFFBB}
+                    disabled={isSyncingFFBB}
+                    className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-orange-600/20"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingFFBB ? 'Actualisation...' : 'Actualiser FFBB'}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setResultsSubTab('calques')}
@@ -2728,9 +2741,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <Layers className="w-4 h-4 text-sky-400" />
                     <span>Régler le fond & visuels de victoire</span>
                   </button>
-                  <span className="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-emerald-300 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-500/40 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>{availableFfbbTeams.length} équipes FFBB</span>
+                    <span>Auto-sync FFBB actif</span>
                   </span>
                 </div>
               </div>
@@ -3007,7 +3020,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {results.map((r) => {
-                      const isWin = (r.homeScore || 0) > (r.awayScore || 0);
+                      const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+                      const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
                       return (
                         <div
                           key={r.id}
@@ -3023,12 +3037,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                                 {r.category}
                               </span>
                               <span className="text-slate-600">•</span>
+                              <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] text-slate-300 font-bold">
+                                {isHome ? '🏠 Domicile' : '🚗 Extérieur'}
+                              </span>
                               {r.date && r.date !== 'Week-end dernier' && (
                                 <>
+                                  <span className="text-slate-600">•</span>
                                   <span className="text-slate-400 font-mono text-[11px] font-bold">
                                     {formatDateToEuropean(r.date)}
                                   </span>
-                                  <span className="text-slate-600">•</span>
                                 </>
                               )}
                               <span
@@ -3122,34 +3139,94 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-emerald-400 block mb-1 font-bold">Score Équipe 1 :</label>
+                          <label className="text-emerald-400 block mb-1 font-bold truncate">
+                            Score {editingResult.teamHome || 'Équipe 1'} :
+                          </label>
                           <input
                             type="number"
                             value={editingResult.homeScore ?? 0}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const newHome = parseInt(e.target.value, 10) || 0;
+                              const away = editingResult.awayScore || 0;
+                              const updated = { ...editingResult, homeScore: newHome };
+                              const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
                               setEditingResult({
-                                ...editingResult,
-                                homeScore: parseInt(e.target.value, 10) || 0,
-                                result: (parseInt(e.target.value, 10) || 0) > (editingResult.awayScore || 0) ? 'win' : 'loss',
-                              })
-                            }
+                                ...updated,
+                                result: win ? 'win' : 'loss',
+                              });
+                            }}
                             className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-emerald-400"
                           />
                         </div>
                         <div>
-                          <label className="text-rose-400 block mb-1 font-bold">Score Équipe 2 :</label>
+                          <label className="text-rose-400 block mb-1 font-bold truncate">
+                            Score {editingResult.teamAway || 'Équipe 2'} :
+                          </label>
                           <input
                             type="number"
                             value={editingResult.awayScore ?? 0}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const newAway = parseInt(e.target.value, 10) || 0;
+                              const updated = { ...editingResult, awayScore: newAway };
+                              const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
                               setEditingResult({
-                                ...editingResult,
-                                awayScore: parseInt(e.target.value, 10) || 0,
-                                result: (editingResult.homeScore || 0) > (parseInt(e.target.value, 10) || 0) ? 'win' : 'loss',
-                              })
-                            }
+                                ...updated,
+                                result: win ? 'win' : 'loss',
+                              });
+                            }}
                             className="w-full bg-slate-950 border border-rose-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-rose-400"
                           />
+                        </div>
+                      </div>
+
+                      {/* Sélecteur forcé Résultat / Type de match */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="text-slate-400 block mb-1 font-bold">Lieu du match :</label>
+                          <select
+                            value={editingResult.isHomeMatch ? 'home' : 'away'}
+                            onChange={(e) => {
+                              const isHome = e.target.value === 'home';
+                              const updated = { ...editingResult, isHomeMatch: isHome };
+                              const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
+                              setEditingResult({
+                                ...updated,
+                                result: win ? 'win' : 'loss',
+                              });
+                            }}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                          >
+                            <option value="home">🏠 Domicile</option>
+                            <option value="away">🚗 Extérieur</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1 font-bold">Résultat :</label>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingResult({ ...editingResult, result: 'win' })}
+                              className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                                editingResult.result === 'win'
+                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                                  : 'bg-slate-950 text-slate-400 border border-slate-700'
+                              }`}
+                            >
+                              🏆 Victoire
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingResult({ ...editingResult, result: 'loss' })}
+                              className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                                editingResult.result === 'loss'
+                                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
+                                  : 'bg-slate-950 text-slate-400 border border-slate-700'
+                              }`}
+                            >
+                              ❌ Défaite
+                            </button>
+                          </div>
                         </div>
                       </div>
 

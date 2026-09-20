@@ -189,16 +189,21 @@ export const VictoryDefeatOverlay: React.FC<VictoryDefeatOverlayProps> = ({
             COUP DE SIFFLET FINAL FFBB
           </span>
           <h2
-            className={`text-5xl md:text-7xl lg:text-8xl font-black tracking-tight uppercase font-bebas leading-none ${
+            className={`text-6xl md:text-8xl lg:text-9xl font-black tracking-tight uppercase font-bebas leading-none ${
               isWin
                 ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-100 to-amber-200 drop-shadow-lg'
                 : 'text-transparent bg-clip-text bg-gradient-to-r from-rose-300 via-red-100 to-orange-200'
             }`}
           >
-            {isWin ? 'VICTOIRE DU CLUB !' : 'FIN DU MATCH - DÉFAITE'}
+            {isWin ? 'VICTOIRE !' : 'DÉFAITE'}
           </h2>
-          <p className="text-slate-300 text-base md:text-lg font-medium mt-1">
-            {category} • <span className="text-orange-400">{competition}</span>
+          <div className="mt-3 inline-block px-8 py-2 rounded-2xl bg-black/60 border border-white/20 shadow-xl">
+            <span className="text-3xl md:text-5xl font-black text-white uppercase font-bebas tracking-wide">
+              {category}
+            </span>
+          </div>
+          <p className="text-slate-300 text-sm md:text-base font-medium mt-2">
+            <span className="text-orange-400 font-bold">{competition}</span>
           </p>
         </div>
 

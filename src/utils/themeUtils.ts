@@ -6,6 +6,7 @@ import {
   OverlayLayerItem,
   ClubSettings,
 } from '../types';
+import { isVideoMedia } from './mediaUtils';
 
 export const DEFAULT_OVERLAY_LAYER_3: OverlayLayerItem = {
   name: 'Mascotte / Élément 1',
@@ -211,6 +212,8 @@ export function getEffectiveCategoryConfig(
     name: 'Élément 2',
   };
 
+  const backgroundMediaType = specific.backgroundMediaType || (isVideoMedia(backgroundUrl) ? 'video' : 'image');
+
   const theme: SlideDesignTheme = {
     primaryColor,
     secondaryColor: '#0f172a',
@@ -221,6 +224,7 @@ export function getEffectiveCategoryConfig(
     fontFamilyScore,
     backgroundBrightness,
     backgroundBlur,
+    backgroundMediaType,
   };
 
   const mascot: ForegroundMascotConfig = {
@@ -234,6 +238,7 @@ export function getEffectiveCategoryConfig(
 
   const categoryTheme: CategorySlideTheme = {
     backgroundUrl,
+    backgroundMediaType,
     backgroundBrightness,
     backgroundBlur,
     primaryColor,

@@ -2,6 +2,7 @@ import React from 'react';
 import { Trophy, CheckCircle2, XCircle, Share2 } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
+import { isMatchWin, isClubHomeMatch } from '../../utils/matchStatus';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
 import { getFontFamilyClass } from '../../utils/fontUtils';
@@ -41,12 +42,14 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  const totalWins = results.filter((r) => r.result === 'win').length;
-  const totalLosses = results.filter((r) => r.result === 'loss').length;
+  const totalWins = results.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+  const totalLosses = results.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
   const hasVictory = totalWins > 0;
 
   // Video priority and synchronization determination
-  const isBgVideo = Boolean(backgroundUrl && isVideoMedia(backgroundUrl));
+  const isBgVideo = Boolean(
+    backgroundUrl && (theme?.backgroundMediaType === 'video' || isVideoMedia(backgroundUrl))
+  );
   const isLayer3Video = Boolean(
     layer3?.enabled && (layer3.mediaType === 'video' || isVideoMedia(layer3.mediaUrl))
   );
@@ -88,62 +91,46 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
       return {
         gridClass: 'grid-cols-1 md:grid-cols-2',
         cardPadding: 'p-8 md:p-10 lg:p-12',
-        categoryBadge: 'text-xl md:text-2xl lg:text-3xl px-6 py-2.5 rounded-2xl font-black tracking-wide',
-        badgeText: 'text-xl md:text-2xl lg:text-3xl px-6 py-2.5 rounded-2xl font-black tracking-wide gap-3 shadow-xl',
-        badgeIcon: 'w-6 h-6 md:w-8 md:h-8',
-        competitionText: 'text-base md:text-xl lg:text-2xl text-slate-300 font-semibold mt-3',
-        duelBox: 'p-8 md:p-10 lg:p-12 my-auto rounded-3xl bg-slate-950/95 border-2 border-slate-700/80 shadow-2xl',
-        teamName: 'text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black tracking-wide leading-tight',
-        scoreBox: 'px-6 py-3 md:px-8 md:py-4 bg-slate-900 rounded-2xl border-2 border-slate-700 shadow-xl',
-        scoreDigit: 'text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-black leading-none tracking-tight',
-        scoreSeparator: 'text-4xl md:text-5xl lg:text-6xl text-slate-500 font-bold px-2',
-        footerText: 'text-sm md:text-base lg:text-lg text-slate-400 font-semibold mt-6 pt-4 border-t border-slate-800/80',
+        outcomeBanner: 'px-7 py-3 md:px-10 md:py-4 rounded-3xl text-3xl md:text-5xl lg:text-6xl font-black tracking-wider gap-4 shadow-2xl',
+        outcomeIcon: 'w-8 h-8 md:w-12 md:h-12',
+        categoryDisplay: 'text-5xl md:text-7xl lg:text-8xl font-black tracking-tight leading-none',
+        matchupBox: 'p-6 md:p-8 my-auto rounded-3xl bg-slate-950/80 border-2 border-slate-700/80 shadow-2xl',
+        teamName: 'text-2xl md:text-3xl lg:text-4xl font-black tracking-wide leading-tight',
+        footerText: 'text-sm md:text-base lg:text-lg text-slate-400 font-semibold mt-4 pt-3 border-t border-slate-800/80',
       };
     }
     if (count === 3) {
       return {
         gridClass: 'grid-cols-1 md:grid-cols-3',
         cardPadding: 'p-6 md:p-8',
-        categoryBadge: 'text-base md:text-xl lg:text-2xl px-4 py-2 rounded-xl font-black tracking-wide',
-        badgeText: 'text-base md:text-xl lg:text-2xl px-4 py-2 rounded-xl font-black tracking-wide gap-2 shadow-lg',
-        badgeIcon: 'w-5 h-5 md:w-6 md:h-6',
-        competitionText: 'text-sm md:text-base lg:text-lg text-slate-300 font-medium mt-2',
-        duelBox: 'p-6 md:p-8 my-auto rounded-2xl bg-slate-950/90 border border-slate-700/80 shadow-xl',
+        outcomeBanner: 'px-5 py-2.5 md:px-7 md:py-3.5 rounded-2xl text-2xl md:text-3xl lg:text-4xl font-black tracking-wider gap-3 shadow-xl',
+        outcomeIcon: 'w-7 h-7 md:w-9 md:h-9',
+        categoryDisplay: 'text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none',
+        matchupBox: 'p-5 md:p-6 my-auto rounded-2xl bg-slate-950/80 border border-slate-700/80 shadow-xl',
         teamName: 'text-xl md:text-2xl lg:text-3xl font-black tracking-wide leading-snug',
-        scoreBox: 'px-5 py-2 md:px-6 md:py-3 bg-slate-900 rounded-xl border border-slate-700',
-        scoreDigit: 'text-5xl md:text-6xl lg:text-7xl font-black leading-none',
-        scoreSeparator: 'text-3xl md:text-4xl text-slate-500 font-bold px-1.5',
-        footerText: 'text-xs md:text-sm lg:text-base text-slate-400 mt-4 pt-3 border-t border-slate-800/60',
+        footerText: 'text-xs md:text-sm lg:text-base text-slate-400 mt-3 pt-2.5 border-t border-slate-800/60',
       };
     }
     if (count === 4) {
       return {
         gridClass: 'grid-cols-1 sm:grid-cols-2 grid-rows-2',
         cardPadding: 'p-5 md:p-6',
-        categoryBadge: 'text-sm md:text-lg px-3.5 py-1.5 rounded-xl font-black tracking-wide',
-        badgeText: 'text-sm md:text-lg px-3.5 py-1.5 rounded-xl font-black tracking-wide gap-2 shadow-md',
-        badgeIcon: 'w-4 h-4 md:w-5 md:h-5',
-        competitionText: 'text-xs md:text-sm text-slate-300 font-medium mt-1.5',
-        duelBox: 'p-4 md:p-6 my-auto rounded-2xl bg-slate-950/90 border border-slate-700/80 shadow-lg',
-        teamName: 'text-lg md:text-2xl font-black tracking-wide',
-        scoreBox: 'px-4 py-2 bg-slate-900 rounded-xl border border-slate-700',
-        scoreDigit: 'text-4xl md:text-5xl lg:text-6xl font-black leading-none',
-        scoreSeparator: 'text-2xl md:text-3xl text-slate-500 font-bold px-1',
-        footerText: 'text-xs md:text-sm text-slate-400 mt-3 pt-2 border-t border-slate-800/60',
+        outcomeBanner: 'px-4 py-2 md:px-6 md:py-2.5 rounded-2xl text-xl md:text-2xl lg:text-3xl font-black tracking-wider gap-2.5 shadow-lg',
+        outcomeIcon: 'w-6 h-6 md:w-7 md:h-7',
+        categoryDisplay: 'text-3xl md:text-4xl lg:text-5xl font-black tracking-tight leading-none',
+        matchupBox: 'p-4 md:p-5 my-auto rounded-2xl bg-slate-950/80 border border-slate-700/80 shadow-lg',
+        teamName: 'text-lg md:text-xl lg:text-2xl font-black tracking-wide',
+        footerText: 'text-xs md:text-sm text-slate-400 mt-2.5 pt-2 border-t border-slate-800/60',
       };
     }
     return {
       gridClass: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
       cardPadding: 'p-4 md:p-5',
-      categoryBadge: 'text-xs md:text-sm px-3 py-1 rounded-xl font-black tracking-wide',
-      badgeText: 'text-xs md:text-sm px-3 py-1 rounded-xl font-black tracking-wide gap-1.5 shadow-md',
-      badgeIcon: 'w-4 h-4',
-      competitionText: 'text-xs md:text-sm text-slate-400 font-medium mt-1',
-      duelBox: 'p-3.5 md:p-4 my-auto rounded-xl bg-slate-950/90 border border-slate-800/80 shadow-md',
+      outcomeBanner: 'px-3 py-1.5 md:px-4 md:py-2 rounded-xl text-lg md:text-xl font-black tracking-wider gap-2 shadow-md',
+      outcomeIcon: 'w-5 h-5 md:w-6 md:h-6',
+      categoryDisplay: 'text-2xl md:text-3xl lg:text-4xl font-black tracking-tight leading-none',
+      matchupBox: 'p-3 md:p-4 my-auto rounded-xl bg-slate-950/80 border border-slate-800/80 shadow-md',
       teamName: 'text-base md:text-lg font-black tracking-wide',
-      scoreBox: 'px-3 py-1 bg-slate-900 rounded-lg border border-slate-700',
-      scoreDigit: 'text-3xl md:text-4xl lg:text-5xl font-black leading-none',
-      scoreSeparator: 'text-xl md:text-2xl text-slate-500 font-bold px-1',
       footerText: 'text-xs text-slate-500 mt-2 pt-2 border-t border-slate-800/60',
     };
   };
@@ -259,103 +246,110 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             className={`grid gap-6 my-4 md:my-6 flex-1 items-stretch overflow-y-auto pr-1 min-h-0 ${sizing.gridClass}`}
           >
             {results.map((r) => {
-              const isWin = r.result === 'win';
+              const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+              const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
 
               return (
                 <div
                   key={r.id}
                   style={cardBackdropStyle}
-                  className={`relative rounded-3xl ${sizing.cardPadding} border shadow-2xl transition-all flex flex-col justify-between ${
+                  className={`relative rounded-3xl ${sizing.cardPadding} border shadow-2xl transition-all flex flex-col justify-between overflow-hidden ${
                     isWin
-                      ? 'border-emerald-500/50 shadow-emerald-950/30'
-                      : 'border-rose-500/50 shadow-rose-950/30'
+                      ? 'border-emerald-500/60 shadow-emerald-950/40'
+                      : 'border-rose-500/60 shadow-rose-950/40'
                   }`}
                 >
-                  {/* Category & Badge Top */}
-                  <div className="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-slate-800/80">
-                    <span
-                      className={`${sizing.categoryBadge} ${getFontFamilyClass(headerFont)} shadow-md`}
-                      style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                    >
-                      {r.category}
-                    </span>
+                  {/* Effet lumineux d'ambiance Victoire / Défaite */}
+                  <div
+                    className={`absolute -top-10 -right-10 w-44 h-44 rounded-full pointer-events-none blur-3xl opacity-25 ${
+                      isWin ? 'bg-emerald-400' : 'bg-rose-500'
+                    }`}
+                  />
 
-                    <span
-                      className={`${sizing.badgeText} ${getFontFamilyClass(headerFont)} flex items-center shadow-lg ${
+                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE */}
+                  <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-800/80 relative z-10">
+                    <div
+                      className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
                         isWin
-                          ? 'bg-emerald-500 text-white shadow-emerald-500/40 ring-1 ring-emerald-400'
-                          : 'bg-rose-600 text-white shadow-rose-600/40 ring-1 ring-rose-400'
+                          ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400/80 shadow-emerald-500/50'
+                          : 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white ring-2 ring-rose-400/80 shadow-rose-600/50'
                       }`}
                     >
-                      {isWin ? <CheckCircle2 className={sizing.badgeIcon} /> : <XCircle className={sizing.badgeIcon} />}
+                      {isWin ? (
+                        <Trophy className={`${sizing.outcomeIcon} animate-bounce shrink-0 text-amber-300 drop-shadow`} />
+                      ) : (
+                        <XCircle className={`${sizing.outcomeIcon} shrink-0 text-white/90`} />
+                      )}
                       <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                    </div>
+
+                    <span className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs md:text-sm lg:text-base text-slate-300 font-bold shrink-0">
+                      {isHome ? '🏠 Domicile' : '🚗 Extérieur'}
                     </span>
                   </div>
 
-                  {/* Competition & Location */}
-                  <div className={`${sizing.competitionText} ${getFontFamilyClass(bodyFont)} truncate`} style={{ color: textColor }}>
-                    {r.competition} • {r.isHomeMatch ? 'À Domicile' : 'À l\'Extérieur'}
-                  </div>
+                  {/* Zone Centrale : LA CATÉGORIE EN TRÈS GROS */}
+                  <div className="my-auto py-3 text-center flex flex-col items-center justify-center relative z-10">
+                    <span className="text-xs md:text-sm font-bold uppercase tracking-widest text-slate-400 mb-1">
+                      Catégorie
+                    </span>
+                    <div
+                      className={`${sizing.categoryDisplay} ${getFontFamilyClass(headerFont)} font-black text-transparent bg-clip-text ${
+                        isWin
+                          ? 'bg-gradient-to-b from-white via-slate-100 to-emerald-200 drop-shadow-[0_2px_12px_rgba(52,211,153,0.3)]'
+                          : 'bg-gradient-to-b from-white via-slate-100 to-rose-200 drop-shadow-[0_2px_12px_rgba(244,63,94,0.3)]'
+                      }`}
+                    >
+                      {r.category}
+                    </div>
 
-                  {/* Score Duel Display */}
-                  <div className={sizing.duelBox}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 text-left min-w-0">
-                        <div
-                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
-                          style={{
-                            color: r.teamHome.includes(clubSettings.shortName) || r.isHomeMatch
-                              ? primaryColor
-                              : '#f1f5f9',
-                          }}
+                    {/* Rencontre / Adversaires SANS SCORE */}
+                    <div className={`w-full mt-3 ${sizing.matchupBox}`}>
+                      <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap">
+                        <span
+                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
+                            r.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || r.isHomeMatch
+                              ? 'text-orange-400'
+                              : 'text-slate-100'
+                          }`}
                         >
                           {r.teamHome}
-                        </div>
-                      </div>
-
-                      {/* Digits */}
-                      <div className={`flex items-center shrink-0 ${sizing.scoreBox}`}>
-                        <span
-                          className={`${sizing.scoreDigit} ${getFontFamilyClass(scoreFont)} ${
-                            (r.homeScore ?? 0) > (r.awayScore ?? 0)
-                              ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.35)]'
-                              : 'text-slate-400'
-                          }`}
-                        >
-                          {r.homeScore ?? '-'}
                         </span>
-                        <span className={sizing.scoreSeparator}>:</span>
-                        <span
-                          className={`${sizing.scoreDigit} ${getFontFamilyClass(scoreFont)} ${
-                            (r.awayScore ?? 0) > (r.homeScore ?? 0)
-                              ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.35)]'
-                              : 'text-slate-400'
-                          }`}
-                        >
-                          {r.awayScore ?? '-'}
-                        </span>
-                      </div>
 
-                      <div className="flex-1 text-right min-w-0">
-                        <div
-                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
-                          style={{
-                            color: r.teamAway.includes(clubSettings.shortName) || !r.isHomeMatch
-                              ? primaryColor
-                              : '#f1f5f9',
-                          }}
+                        <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-xs md:text-sm font-black text-slate-400 tracking-wider">
+                          CONTRE
+                        </span>
+
+                        <span
+                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
+                            r.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || !r.isHomeMatch
+                              ? 'text-orange-400'
+                              : 'text-slate-100'
+                          }`}
                         >
                           {r.teamAway}
-                        </div>
+                        </span>
                       </div>
+
+                      {r.competition && (
+                        <div className="mt-2 text-xs md:text-sm text-slate-400 font-medium truncate">
+                          {r.competition}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Footer info */}
-                  <div className={sizing.footerText}>
+                  <div className={`${sizing.footerText} relative z-10`}>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">{r.gymnasium}</span>
-                      <span className="font-mono text-slate-400 font-bold tracking-wider">{r.ffbbMatchNumber}</span>
+                      <span className="font-semibold text-slate-300 truncate">
+                        📍 {r.gymnasium || clubSettings.gymnasiumDefault || 'Gymnase'}
+                      </span>
+                      {r.date && (
+                        <span className="font-mono text-slate-400 font-bold tracking-wider shrink-0">
+                          🗓️ {r.date.split('-').reverse().join('/')}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

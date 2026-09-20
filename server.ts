@@ -877,174 +877,231 @@ function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
   };
 }
 
-// Official matches retrieval: strictly real FFBB matches, ZERO mock data
+// Core helper to fetch and parse official FFBB club matches with real poule scores
+async function fetchOfficialClubData(clubCode: string) {
+  const cleanCode = String(clubCode || "BFC0071024").trim();
+  const resolved = await resolveOrganismeId(cleanCode);
+  if (!resolved || !resolved.organismeId) {
+    return {
+      success: false,
+      clubCode: cleanCode,
+      matches: [],
+      results: [],
+      teams: [],
+      totalCount: 0,
+      message: `Club FFBB "${cleanCode}" non trouvé sur les registres officiels.`,
+    };
+  }
+
+  const orgId = resolved.organismeId;
+
+  // Fetch official matches, club details, and teams in parallel
+  const [matchesData, clubData, teamsData] = await Promise.all([
+    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+      headers: { "Accept": "application/json" },
+    }).then(r => r.ok ? r.json() : { matches: [], count: 0 }).catch(() => ({ matches: [], count: 0 })),
+
+    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+      headers: { "Accept": "application/json" },
+    }).then(r => r.ok ? r.json() : null).catch(() => null),
+
+    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
+      headers: { "Accept": "application/json" },
+    }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+  ]);
+
+  const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+  const clubNom = clubData?.nom || resolved.clubResolue?.nom || "Sports Réunis Clayettois";
+  const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "La Clayette";
+  const defaultGym = clubData?.salle?.libelle || "COSEC";
+
+  if (rawMatches.length === 0) {
+    return {
+      success: true,
+      clubCode: cleanCode,
+      organismeId: orgId,
+      clubName: clubNom,
+      city: clubCommune,
+      teams: teamsData?.teams || [],
+      matches: [],
+      results: [],
+      totalCount: 0,
+      message: `Aucun match trouvé sur le calendrier FFBB officiel pour ${clubNom}.`,
+    };
+  }
+
+  // Extract unique poule IDs to query official match scores and finished state
+  const pouleIds = Array.from(new Set(rawMatches.map((m: any) => m.pouleId).filter(Boolean)));
+  const scoreMap = new Map<string, { score1: number; score2: number; joue: boolean; nom1?: string; nom2?: string }>();
+
+  if (pouleIds.length > 0) {
+    const pouleResults = await Promise.all(
+      pouleIds.map((pid) =>
+        fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
+          headers: { "Accept": "application/json" },
+        }).then(r => r.ok ? r.json() : null).catch(() => null)
+      )
+    );
+
+    for (const p of pouleResults) {
+      if (p && Array.isArray(p.rencontres)) {
+        for (const r of p.rencontres) {
+          if (r.id) {
+            const hasScore = r.resultatEquipe1 && r.resultatEquipe1 !== "None" && r.resultatEquipe1 !== "null";
+            const isPlayed = r.joue === 1 || hasScore;
+            if (isPlayed && hasScore) {
+              scoreMap.set(String(r.id), {
+                score1: parseInt(r.resultatEquipe1, 10) || 0,
+                score2: parseInt(r.resultatEquipe2, 10) || 0,
+                joue: true,
+                nom1: r.nomEquipe1,
+                nom2: r.nomEquipe2,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Map into MatchItem format with exact scores
+  const mappedMatches: any[] = [];
+  const resultsList: any[] = [];
+
+  for (let idx = 0; idx < rawMatches.length; idx++) {
+    const m = rawMatches[idx];
+    const isHome = m.isHome ?? true;
+    const ourClubName = clubNom;
+    const opp = m.opponent || "Adversaire Inconnu";
+    const teamHome = isHome ? ourClubName : opp;
+    const teamAway = isHome ? opp : ourClubName;
+
+    let gym = defaultGym;
+    if (m.location) {
+      const parts = m.location.split(",");
+      if (parts[0] && parts[0].trim()) {
+        gym = parts[0].trim();
+      }
+    }
+
+    const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
+    const normCat = normalizeFFBBCategory(m.team, m.competition);
+    const matchId = String(m.ffbbMatchId || idx);
+    const pouleScore = scoreMap.get(matchId);
+
+    const hasPouleScore = pouleScore && pouleScore.joue;
+    const isPast = dateStr < todayStr || Boolean(hasPouleScore);
+
+    let homeScore: number | undefined = undefined;
+    let awayScore: number | undefined = undefined;
+    let matchResult: "win" | "loss" | "draw" | null = null;
+
+    if (hasPouleScore && pouleScore) {
+      homeScore = pouleScore.score1;
+      awayScore = pouleScore.score2;
+      const ourScore = isHome ? homeScore : awayScore;
+      const oppScore = isHome ? awayScore : homeScore;
+      matchResult = ourScore > oppScore ? "win" : ourScore < oppScore ? "loss" : "draw";
+    }
+
+    const matchItem = {
+      id: `ffbb-${matchId}`,
+      date: dateStr,
+      time: m.time && m.time !== "Horaire à fixer" ? m.time : "20:30",
+      category: normCat.badgeCategory,
+      competition: m.competition || "Championnat FFBB",
+      teamHome,
+      teamAway,
+      isHomeMatch: isHome,
+      ourClubName,
+      gymnasium: gym,
+      city: isHome ? clubCommune : (m.location ? m.location.split(",").pop()?.trim() || "" : ""),
+      status: isPast ? "finished" : "upcoming",
+      result: matchResult,
+      homeScore,
+      awayScore,
+      ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
+      teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
+      opponentLogo: m.opponentLogo || undefined,
+      poule: m.poule || undefined,
+      pouleId: m.pouleId || undefined,
+    };
+
+    if (hasPouleScore) {
+      resultsList.push(matchItem);
+    } else {
+      mappedMatches.push(matchItem);
+    }
+  }
+
+  mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  resultsList.sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+  // Format teams
+  const rawTeams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
+  const formattedTeams = rawTeams.map((t: any, idx: number) => {
+    const comp = t.competition || "";
+    const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
+    const teamMatches = [...mappedMatches, ...resultsList].filter((m: any) => m.pouleId === t.poule_id || m.competition === comp);
+    const pouleName = teamMatches.find((m: any) => m.poule)?.poule;
+
+    return {
+      id: `team-${t.engagement_id || idx}`,
+      name: norm.displayName,
+      category: norm.badgeCategory,
+      gender: norm.gender,
+      competition: comp,
+      poule: pouleName,
+      pouleId: t.poule_id,
+      matchesCount: teamMatches.length,
+      status: "active",
+    };
+  });
+
+  formattedTeams.sort((a: any, b: any) => {
+    const rank = (str: string) => {
+      if (str.includes("Seniors F")) return 1;
+      if (str.includes("Seniors G")) return 2;
+      if (str.includes("U18 F")) return 3;
+      if (str.includes("U18 G")) return 4;
+      if (str.includes("U15 F")) return 5;
+      if (str.includes("U13 F1")) return 6;
+      if (str.includes("U13 F2")) return 7;
+      if (str.includes("U13 G")) return 8;
+      if (str.includes("U11 F")) return 9;
+      if (str.includes("U11 G")) return 10;
+      return 99;
+    };
+    return rank(a.name) - rank(b.name);
+  });
+
+  return {
+    success: true,
+    source: "ffbb_api_desimone",
+    clubCode: cleanCode,
+    organismeId: orgId,
+    clubName: clubNom,
+    city: clubCommune,
+    gymnasiumDefault: defaultGym,
+    logoUrl: clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined,
+    teams: formattedTeams,
+    matches: mappedMatches,
+    results: resultsList,
+    totalCount: mappedMatches.length + resultsList.length,
+    message: `API FFBB : ${mappedMatches.length} matchs à venir, ${resultsList.length} résultats officiels avec scores enregistrés.`,
+  };
+}
+
+// Official matches retrieval: strictly real FFBB matches with real scores
 app.get("/api/ffbb/matches", async (req, res) => {
   const clubCode = String(req.query.code || "BFC0071024").trim();
   console.log(`[API FFBB] Récupération officielle des rencontres pour : ${clubCode}`);
 
   try {
-    const resolved = await resolveOrganismeId(clubCode);
-    if (!resolved || !resolved.organismeId) {
-      console.warn(`[API FFBB] Organisme introuvable pour : ${clubCode}`);
-      return res.json({
-        success: false,
-        source: "ffbb_api_desimone",
-        clubCode,
-        matches: [],
-        results: [],
-        totalCount: 0,
-        message: `Club FFBB "${clubCode}" non trouvé sur les registres officiels. Aucune fausse donnée de secours générée.`,
-      });
-    }
-
-    const orgId = resolved.organismeId;
-    console.log(`[API FFBB] Organisme résolu: ${orgId} pour code ${clubCode}`);
-
-    // Fetch official matches, club details, and teams in parallel
-    const [matchesData, clubData, teamsData] = await Promise.all([
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
-        headers: { "Accept": "application/json" },
-      }).then(r => r.ok ? r.json() : { matches: [], count: 0 }).catch(() => ({ matches: [], count: 0 })),
-
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
-        headers: { "Accept": "application/json" },
-      }).then(r => r.ok ? r.json() : null).catch(() => null),
-
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
-        headers: { "Accept": "application/json" },
-      }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
-    ]);
-
-    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
-    const clubNom = clubData?.nom || resolved.clubResolue?.nom || "Sports Réunis Clayettois";
-    const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "La Clayette";
-    const defaultGym = clubData?.salle?.libelle || "COSEC";
-
-    if (rawMatches.length === 0) {
-      console.log(`[API FFBB] Aucune rencontre retournée pour l'organisme ${orgId}`);
-      return res.json({
-        success: true,
-        source: "ffbb_api_desimone",
-        clubCode,
-        organismeId: orgId,
-        clubName: clubNom,
-        city: clubCommune,
-        teams: teamsData?.teams || [],
-        matches: [],
-        results: [],
-        totalCount: 0,
-        message: `Aucun match programmé trouvé sur le calendrier FFBB officiel pour ${clubNom}.`,
-      });
-    }
-
-    // Today in YYYY-MM-DD
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    // Map strictly into MatchItem format
-    const mappedMatches = rawMatches.map((m: any, idx: number) => {
-      const isHome = m.isHome ?? true;
-      const ourClubName = clubNom;
-      const opp = m.opponent || "Adversaire Inconnu";
-      const teamHome = isHome ? ourClubName : opp;
-      const teamAway = isHome ? opp : ourClubName;
-
-      // Extract gym name from location string (e.g. "COSEC, Route Gibles - CD79, 71800 CLAYETTE")
-      let gym = defaultGym;
-      if (m.location) {
-        const parts = m.location.split(",");
-        if (parts[0] && parts[0].trim()) {
-          gym = parts[0].trim();
-        }
-      }
-
-      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
-      const isPast = dateStr < todayStr;
-
-      const normCat = normalizeFFBBCategory(m.team, m.competition);
-      return {
-        id: `ffbb-${m.ffbbMatchId || idx}`,
-        date: dateStr,
-        time: m.time && m.time !== "Horaire à fixer" ? m.time : "20:30",
-        category: normCat.badgeCategory,
-        competition: m.competition || "Championnat FFBB",
-        teamHome,
-        teamAway,
-        isHomeMatch: isHome,
-        ourClubName,
-        gymnasium: gym,
-        city: isHome ? clubCommune : (m.location ? m.location.split(",").pop()?.trim() || "" : ""),
-        status: isPast ? "finished" : "upcoming",
-        result: null,
-        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
-        teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
-        opponentLogo: m.opponentLogo || undefined,
-        poule: m.poule || undefined,
-        pouleId: m.pouleId || undefined,
-      };
-    });
-
-    // Sort chronologically
-    mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-
-    const upcomingMatches = mappedMatches.filter((m: any) => m.status === "upcoming");
-    const pastResults = mappedMatches.filter((m: any) => m.status === "finished").reverse();
-
-    // Format and rank official teams with their real match counts
-    const rawTeams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
-    const formattedTeams = rawTeams.map((t: any, idx: number) => {
-      const comp = t.competition || "";
-      const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
-      const teamMatches = mappedMatches.filter((m: any) => m.pouleId === t.poule_id || m.competition === comp);
-      const pouleName = teamMatches.find((m: any) => m.poule)?.poule;
-
-      return {
-        id: `team-${t.engagement_id || idx}`,
-        name: norm.displayName,
-        category: norm.badgeCategory,
-        gender: norm.gender,
-        competition: comp,
-        poule: pouleName,
-        pouleId: t.poule_id,
-        matchesCount: teamMatches.length,
-        status: "active",
-      };
-    });
-
-    // Order: Seniors Filles, Seniors Garçons, U18 F, U18 G, U15 F, U13, U11
-    formattedTeams.sort((a: any, b: any) => {
-      const rank = (str: string) => {
-        if (str.includes("Seniors F")) return 1;
-        if (str.includes("Seniors G")) return 2;
-        if (str.includes("U18 F")) return 3;
-        if (str.includes("U18 G")) return 4;
-        if (str.includes("U15 F")) return 5;
-        if (str.includes("U13 F1")) return 6;
-        if (str.includes("U13 F2")) return 7;
-        if (str.includes("U13 G")) return 8;
-        if (str.includes("U11 F")) return 9;
-        if (str.includes("U11 G")) return 10;
-        return 99;
-      };
-      return rank(a.name) - rank(b.name);
-    });
-
-    console.log(`[API FFBB DE SIMONE] ${mappedMatches.length} rencontres réelles chargées (${upcomingMatches.length} à venir, ${pastResults.length} passées), ${formattedTeams.length} équipes officielles`);
-
-    return res.json({
-      success: true,
-      source: "ffbb_api_desimone",
-      clubCode,
-      organismeId: orgId,
-      clubName: clubNom,
-      city: clubCommune,
-      gymnasiumDefault: defaultGym,
-      logoUrl: clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined,
-      teams: formattedTeams,
-      matches: upcomingMatches,
-      results: pastResults,
-      totalCount: mappedMatches.length,
-      message: `API FFBB Officielle (ffbb-api.desimone.fr) : ${upcomingMatches.length} rencontres à venir et ${pastResults.length} résultats récents pour ${clubNom}.`,
-    });
+    const data = await fetchOfficialClubData(clubCode);
+    return res.json(data);
   } catch (err: any) {
     console.error("[API FFBB Fatal Error]:", err);
     return res.status(500).json({
@@ -1055,9 +1112,106 @@ app.get("/api/ffbb/matches", async (req, res) => {
       results: [],
       totalCount: 0,
       error: err.message,
-      message: `Erreur lors de la récupération des données FFBB officielles. Aucune fausse donnée générée.`,
+      message: `Erreur lors de la récupération des données FFBB officielles.`,
     });
   }
+});
+
+// Explicit endpoint to trigger immediate auto-sync
+let lastSyncTimestamp = 0;
+let lastSyncResult = { success: true, message: "En attente de synchronisation", matchesCount: 0, resultsCount: 0 };
+
+async function runBackgroundFFBBSync() {
+  try {
+    const saved = getSavedAppData();
+    const clubCode = saved?.clubSettings?.codeFFBB || "BFC0071024";
+    console.log(`[AUTO-SYNC FFBB] Déclenchement automatique pour club ${clubCode}...`);
+
+    const ffbbData = await fetchOfficialClubData(clubCode);
+    lastSyncTimestamp = Date.now();
+
+    if (ffbbData.success && (ffbbData.matches.length > 0 || ffbbData.results.length > 0)) {
+      const existingResults = saved?.results || [];
+      const manualResults = existingResults.filter((r: any) => !String(r.id).startsWith("ffbb-"));
+
+      // Merge new official FFBB results with any manual ones
+      const combinedResults = [...ffbbData.results, ...manualResults];
+
+      // Detect any new victories/defeats to alert
+      const todayStr = new Date().toISOString().slice(0, 10);
+      for (const r of ffbbData.results) {
+        if (r.date === todayStr && r.homeScore !== undefined && r.awayScore !== undefined) {
+          const alreadyAlerted = activeAlerts.some((a) => a.id === `alert-${r.id}` || a.rawMessage === r.id);
+          if (!alreadyAlerted) {
+            const ourScore = r.isHomeMatch ? r.homeScore : r.awayScore;
+            const oppScore = r.isHomeMatch ? r.awayScore : r.homeScore;
+            const isWin = ourScore > oppScore;
+            const newAlert: ActiveMatchAlert = {
+              id: `alert-${r.id}`,
+              team: r.category,
+              isWin,
+              ourScore,
+              opponentScore: oppScore,
+              opponent: r.isHomeMatch ? r.teamAway : r.teamHome,
+              triggeredBy: "ffbb",
+              timestamp: Date.now(),
+              expiresAt: Date.now() + 60 * 60 * 1000,
+              rawMessage: r.id,
+            };
+            activeAlerts.unshift(newAlert);
+            cleanExpiredAlerts();
+            console.log(`[AUTO-SYNC ALERTE] Alerte score créée pour ${r.category} (${isWin ? 'Victoire' : 'Défaite'})`);
+          }
+        }
+      }
+
+      // Update saved app data
+      const updatedData = {
+        ...(saved || {}),
+        matches: ffbbData.matches,
+        results: combinedResults,
+      };
+      saveAppDataToFile(updatedData);
+
+      lastSyncResult = {
+        success: true,
+        message: `Synchronisation réussie : ${ffbbData.matches.length} matchs, ${combinedResults.length} résultats (${ffbbData.results.length} officiels FFBB)`,
+        matchesCount: ffbbData.matches.length,
+        resultsCount: combinedResults.length,
+      };
+      console.log(`[AUTO-SYNC FFBB] ${lastSyncResult.message}`);
+    }
+  } catch (err: any) {
+    console.error("[AUTO-SYNC FFBB Error]:", err);
+    lastSyncResult = {
+      success: false,
+      message: `Erreur auto-sync: ${err.message}`,
+      matchesCount: 0,
+      resultsCount: 0,
+    };
+  }
+}
+
+// Background cron/interval: run every 3 minutes
+setInterval(runBackgroundFFBBSync, 180000);
+// Initial run 5 seconds after server startup
+setTimeout(runBackgroundFFBBSync, 5000);
+
+// Endpoint to trigger manual sync from client
+app.all(["/api/ffbb/sync-now", "/api/ffbb/auto-sync"], async (req, res) => {
+  await runBackgroundFFBBSync();
+  res.json({
+    ...lastSyncResult,
+    lastSyncTimestamp,
+  });
+});
+
+app.get("/api/ffbb/sync-status", (req, res) => {
+  res.json({
+    lastSyncTimestamp,
+    lastSyncResult,
+    activeAlertsCount: activeAlerts.length,
+  });
 });
 
 // ----------------------------------------------------

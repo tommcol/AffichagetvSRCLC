@@ -104,58 +104,27 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({ alert, teamVis
 
           {/* Outcome Title */}
           <h1
-            className={`text-5xl md:text-8xl font-black uppercase tracking-wider font-bebas drop-shadow-2xl ${
+            className={`text-6xl md:text-9xl font-black uppercase tracking-wider font-bebas drop-shadow-2xl ${
               alert.isWin
                 ? 'text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-100 to-green-400'
                 : 'text-transparent bg-clip-text bg-gradient-to-r from-red-300 via-orange-100 to-rose-400'
             }`}
           >
-            {alert.isWin ? 'VICTOIRE !' : 'MATCH TERMINÉ'}
+            {alert.isWin ? 'VICTOIRE !' : 'DÉFAITE'}
           </h1>
 
-          {/* Team Name */}
-          <div className="mt-2 px-8 py-2.5 rounded-2xl bg-black/60 backdrop-blur-md border border-white/15">
-            <h2 className="text-2xl md:text-5xl font-black text-white font-bebas tracking-wide">
+          {/* Category in very large display font as requested */}
+          <div className="mt-4 px-10 py-3.5 rounded-3xl bg-black/70 backdrop-blur-md border-2 border-white/20 shadow-2xl">
+            <h2 className="text-3xl md:text-6xl font-black text-white font-bebas tracking-wider uppercase">
               {alert.team}
             </h2>
           </div>
 
-          {/* Score Box if available */}
-          {hasScores && (
-            <div className="mt-6 flex items-center gap-6 px-8 py-4 rounded-3xl bg-slate-900/90 backdrop-blur-md border-2 border-slate-700/80 shadow-2xl">
-              <div className="text-right">
-                <span className="block text-xs uppercase text-slate-400 font-bold tracking-wider">Notre Club</span>
-                <span
-                  className={`text-5xl md:text-7xl font-black font-bebas ${
-                    alert.isWin ? 'text-emerald-400' : 'text-slate-200'
-                  }`}
-                >
-                  {alert.ourScore}
-                </span>
-              </div>
-
-              <div className="text-3xl font-black text-slate-600 font-bebas">-</div>
-
-              <div className="text-left">
-                <span className="block text-xs uppercase text-slate-400 font-bold tracking-wider">
-                  {alert.opponent || 'Adversaire'}
-                </span>
-                <span
-                  className={`text-5xl md:text-7xl font-black font-bebas ${
-                    !alert.isWin ? 'text-red-400' : 'text-slate-400'
-                  }`}
-                >
-                  {alert.opponentScore}
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Cheering / Encouraging Subtitle */}
-          <p className="mt-5 text-base md:text-xl font-medium text-slate-200 drop-shadow max-w-2xl">
+          <p className="mt-6 text-lg md:text-2xl font-semibold text-slate-200 drop-shadow max-w-2xl">
             {alert.isWin
               ? 'Félicitations à toute l’équipe pour cette belle performance ! 🏀🔥'
-              : 'Un match disputé avec combativité. Bravo aux joueurs, rendez-vous au prochain match ! 🏀💪'}
+              : 'Bravo aux joueurs pour leur engagement et combativité ! 🏀💪'}
           </p>
         </div>
 

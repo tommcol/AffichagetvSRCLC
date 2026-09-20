@@ -42,6 +42,7 @@ import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConf
 import { formatMatchDayAndDate } from '../utils/matchDateHelper';
 import { getEffectiveCategoryConfig } from '../utils/themeUtils';
 import { getExportFontEmbedCSS, AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
+import { isMatchWin, isClubHomeMatch } from '../utils/matchStatus';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 interface VisualExporterModalProps {
@@ -327,11 +328,46 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     return weekendMatches;
   }, [weekendMatches, posterFilter, clubSettings]);
 
+  // Filter results based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
+  const filteredResults = useMemo(() => {
+    if (posterFilter === 'home') {
+      const homeOnly = results.filter((r) => r.isHomeMatch);
+      return homeOnly.length > 0 ? homeOnly : results;
+    }
+    if (posterFilter === 'away') {
+      const awayOnly = results.filter((r) => !r.isHomeMatch);
+      return awayOnly.length > 0 ? awayOnly : results;
+    }
+    if (posterFilter === 'exempt') {
+      const exemptOnly = results.filter(
+        (r) =>
+          (r.teamAway && r.teamAway.toLowerCase().includes('exempt')) ||
+          (r.teamHome && r.teamHome.toLowerCase().includes('exempt')) ||
+          (r.category && r.category.toLowerCase().includes('exempt'))
+      );
+      if (exemptOnly.length > 0) return exemptOnly;
+      return results;
+    }
+    return results;
+  }, [results, posterFilter]);
+
   // Compute effective header badge title
   const badgeTitle = useMemo(() => {
     if (customBadgeTitle.trim()) return customBadgeTitle.trim().toUpperCase();
 
-    if (contentType === 'results') return 'RÉSULTATS';
+    if (contentType === 'results') {
+      switch (posterFilter) {
+        case 'home':
+          return 'RÉSULTATS DOMICILE';
+        case 'away':
+          return 'RÉSULTATS EXTÉRIEUR';
+        case 'exempt':
+          return 'EXEMPT';
+        case 'all':
+        default:
+          return 'RÉSULTATS';
+      }
+    }
     if (contentType === 'notification') return specificNotification?.isWin ? 'VICTOIRE !' : 'FIN DE MATCH';
 
     switch (posterFilter) {
@@ -346,6 +382,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         return 'MATCHDAY';
     }
   }, [customBadgeTitle, contentType, posterFilter, specificNotification]);
+
+  // Mode d'affichage mobile : 'preview' (Affiche en direct + téléchargement) ou 'settings' (Options & Calques)
+  const [mobileTab, setMobileTab] = useState<'preview' | 'settings'>('preview');
 
   // Limit of matches to display per visual (auto or manual 3-6)
   const [matchesLimit, setMatchesLimit] = useState<number | 'auto'>('auto');
@@ -452,9 +491,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Active source items list for pagination
   const allSourceItems = useMemo(() => {
-    if (contentType === 'results') return results;
+    if (contentType === 'results') return filteredResults;
     return filteredMatches;
-  }, [contentType, results, filteredMatches]);
+  }, [contentType, filteredResults, filteredMatches]);
 
   // Total pages
   const totalPages = useMemo(() => {
@@ -476,8 +515,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   const displayedResults = useMemo(() => {
     const start = (currentPage - 1) * maxDisplayMatches;
-    return results.slice(start, start + maxDisplayMatches);
-  }, [results, currentPage, maxDisplayMatches]);
+    return filteredResults.slice(start, start + maxDisplayMatches);
+  }, [filteredResults, currentPage, maxDisplayMatches]);
 
   // Effective background image URL
   const effectiveBgUrl = useMemo(() => {
@@ -512,16 +551,17 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
 
     if (contentType === 'results') {
-      const wins = results.filter((r) => r.result === 'win').length;
-      const total = results.length;
-      const resultLines = displayedResults.map((r) =>
-        `${r.result === 'win' ? '✅ VICTOIRE' : '❌ DÉFAITE'} [${r.category}] : ${r.teamHome} ${r.homeScore ?? ''} - ${r.awayScore ?? ''} ${r.teamAway}`
-      ).join('\n');
+      const wins = filteredResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+      const total = filteredResults.length;
+      const resultLines = displayedResults.map((r) => {
+        const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+        return `${isWin ? '✅ VICTOIRE' : '❌ DÉFAITE'} [${r.category}] : ${r.teamHome} ${r.homeScore ?? ''} - ${r.awayScore ?? ''} ${r.teamAway}`;
+      }).join('\n');
 
       return {
-        instagram: `🏆 RÉSULTATS DU WEEK-END | ${clubSettings.shortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs joués ! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLines}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`,
-        tiktok: `🏆 Les résultats basket du week-end sont là ! ${wins} victoires au compteur 🔥💪 Quelle équipe t'a le plus impressionné ? 👇\n\n#fyp #pourtoi #basketball #resultats #victoire`,
-        facebook: `🏆 BILAN DES RENCONTRES - ${clubSettings.name.toUpperCase()} 🏆\n\nFélicitations à nos équipes pour ce week-end ! Bilan global : ${wins} victoires sur ${total} matchs.\n\n${resultLines}\n\nMerci à nos bénévoles pour la buvette et la table de marque !\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball #ResultatsWeekend`,
+        instagram: `🏆 ${badgeTitle} | ${clubSettings.shortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs ${posterFilter === 'home' ? 'à domicile ' : posterFilter === 'away' ? 'à l’extérieur ' : ''}! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLines}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`,
+        tiktok: `🏆 Les ${badgeTitle.toLowerCase()} du week-end sont là ! ${wins} victoires au compteur 🔥💪 Quelle équipe t'a le plus impressionné ? 👇\n\n#fyp #pourtoi #basketball #resultats #victoire`,
+        facebook: `🏆 BILAN DES RENCONTRES [${badgeTitle}] - ${clubSettings.name.toUpperCase()} 🏆\n\nFélicitations à nos équipes pour ce week-end ! Bilan : ${wins} victoires sur ${total} matchs ${posterFilter === 'home' ? 'à domicile ' : posterFilter === 'away' ? 'à l’extérieur ' : ''}.\n\n${resultLines}\n\nMerci à nos bénévoles pour la buvette et la table de marque !\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball #ResultatsWeekend`,
       };
     }
 
@@ -697,34 +737,66 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-[96vw] xl:max-w-[94vw] 2xl:max-w-[1700px] h-[94vh] max-h-[96vh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full h-full sm:h-[94vh] sm:max-h-[96vh] max-w-full sm:max-w-[96vw] xl:max-w-[94vw] 2xl:max-w-[1700px] bg-slate-900 sm:border border-slate-800 rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-red-600/30">
-              <Share2 className="w-5 h-5" />
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-red-600 to-rose-600 flex items-center justify-center text-white shadow-lg shadow-red-600/30 shrink-0">
+              <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h3 className="text-xl font-black text-white uppercase font-bebas tracking-wide flex items-center gap-2">
-                AFFICHE OFFICIELLE RENCONTRES & PASSERELLE RÉSEAUX SOCIAUX
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-xl font-black text-white uppercase font-bebas tracking-wide flex items-center gap-2 truncate">
+                AFFICHE OFFICIELLE RENCONTRES & PASSERELLE RÉSEAUX
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-[11px] sm:text-xs text-slate-400 hidden sm:block">
                 Générez l'affiche officielle du club (Instagram, Facebook, TikTok) avec police auto-adaptative
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors shrink-0"
+            aria-label="Fermer la fenêtre"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content Type & Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 bg-slate-950/80 border-b border-slate-800">
+        {/* ========================================================================= */}
+        {/* BOUTONS NAVIGATION MOBILE : VISIBLE UNIQUEMENT SUR TÉLÉPHONE (< lg)      */}
+        {/* ========================================================================= */}
+        <div className="flex lg:hidden items-center justify-between p-1.5 sm:p-2 bg-slate-950 border-b border-slate-800 gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab('preview')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
+              mobileTab === 'preview'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Eye className="w-4 h-4" />
+            <span>Aperçu de l'Affiche</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileTab('settings')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all ${
+              mobileTab === 'settings'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Options & Textes</span>
+          </button>
+        </div>
+
+        {/* Content Type & Filter Bar : visible uniquement dans l'onglet Options sur mobile, toujours sur PC */}
+        <div className={`${mobileTab === 'settings' ? 'flex' : 'hidden'} lg:flex flex-wrap items-center justify-between gap-3 px-3 sm:px-5 py-2.5 bg-slate-950/80 border-b border-slate-800 shrink-0`}>
           
           {/* Main Category Selector */}
           <div className="flex flex-wrap items-center gap-1.5">
@@ -770,10 +842,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             )}
           </div>
 
-          {/* Matches Sub-filters: Domicile, Extérieur, Exempt, Tout */}
-          {contentType === 'matches' && (
+          {/* Matches & Results Sub-filters: Domicile, Extérieur, Exempt, Tout */}
+          {(contentType === 'matches' || contentType === 'results') && (
             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-              <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Affiche :</span>
+              <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">
+                {contentType === 'results' ? 'Filtre Résultats :' : 'Affiche :'}
+              </span>
               <button
                 onClick={() => {
                   setPosterFilter('home');
@@ -781,10 +855,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   posterFilter === 'home'
-                    ? 'bg-red-700 text-white shadow-sm'
+                    ? contentType === 'results' ? 'bg-emerald-700 text-white shadow-sm' : 'bg-red-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Générer l'affiche des matchs à domicile (DOMICILE)"
+                title={contentType === 'results' ? 'Résultats des matchs joués à domicile (DOMICILE)' : "Générer l'affiche des matchs à domicile (DOMICILE)"}
               >
                 <Home className="w-3 h-3" />
                 <span>DOMICILE</span>
@@ -797,30 +871,32 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   posterFilter === 'away'
-                    ? 'bg-red-700 text-white shadow-sm'
+                    ? contentType === 'results' ? 'bg-emerald-700 text-white shadow-sm' : 'bg-red-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Générer l'affiche des matchs à l'extérieur (EXTÉRIEUR)"
+                title={contentType === 'results' ? "Résultats des matchs joués à l'extérieur (EXTÉRIEUR)" : "Générer l'affiche des matchs à l'extérieur (EXTÉRIEUR)"}
               >
                 <Navigation className="w-3 h-3" />
                 <span>EXTÉRIEUR</span>
               </button>
 
-              <button
-                onClick={() => {
-                  setPosterFilter('exempt');
-                  setCustomBadgeTitle('');
-                }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  posterFilter === 'exempt'
-                    ? 'bg-red-700 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Générer l'affiche des équipes exemptes (EXEMPT)"
-              >
-                <PauseCircle className="w-3 h-3" />
-                <span>EXEMPT</span>
-              </button>
+              {contentType === 'matches' && (
+                <button
+                  onClick={() => {
+                    setPosterFilter('exempt');
+                    setCustomBadgeTitle('');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    posterFilter === 'exempt'
+                      ? 'bg-red-700 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Générer l'affiche des équipes exemptes (EXEMPT)"
+                >
+                  <PauseCircle className="w-3 h-3" />
+                  <span>EXEMPT</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {
@@ -832,7 +908,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     ? 'bg-slate-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Afficher toutes les rencontres de la semaine"
+                title={contentType === 'results' ? "Afficher tous les résultats du week-end (TOUT)" : "Afficher toutes les rencontres de la semaine (TOUT)"}
               >
                 <Layers className="w-3 h-3" />
                 <span>TOUT</span>
@@ -954,13 +1030,101 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         </div>
 
         {/* Modal Main Body: 2 Columns */}
-        <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 sm:p-5 bg-slate-950/90">
+        <div className="flex-1 overflow-y-auto overscroll-contain grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 p-3 sm:p-5 bg-slate-950/90" style={{ WebkitOverflowScrolling: 'touch' }}>
           
           {/* ========================================================================= */}
           {/* LEFT: THE LIVE CAPTURABLE VISUAL CARD */}
           {/* ========================================================================= */}
-          <div className="lg:col-span-6 flex flex-col items-center justify-center p-2 bg-black/50 rounded-3xl border border-slate-800/80 overflow-hidden relative">
+          <div className={`lg:col-span-6 ${mobileTab === 'preview' ? 'flex' : 'hidden'} lg:flex flex-col items-center justify-start p-2 sm:p-4 bg-black/40 rounded-2xl sm:rounded-3xl border border-slate-800/80 relative pb-8`}>
             
+            {/* MINI BARRE MOBILE : CONTRÔLES EXPRESS AU-DESSUS DE L'AFFICHE (< lg) */}
+            <div className="w-full flex lg:hidden flex-col gap-1.5 bg-slate-900/95 p-2 rounded-xl border border-slate-800 mb-2.5 shadow-md">
+              <div className="flex items-center justify-between gap-1">
+                {/* Type de contenu */}
+                <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => { setContentType('matches'); }}
+                    className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
+                      contentType === 'matches' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Matchs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setContentType('results'); }}
+                    className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
+                      contentType === 'results' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Résultats
+                  </button>
+                </div>
+
+                {/* Sub-filtres rapides : Dom / Ext / Tout */}
+                <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => { setPosterFilter('home'); setCustomBadgeTitle(''); }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                      posterFilter === 'home'
+                        ? contentType === 'results' ? 'bg-emerald-700 text-white' : 'bg-red-700 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Dom
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPosterFilter('away'); setCustomBadgeTitle(''); }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                      posterFilter === 'away'
+                        ? contentType === 'results' ? 'bg-emerald-700 text-white' : 'bg-red-700 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Ext
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPosterFilter('all'); setCustomBadgeTitle(''); }}
+                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
+                      posterFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Tout
+                  </button>
+                </div>
+
+                {/* Ratios rapides */}
+                <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                  {(['4:5', '9:16', '1:1'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setAspectRatio(r)}
+                      className={`px-1.5 py-1 rounded text-[10px] font-bold transition-all ${
+                        aspectRatio === r ? 'bg-red-600 text-white font-black' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {r === '9:16' ? '9:16' : r}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('settings')}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold flex items-center gap-1 shrink-0"
+                  title="Toutes les options graphiques et filtres"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden xs:inline">Options</span>
+                </button>
+              </div>
+            </div>
+
             {/* Header info & Quick background / title customizer */}
             <div className="w-full flex items-center justify-between px-2 mb-2">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -1065,12 +1229,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               ref={cardRef}
               className={`w-full relative overflow-hidden text-white flex flex-col justify-between select-none shadow-2xl transition-all ${
                 aspectRatio === '4:5'
-                  ? 'max-w-[420px] aspect-[4/5] p-5 sm:p-6 rounded-3xl'
+                  ? 'w-[92vw] sm:w-full max-w-[420px] aspect-[4/5] p-4 sm:p-6 rounded-3xl'
                   : aspectRatio === '9:16'
-                  ? 'max-w-[340px] aspect-[9/16] p-5 sm:p-6 rounded-3xl'
+                  ? 'w-[88vw] sm:w-full max-w-[340px] aspect-[9/16] p-4 sm:p-6 rounded-3xl'
                   : aspectRatio === '1:1'
-                  ? 'max-w-[400px] aspect-square p-4 sm:p-5 rounded-3xl'
-                  : 'max-w-[620px] aspect-[16/9] p-3.5 sm:p-4 rounded-3xl'
+                  ? 'w-[90vw] sm:w-full max-w-[400px] aspect-square p-4 sm:p-5 rounded-3xl'
+                  : 'w-full max-w-[620px] aspect-[16/9] p-3.5 sm:p-4 rounded-3xl'
               }`}
               style={{
                 backgroundColor: '#111111',
@@ -1309,7 +1473,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         }`}
                       >
                         {displayedResults.map((r) => {
-                          const isWin = r.result === 'win';
+                          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
                           const scoreDisplay = `${r.homeScore ?? 0} - ${r.awayScore ?? 0}`;
                           const count = displayedResults.length;
 
@@ -1502,12 +1666,107 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 </>
               )}
             </div>
+
+            {/* ========================================================================= */}
+            {/* ACTIONS SUR SMARTPHONE DANS L'ONGLET APERÇU (Téléchargement & Partage)   */}
+            {/* ========================================================================= */}
+            <div className="w-full mt-4 space-y-2.5 block lg:hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  disabled={isExporting}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 active:from-red-700 active:to-rose-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 transition-all"
+                >
+                  {downloadSuccess ? (
+                    <>
+                      <Check className="w-5 h-5 text-emerald-300" />
+                      <span>Affiche Enregistrée !</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      <span>{isExporting ? 'Génération...' : `Télécharger l'Affiche (${aspectRatio})`}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  disabled={isSharing || isExporting}
+                  className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 shadow-md transition-all"
+                >
+                  <Share2 className="w-5 h-5 text-orange-400" />
+                  <span>{isSharing ? 'Préparation...' : 'Partager (WhatsApp / Insta)'}</span>
+                </button>
+              </div>
+
+              {/* Raccourcis copie de légende pour réseaux sociaux */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <Copy className="w-3.5 h-3.5 text-red-400" />
+                    <span>Copier la légende du post :</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(generatedCaptions.instagram, 'insta')}
+                    className="py-2 px-1.5 rounded-xl bg-pink-600/20 hover:bg-pink-600/40 text-pink-300 border border-pink-500/30 text-xs font-bold flex items-center justify-center gap-1"
+                  >
+                    <Instagram className="w-3.5 h-3.5" />
+                    <span>{copiedKey === 'insta' ? 'Copié !' : 'Instagram'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(generatedCaptions.tiktok, 'tiktok')}
+                    className="py-2 px-1.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center justify-center gap-1"
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>{copiedKey === 'tiktok' ? 'Copié !' : 'TikTok'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(generatedCaptions.facebook, 'fb')}
+                    className="py-2 px-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center justify-center gap-1"
+                  >
+                    <Facebook className="w-3.5 h-3.5" />
+                    <span>{copiedKey === 'fb' ? 'Copié !' : 'Facebook'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobileTab('settings')}
+                className="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-bold flex items-center justify-center gap-1.5"
+              >
+                <Sliders className="w-4 h-4 text-amber-400" />
+                <span>Personnaliser les options (format, calques, titre)</span>
+              </button>
+            </div>
           </div>
 
           {/* ========================================================================= */}
           {/* RIGHT: STUDIO LAYERS & SOCIAL BRIDGE CONTROLS */}
           {/* ========================================================================= */}
-          <div className="lg:col-span-6 flex flex-col justify-between space-y-3.5">
+          <div className={`lg:col-span-6 ${mobileTab === 'settings' ? 'flex' : 'hidden'} lg:flex flex-col justify-between space-y-3.5`}>
+            
+            {/* Raccourci rapide vers l'Aperçu sur smartphone */}
+            <div className="block lg:hidden bg-slate-950 p-2.5 rounded-2xl border border-red-900/50">
+              <button
+                type="button"
+                onClick={() => setMobileTab('preview')}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 active:scale-98 transition-all"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Voir le résultat sur l'affiche</span>
+              </button>
+            </div>
             
             {/* STUDIO GRAPHIQUE & CALQUES OPTIONS */}
             <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2.5">
@@ -2465,13 +2724,28 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Raccourci bas de page vers l'Aperçu sur smartphone */}
+            <div className="block lg:hidden pt-2">
+              <button
+                type="button"
+                onClick={() => setMobileTab('preview')}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 active:scale-98 transition-all"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Voir l'Affiche & Télécharger</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Modal Bottom Footer Notice */}
-        <div className="px-5 py-2 border-t border-slate-800 bg-slate-950 text-center flex items-center justify-between text-[11px] text-slate-400">
-          <span>
+        <div className="px-3 sm:px-5 py-2 border-t border-slate-800 bg-slate-950 text-center flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+          <span className="hidden sm:inline">
             🏀 Affiche officielle générée au ratio <strong>{aspectRatio}</strong> • Police auto-adaptative sans débordement • Prêt pour <strong>Instagram</strong>, <strong>Facebook</strong> et <strong>TikTok</strong>
+          </span>
+          <span className="sm:hidden text-[11px] text-slate-400">
+            Affiche HD prête pour réseaux ({aspectRatio})
           </span>
 
           <button

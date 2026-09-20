@@ -30,7 +30,8 @@ import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { getEffectiveCategoryConfig } from './utils/themeUtils';
-import { isVideoMedia } from './utils/mediaUtils';
+import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
+import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronLeft,
@@ -141,6 +142,55 @@ export default function App() {
         setDataChargee(true);
       })
       .catch(() => setDataChargee(true));
+
+    // Restauration automatique des vidéos stockées dans IndexedDB
+    const restoreVideos = async () => {
+      try {
+        const categoriesToCheck: ('matches' | 'results' | 'birthdays')[] = ['matches', 'results', 'birthdays'];
+        for (const cat of categoriesToCheck) {
+          const storedBlobUrl = await getMediaBlobUrl(`category_bg_${cat}`);
+          if (storedBlobUrl) {
+            registerVideoBlob(storedBlobUrl);
+            setVisualTemplates((prev) => {
+              if (cat === 'matches') {
+                return {
+                  ...prev,
+                  matchesSettings: {
+                    ...prev.matchesSettings,
+                    backgroundUrl: storedBlobUrl,
+                    backgroundMediaType: 'video',
+                  },
+                  matchesBackgroundUrl: storedBlobUrl,
+                };
+              } else if (cat === 'results') {
+                return {
+                  ...prev,
+                  resultsSettings: {
+                    ...prev.resultsSettings,
+                    backgroundUrl: storedBlobUrl,
+                    backgroundMediaType: 'video',
+                  },
+                  resultsBackgroundUrl: storedBlobUrl,
+                };
+              } else {
+                return {
+                  ...prev,
+                  birthdaysSettings: {
+                    ...prev.birthdaysSettings,
+                    backgroundUrl: storedBlobUrl,
+                    backgroundMediaType: 'video',
+                  },
+                  birthdaysBackgroundUrl: storedBlobUrl,
+                };
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Erreur chargement vidéos IndexedDB:', e);
+      }
+    };
+    restoreVideos();
   }, []);
 
   // Enregistrement automatique (avec anti-rebond de 800ms) dès qu'une donnée change
@@ -192,7 +242,7 @@ export default function App() {
     visualTemplates,
   ]);
 
-  // Vérification périodique des alertes victoire/défaite actives (partagées via Netlify)
+  // Vérification périodique des alertes victoire/défaite actives
   useEffect(() => {
     const fetchServerAlerts = async () => {
       try {
@@ -216,9 +266,46 @@ export default function App() {
     };
 
     fetchServerAlerts();
-    const interval = setInterval(fetchServerAlerts, 300000);
+    const interval = setInterval(fetchServerAlerts, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // Actualisation automatique des résultats et matchs depuis le serveur (mise à jour continue en temps réel)
+  useEffect(() => {
+    const pollUpdatedData = async () => {
+      // En mode TV (non administrateur actif), synchroniser automatiquement les nouveaux résultats et matchs
+      if (adminAuthentifie && viewMode === 'admin') return;
+      try {
+        const res = await fetch('/api/get-app-data');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            const d = json.data;
+            if (Array.isArray(d.results)) {
+              setResults((prev) => {
+                const prevJson = JSON.stringify(prev);
+                const nextJson = JSON.stringify(d.results);
+                return prevJson === nextJson ? prev : d.results;
+              });
+            }
+            if (Array.isArray(d.matches)) {
+              setMatches((prev) => {
+                const prevJson = JSON.stringify(prev);
+                const nextJson = JSON.stringify(d.matches);
+                return prevJson === nextJson ? prev : d.matches;
+              });
+            }
+          }
+        }
+      } catch (err) {
+        // silencieux
+      }
+    };
+
+    // Polling toutes les 30 secondes
+    const dataPollInterval = setInterval(pollUpdatedData, 30000);
+    return () => clearInterval(dataPollInterval);
+  }, [adminAuthentifie, viewMode]);
 
   // Filter out any expired alerts every 30 seconds
   useEffect(() => {
@@ -492,21 +579,21 @@ export default function App() {
         return !!(lg.isVideo || lg.mediaType === 'video' || isVideoMedia(lg.logoUrl));
       }
       if (currentSlide.categoryId === 'birthdays') {
-        const bgVid = birthdaysEffective.backgroundUrl && isVideoMedia(birthdaysEffective.backgroundUrl);
+        const bgVid = birthdaysEffective.backgroundUrl && (birthdaysEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(birthdaysEffective.backgroundUrl));
         const l3Vid = birthdaysEffective.layer3?.enabled && (birthdaysEffective.layer3.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer3.mediaUrl));
         const l4Vid = birthdaysEffective.layer4?.enabled && (birthdaysEffective.layer4.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer4.mediaUrl));
         const mascotVid = birthdaysEffective.mascot?.enabled && birthdaysEffective.mascot.mediaType === 'video' && birthdaysEffective.mascot.mediaUrl;
         return !!(bgVid || l3Vid || l4Vid || mascotVid);
       }
       if (currentSlide.categoryId === 'matches') {
-        const bgVid = matchesEffective.backgroundUrl && isVideoMedia(matchesEffective.backgroundUrl);
+        const bgVid = matchesEffective.backgroundUrl && (matchesEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(matchesEffective.backgroundUrl));
         const l3Vid = matchesEffective.layer3?.enabled && (matchesEffective.layer3.mediaType === 'video' || isVideoMedia(matchesEffective.layer3.mediaUrl));
         const l4Vid = matchesEffective.layer4?.enabled && (matchesEffective.layer4.mediaType === 'video' || isVideoMedia(matchesEffective.layer4.mediaUrl));
         const mascotVid = matchesEffective.mascot?.enabled && matchesEffective.mascot.mediaType === 'video' && matchesEffective.mascot.mediaUrl;
         return !!(bgVid || l3Vid || l4Vid || mascotVid);
       }
       if (currentSlide.categoryId === 'results') {
-        const bgVid = resultsEffective.backgroundUrl && isVideoMedia(resultsEffective.backgroundUrl);
+        const bgVid = resultsEffective.backgroundUrl && (resultsEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(resultsEffective.backgroundUrl));
         const l3Vid = resultsEffective.layer3?.enabled && (resultsEffective.layer3.mediaType === 'video' || isVideoMedia(resultsEffective.layer3.mediaUrl));
         const l4Vid = resultsEffective.layer4?.enabled && (resultsEffective.layer4.mediaType === 'video' || isVideoMedia(resultsEffective.layer4.mediaUrl));
         const mascotVid = resultsEffective.mascot?.enabled && resultsEffective.mascot.mediaType === 'video' && resultsEffective.mascot.mediaUrl;

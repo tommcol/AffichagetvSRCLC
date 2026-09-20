@@ -119,6 +119,7 @@ export interface SlideDesignTheme {
   badgeTextColor?: string;
   backgroundBrightness: number; // 0.1 à 1.0 (défaut 0.35)
   backgroundBlur: number; // 0 à 20px (défaut 0)
+  backgroundMediaType?: 'image' | 'video';
 }
 
 // Élément superposé libre (Calque 3 et Calque 4 : mascotte, logo, badge derby, sponsor, sticker...)
@@ -150,6 +151,7 @@ export interface OverlayLayerItem {
 export interface CategorySlideTheme {
   // Calque 1 : Fond
   backgroundUrl?: string; // Image ou vidéo propre à cette catégorie
+  backgroundMediaType?: 'image' | 'video'; // Type explicite du média de fond
   backgroundBrightness?: number; // 0.05 à 2.0 (5% à 200%)
   backgroundBlur?: number; // 0 à 20px
 
@@ -292,6 +294,8 @@ export interface ClubSettings {
   purePhotoSlidesOnly?: boolean; // Mode 100% photo/image pur sans aucun texte superposé
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos
   balancedLoopMode?: boolean; // Alternance équilibrée des catégories (1 match, 1 sponsor, 1 photo, 1 résultat...)
+  autoSyncFFBB?: boolean; // Synchronisation automatique périodique avec FFBB
+  autoSyncIntervalMinutes?: number; // Fréquence de synchronisation en minutes (défaut 3 min)
 }
 
 export interface CarouselSlide {

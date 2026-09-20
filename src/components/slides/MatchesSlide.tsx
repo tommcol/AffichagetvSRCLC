@@ -52,7 +52,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   onVideoTimeUpdate,
 }) => {
   // Video priority and synchronization determination
-  const isBgVideo = Boolean(backgroundUrl && isVideoMedia(backgroundUrl));
+  const isBgVideo = Boolean(
+    backgroundUrl && (theme?.backgroundMediaType === 'video' || isVideoMedia(backgroundUrl))
+  );
   const isLayer3Video = Boolean(
     layer3?.enabled && (layer3.mediaType === 'video' || isVideoMedia(layer3.mediaUrl))
   );
