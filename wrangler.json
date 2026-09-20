@@ -1,9 +1,18 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "affichagetvsrclc",
+  "main": "worker/index.ts",
   "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
-  }
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AFFICHAGE_KV",
+      "id": "c35c137f47ec4c7183db32c6d76e3fd8"
+    }
+  ]
 }
