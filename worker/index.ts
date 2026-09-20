@@ -54,8 +54,8 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
   }
   const { password, data } = body;
   const expectedPassword = env.ADMIN_PASSWORD;
-  if (expectedPassword && password !== expectedPassword) {
-    return new Response(JSON.stringify({ error: 'Mot de passe incorrect' }), { status: 401 });
+  if (!expectedPassword || password !== expectedPassword) {
+    return new Response(JSON.stringify({ error: 'Mot de passe incorrect ou non configuré' }), { status: 401 });
   }
   if (!data) {
     return new Response(JSON.stringify({ error: 'Champ "data" requis' }), { status: 400 });
