@@ -2230,8 +2230,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   )}
 
                   {syncMessage && (
-                    <p className="text-[11px] text-emerald-400 font-medium bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/20">
-                      {syncMessage}
+                    <p className={`text-[11px] font-medium p-2.5 rounded-xl border ${
+                      syncIsError
+                        ? 'text-red-400 bg-red-950/40 border-red-500/20'
+                        : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/20'
+                    }`}>
+                      {syncIsError ? '⚠ ' : '✓ '}{syncMessage}
                     </p>
                   )}
                 </div>
@@ -6217,8 +6221,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 {syncMessage && (
-                  <p className="text-xs text-emerald-400 font-medium bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/30">
-                    {syncMessage}
+                  <p className={`text-xs font-medium p-3 rounded-xl border ${
+                    syncIsError
+                      ? 'text-red-400 bg-red-950/40 border-red-500/30'
+                      : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'
+                  }`}>
+                    {syncIsError ? '⚠ ' : '✓ '}{syncMessage}
                   </p>
                 )}
 
