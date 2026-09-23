@@ -333,6 +333,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // FFBB Sync State & Real Teams State
   const [isSyncingFFBB, setIsSyncingFFBB] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncIsError, setSyncIsError] = useState<boolean>(false);
   const [editingMatch, setEditingMatch] = useState<MatchItem | null>(null);
   const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
     try {
@@ -1273,6 +1274,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
     setSyncMessage(null);
+    setSyncIsError(false);
     try {
       const res = await FFBBService.fetchClubData(clubSettings.codeFFBB);
       if (res.matches && res.matches.length > 0) {
@@ -1310,11 +1312,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           : '';
         setSyncMessage(`Synchronisation réussie (${sourceInfo})${filterMsg} ! ${filteredMatches.length} rencontres importées, ${filteredResults.length} résultats, et ${res.clubInfo?.teamsList?.length || ffbbTeams.length} équipes officielles.`);
       } else {
+        setSyncIsError(true);
         setSyncMessage(res.message || 'Calendrier FFBB officiel interrogé : aucune rencontre programmée pour ce club.');
       }
     } catch (err) {
       console.error(err);
-      setSyncMessage('Erreur de connexion à l\'API FFBB officielle.');
+      setSyncIsError(true);
+      setSyncMessage('Erreur de connexion à l\'API FFBB officielle. Réessaie dans quelques minutes, ou vérifie le code club dans les paramètres FFBB.');
     } finally {
       setIsSyncingFFBB(false);
     }
