@@ -320,6 +320,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newResultCategory, setNewResultCategory] = useState('Seniors Garçons 1');
   const [newResultIsCustomCategory, setNewResultIsCustomCategory] = useState(false);
   const [newResultOpponent, setNewResultOpponent] = useState('');
+  const [newResultMode, setNewResultMode] = useState<'score' | 'status'>('score');
+  const [newResultStatusOutcome, setNewResultStatusOutcome] = useState<'win' | 'loss'>('win');
   const [newResultHomeScore, setNewResultHomeScore] = useState<string>('');
   const [newResultAwayScore, setNewResultAwayScore] = useState<string>('');
   const [newResultIsHome, setNewResultIsHome] = useState<boolean>(true);
@@ -700,22 +702,30 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       return;
     }
 
-    if (newResultHomeScore.trim() === '' || newResultAwayScore.trim() === '') {
-      setNewResultErrorMsg("Veuillez saisir les scores des deux équipes.");
-      return;
-    }
-
-    const ourScore = parseInt(newResultHomeScore, 10);
-    const oppScore = parseInt(newResultAwayScore, 10);
-
-    if (isNaN(ourScore) || isNaN(oppScore)) {
-      setNewResultErrorMsg("Les scores doivent être des nombres entiers valides.");
-      return;
-    }
-
     const club = clubSettings.shortName || clubSettings.name || 'Notre Club';
     const cat = newResultCategory.trim() || 'Seniors';
-    const isWin = ourScore > oppScore;
+
+    let ourScore: number | undefined = undefined;
+    let oppScore: number | undefined = undefined;
+    let isWin = false;
+
+    if (newResultMode === 'score') {
+      if (newResultHomeScore.trim() === '' || newResultAwayScore.trim() === '') {
+        setNewResultErrorMsg("Veuillez saisir les scores des deux équipes ou basculer en mode Victoire / Défaite.");
+        return;
+      }
+
+      ourScore = parseInt(newResultHomeScore, 10);
+      oppScore = parseInt(newResultAwayScore, 10);
+
+      if (isNaN(ourScore) || isNaN(oppScore)) {
+        setNewResultErrorMsg("Les scores doivent être des nombres entiers valides.");
+        return;
+      }
+      isWin = ourScore > oppScore;
+    } else {
+      isWin = newResultStatusOutcome === 'win';
+    }
 
     const newRes: MatchItem = {
       id: `res-m-${Date.now()}`,
@@ -729,8 +739,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       ourClubName: club,
       gymnasium: newResultIsHome ? clubSettings.gymnasiumDefault : '',
       city: newResultIsHome ? clubSettings.city : '',
-      homeScore: newResultIsHome ? ourScore : oppScore,
-      awayScore: newResultIsHome ? oppScore : ourScore,
+      homeScore: newResultMode === 'score' ? (newResultIsHome ? ourScore : oppScore) : undefined,
+      awayScore: newResultMode === 'score' ? (newResultIsHome ? oppScore : ourScore) : undefined,
       status: 'finished',
       result: isWin ? 'win' : 'loss',
     };
@@ -760,7 +770,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setSelectedScheduledMatchId('');
     setNewResultErrorMsg(null);
     setNewResultSuccessMsg(
-      `Résultat enregistré avec succès : ${cat} ${ourScore} - ${oppScore} ${cleanOpponent} (${isWin ? 'Victoire 🏆' : 'Défaite'}) !`
+      newResultMode === 'score'
+        ? `Résultat enregistré avec succès : ${cat} ${ourScore} - ${oppScore} ${cleanOpponent} (${isWin ? 'Victoire 🏆' : 'Défaite'}) !`
+        : `Résultat enregistré avec succès : ${cat} vs ${cleanOpponent} (${isWin ? 'Victoire 🏆' : 'Défaite'}) !`
     );
     setTimeout(() => setNewResultSuccessMsg(null), 4500);
   };
@@ -2909,43 +2921,107 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     />
                   </div>
 
-                  {/* 4. Score Notre Club */}
-                  <div className="lg:col-span-1.5 space-y-1.5">
-                    <label className="text-emerald-400 block font-bold truncate" title="Notre Club">
-                      Notre score : <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="82"
-                      value={newResultHomeScore}
-                      onChange={(e) => {
-                        setNewResultHomeScore(e.target.value);
-                        if (newResultErrorMsg) setNewResultErrorMsg(null);
-                      }}
-                      className="w-full bg-slate-950 border border-emerald-500/50 hover:border-emerald-400 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-emerald-400 focus:outline-none"
-                    />
+                  {/* Choix du Mode de Saisie du Résultat */}
+                  <div className="lg:col-span-3 space-y-1.5">
+                    <label className="text-slate-300 block font-bold">Saisie du résultat :</label>
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setNewResultMode('score')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
+                          newResultMode === 'score'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        title="Saisir les scores numériques exacts (ex: 82-74)"
+                      >
+                        🔢 Score
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewResultMode('status')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all text-center ${
+                          newResultMode === 'status'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        title="Sélectionner directement Victoire ou Défaite (Sans score)"
+                      >
+                        🏆 Victoire/Défaite
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 5. Score Adversaire */}
-                  <div className="lg:col-span-1.5 space-y-1.5">
-                    <label className="text-rose-400 block font-bold truncate" title="Adversaire">
-                      Score adv. : <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="74"
-                      value={newResultAwayScore}
-                      onChange={(e) => {
-                        setNewResultAwayScore(e.target.value);
-                        if (newResultErrorMsg) setNewResultErrorMsg(null);
-                      }}
-                      className="w-full bg-slate-950 border border-rose-500/50 hover:border-rose-400 focus:border-rose-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-rose-400 focus:outline-none"
-                    />
-                  </div>
+                  {/* 4. Champs de score OU Boutons Victoire/Défaite */}
+                  {newResultMode === 'score' ? (
+                    <>
+                      {/* Score Notre Club */}
+                      <div className="lg:col-span-1.5 space-y-1.5">
+                        <label className="text-emerald-400 block font-bold truncate" title="Notre Club">
+                          Notre score : <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="82"
+                          value={newResultHomeScore}
+                          onChange={(e) => {
+                            setNewResultHomeScore(e.target.value);
+                            if (newResultErrorMsg) setNewResultErrorMsg(null);
+                          }}
+                          className="w-full bg-slate-950 border border-emerald-500/50 hover:border-emerald-400 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-emerald-400 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Score Adversaire */}
+                      <div className="lg:col-span-1.5 space-y-1.5">
+                        <label className="text-rose-400 block font-bold truncate" title="Adversaire">
+                          Score adv. : <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="74"
+                          value={newResultAwayScore}
+                          onChange={(e) => {
+                            setNewResultAwayScore(e.target.value);
+                            if (newResultErrorMsg) setNewResultErrorMsg(null);
+                          }}
+                          className="w-full bg-slate-950 border border-rose-500/50 hover:border-rose-400 focus:border-rose-400 rounded-xl px-3 py-2.5 text-white font-mono font-black text-base text-center text-rose-400 focus:outline-none"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="lg:col-span-3 space-y-1.5">
+                      <label className="text-slate-300 block font-bold">Résultat direct :</label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setNewResultStatusOutcome('win')}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all border flex items-center justify-center gap-1 ${
+                            newResultStatusOutcome === 'win'
+                              ? 'bg-emerald-600 text-white border-emerald-400 shadow-md ring-2 ring-emerald-400/50'
+                              : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <span>🏆 VICTOIRE</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewResultStatusOutcome('loss')}
+                          className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all border flex items-center justify-center gap-1 ${
+                            newResultStatusOutcome === 'loss'
+                              ? 'bg-rose-600 text-white border-rose-400 shadow-md ring-2 ring-rose-400/50'
+                              : 'bg-slate-950 text-slate-400 border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <span>❌ DÉFAITE</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Score Live Preview Indicator */}
-                {newResultHomeScore.trim() !== '' && newResultAwayScore.trim() !== '' && (
+                {newResultMode === 'score' && newResultHomeScore.trim() !== '' && newResultAwayScore.trim() !== '' && (
                   <div className="pt-2 flex items-center justify-between text-xs font-bold px-1">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400">Aperçu :</span>
@@ -2971,6 +3047,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         </span>
                       )}
                     </div>
+                  </div>
+                )}
+                {newResultMode === 'status' && (
+                  <div className="pt-2 flex items-center gap-2 text-xs font-bold px-1">
+                    <span className="text-slate-400">Aperçu :</span>
+                    <span className="text-white">
+                      {newResultCategory || 'Notre Club'} vs {newResultOpponent || 'Adversaire'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                      newResultStatusOutcome === 'win' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    }`}>
+                      {newResultStatusOutcome === 'win' ? '🏆 VICTOIRE' : '❌ DÉFAITE'}
+                    </span>
                   </div>
                 )}
 
@@ -3057,7 +3146,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               </span>
                             </div>
                             <div className="text-base font-black text-white font-mono tracking-wider">
-                              {r.teamHome} {r.homeScore} - {r.awayScore} {r.teamAway}
+                              {r.teamHome} {r.homeScore !== undefined && r.awayScore !== undefined ? `${r.homeScore} - ${r.awayScore}` : ''} {r.teamAway}
                             </div>
                           </div>
 
@@ -3144,16 +3233,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </label>
                           <input
                             type="number"
-                            value={editingResult.homeScore ?? 0}
+                            placeholder="Optionnel"
+                            value={editingResult.homeScore !== undefined ? editingResult.homeScore : ''}
                             onChange={(e) => {
-                              const newHome = parseInt(e.target.value, 10) || 0;
-                              const away = editingResult.awayScore || 0;
-                              const updated = { ...editingResult, homeScore: newHome };
-                              const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
-                              setEditingResult({
-                                ...updated,
-                                result: win ? 'win' : 'loss',
-                              });
+                              const val = e.target.value;
+                              if (val === '') {
+                                setEditingResult({ ...editingResult, homeScore: undefined });
+                              } else {
+                                const newHome = parseInt(val, 10);
+                                const updated = { ...editingResult, homeScore: isNaN(newHome) ? undefined : newHome };
+                                if (updated.homeScore !== undefined && updated.awayScore !== undefined) {
+                                  const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
+                                  setEditingResult({ ...updated, result: win ? 'win' : 'loss' });
+                                } else {
+                                  setEditingResult(updated);
+                                }
+                              }
                             }}
                             className="w-full bg-slate-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-emerald-400"
                           />
@@ -3164,20 +3259,39 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </label>
                           <input
                             type="number"
-                            value={editingResult.awayScore ?? 0}
+                            placeholder="Optionnel"
+                            value={editingResult.awayScore !== undefined ? editingResult.awayScore : ''}
                             onChange={(e) => {
-                              const newAway = parseInt(e.target.value, 10) || 0;
-                              const updated = { ...editingResult, awayScore: newAway };
-                              const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
-                              setEditingResult({
-                                ...updated,
-                                result: win ? 'win' : 'loss',
-                              });
+                              const val = e.target.value;
+                              if (val === '') {
+                                setEditingResult({ ...editingResult, awayScore: undefined });
+                              } else {
+                                const newAway = parseInt(val, 10);
+                                const updated = { ...editingResult, awayScore: isNaN(newAway) ? undefined : newAway };
+                                if (updated.homeScore !== undefined && updated.awayScore !== undefined) {
+                                  const win = isMatchWin(updated, clubSettings.name, clubSettings.shortName);
+                                  setEditingResult({ ...updated, result: win ? 'win' : 'loss' });
+                                } else {
+                                  setEditingResult(updated);
+                                }
+                              }
                             }}
                             className="w-full bg-slate-950 border border-rose-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold text-center text-rose-400"
                           />
                         </div>
                       </div>
+
+                      {(editingResult.homeScore !== undefined || editingResult.awayScore !== undefined) && (
+                        <div className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => setEditingResult({ ...editingResult, homeScore: undefined, awayScore: undefined })}
+                            className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline"
+                          >
+                            🗑️ Effacer les scores numériques (garder uniquement Victoire/Défaite)
+                          </button>
+                        </div>
+                      )}
 
                       {/* Sélecteur forcé Résultat / Type de match */}
                       <div className="grid grid-cols-2 gap-2 pt-1">

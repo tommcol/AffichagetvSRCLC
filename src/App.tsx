@@ -90,6 +90,7 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminAuthentifie, setAdminAuthentifie] = useState(false);
   const [erreurAuthAdmin, setErreurAuthAdmin] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Controls & TV playback state
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
@@ -200,26 +201,52 @@ export default function App() {
 
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
-      fetch('/api/save-app-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: adminPassword,
-          data: {
-            clubSettings,
-            categories,
-            matches,
-            results,
-            sponsors,
-            logos,
-            photos,
-            birthdays,
-            events,
-            teamVisuals,
-            visualTemplates,
-          },
-        }),
-      }).catch(() => {});
+      setSaveStatus('saving');
+      const payload = {
+        password: adminPassword,
+        data: {
+          clubSettings,
+          categories,
+          matches,
+          results,
+          sponsors,
+          logos,
+          photos,
+          birthdays,
+          events,
+          teamVisuals,
+          visualTemplates,
+        },
+      };
+
+      const tenter = (estNouvelleTentative: boolean) => {
+        fetch('/api/save-app-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then((res) => {
+            if (res.ok) {
+              setSaveStatus('saved');
+              setTimeout(() => setSaveStatus('idle'), 2000);
+            } else if (!estNouvelleTentative) {
+              setTimeout(() => tenter(true), 3000);
+            } else {
+              setSaveStatus('error');
+              console.error('Échec de l\'enregistrement des données (réponse serveur non OK)');
+            }
+          })
+          .catch((err) => {
+            if (!estNouvelleTentative) {
+              setTimeout(() => tenter(true), 3000);
+            } else {
+              setSaveStatus('error');
+              console.error('Échec de l\'enregistrement des données :', err);
+            }
+          });
+      };
+
+      tenter(false);
     }, 800);
 
     return () => {
@@ -723,7 +750,9 @@ export default function App() {
 
   const handleRemoveAlert = (id: string) => {
     setActiveAlerts((prev) => prev.filter((a) => a.id !== id));
-    fetch(`/api/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch((err) => {
+      console.error('Échec de la suppression de l\'alerte côté serveur :', err);
+    });
   };
 
   // Find matching team visual if current slide is an alert
@@ -781,6 +810,21 @@ export default function App() {
   if (viewMode === 'admin') {
     return (
       <div className="w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        {saveStatus !== 'idle' && (
+          <div
+            className={`fixed top-4 right-4 z-[999] px-4 py-2 rounded-full text-sm font-bold shadow-xl flex items-center gap-2 ${
+              saveStatus === 'saving'
+                ? 'bg-slate-700 text-slate-200'
+                : saveStatus === 'saved'
+                ? 'bg-green-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}
+          >
+            {saveStatus === 'saving' && 'Enregistrement...'}
+            {saveStatus === 'saved' && '✓ Enregistré'}
+            {saveStatus === 'error' && '⚠ Échec de l\'enregistrement — vérifie ta connexion'}
+          </div>
+        )}
         <AdminPanel
           isOpen={true}
           isFullPage={true}

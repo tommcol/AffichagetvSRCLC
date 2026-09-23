@@ -36,14 +36,81 @@ import {
   RotateCcw,
   Maximize2,
   Type,
+  AlertCircle,
 } from 'lucide-react';
-import { toPng } from 'html-to-image';
+import { toPng, toJpeg, toCanvas } from 'html-to-image';
 import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption } from '../types';
 import { formatMatchDayAndDate } from '../utils/matchDateHelper';
 import { getEffectiveCategoryConfig } from '../utils/themeUtils';
-import { getExportFontEmbedCSS, AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
+import { AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
 import { isMatchWin, isClubHomeMatch } from '../utils/matchStatus';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
+
+const TRANSPARENT_IMAGE_FALLBACK =
+  'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
+
+/**
+ * Bulletproof multi-stage exporter for HTML DOM elements to high-resolution data URLs.
+ * Handles mobile browsers, webview sandboxes, and bypasses CORS/font issues gracefully.
+ */
+async function safeExportPosterToDataUrl(
+  node: HTMLElement,
+  targetQuality = 0.98,
+  targetRatio = 2.2
+): Promise<string> {
+  const baseOptions = {
+    cacheBust: false,
+    skipFonts: true,
+    pixelRatio: targetRatio,
+    quality: targetQuality,
+    imagePlaceholder: TRANSPARENT_IMAGE_FALLBACK,
+    fetchRequestInit: {
+      mode: 'cors' as RequestMode,
+      cache: 'force-cache' as RequestCache,
+    },
+  };
+
+  // Stage 1: High quality PNG with skipFonts (avoids Google Fonts woff2 cors crashes)
+  try {
+    return await toPng(node, baseOptions);
+  } catch (err1) {
+    console.warn('Tentative 1 export PNG haute résolution échouée, tentative 2...', err1);
+  }
+
+  // Stage 2: Balanced pixelRatio PNG
+  try {
+    return await toPng(node, {
+      ...baseOptions,
+      pixelRatio: 1.8,
+      quality: 0.95,
+    });
+  } catch (err2) {
+    console.warn('Tentative 2 export PNG équilibré échouée, tentative 3 avec toCanvas...', err2);
+  }
+
+  // Stage 3: toCanvas
+  try {
+    const canvas = await toCanvas(node, {
+      ...baseOptions,
+      pixelRatio: 1.5,
+    });
+    return canvas.toDataURL('image/png');
+  } catch (err3) {
+    console.warn('Tentative 3 export toCanvas échouée, tentative 4 avec toJpeg...', err3);
+  }
+
+  // Stage 4: toJpeg
+  try {
+    return await toJpeg(node, {
+      ...baseOptions,
+      pixelRatio: 1.5,
+      quality: 0.92,
+    });
+  } catch (err4) {
+    console.error('Toutes les méthodes de rendu ont échoué:', err4);
+    throw new Error('Échec de la génération de l\'image sur ce navigateur.');
+  }
+}
 
 interface VisualExporterModalProps {
   isOpen: boolean;
@@ -111,9 +178,31 @@ function formatPosterMatchDate(dateStr?: string, timeStr?: string): string {
 }
 
 /**
+ * Helper to smart-format long club names for badges/pastilles so they fit in large, readable font sizes
+ */
+const formatTeamNameForBadge = (rawName: string): string => {
+  let name = (rawName || '').trim();
+  if (!name) return '';
+  if (name.length <= 22) return name;
+
+  return name
+    .replace(/\bASSOCIATION SAINT DENIS\b/gi, 'ASS. ST DENIS')
+    .replace(/\bASSOCIATION\b/gi, 'ASS.')
+    .replace(/\bASSOCIATION SPORTIVE\b/gi, 'A.S.')
+    .replace(/\bBASKET CLUB\b/gi, 'BC')
+    .replace(/\bCLUB BASKET\b/gi, 'CB')
+    .replace(/\bSPORTS REUNIS\b/gi, 'S.R.')
+    .replace(/\bSAINT\b/gi, 'ST')
+    .replace(/\bSAINTE\b/gi, 'STE')
+    .replace(/\bENTENTE\b/gi, 'ENT.')
+    .replace(/\bETOILE SPORTIVE\b/gi, 'E.S.')
+    .replace(/\bAMICALE LAIQUE\b/gi, 'A.L.')
+    .replace(/\bBASKETBALL\b/gi, 'BASKET');
+};
+
+/**
  * Component that dynamically adapts the font size and line height
- * according to the exact length of the team name, preventing any clipping or overflow.
- * Directly fulfills user requirement: "Pense à ce que la taille de la police s'adapte en fonction du nom".
+ * according to the exact length of the team name, preventing any clipping or tiny text inside pastilles.
  */
 const AutoFitTeamName: React.FC<{
   name: string;
@@ -124,15 +213,16 @@ const AutoFitTeamName: React.FC<{
   fontHeader?: FontFamilyOption;
   textColor?: string;
 }> = ({ name, isExempt, isCompact, count = 4, aspectRatio, fontHeader, textColor = '#ffffff' }) => {
-  const clean = (name || '').trim();
-  const len = clean.length;
+  const originalName = (name || '').trim();
+  const formattedName = formatTeamNameForBadge(originalName);
+  const len = formattedName.length;
 
-  if (isExempt || clean.toLowerCase() === 'exempt') {
+  if (isExempt || originalName.toLowerCase() === 'exempt') {
     return (
       <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
         <span
           className={`font-montserrat font-black text-white uppercase tracking-wider drop-shadow-sm ${
-            count >= 6 || aspectRatio === '16:9' ? 'text-[11px]' : count >= 5 ? 'text-[12px]' : 'text-[14px]'
+            count >= 6 || aspectRatio === '16:9' ? 'text-[12px]' : count >= 5 ? 'text-[13px]' : 'text-[15px]'
           }`}
           style={{ lineHeight: 1.1 }}
         >
@@ -142,73 +232,73 @@ const AutoFitTeamName: React.FC<{
     );
   }
 
-  // Dynamic font sizing based on string length, aspect ratio and total match count
+  // Dynamic font sizing optimized for high legibility in pastilles
   const compactMode = isCompact || count >= 6 || (aspectRatio === '16:9' && count >= 3);
   let fontSize = '14px';
-  let lineHeight = '1.15';
+  let lineHeight = '1.05';
   let maxHeight = '36px';
 
   if (compactMode) {
     if (len <= 10) {
-      fontSize = '12px';
+      fontSize = '13.5px';
       lineHeight = '1.1';
     } else if (len <= 16) {
-      fontSize = '10.5px';
+      fontSize = '12px';
       lineHeight = '1.05';
     } else if (len <= 22) {
-      fontSize = '9px';
+      fontSize = '11px';
       lineHeight = '1.0';
     } else if (len <= 28) {
-      fontSize = '8px';
-      lineHeight = '0.95';
+      fontSize = '10.5px';
+      lineHeight = '0.98';
     } else {
-      fontSize = '7.5px';
-      lineHeight = '0.9';
-    }
-    maxHeight = '24px';
-  } else if (count === 5) {
-    if (len <= 11) {
-      fontSize = '13px';
-      lineHeight = '1.12';
-    } else if (len <= 17) {
-      fontSize = '11.5px';
-      lineHeight = '1.08';
-    } else if (len <= 23) {
       fontSize = '10px';
-      lineHeight = '1.04';
-    } else if (len <= 28) {
-      fontSize = '9px';
-      lineHeight = '1.0';
-    } else {
-      fontSize = '8px';
       lineHeight = '0.95';
     }
-    maxHeight = '28px';
+    maxHeight = '30px';
+  } else if (count === 5) {
+    if (len <= 10) {
+      fontSize = '14.5px';
+      lineHeight = '1.12';
+    } else if (len <= 16) {
+      fontSize = '13px';
+      lineHeight = '1.08';
+    } else if (len <= 22) {
+      fontSize = '12px';
+      lineHeight = '1.02';
+    } else if (len <= 28) {
+      fontSize = '11px';
+      lineHeight = '0.98';
+    } else {
+      fontSize = '10.5px';
+      lineHeight = '0.95';
+    }
+    maxHeight = '34px';
   } else {
     // 1 to 4 matches
-    if (len <= 11) {
-      fontSize = '14.5px';
+    if (len <= 10) {
+      fontSize = '16px';
       lineHeight = '1.15';
-    } else if (len <= 17) {
+    } else if (len <= 16) {
+      fontSize = '14px';
+      lineHeight = '1.1';
+    } else if (len <= 22) {
       fontSize = '12.5px';
-      lineHeight = '1.12';
-    } else if (len <= 23) {
-      fontSize = '11px';
-      lineHeight = '1.08';
-    } else if (len <= 28) {
-      fontSize = '10px';
       lineHeight = '1.05';
-    } else {
-      fontSize = '8.5px';
+    } else if (len <= 28) {
+      fontSize = '11.5px';
       lineHeight = '1.0';
+    } else {
+      fontSize = '10.5px';
+      lineHeight = '0.95';
     }
-    maxHeight = '36px';
+    maxHeight = '40px';
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center text-center px-1 pointer-events-none select-none">
+    <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
       <span
-        className={`${getFontFamilyClass(fontHeader)} font-extrabold text-center uppercase tracking-tight block max-w-full drop-shadow-sm`}
+        className={`${getFontFamilyClass(fontHeader)} font-black text-center uppercase tracking-tight block max-w-full drop-shadow-sm`}
         style={{
           fontSize,
           lineHeight,
@@ -221,9 +311,9 @@ const AutoFitTeamName: React.FC<{
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
         }}
-        title={clean}
+        title={originalName}
       >
-        {clean}
+        {formattedName}
       </span>
     </div>
   );
@@ -275,6 +365,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [isSharing, setIsSharing] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [webhookStatus, setWebhookStatus] = useState<{ loading: boolean; message?: string; success?: boolean }>({
     loading: false,
   });
@@ -581,8 +672,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     };
   }, [contentType, badgeTitle, displayedMatches, displayedResults, results, specificNotification, clubSettings]);
 
-  if (!isOpen) return null;
-
   const handleCopyText = (text: string, key: string) => {
     if (typeof navigator !== 'undefined') {
       navigator.clipboard.writeText(text);
@@ -591,18 +680,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   };
 
-  // High-Resolution Image Export (Retina 2.5x -> yields clean 1080x1350 for 4:5 ratio)
+  // High-Resolution Image Export (Retina -> yields clean 1080x1350 for 4:5 ratio)
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
     try {
       setIsExporting(true);
-      const fontEmbedCSS = await getExportFontEmbedCSS();
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        quality: 1,
-        pixelRatio: 2.5,
-        fontEmbedCSS,
-      });
+      setExportError(null);
+      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.98, 2.2);
 
       const link = document.createElement('a');
       const filterLabel = contentType === 'matches' ? posterFilter : contentType;
@@ -613,8 +697,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
       setDownloadSuccess(true);
       setTimeout(() => setDownloadSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erreur export image:', err);
+      setExportError("La génération a rencontré une restriction navigateur. Veuillez réessayer.");
+      setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsExporting(false);
     }
@@ -625,13 +711,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     if (!cardRef.current) return;
     try {
       setIsSharing(true);
-      const fontEmbedCSS = await getExportFontEmbedCSS();
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        quality: 0.95,
-        pixelRatio: 2,
-        fontEmbedCSS,
-      });
+      setExportError(null);
+      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.95, 1.8);
 
       const res = await fetch(dataUrl);
       const blob = await res.blob();
@@ -737,6 +818,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     };
     reader.readAsDataURL(file);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
@@ -1290,7 +1373,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
                         transform: `scale(${layer1Scale})`,
                       }}
-                      crossOrigin="anonymous"
                     />
                   </div>
 
@@ -1329,7 +1411,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         src={effectiveLayer3Url}
                         alt="Calque 3"
                         className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]"
-                        crossOrigin="anonymous"
                       />
                     </div>
                   )}
@@ -1358,10 +1439,22 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         src={effectiveLayer4Url}
                         alt="Calque 4"
                         className="max-h-full max-w-full object-contain filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
-                        crossOrigin="anonymous"
                       />
                     </div>
                   )}
+
+                  {/* 3 Zebra White Stripes in Bottom Right (Positioned at background layer z-10, behind pastilles and content) */}
+                  <div
+                    className={`absolute pointer-events-none z-10 flex flex-col -rotate-45 ${
+                      aspectRatio === '16:9'
+                        ? '-bottom-4 -right-4 gap-1.5'
+                        : '-bottom-3 -right-3 gap-2.5'
+                    }`}
+                  >
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
+                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
+                  </div>
 
                   {/* CONTENT WRAPPER */}
                   <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
@@ -1427,10 +1520,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           const teamRight = isExempt ? 'Exempt' : (m.isHomeMatch ? m.teamAway : m.teamHome);
                           const count = displayedMatches.length;
 
-                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '26px' : '30px') : (count >= 6 ? '28px' : count === 5 ? '32px' : count === 4 ? '38px' : '42px');
-                          const headerFontSize = aspectRatio === '16:9' ? '9.5px' : (count >= 6 ? '9.5px' : count === 5 ? '10.5px' : count === 4 ? '11.5px' : (aspectRatio === '1:1' ? '11px' : '12.5px'));
+                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');
+                          const headerFontSize = aspectRatio === '16:9' ? '10.5px' : (count >= 6 ? '11px' : count === 5 ? '12px' : count === 4 ? '12.5px' : (aspectRatio === '1:1' ? '12px' : '13.5px'));
                           const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
-                          const vsBadgeSize = aspectRatio === '16:9' ? 'w-5 h-5 text-[8.5px]' : (count >= 6 ? 'w-5 h-5 text-[8.5px]' : count === 5 ? 'w-6 h-6 text-[9.5px]' : 'w-7 h-7 text-[10.5px]');
+                          const vsBadgeSize = aspectRatio === '16:9' ? 'w-6 h-6 text-[9.5px]' : (count >= 6 ? 'w-6 h-6 text-[10px]' : count === 5 ? 'w-6 h-6 text-[10.5px]' : 'w-7 h-7 text-[11px]');
 
                           return (
                             <div key={m.id} className="w-full flex flex-col items-center">
@@ -1511,11 +1604,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       >
                         {displayedResults.map((r) => {
                           const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-                          const scoreDisplay = `${r.homeScore ?? 0} - ${r.awayScore ?? 0}`;
+                          const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
+                          const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
                           const count = displayedResults.length;
 
-                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '26px' : '30px') : (count >= 6 ? '28px' : count === 5 ? '32px' : count === 4 ? '38px' : '42px');
-                          const headerFontSize = aspectRatio === '16:9' ? '9.5px' : (count >= 6 ? '9.5px' : count === 5 ? '10.5px' : count === 4 ? '11.5px' : (aspectRatio === '1:1' ? '11px' : '12.5px'));
+                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');
+                          const headerFontSize = aspectRatio === '16:9' ? '10.5px' : (count >= 6 ? '11px' : count === 5 ? '12px' : count === 4 ? '12.5px' : (aspectRatio === '1:1' ? '12px' : '13.5px'));
                           const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
 
                           return (
@@ -1554,17 +1648,17 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 </div>
 
                                 <div
-                                  className={`px-2.5 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
-                                    count >= 6 ? 'h-6 text-[10px]' : 'h-7 text-xs'
-                                  } ${resultDisplayMode === 'status' ? 'font-sans uppercase tracking-wider text-[10px]' : 'font-mono'}`}
+                                  className={`px-3 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
+                                    count >= 6 ? 'h-7 text-xs' : 'h-8 text-xs sm:text-sm'
+                                  } ${resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider text-[11px] font-black' : 'font-mono font-black'}`}
                                   style={{
                                     backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                    color: resultDisplayMode === 'status'
+                                    color: (resultDisplayMode === 'status' || !hasScore)
                                       ? (isWin ? '#047857' : '#be123c')
                                       : (layer2BadgeBgColor || '#111111'),
                                   }}
                                 >
-                                  {resultDisplayMode === 'status'
+                                  {resultDisplayMode === 'status' || !hasScore
                                     ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
                                     : scoreDisplay}
                                 </div>
@@ -1617,19 +1711,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       </div>
                     )}
 
-                  </div>
-
-                  {/* 3 Zebra White Stripes in Bottom Right (Signature look from reference images) */}
-                  <div
-                    className={`absolute pointer-events-none z-20 flex flex-col -rotate-45 ${
-                      aspectRatio === '16:9'
-                        ? '-bottom-4 -right-4 gap-1.5'
-                        : '-bottom-3 -right-3 gap-2.5'
-                    }`}
-                  >
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
                   </div>
                 </>
               )}
@@ -1712,6 +1793,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* ACTIONS SUR SMARTPHONE DANS L'ONGLET APERÇU (Téléchargement & Partage)   */}
             {/* ========================================================================= */}
             <div className="w-full mt-4 space-y-2.5 block lg:hidden">
+              {exportError && (
+                <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs font-semibold text-center flex items-center justify-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{exportError}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -2238,7 +2325,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                             src={effectiveLayer3Url}
                             alt="Aperçu Calque 3"
                             className="max-h-full max-w-full object-contain"
-                            crossOrigin="anonymous"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2384,7 +2470,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                             src={effectiveLayer4Url}
                             alt="Aperçu Calque 4"
                             className="max-h-full max-w-full object-contain"
-                            crossOrigin="anonymous"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2792,6 +2877,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {exportError && (
+                  <span className="text-amber-400 text-xs font-semibold flex items-center gap-1 bg-amber-950/60 px-2 py-1 rounded-lg border border-amber-800/60">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>{exportError}</span>
+                  </span>
+                )}
                 <button
                   onClick={handleDownloadImage}
                   disabled={isExporting}

@@ -174,6 +174,9 @@ export interface CategorySlideTheme {
   // Calque 4 : Élément superposé 2 (libre : identique au calque 3)
   layer4?: OverlayLayerItem;
 
+  // Mode d'affichage du résultat (Score + Statut, Score seul, Statut seul)
+  resultDisplayMode?: 'both' | 'score' | 'status';
+
   // Rétro-compatibilité
   showMascot?: boolean;
   mascotPosition?: 'bottom-right' | 'bottom-left' | 'top-right' | 'center-right';
