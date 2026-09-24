@@ -877,6 +877,20 @@ function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
   };
 }
 
+function normalizeCategoryKey(raw?: string): string {
+  if (!raw) return '';
+  const clean = String(raw).trim();
+  const normalized = normalizeFFBBCategory(clean);
+  const key = (normalized.badgeCategory || clean).trim().toUpperCase();
+  return key.replace(/\bG(\d*)\b/g, 'M$1').replace(/\s+/g, ' ');
+}
+
+function isTeamCategoryIgnored(category: string, ignoredCategories: string[] = []): boolean {
+  if (!ignoredCategories || ignoredCategories.length === 0) return false;
+  const targetKey = normalizeCategoryKey(category);
+  return ignoredCategories.some((item) => normalizeCategoryKey(item) === targetKey);
+}
+
 // Core helper to fetch and parse official FFBB club matches with real poule scores
 async function fetchOfficialClubData(clubCode: string) {
   const cleanCode = String(clubCode || "BFC0071024").trim();
@@ -1131,15 +1145,19 @@ async function runBackgroundFFBBSync() {
     lastSyncTimestamp = Date.now();
 
     if (ffbbData.success && (ffbbData.matches.length > 0 || ffbbData.results.length > 0)) {
+      const ignoredCategories = saved?.clubSettings?.ignoredTeamCategories || [];
+      const filteredFfbbMatches = ffbbData.matches.filter((m: any) => !isTeamCategoryIgnored(m.category, ignoredCategories));
+      const filteredFfbbResults = ffbbData.results.filter((r: any) => !isTeamCategoryIgnored(r.category, ignoredCategories));
+
       const existingResults = saved?.results || [];
       const manualResults = existingResults.filter((r: any) => !String(r.id).startsWith("ffbb-"));
 
       // Merge new official FFBB results with any manual ones
-      const combinedResults = [...ffbbData.results, ...manualResults];
+      const combinedResults = [...filteredFfbbResults, ...manualResults];
 
       // Detect any new victories/defeats to alert
       const todayStr = new Date().toISOString().slice(0, 10);
-      for (const r of ffbbData.results) {
+      for (const r of filteredFfbbResults) {
         if (r.date === todayStr && r.homeScore !== undefined && r.awayScore !== undefined) {
           const alreadyAlerted = activeAlerts.some((a) => a.id === `alert-${r.id}` || a.rawMessage === r.id);
           if (!alreadyAlerted) {
@@ -1168,15 +1186,15 @@ async function runBackgroundFFBBSync() {
       // Update saved app data
       const updatedData = {
         ...(saved || {}),
-        matches: ffbbData.matches,
+        matches: filteredFfbbMatches,
         results: combinedResults,
       };
       saveAppDataToFile(updatedData);
 
       lastSyncResult = {
         success: true,
-        message: `Synchronisation réussie : ${ffbbData.matches.length} matchs, ${combinedResults.length} résultats (${ffbbData.results.length} officiels FFBB)`,
-        matchesCount: ffbbData.matches.length,
+        message: `Synchronisation réussie : ${filteredFfbbMatches.length} matchs, ${combinedResults.length} résultats (${filteredFfbbResults.length} officiels FFBB)`,
+        matchesCount: filteredFfbbMatches.length,
         resultsCount: combinedResults.length,
       };
       console.log(`[AUTO-SYNC FFBB] ${lastSyncResult.message}`);

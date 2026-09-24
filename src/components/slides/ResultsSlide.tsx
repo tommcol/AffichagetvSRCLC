@@ -269,7 +269,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
                   {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE ou SCORE */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-800/80 relative z-10">
-                    {resultDisplayMode !== 'score' ? (
+                    {resultDisplayMode !== 'score' || (r.homeScore === undefined && r.awayScore === undefined) ? (
                       <div
                         className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
                           isWin
@@ -292,7 +292,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           color: badgeTextColor,
                         }}
                       >
-                        <span>SCORE : {r.homeScore ?? 0} - {r.awayScore ?? 0}</span>
+                        <span>SCORE : {r.homeScore} - {r.awayScore}</span>
                       </div>
                     )}
 
@@ -329,7 +329,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           {r.teamHome}
                         </span>
 
-                        {resultDisplayMode === 'status' ? (
+                        {resultDisplayMode === 'status' || (r.homeScore === undefined && r.awayScore === undefined) ? (
                           <span
                             className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md"
                             style={{
@@ -347,7 +347,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                               color: isWin ? '#34d399' : '#f43f5e',
                             }}
                           >
-                            {r.homeScore ?? 0} - {r.awayScore ?? 0}
+                            {r.homeScore} - {r.awayScore}
                           </span>
                         )}
 

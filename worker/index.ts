@@ -196,6 +196,20 @@ function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
   };
 }
 
+function normalizeCategoryKey(raw?: string): string {
+  if (!raw) return '';
+  const clean = String(raw).trim();
+  const normalized = normalizeFFBBCategory(clean);
+  const key = (normalized.badgeCategory || clean).trim().toUpperCase();
+  return key.replace(/\bG(\d*)\b/g, 'M$1').replace(/\s+/g, ' ');
+}
+
+function isTeamCategoryIgnored(category: string, ignoredCategories: string[] = []): boolean {
+  if (!ignoredCategories || ignoredCategories.length === 0) return false;
+  const targetKey = normalizeCategoryKey(category);
+  return ignoredCategories.some((item) => normalizeCategoryKey(item) === targetKey);
+}
+
 async function ffbbMatches(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const clubCode = (url.searchParams.get('code') || 'BFC0071024').trim();
@@ -226,6 +240,9 @@ async function ffbbMatches(request: Request): Promise<Response> {
     const clubNom = clubData?.nom || 'Sports Réunis Clayettois';
     const clubCommune = clubData?.commune?.libelle || 'La Clayette';
     const defaultGym = clubData?.salle?.libelle || 'COSEC';
+    const clubLogoUrl = clubData?.logo?.id
+      ? `https://api.ffbb.com/assets/${clubData.logo.id}`
+      : (clubData?.logo_url || clubData?.logo || undefined);
     const todayStr = new Date().toISOString().slice(0, 10);
 
     const mappedMatches = rawMatches.map((m: any, idx: number) => {
@@ -265,8 +282,8 @@ async function ffbbMatches(request: Request): Promise<Response> {
     const upcomingMatches = mappedMatches.filter((m: any) => m.status === 'upcoming');
     const pastResults = mappedMatches.filter((m: any) => m.status === 'finished').reverse();
 
-    const rawTeams = Array.isArray(teamsData?.teams) ? teamsData.teams : [];
-    const formattedTeams = rawTeams.map((t: any, idx: number) => {
+    const rawTeams = Array.isArray(teamsData?.teams) && teamsData.teams.length > 0 ? teamsData.teams : [];
+    let formattedTeams = rawTeams.map((t: any, idx: number) => {
       const comp = t.competition || '';
       const norm = normalizeFFBBCategory(`Équipe ${t.team_number || 1}`, comp);
       const teamMatches = mappedMatches.filter((m: any) => m.pouleId === t.poule_id || m.competition === comp);
@@ -278,6 +295,26 @@ async function ffbbMatches(request: Request): Promise<Response> {
         matchesCount: teamMatches.length, status: 'active',
       };
     });
+
+    if (formattedTeams.length === 0 && mappedMatches.length > 0) {
+      const distinctCats = Array.from(new Set(mappedMatches.map((m: any) => m.category))).filter(Boolean);
+      formattedTeams = distinctCats.map((cat: any, idx: number) => {
+        const catMatches = mappedMatches.filter((m: any) => m.category === cat);
+        const sample = catMatches[0];
+        const norm = normalizeFFBBCategory(cat, sample?.competition);
+        return {
+          id: `cat-${idx}`,
+          name: norm.displayName,
+          category: norm.badgeCategory,
+          gender: norm.gender,
+          competition: sample?.competition || 'Championnat FFBB',
+          poule: sample?.poule,
+          pouleId: sample?.pouleId,
+          matchesCount: catMatches.length,
+          status: 'active',
+        };
+      });
+    }
 
     formattedTeams.sort((a: any, b: any) => {
       const rank = (str: string) => {
@@ -299,7 +336,9 @@ async function ffbbMatches(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         success: true, source: 'ffbb_api_desimone', clubCode, organismeId: orgId,
-        clubName: clubNom, city: clubCommune, teams: formattedTeams,
+        clubName: clubNom, city: clubCommune, gymnasiumDefault: defaultGym,
+        logoUrl: clubLogoUrl,
+        teams: formattedTeams,
         matches: upcomingMatches, results: pastResults, totalCount: mappedMatches.length,
         message: `API FFBB Officielle : ${upcomingMatches.length} rencontres à venir et ${pastResults.length} résultats récents pour ${clubNom}.`,
       }),

@@ -31,6 +31,7 @@ export const DEFAULT_CLUB_SETTINGS: ClubSettings = {
   socialWebhookUrl: '',
   purePhotoSlidesOnly: true,
   hideTextOverlays: true,
+  ignoredTeamCategories: [],
 };
 
 export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {

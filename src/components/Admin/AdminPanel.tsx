@@ -64,7 +64,7 @@ import {
 } from '../../types';
 import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
-import { FFBBService } from '../../services/ffbbService';
+import { FFBBService, isTeamCategoryIgnored, normalizeCategoryKey } from '../../services/ffbbService';
 import {
   parseExcelBirthdays,
   generateClubBirthdayTemplate,
@@ -279,6 +279,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onOpenVisualExporter,
 }) => {
   const [activeTab, setActiveTab] = useState<
+    | 'club_identity'
     | 'matches'
     | 'results'
     | 'photos'
@@ -334,6 +335,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isSyncingFFBB, setIsSyncingFFBB] = useState<boolean>(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncIsError, setSyncIsError] = useState<boolean>(false);
+
+  // Proposition suggestive d'identité FFBB (propose sans imposer)
+  const [identityProposal, setIdentityProposal] = useState<{
+    ffbbName?: string;
+    ffbbLogoUrl?: string;
+    differences: {
+      name?: { current: string; proposed: string };
+      logo?: { current?: string; proposed: string };
+    };
+  } | null>(null);
+  const [selectedProposalUpdates, setSelectedProposalUpdates] = useState<{
+    updateName: boolean;
+    updateLogo: boolean;
+  }>({ updateName: true, updateLogo: true });
+  const [proposalAppliedMsg, setProposalAppliedMsg] = useState<string | null>(null);
+
   const [editingMatch, setEditingMatch] = useState<MatchItem | null>(null);
   const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
     try {
@@ -399,15 +416,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isRewriting, setIsRewriting] = useState<boolean>(false);
   const [syncStartDate, setSyncStartDate] = useState<string>('');
   const [syncEndDate, setSyncEndDate] = useState<string>('');
+  const [quickScoreMatchId, setQuickScoreMatchId] = useState<string | null>(null);
+  const [quickHomeScore, setQuickHomeScore] = useState<string>('');
+  const [quickAwayScore, setQuickAwayScore] = useState<string>('');
+  const [matchesFilterMode, setMatchesFilterMode] = useState<'all' | 'range'>('all');
   const [showCalendarInMatches, setShowCalendarInMatches] = useState<boolean>(true);
   const [showAddManualMatch, setShowAddManualMatch] = useState<boolean>(false);
   const [newResultDate, setNewResultDate] = useState<string>('Hier');
   const [socialForm, setSocialForm] = useState({
-    instagramHandle: clubSettings.instagramHandle || '@bc_valdesaone',
-    facebookPage: clubSettings.facebookPage || 'BasketClubValDeSaone',
-    tiktokHandle: clubSettings.tiktokHandle || '@bcvs_basket',
+    instagramHandle: clubSettings.instagramHandle || '',
+    facebookPage: clubSettings.facebookPage || '',
+    tiktokHandle: clubSettings.tiktokHandle || '',
     socialWebhookUrl: clubSettings.socialWebhookUrl || '',
   });
+
+  // Maintien de socialForm synchronisé avec clubSettings
+  useEffect(() => {
+    setSocialForm((prev) => ({
+      ...prev,
+      instagramHandle: clubSettings.instagramHandle || '',
+      facebookPage: clubSettings.facebookPage || '',
+      tiktokHandle: clubSettings.tiktokHandle || '',
+      socialWebhookUrl: clubSettings.socialWebhookUrl || '',
+    }));
+  }, [clubSettings.instagramHandle, clubSettings.facebookPage, clubSettings.tiktokHandle, clubSettings.socialWebhookUrl]);
+
+  // État glisser-déposer pour le Logo du Club
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
     setAiLoading(true);
@@ -876,6 +913,25 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     });
   };
 
+  // Upload du logo officiel du club
+  const handleLogoFileUpload = async (file: File) => {
+    if (!file) return;
+    setIsUploadingLogo(true);
+    try {
+      const res = await uploadSingleFile(file);
+      if (res.url) {
+        onUpdateClubSettings({
+          ...clubSettings,
+          logoUrl: res.url,
+        });
+      }
+    } catch (err) {
+      console.error('Erreur lors du téléversement du logo:', err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   // Upload multiple files in batch via server
   const uploadMultipleFiles = async (
     files: FileList | File[]
@@ -1270,7 +1326,64 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setSyncEndDate(monday.toISOString().slice(0, 10));
   };
 
-  // Sync with FFBB
+  // Transformation rapide d'un match en Victoire / Défaite / Score et transfert direct dans Résultats
+  const handleQuickMatchOutcome = (
+    match: MatchItem,
+    outcome: 'win' | 'loss' | 'score',
+    customScores?: { homeScore: number; awayScore: number }
+  ) => {
+    const isHome = isClubHomeMatch(match, clubSettings.name, clubSettings.shortName);
+    const cleanOpponent = isHome ? match.teamAway : match.teamHome;
+    const club = clubSettings.shortName || clubSettings.name || 'SRC Basket';
+    const cat = match.category || 'Seniors';
+
+    let homeScore = match.homeScore;
+    let awayScore = match.awayScore;
+    let isWin = false;
+
+    if (outcome === 'win') {
+      isWin = true;
+    } else if (outcome === 'loss') {
+      isWin = false;
+    } else if (outcome === 'score' && customScores) {
+      homeScore = customScores.homeScore;
+      awayScore = customScores.awayScore;
+      const ourScore = isHome ? homeScore : awayScore;
+      const oppScore = isHome ? awayScore : homeScore;
+      isWin = ourScore > oppScore;
+    }
+
+    const newRes: MatchItem = {
+      id: `res-quick-${match.id}-${Date.now()}`,
+      date: match.date || 'Hier',
+      time: 'Terminé',
+      category: cat,
+      competition: match.competition || 'Régionale / Départementale',
+      poule: match.poule,
+      teamHome: match.teamHome,
+      teamAway: match.teamAway,
+      isHomeMatch: isHome,
+      ourClubName: club,
+      gymnasium: match.gymnasium || (isHome ? clubSettings.gymnasiumDefault : ''),
+      city: match.city || (isHome ? clubSettings.city : ''),
+      homeScore,
+      awayScore,
+      status: 'finished',
+      result: isWin ? 'win' : 'loss',
+    };
+
+    onUpdateResults([newRes, ...results.filter((r) => r.id !== newRes.id)]);
+    onUpdateMatches(matches.filter((m) => m.id !== match.id));
+
+    setSyncMessage(
+      outcome === 'score' && homeScore !== undefined && awayScore !== undefined
+        ? `Match ${cat} vs ${cleanOpponent} transféré dans Résultats (${homeScore} - ${awayScore}) !`
+        : `Match ${cat} vs ${cleanOpponent} transféré dans Résultats (${isWin ? 'Victoire 🏆' : 'Défaite'}) !`
+    );
+    setTimeout(() => setSyncMessage(null), 4000);
+  };
+
+  // Sync with FFBB : Télécharge TOUTE la saison sans supprimer par date
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
     setSyncMessage(null);
@@ -1278,26 +1391,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     try {
       const res = await FFBBService.fetchClubData(clubSettings.codeFFBB);
       if (res.matches && res.matches.length > 0) {
-        let filteredMatches = res.matches || [];
-        let filteredResults = res.results || [];
+        let allSeasonMatches = res.matches || [];
+        let allSeasonResults = res.results || [];
 
+        // Étape : Filtrer uniquement en ignorant les équipes décochées par l'administrateur
+        const ignoredCategories = clubSettings.ignoredTeamCategories || [];
+        if (ignoredCategories.length > 0) {
+          allSeasonMatches = allSeasonMatches.filter((m) => !isTeamCategoryIgnored(m.category, ignoredCategories));
+          allSeasonResults = allSeasonResults.filter((r) => !isTeamCategoryIgnored(r.category, ignoredCategories));
+        }
+
+        // Marquer comme sélectionnés pour la TV les matchs qui tombent dans la période du calendrier si spécifiée
         if (syncStartDate || syncEndDate) {
-          if (syncStartDate) {
-            filteredMatches = filteredMatches.filter((m) => m.date >= syncStartDate);
-            filteredResults = filteredResults.filter((r) => r.date >= syncStartDate);
-          }
-          if (syncEndDate) {
-            filteredMatches = filteredMatches.filter((m) => m.date <= syncEndDate);
-            filteredResults = filteredResults.filter((r) => r.date <= syncEndDate);
-          }
+          allSeasonMatches = allSeasonMatches.map((m) => {
+            const inRange =
+              (!syncStartDate || m.date >= syncStartDate) &&
+              (!syncEndDate || m.date <= syncEndDate);
+            return {
+              ...m,
+              selectedForWeekend: inRange,
+            };
+          });
         }
 
-        onUpdateMatches(filteredMatches);
-        if (filteredResults.length > 0) {
-          onUpdateResults(filteredResults);
-        } else {
-          onUpdateResults([]); // empty results if none match
-        }
+        onUpdateMatches(allSeasonMatches);
+        onUpdateResults(allSeasonResults);
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
           setFfbbTeams(res.clubInfo.teamsList);
@@ -1307,13 +1425,49 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         }
         
         const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
-        const filterMsg = (syncStartDate || syncEndDate) 
-          ? ` (filtré du ${formatDateToEuropean(syncStartDate)} au ${formatDateToEuropean(syncEndDate)})` 
-          : '';
-        setSyncMessage(`Synchronisation réussie (${sourceInfo})${filterMsg} ! ${filteredMatches.length} rencontres importées, ${filteredResults.length} résultats, et ${res.clubInfo?.teamsList?.length || ffbbTeams.length} équipes officielles.`);
+        const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? res.clubInfo.teamsList : ffbbTeams;
+        const ignoredCount = allTeamsList.filter((t) => isTeamCategoryIgnored(t.category, ignoredCategories)).length;
+        const trackedCount = allTeamsList.length - ignoredCount;
+        const ignoredNote = ignoredCount > 0 ? ` (${ignoredCount} équipe${ignoredCount > 1 ? 's' : ''} ignorée${ignoredCount > 1 ? 's' : ''})` : '';
+
+        setSyncMessage(`Synchronisation réussie (${sourceInfo})${ignoredNote} ! L'intégralité du calendrier de la saison (${allSeasonMatches.length} rencontres et ${allSeasonResults.length} résultats) a été synchronisée pour les ${trackedCount} équipes suivies.`);
       } else {
         setSyncIsError(true);
         setSyncMessage(res.message || 'Calendrier FFBB officiel interrogé : aucune rencontre programmée pour ce club.');
+      }
+
+      // Vérifier si la FFBB propose un nom officiel ou un logo différent de la configuration actuelle
+      if (res.clubInfo) {
+        const ffbbName = res.clubInfo.clubName?.trim();
+        const ffbbLogo = res.clubInfo.logoUrl?.trim();
+        const currentName = (clubSettings.name || '').trim();
+        const currentLogo = (clubSettings.logoUrl || '').trim();
+
+        const nameDiffers = Boolean(
+          ffbbName &&
+          currentName.toLowerCase() !== ffbbName.toLowerCase()
+        );
+        const logoDiffers = Boolean(
+          ffbbLogo &&
+          currentLogo !== ffbbLogo
+        );
+
+        if (nameDiffers || logoDiffers) {
+          setIdentityProposal({
+            ffbbName,
+            ffbbLogoUrl: ffbbLogo,
+            differences: {
+              ...(nameDiffers ? { name: { current: currentName || 'Non configuré', proposed: ffbbName! } } : {}),
+              ...(logoDiffers ? { logo: { current: currentLogo || undefined, proposed: ffbbLogo! } } : {}),
+            },
+          });
+          setSelectedProposalUpdates({
+            updateName: nameDiffers,
+            updateLogo: logoDiffers,
+          });
+        } else {
+          setIdentityProposal(null);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1322,6 +1476,81 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     } finally {
       setIsSyncingFFBB(false);
     }
+  };
+
+  // Appliquer la proposition d'identité officielle FFBB choisie par l'utilisateur
+  const handleApplyIdentityProposal = () => {
+    if (!identityProposal) return;
+    const updated = { ...clubSettings };
+    if (selectedProposalUpdates.updateName && identityProposal.differences.name) {
+      updated.name = identityProposal.differences.name.proposed;
+    }
+    if (selectedProposalUpdates.updateLogo && identityProposal.differences.logo) {
+      updated.logoUrl = identityProposal.differences.logo.proposed;
+    }
+    onUpdateClubSettings(updated);
+    setIdentityProposal(null);
+    setProposalAppliedMsg('✓ Identité du club mise à jour avec les informations officielles de la FFBB !');
+    setTimeout(() => setProposalAppliedMsg(null), 6000);
+  };
+
+  // Refuser / fermer la proposition (l'utilisateur conserve ses paramètres actuels)
+  const handleDismissIdentityProposal = () => {
+    setIdentityProposal(null);
+  };
+
+  // Étape 3 : Basculer le suivi d'une équipe FFBB (Cocher / Décocher)
+  const handleToggleTrackTeam = (teamCategory: string, teamName?: string) => {
+    const currentIgnored = clubSettings.ignoredTeamCategories || [];
+    const isCurrentlyIgnored = isTeamCategoryIgnored(teamCategory, currentIgnored);
+    const targetKey = normalizeCategoryKey(teamCategory);
+
+    let nextIgnored: string[];
+    if (isCurrentlyIgnored) {
+      // Réactiver l'équipe : la retirer de la liste des ignorés
+      nextIgnored = currentIgnored.filter((item) => normalizeCategoryKey(item) !== targetKey);
+      setProposalAppliedMsg(`✓ Équipe ${teamName || teamCategory} réactivée pour le diaporama TV.`);
+    } else {
+      // Décocher / ignorer l'équipe : l'ajouter aux ignorés
+      nextIgnored = [...currentIgnored.filter((item) => normalizeCategoryKey(item) !== targetKey), teamCategory];
+      
+      // Retirer immédiatement les matchs et résultats de cette équipe décochée pour ne pas polluer l'affichage
+      const updatedMatches = matches.filter((m) => !isTeamCategoryIgnored(m.category, [teamCategory]));
+      const updatedResults = results.filter((r) => !isTeamCategoryIgnored(r.category, [teamCategory]));
+      onUpdateMatches(updatedMatches);
+      onUpdateResults(updatedResults);
+      setProposalAppliedMsg(`✕ Équipe ${teamName || teamCategory} ignorée : ses matchs et résultats ont été retirés.`);
+    }
+
+    setTimeout(() => setProposalAppliedMsg(null), 5000);
+
+    onUpdateClubSettings({
+      ...clubSettings,
+      ignoredTeamCategories: nextIgnored,
+    });
+  };
+
+  // Cocher toutes les équipes (toutes suivies)
+  const handleTrackAllTeams = () => {
+    onUpdateClubSettings({
+      ...clubSettings,
+      ignoredTeamCategories: [],
+    });
+    setProposalAppliedMsg('✓ Toutes les équipes sont désormais suivies et affichées sur la TV.');
+    setTimeout(() => setProposalAppliedMsg(null), 5000);
+  };
+
+  // Décocher toutes les équipes
+  const handleUntrackAllTeams = () => {
+    const allKeys = ffbbTeams.map((t) => t.category);
+    onUpdateClubSettings({
+      ...clubSettings,
+      ignoredTeamCategories: allKeys,
+    });
+    onUpdateMatches([]);
+    onUpdateResults([]);
+    setProposalAppliedMsg('⚠ Toutes les équipes sont décochées. Aucune rencontre ne sera affichée.');
+    setTimeout(() => setProposalAppliedMsg(null), 5000);
   };
 
   // Excel upload handler & Birthday week handlers
@@ -1474,10 +1703,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
 
     const clubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
-    const shortClub = clubSettings.shortName || 'BCVS';
-    const insta = socialForm.instagramHandle || clubSettings.instagramHandle || '@bc_valdesaone';
-    const fb = socialForm.facebookPage || clubSettings.facebookPage || 'BasketClubValDeSaone';
-    const tiktok = socialForm.tiktokHandle || clubSettings.tiktokHandle || '@bcvs_basket';
+    const shortClub = clubSettings.shortName || 'SRC Basket';
+    const insta = socialForm.instagramHandle || clubSettings.instagramHandle || '@src_basket';
+    const fb = socialForm.facebookPage || clubSettings.facebookPage || 'SRC Basket';
+    const tiktok = socialForm.tiktokHandle || clubSettings.tiktokHandle || '@src_basket';
 
     const targetMatches = socialOnlySelectedMatches
       ? matches.filter((m) => m.selectedForWeekend !== false)
@@ -1699,6 +1928,156 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
     setTimeout(checkTabsScroll, 300);
+  };
+
+  // Rendu de la carte de proposition FFBB non-imposée
+  const renderIdentityProposal = () => {
+    if (!identityProposal) return null;
+    return (
+      <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-950/70 via-slate-900 to-slate-950 border-2 border-amber-500/50 shadow-2xl shadow-amber-500/10 space-y-4 animate-in fade-in duration-300">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                <span>PROPOSITION DE MISE À JOUR — FICHE OFFICIELLE FFBB</span>
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Suggestion non imposée
+                </span>
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed mt-0.5">
+                La FFBB a retourné des informations officielles différentes de vos réglages actuels. Cochez les éléments à appliquer ou conservez vos paramètres personnalisés :
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDismissIdentityProposal}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors self-end sm:self-auto"
+            title="Ignorer la proposition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Comparatif Nom & Logo */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Proposition Nom */}
+          {identityProposal.differences.name && (
+            <label
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                selectedProposalUpdates.updateName
+                  ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                  : 'bg-slate-950/60 border-slate-800 opacity-60'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selectedProposalUpdates.updateName}
+                onChange={(e) =>
+                  setSelectedProposalUpdates((prev) => ({ ...prev, updateName: e.target.checked }))
+                }
+                className="mt-1 accent-amber-500 rounded cursor-pointer w-4 h-4"
+              />
+              <div className="space-y-1.5 text-xs flex-1">
+                <span className="font-bold text-amber-300 block text-xs">
+                  Mettre à jour le Nom Officiel du club
+                </span>
+                <div className="space-y-1 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                  <div className="text-slate-400 text-[11px]">
+                    Actuel : <span className="line-through text-slate-400 font-medium">{identityProposal.differences.name.current}</span>
+                  </div>
+                  <div className="text-white font-bold text-xs flex items-center gap-1.5">
+                    <span className="text-emerald-400">FFBB :</span>
+                    <span className="text-amber-300">{identityProposal.differences.name.proposed}</span>
+                  </div>
+                </div>
+              </div>
+            </label>
+          )}
+
+          {/* Proposition Logo */}
+          {identityProposal.differences.logo && (
+            <label
+              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                selectedProposalUpdates.updateLogo
+                  ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-500/10'
+                  : 'bg-slate-950/60 border-slate-800 opacity-60'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selectedProposalUpdates.updateLogo}
+                onChange={(e) =>
+                  setSelectedProposalUpdates((prev) => ({ ...prev, updateLogo: e.target.checked }))
+                }
+                className="mt-1 accent-amber-500 rounded cursor-pointer w-4 h-4"
+              />
+              <div className="space-y-2 text-xs flex-1">
+                <span className="font-bold text-amber-300 block text-xs">
+                  Mettre à jour le Logo Officiel du club
+                </span>
+                <div className="flex items-center justify-around bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                  <div className="text-center">
+                    <span className="text-[10px] text-slate-400 block mb-1">Actuel</span>
+                    {identityProposal.differences.logo.current ? (
+                      <img
+                        src={identityProposal.differences.logo.current}
+                        alt="Logo actuel"
+                        className="w-12 h-12 rounded-xl object-contain bg-slate-900 border border-slate-700 p-1 mx-auto"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] text-slate-500 font-bold">
+                        Aucun
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="text-slate-500 font-bold text-lg">➔</span>
+
+                  <div className="text-center">
+                    <span className="text-[10px] text-emerald-400 font-bold block mb-1">Fiche FFBB</span>
+                    <img
+                      src={identityProposal.differences.logo.proposed}
+                      alt="Logo FFBB"
+                      className="w-12 h-12 rounded-xl object-contain bg-white/10 border border-amber-500/60 p-1 mx-auto shadow-md"
+                    />
+                  </div>
+                </div>
+              </div>
+            </label>
+          )}
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-800">
+          <p className="text-[11px] text-slate-400">
+            Les matchs et scores sont déjà synchronisés. Vous gardez la main sur les visuels et coordonnées du club.
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleDismissIdentityProposal}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
+            >
+              Garder mes paramètres actuels
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyIdentityProposal}
+              disabled={!selectedProposalUpdates.updateName && !selectedProposalUpdates.updateLogo}
+              className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white text-xs font-bold transition-all shadow-lg shadow-amber-600/20 flex items-center gap-1.5"
+            >
+              <Check className="w-4 h-4" />
+              <span>Mettre à jour la sélection</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1934,6 +2313,21 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
+              onClick={(e) => handleSelectTab('club_identity', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'club_identity'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-orange-400" />
+              <span>Identité du Club</span>
+              {identityProposal && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400" title="Proposition FFBB disponible" />
+              )}
+            </button>
+
+            <button
               onClick={(e) => handleSelectTab('ffbb', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                 activeTab === 'ffbb'
@@ -1943,6 +2337,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             >
               <RefreshCw className="w-4 h-4 text-blue-400" />
               <span>Sync FFBB</span>
+              {identityProposal && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400" title="Proposition FFBB disponible" />
+              )}
             </button>
 
             <button
@@ -1954,7 +2351,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               }`}
             >
               <Sliders className="w-4 h-4 text-amber-400" />
-              <span>Paramètres Club & Carrousel</span>
+              <span>Paramètres Carrousel & TV</span>
             </button>
 
             <button
@@ -1990,6 +2387,26 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
         {/* Content Area */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {/* Notification de mise à jour d'identité FFBB confirmée */}
+          {proposalAppliedMsg && (
+            <div className="p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs sm:text-sm font-bold flex items-center justify-between gap-3 shadow-xl animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span>{proposalAppliedMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProposalAppliedMsg(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-emerald-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Proposition FFBB suggestive (propose sans imposer) */}
+          {renderIdentityProposal()}
+
           {/* Global Batch Upload Feedback Toast */}
           {uploadFeedback && (
             <div
@@ -2411,11 +2828,87 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
               )}
 
+              {/* Barre d'action & Filtre d'affichage des matchs */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 text-xs">
+                <div className="flex flex-wrap items-center gap-2 font-bold text-slate-300">
+                  <Calendar className="w-4 h-4 text-orange-400 shrink-0" />
+                  <span>Afficher dans la liste :</span>
+                  <button
+                    type="button"
+                    onClick={() => setMatchesFilterMode('all')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      matchesFilterMode === 'all'
+                        ? 'bg-orange-600 text-white font-bold shadow-md shadow-orange-600/20'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Toute la saison ({matches.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMatchesFilterMode('range')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      matchesFilterMode === 'range'
+                        ? 'bg-orange-600 text-white font-bold shadow-md shadow-orange-600/20'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Période du calendrier ({
+                      syncStartDate || syncEndDate
+                        ? matches.filter(
+                            (m) =>
+                              (!syncStartDate || m.date >= syncStartDate) &&
+                              (!syncEndDate || m.date <= syncEndDate)
+                          ).length
+                        : matches.length
+                    })
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = matches.map((item) => ({ ...item, selectedForWeekend: true }));
+                      onUpdateMatches(updated);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all cursor-pointer"
+                    title="Cocher tous les matchs affichés pour la diffusion TV"
+                  >
+                    ✓ Tout cocher pour la TV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = matches.map((item) => ({ ...item, selectedForWeekend: false }));
+                      onUpdateMatches(updated);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] font-medium transition-all cursor-pointer"
+                    title="Décocher tous les matchs"
+                  >
+                    Tout décocher
+                  </button>
+                </div>
+              </div>
+
               {/* Liste des matchs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {matches.map((m) => {
+                {matches
+                  .filter((m) => {
+                    if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
+                      if (syncStartDate && m.date < syncStartDate) return false;
+                      if (syncEndDate && m.date > syncEndDate) return false;
+                    }
+                    return true;
+                  })
+                  .map((m) => {
                   const isEditing = editingMatch?.id === m.id;
                   const isSelected = m.selectedForWeekend !== false;
+                  const isLive = isMatchLive(m);
+                  const isPastOrFinished =
+                    m.status === 'finished' || (m.date && m.date < new Date().toISOString().slice(0, 10));
+                  const isNeedsResult =
+                    isPastOrFinished && m.homeScore === undefined && m.awayScore === undefined && !m.result;
 
                   if (isEditing && editingMatch) {
                     return (
@@ -2542,133 +3035,223 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     );
                   }
 
-                  const isLive = isMatchLive(m);
-
                   return (
                     <div
                       key={m.id}
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      className={`p-3.5 rounded-2xl border flex flex-col gap-3 transition-all ${
                         isLive
                           ? 'bg-red-950/20 border-red-500/50 shadow-md shadow-red-950/20'
+                          : isNeedsResult
+                          ? 'bg-amber-950/20 border-amber-500/50 shadow-md'
                           : isSelected
                           ? 'bg-slate-950 border-slate-800 hover:border-slate-700'
                           : 'bg-slate-950/40 border-slate-900 opacity-60 hover:opacity-90'
                       }`}
                     >
-                      {/* Checkbox pour choisir d'afficher ou non le match ce week-end */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = matches.map((item) =>
-                            item.id === m.id ? { ...item, selectedForWeekend: !isSelected } : item
-                          );
-                          onUpdateMatches(updated);
-                        }}
-                        className={`shrink-0 p-2 sm:px-3 sm:py-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-sm shadow-emerald-500/10'
-                            : 'bg-slate-900/90 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400'
-                        }`}
-                        title={
-                          isSelected
-                            ? 'Match coché pour la TV du week-end (cliquer pour masquer)'
-                            : 'Match masqué de la TV (cliquer pour cocher et afficher)'
-                        }
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
-                            isSelected
-                              ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black'
-                              : 'border-slate-700 bg-slate-950'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
-                        <span className="hidden sm:inline font-mono text-[11px]">
-                          {isSelected ? 'Ce week-end' : 'Masqué'}
-                        </span>
-                      </button>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
-                          <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono text-[11px] font-bold">
-                            {m.category}
-                          </span>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-slate-300 font-mono">{formatDateToEuropean(m.date)} - {m.time}</span>
-                          {isLive && (
-                            <span className="px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                              EN COURS
-                            </span>
-                          )}
-                          {m.competition && (
-                            <>
-                              <span className="text-slate-600 hidden sm:inline">•</span>
-                              <span className="text-[10px] text-slate-500 truncate max-w-[170px] hidden sm:inline" title={m.competition}>
-                                {m.competition}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-sm font-bold text-white truncate">
-                          {m.teamHome} vs {m.teamAway}
-                        </div>
-                        <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                          📍 {m.gymnasium || clubSettings.gymnasiumDefault}
-                          {m.poule && <span className="text-orange-400/80 ml-2 font-medium">({m.poule})</span>}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Bouton rapide En cours / À venir */}
+                      <div className="flex items-center justify-between gap-3 min-w-0">
+                        {/* Checkbox pour choisir d'afficher ou non le match ce week-end */}
                         <button
                           type="button"
                           onClick={() => {
-                            const newStatus: MatchStatus = isLive ? 'upcoming' : 'live';
                             const updated = matches.map((item) =>
-                              item.id === m.id ? { ...item, status: newStatus } : item
+                              item.id === m.id ? { ...item, selectedForWeekend: !isSelected } : item
                             );
                             onUpdateMatches(updated);
                           }}
-                          className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
-                            isLive
-                              ? 'bg-red-600/30 text-red-300 border-red-500/60 hover:bg-red-600/50'
-                              : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border-slate-800'
+                          className={`shrink-0 p-2 sm:px-3 sm:py-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-sm shadow-emerald-500/10'
+                              : 'bg-slate-900/90 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400'
                           }`}
-                          title={isLive ? 'Repasser en statut à venir' : 'Activer le mode EN COURS sur la TV'}
+                          title={
+                            isSelected
+                              ? 'Match coché pour la TV du week-end (cliquer pour masquer)'
+                              : 'Match masqué de la TV (cliquer pour cocher et afficher)'
+                          }
                         >
-                          <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-ping' : 'bg-slate-500'}`}></span>
-                          <span className="hidden md:inline">{isLive ? 'En cours' : 'Mettre en cours'}</span>
+                          <div
+                            className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                              isSelected
+                                ? 'bg-emerald-500 border-emerald-400 text-slate-950 font-black'
+                                : 'border-slate-700 bg-slate-950'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span className="hidden sm:inline font-mono text-[11px]">
+                            {isSelected ? 'Ce week-end' : 'Masqué'}
+                          </span>
                         </button>
-                        {/* Bouton rapide Saisir le score */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSelectScheduledMatch(m.id);
-                            setActiveTab('results');
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
-                          title="Saisir directement le score pour ce match"
-                        >
-                          <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="hidden sm:inline">Score</span>
-                        </button>
-                        <button
-                          onClick={() => setEditingMatch({ ...m })}
-                          className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all"
-                          title="Modifier la date ou l'heure de ce match"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onUpdateMatches(matches.filter((item) => item.id !== m.id))}
-                          className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all"
-                          title="Supprimer ce match"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono text-[11px] font-bold">
+                              {m.category}
+                            </span>
+                            <span className="text-slate-600">•</span>
+                            <span className="text-slate-300 font-mono">{formatDateToEuropean(m.date)} - {m.time}</span>
+                            {isLive && (
+                              <span className="px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                EN COURS
+                              </span>
+                            )}
+                            {isNeedsResult && (
+                              <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-amber-400 shrink-0" />
+                                En attente du résultat
+                              </span>
+                            )}
+                            {m.competition && (
+                              <>
+                                <span className="text-slate-600 hidden sm:inline">•</span>
+                                <span className="text-[10px] text-slate-500 truncate max-w-[170px] hidden sm:inline" title={m.competition}>
+                                  {m.competition}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-sm font-bold text-white truncate">
+                            {m.teamHome} vs {m.teamAway}
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                            📍 {m.gymnasium || clubSettings.gymnasiumDefault}
+                            {m.poule && <span className="text-orange-400/80 ml-2 font-medium">({m.poule})</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => setEditingMatch({ ...m })}
+                            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-blue-400 border border-slate-800 transition-all"
+                            title="Modifier la rencontre"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onUpdateMatches(matches.filter((item) => item.id !== m.id))}
+                            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-red-400 border border-slate-800 transition-all"
+                            title="Supprimer la rencontre"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Actions Rapides en 1 Clic : Victoire / Défaite / Saisir le Score */}
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-xs">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Résultat direct :
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickMatchOutcome(m, 'win')}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                            title="Enregistrer une Victoire en 1 clic et transférer dans Résultats"
+                          >
+                            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Victoire</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleQuickMatchOutcome(m, 'loss')}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                            title="Enregistrer une Défaite en 1 clic et transférer dans Résultats"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Défaite</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (quickScoreMatchId === m.id) {
+                                setQuickScoreMatchId(null);
+                              } else {
+                                setQuickScoreMatchId(m.id);
+                                setQuickHomeScore(m.homeScore?.toString() || '');
+                                setQuickAwayScore(m.awayScore?.toString() || '');
+                              }
+                            }}
+                            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              quickScoreMatchId === m.id
+                                ? 'bg-sky-600 text-white border-sky-400 shadow-md'
+                                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                            }`}
+                            title="Saisir un score numérique (ex: 78 - 65)"
+                          >
+                            <span className="font-mono font-black text-sky-400">#</span>
+                            <span>Score</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Popover / Formulaire Inline pour Saisie Rapide du Score */}
+                      {quickScoreMatchId === m.id && (
+                        <div className="p-3 rounded-xl bg-slate-900 border border-sky-500/50 space-y-2.5 animate-fadeIn">
+                          <div className="flex items-center justify-between text-xs font-bold text-sky-400">
+                            <span>🔢 Saisie du score final chiffré :</span>
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              Saisissez les points puis validez pour envoyer dans Résultats
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <label className="text-[10px] text-slate-300 block mb-1 font-bold truncate">
+                                {m.teamHome} (Dom.)
+                              </label>
+                              <input
+                                type="number"
+                                value={quickHomeScore}
+                                onChange={(e) => setQuickHomeScore(e.target.value)}
+                                placeholder="ex: 78"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono font-bold text-xs focus:border-sky-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-slate-300 block mb-1 font-bold truncate">
+                                {m.teamAway} (Ext.)
+                              </label>
+                              <input
+                                type="number"
+                                value={quickAwayScore}
+                                onChange={(e) => setQuickAwayScore(e.target.value)}
+                                placeholder="ex: 65"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono font-bold text-xs focus:border-sky-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setQuickScoreMatchId(null)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!quickHomeScore.trim() || !quickAwayScore.trim()}
+                              onClick={() => {
+                                const h = parseInt(quickHomeScore, 10);
+                                const a = parseInt(quickAwayScore, 10);
+                                if (!isNaN(h) && !isNaN(a)) {
+                                  handleQuickMatchOutcome(m, 'score', { homeScore: h, awayScore: a });
+                                  setQuickScoreMatchId(null);
+                                }
+                              }}
+                              className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-sky-600/30"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Valider & Transférer dans Résultats</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -5122,66 +5705,48 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      PARAMÈTRES DES COMPTES SOCIAUX & PASSERELLE AUTOMATIQUE (WEBHOOK)
+                      COMPTES SOCIAUX OFFICIELS DU CLUB & PASSERELLE WEBHOOK
                     </h4>
                     <p className="text-xs text-slate-400">
-                      Renseignez les identifiants de votre club pour personnaliser automatiquement les textes et configurez une passerelle Webhook (Make, Zapier, n8n ou Meta API).
+                      Vos comptes officiels renseignés dans Identité du Club sont automatiquement utilisés pour générer les légendes et publications.
                     </p>
                   </div>
-
-                  {socialSaveSuccess && (
-                    <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-500/30 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Paramètres sauvegardés avec succès !
-                    </span>
-                  )}
                 </div>
 
-                <form onSubmit={handleSaveSocialSettings} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Instagram className="w-3.5 h-3.5 text-pink-400" />
-                        <span>Compte Instagram</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={socialForm.instagramHandle}
-                        onChange={(e) => setSocialForm({ ...socialForm, instagramHandle: e.target.value })}
-                        placeholder="@bc_valdesaone"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-pink-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Flame className="w-3.5 h-3.5 text-rose-400" />
-                        <span>Compte TikTok</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={socialForm.tiktokHandle}
-                        onChange={(e) => setSocialForm({ ...socialForm, tiktokHandle: e.target.value })}
-                        placeholder="@bcvs_basket"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-rose-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Facebook className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Page Facebook</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={socialForm.facebookPage}
-                        onChange={(e) => setSocialForm({ ...socialForm, facebookPage: e.target.value })}
-                        placeholder="BasketClubValDeSaone"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-blue-500 focus:outline-none"
-                      />
+                {/* Récapitulatif des comptes officiels avec lien vers Identité du Club */}
+                <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                      Comptes officiels actuels (Identité du Club) :
+                    </span>
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-pink-400 bg-pink-950/40 px-3 py-1 rounded-xl border border-pink-500/20">
+                        <Instagram className="w-4 h-4" />
+                        <span className="text-white">{clubSettings.instagramHandle || '@non_renseigné'}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 text-rose-400 bg-rose-950/40 px-3 py-1 rounded-xl border border-rose-500/20">
+                        <Flame className="w-4 h-4" />
+                        <span className="text-white">{clubSettings.tiktokHandle || '@non_renseigné'}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5 text-blue-400 bg-blue-950/40 px-3 py-1 rounded-xl border border-blue-500/20">
+                        <Facebook className="w-4 h-4" />
+                        <span className="text-white">{clubSettings.facebookPage || 'Non renseignée'}</span>
+                      </span>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('club_identity')}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-orange-400 border border-slate-700 font-bold text-xs flex items-center gap-2 transition-all shrink-0 self-start md:self-auto shadow-sm"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Modifier dans Identité du Club</span>
+                  </button>
+                </div>
+
+                {/* Configuration Webhook Automatisation */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
                     <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
                         <Send className="w-3.5 h-3.5 text-orange-400" />
@@ -5217,14 +5782,21 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                   <div className="pt-2 flex justify-end">
                     <button
-                      type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs md:text-sm shadow-lg shadow-orange-600/20 transition-all hover:scale-105 flex items-center gap-2"
+                      type="button"
+                      onClick={() => {
+                        onUpdateClubSettings({
+                          ...clubSettings,
+                          socialWebhookUrl: socialForm.socialWebhookUrl,
+                        });
+                        setSocialSaveSuccess(true);
+                        setTimeout(() => setSocialSaveSuccess(false), 3000);
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs shadow-lg shadow-orange-600/20 transition-all hover:scale-105 flex items-center gap-2"
                     >
                       <Check className="w-4 h-4" />
-                      <span>Enregistrer les comptes sociaux</span>
+                      <span>Enregistrer l'URL Webhook</span>
                     </button>
                   </div>
-                </form>
               </div>
 
               {/* Mobile Share Sheet Notice */}
@@ -6124,6 +6696,390 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           )}
 
           {/* ========================================================================= */}
+          {/* TAB: IDENTITÉ DU CLUB */}
+          {/* ========================================================================= */}
+          {activeTab === 'club_identity' && (
+            <div className="space-y-6 max-w-5xl mx-auto">
+              {/* En-tête de section */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-600/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
+                    <Shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <span>IDENTITÉ & COORDONNÉES DU CLUB</span>
+                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-orange-500/20 text-orange-300">
+                        Configuration Centrale
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Centralisez ici le nom officiel, le logo, la salle par défaut et les réseaux de votre club.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Badge d'aperçu rapide */}
+                <div className="flex items-center gap-3 bg-slate-900/80 px-4 py-2 rounded-2xl border border-slate-700/50">
+                  {clubSettings.logoUrl ? (
+                    <img
+                      src={clubSettings.logoUrl}
+                      alt={clubSettings.shortName}
+                      className="w-8 h-8 rounded-lg object-contain bg-white/10 p-0.5"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-orange-600/20 flex items-center justify-center text-orange-400 font-bold text-xs">
+                      {(clubSettings.shortName || 'SRC').slice(0, 3)}
+                    </div>
+                  )}
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-white">{clubSettings.shortName || 'SRC Basket'}</div>
+                    <div className="text-[10px] text-slate-400">{clubSettings.city || 'La Clayette'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grille principale : Coordonnées à gauche, Logo à droite */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Colonne gauche (7 cols) : Infos textuelles & FFBB */}
+                <div className="lg:col-span-7 space-y-6">
+                  {/* Bloc 1 : Nom et Salle */}
+                  <div className="bg-slate-900/70 p-5 rounded-3xl border border-slate-800 space-y-4">
+                    <h4 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-orange-400" />
+                      <span>Nom & Lieux Officiels</span>
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">
+                          Nom officiel complet du club :
+                        </label>
+                        <input
+                          type="text"
+                          value={clubSettings.name}
+                          onChange={(e) => onUpdateClubSettings({ ...clubSettings, name: e.target.value })}
+                          placeholder="Ex: Sports Réunis Clayettois"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Nom officiel déposé à la FFBB ou en préfecture.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1">
+                            Diminutif / Nom d'usage court :
+                          </label>
+                          <input
+                            type="text"
+                            value={clubSettings.shortName}
+                            onChange={(e) => onUpdateClubSettings({ ...clubSettings, shortName: e.target.value })}
+                            placeholder="Ex: SRC Basket"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none font-bold text-orange-400"
+                          />
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Utilisé sur les bandeaux TV, scores et hashtags.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1">
+                            Ville principale :
+                          </label>
+                          <input
+                            type="text"
+                            value={clubSettings.city}
+                            onChange={(e) => onUpdateClubSettings({ ...clubSettings, city: e.target.value })}
+                            placeholder="Ex: La Clayette"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
+                          />
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Sert à identifier les rencontres à domicile.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1">
+                          Gymnase / Salle principale par défaut :
+                        </label>
+                        <input
+                          type="text"
+                          value={clubSettings.gymnasiumDefault}
+                          onChange={(e) => onUpdateClubSettings({ ...clubSettings, gymnasiumDefault: e.target.value })}
+                          placeholder="Ex: Gymnase intercommunal ou COSEC"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Lieu pré-rempli par défaut sur les matchs joués à domicile.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bloc 2 : Code FFBB */}
+                  <div className="bg-slate-900/70 p-5 rounded-3xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4 text-blue-400" />
+                        <span>Filiation & Code FFBB</span>
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('ffbb')}
+                        className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <span>Ouvrir la synchronisation</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        Code Club Officiel FFBB :
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={clubSettings.codeFFBB}
+                          onChange={(e) => onUpdateClubSettings({ ...clubSettings, codeFFBB: e.target.value.toUpperCase().trim() })}
+                          placeholder="Ex: BFC0071024"
+                          className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none uppercase"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('ffbb')}
+                          className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20 shrink-0"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Aller à la synchro</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Code officiel attribué par la fédération (SRC Basket : BFC0071024).
+                      </p>
+                    </div>
+
+                    {/* Statut rapide des équipes suivies */}
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-orange-400" />
+                        <span className="text-slate-300 font-semibold">Équipes suivies sur la TV :</span>
+                        <span className="font-mono font-bold text-orange-400">
+                          {ffbbTeams.length - (clubSettings.ignoredTeamCategories || []).filter(c => ffbbTeams.some(t => isTeamCategoryIgnored(t.category, [c]))).length} / {ffbbTeams.length}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('ffbb')}
+                        className="text-xs text-orange-400 hover:text-orange-300 font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <span>Choisir les équipes</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Colonne droite (5 cols) : Logo du club (Glisser-Déposer / Upload) */}
+                <div className="lg:col-span-5 space-y-6">
+                  <div className="bg-slate-900/70 p-5 rounded-3xl border border-slate-800 space-y-4">
+                    <h4 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-orange-400" />
+                      <span>Logo Officiel du Club</span>
+                    </h4>
+
+                    {/* Zone de Glisser-Déposer */}
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingLogo(true);
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        setIsDraggingLogo(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        setIsDraggingLogo(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingLogo(false);
+                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                          handleLogoFileUpload(e.dataTransfer.files[0]);
+                        }
+                      }}
+                      className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all ${
+                        isDraggingLogo
+                          ? 'border-orange-400 bg-orange-950/40 scale-[1.02] shadow-xl shadow-orange-500/20'
+                          : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
+                      }`}
+                    >
+                      {clubSettings.logoUrl ? (
+                        <div className="space-y-3">
+                          <div className="w-28 h-28 mx-auto rounded-2xl bg-slate-900 border border-slate-700/80 p-3 flex items-center justify-center shadow-lg relative group">
+                            <img
+                              src={clubSettings.logoUrl}
+                              alt={clubSettings.name}
+                              className="max-w-full max-h-full object-contain"
+                            />
+                            {isUploadingLogo && (
+                              <div className="absolute inset-0 bg-black/70 rounded-2xl flex items-center justify-center">
+                                <RefreshCw className="w-6 h-6 text-orange-400 animate-spin" />
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-300 font-bold">
+                            Logo actuel du club
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Glissez une nouvelle image ici pour remplacer le logo
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 py-4">
+                          <Upload className={`w-10 h-10 mx-auto text-orange-400 transition-transform ${isDraggingLogo ? 'scale-125 animate-bounce' : ''}`} />
+                          <div className="text-sm font-bold text-white">
+                            Glissez-déposez le logo ici
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            PNG avec transparence recommandé, SVG ou JPG
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                        <input
+                          ref={logoFileInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleLogoFileUpload(e.target.files[0]);
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={isUploadingLogo}
+                          className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-orange-600/20"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{isUploadingLogo ? 'Téléversement...' : clubSettings.logoUrl ? 'Changer l\'image' : 'Choisir un fichier'}</span>
+                        </button>
+                        {clubSettings.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => onUpdateClubSettings({ ...clubSettings, logoUrl: '' })}
+                            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-900/50 hover:text-rose-300 text-slate-400 font-bold text-xs transition-colors"
+                            title="Retirer le logo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Champ URL direct alternatif */}
+                    <div className="pt-1">
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                        Ou URL directe du logo (optionnel) :
+                      </label>
+                      <input
+                        type="url"
+                        value={clubSettings.logoUrl}
+                        onChange={(e) => onUpdateClubSettings({ ...clubSettings, logoUrl: e.target.value })}
+                        placeholder="https://.../logo.png"
+                        className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bloc Réseaux Sociaux */}
+              <div className="bg-slate-900/70 p-5 rounded-3xl border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-pink-400" />
+                    <span>Réseaux Sociaux du Club</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-400">
+                    Insérés automatiquement dans les légendes et affiches partagées
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Instagram */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Instagram className="w-3.5 h-3.5 text-pink-400" />
+                      <span>Compte Instagram</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={clubSettings.instagramHandle || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onUpdateClubSettings({ ...clubSettings, instagramHandle: val });
+                        setSocialForm((prev) => ({ ...prev, instagramHandle: val }));
+                      }}
+                      placeholder="@src_basket"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:border-pink-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-500">Exemple : @src_basket</p>
+                  </div>
+
+                  {/* Facebook */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Facebook className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Page Facebook</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={clubSettings.facebookPage || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onUpdateClubSettings({ ...clubSettings, facebookPage: val });
+                        setSocialForm((prev) => ({ ...prev, facebookPage: val }));
+                      }}
+                      placeholder="SRC Basket"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:border-blue-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-500">Exemple : SRC Basket ou facebook.com/srcbasket</p>
+                  </div>
+
+                  {/* TikTok */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Compte TikTok</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={clubSettings.tiktokHandle || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onUpdateClubSettings({ ...clubSettings, tiktokHandle: val });
+                        setSocialForm((prev) => ({ ...prev, tiktokHandle: val }));
+                      }}
+                      placeholder="@src_basket"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:border-rose-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-500">Exemple : @src_basket</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
           {/* TAB 8: FFBB */}
           {/* ========================================================================= */}
           {activeTab === 'ffbb' && (
@@ -6269,68 +7225,140 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
               </div>
 
-              {/* FFBB Teams Overview */}
-              <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-6 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <Trophy className="w-5 h-5 text-orange-400" />
-                    <h3 className="text-lg font-black text-white font-bebas tracking-wide">
-                      TOUTES LES ÉQUIPES DU CLUB ({ffbbTeams.length} ÉQUIPES OFFICIELLES FFBB)
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> API FFBB Directe
-                    </span>
-                  </div>
-                </div>
+              {/* Étape 3 : Sélection des Équipes Suivies FFBB */}
+              {(() => {
+                const ignoredList = clubSettings.ignoredTeamCategories || [];
+                const ignoredCount = ffbbTeams.filter((t) => isTeamCategoryIgnored(t.category, ignoredList)).length;
+                const trackedCount = ffbbTeams.length - ignoredCount;
 
-                <p className="text-xs text-slate-400">
-                  Équipes officielles engagées par <strong>{clubSettings.name}</strong> ({clubSettings.codeFFBB}) pour la saison en cours, directement récupérées du registre FFBB :
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {ffbbTeams.map((team, idx) => (
-                    <div
-                      key={team.id || idx}
-                      className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-2 hover:border-orange-500/40 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-bold text-white">{team.name}</span>
-                          <span
-                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                              team.gender === 'M'
-                                ? 'bg-sky-500/20 text-sky-300'
-                                : team.gender === 'F'
-                                ? 'bg-pink-500/20 text-pink-300'
-                                : 'bg-amber-500/20 text-amber-300'
-                            }`}
-                          >
-                            {team.gender === 'F' ? 'Féminine' : team.gender === 'M' ? 'Masculine' : 'Mixte'}
-                          </span>
-                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                            {team.category}
-                          </span>
+                return (
+                  <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-6 space-y-5">
+                    {/* En-tête et compteurs */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-orange-600/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
+                          <Trophy className="w-5 h-5" />
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                          {team.competition}
-                          {team.poule && (
-                            <span className="text-orange-400/90 font-medium"> • {team.poule}</span>
-                          )}
-                        </p>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-lg font-black text-white font-bebas tracking-wide">
+                              SÉLECTION DES ÉQUIPES SUIVIES SUR LA TV
+                            </h3>
+                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                              {trackedCount} / {ffbbTeams.length} actives
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Cochez les équipes à diffuser sur votre écran TV. Décochez celles qui ne jouent pas ou ne doivent pas apparaître (ex: U18F).
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20 block">
-                          {team.matchesCount} matchs
-                        </span>
-                        <span className="text-[9px] text-slate-500 mt-1 block">OK FFBB</span>
+                      {/* Boutons d'action globale */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleTrackAllTeams}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors"
+                        >
+                          Tout cocher
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleUntrackAllTeams}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold border border-slate-700 transition-colors"
+                        >
+                          Tout décocher
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+
+                    {/* Explication du comportement */}
+                    <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 flex items-start gap-2.5">
+                      <span className="text-base leading-none">💡</span>
+                      <div>
+                        <strong className="text-slate-200">Filtrage persistant :</strong> Chaque synchronisation future ignore automatiquement les équipes décochées. Leurs matchs et résultats ne seront ni enregistrés, ni affichés sur le diaporama.
+                      </div>
+                    </div>
+
+                    {/* Grille des équipes interactives */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {ffbbTeams.map((team, idx) => {
+                        const isIgnored = isTeamCategoryIgnored(team.category, ignoredList);
+                        const isTracked = !isIgnored;
+
+                        return (
+                          <div
+                            key={team.id || idx}
+                            onClick={() => handleToggleTrackTeam(team.category, team.name)}
+                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 group ${
+                              isTracked
+                                ? 'bg-slate-950 border-slate-700/80 hover:border-orange-500/60 shadow-md'
+                                : 'bg-slate-950/40 border-slate-900 opacity-60 hover:opacity-90'
+                            }`}
+                          >
+                            {/* Case à cocher personnalisée */}
+                            <div className="pt-0.5 shrink-0">
+                              <div
+                                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${
+                                  isTracked
+                                    ? 'bg-orange-600 text-white shadow-sm shadow-orange-600/40'
+                                    : 'border border-slate-600 bg-slate-900 group-hover:border-slate-500'
+                                }`}
+                              >
+                                {isTracked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                              </div>
+                            </div>
+
+                            {/* Informations sur l'équipe */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-xs font-bold ${isTracked ? 'text-white' : 'text-slate-400 line-through'}`}>
+                                  {team.name}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                    team.gender === 'M'
+                                      ? 'bg-sky-500/20 text-sky-300'
+                                      : team.gender === 'F'
+                                      ? 'bg-pink-500/20 text-pink-300'
+                                      : 'bg-amber-500/20 text-amber-300'
+                                  }`}
+                                >
+                                  {team.gender === 'F' ? 'Féminine' : team.gender === 'M' ? 'Masculine' : 'Mixte'}
+                                </span>
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                                  {team.category}
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                                {team.competition}
+                                {team.poule && (
+                                  <span className="text-orange-400/90 font-medium"> • {team.poule}</span>
+                                )}
+                              </p>
+
+                              <div className="mt-2 flex items-center justify-between">
+                                <span
+                                  className={`text-[10px] font-bold ${
+                                    isTracked ? 'text-emerald-400' : 'text-slate-500'
+                                  }`}
+                                >
+                                  {isTracked ? '✓ Diffusée sur TV' : '✕ Ignorée (exclue)'}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  {team.matchesCount} matchs
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

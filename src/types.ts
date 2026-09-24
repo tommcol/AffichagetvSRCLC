@@ -291,15 +291,16 @@ export interface ClubSettings {
   tickerText: string;
   showClock: boolean; // default false (selon demande utilisateur)
   autoPlayCarousel: boolean;
-  instagramHandle?: string; // ex: "@bc_valdesaone"
-  facebookPage?: string; // ex: "BasketClubValDeSaone"
-  tiktokHandle?: string; // ex: "@bcvs_basket"
+  instagramHandle?: string; // ex: "@src_basket"
+  facebookPage?: string; // ex: "SRC Basket"
+  tiktokHandle?: string; // ex: "@src_basket"
   socialWebhookUrl?: string; // Webhook Zapier / Make / Meta Business / Discord
   purePhotoSlidesOnly?: boolean; // Mode 100% photo/image pur sans aucun texte superposé
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos
   balancedLoopMode?: boolean; // Alternance équilibrée des catégories (1 match, 1 sponsor, 1 photo, 1 résultat...)
   autoSyncFFBB?: boolean; // Synchronisation automatique périodique avec FFBB
   autoSyncIntervalMinutes?: number; // Fréquence de synchronisation en minutes (défaut 3 min)
+  ignoredTeamCategories?: string[]; // Catégories normalisées ignorées (ex: ["U18 F1"]). Par défaut vide = toutes suivies.
 }
 
 export interface CarouselSlide {

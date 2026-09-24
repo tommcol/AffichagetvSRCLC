@@ -5,6 +5,9 @@ export type { FFBBTeamItem };
 export interface FFBBClubInfo {
   clubCode: string;
   clubName: string;
+  logoUrl?: string;
+  city?: string;
+  gymnasiumDefault?: string;
   league: string; // Comité départemental / Ligue régionale
   season: string;
   teamsCount: number;
@@ -21,8 +24,8 @@ export function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
   const raw = (rawTeam || '').trim();
   const rawLower = raw.toLowerCase();
 
-  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f');
-  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || rawLower.includes(' m');
+  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f') || /u\d+\s*f/i.test(rawLower);
+  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || compLower.includes('garcon') || rawLower.includes(' m') || rawLower.includes(' g') || /u\d+\s*[mg]/i.test(rawLower);
   const gender: 'M' | 'F' | 'Mixte' = isFem ? 'F' : (isMasc ? 'M' : 'Mixte');
 
   const uMatch = compLower.match(/u\s*(\d+)/i) || rawLower.match(/u\s*(\d+)/i);
@@ -55,6 +58,28 @@ export function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
     displayName: raw || comp || 'Équipe Club',
     gender,
   };
+}
+
+/**
+ * Normalise une chaîne de catégorie en clé standardisée unique (ex: "U18 F1", "SENIORS M1")
+ * Permet d'identifier une équipe de façon fiable d'une semaine à l'autre même en cas de légère variation de libellé.
+ */
+export function normalizeCategoryKey(raw?: string): string {
+  if (!raw) return '';
+  const clean = String(raw).trim();
+  const normalized = normalizeFFBBCategory(clean);
+  const key = (normalized.badgeCategory || clean).trim().toUpperCase();
+  // Standardise la lettre Garçons ('G' -> 'M') pour éviter les disparités
+  return key.replace(/\bG(\d*)\b/g, 'M$1').replace(/\s+/g, ' ');
+}
+
+/**
+ * Vérifie si une catégorie fait partie de la liste des équipes ignorées/décochées
+ */
+export function isTeamCategoryIgnored(category: string, ignoredCategories: string[] = []): boolean {
+  if (!ignoredCategories || ignoredCategories.length === 0) return false;
+  const targetKey = normalizeCategoryKey(category);
+  return ignoredCategories.some((item) => normalizeCategoryKey(item) === targetKey);
 }
 
 /**
@@ -109,11 +134,17 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
     const orgId = await resolveOrganismeId(clubCode);
     if (!orgId) return null;
 
-    // Prefer ffbb-api.desimone.fr which provides the real official match schedules/hours
-    let res = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
-      headers: { Accept: 'application/json' },
-    }).catch(() => null);
+    // Fetch matches and club details in parallel
+    const [matchesRes, clubRes] = await Promise.all([
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
+        headers: { Accept: 'application/json' },
+      }).catch(() => null),
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+        headers: { Accept: 'application/json' },
+      }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
 
+    let res = matchesRes;
     if (!res || !res.ok) {
       res = await fetch(`https://ffbb.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
         headers: { Accept: 'application/json' },
@@ -123,7 +154,12 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
 
     const data = await res.json();
     const rawMatches = Array.isArray(data.matches) ? data.matches : [];
-    const clubNom = data.club || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+    const clubNom = clubRes?.nom || data.club || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+    const clubLogoUrl = clubRes?.logo?.id
+      ? `https://api.ffbb.com/assets/${clubRes.logo.id}`
+      : (clubRes?.logo_url || clubRes?.logo || undefined);
+    const clubCity = clubRes?.commune?.libelle || undefined;
+    const clubGym = clubRes?.salle?.libelle || undefined;
     const todayStr = new Date().toISOString().slice(0, 10);
 
     // Extract unique poule IDs to query scores
@@ -285,6 +321,9 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
     const clubInfo: FFBBClubInfo = {
       clubCode,
       clubName: clubNom,
+      logoUrl: clubLogoUrl,
+      city: clubCity,
+      gymnasiumDefault: clubGym,
       league: 'Ligue Régionale & Comité Départemental FFBB',
       season: '2026-2027',
       teamsCount: teamsList.length,
@@ -443,6 +482,9 @@ export class FFBBService {
         const clubInfo: FFBBClubInfo = {
           clubCode,
           clubName: clubNom,
+          logoUrl: data.logoUrl,
+          city: data.city,
+          gymnasiumDefault: data.gymnasiumDefault,
           league: 'Ligue Régionale & Comité Départemental FFBB',
           season: '2026-2027',
           teamsCount: teamsList.length,
