@@ -296,7 +296,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'ffbb'
     | 'fullykiosk'
     | 'settings'
+    | 'image_banks'
   >('matches');
+
+  const [imageBankSubTab, setImageBankSubTab] = useState<'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('photos');
 
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events' | 'opponent_logos'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
@@ -2010,7 +2013,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     tabName: Parameters<typeof setActiveTab>[0],
     e?: React.MouseEvent<HTMLButtonElement>
   ) => {
-    setActiveTab(tabName);
+    if (['photos', 'sponsors', 'logos', 'events', 'team_visuals'].includes(tabName)) {
+      setActiveTab('image_banks');
+      setImageBankSubTab(tabName as any);
+    } else {
+      setActiveTab(tabName);
+    }
     if (e?.currentTarget) {
       e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
@@ -2304,51 +2312,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
-              onClick={(e) => handleSelectTab('photos', e)}
+              onClick={(e) => handleSelectTab('image_banks', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'photos'
+                activeTab === 'image_banks'
                   ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
               <Camera className="w-4 h-4 text-amber-400" />
-              <span>Photos ({photos.length})</span>
-            </button>
-
-            <button
-              onClick={(e) => handleSelectTab('sponsors', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'sponsors'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Building2 className="w-4 h-4 text-yellow-400" />
-              <span>Sponsors ({sponsors.length})</span>
-            </button>
-
-            <button
-              onClick={(e) => handleSelectTab('logos', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'logos'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <FolderPlus className="w-4 h-4 text-cyan-400" />
-              <span>Banque Logos ({logos.length})</span>
-            </button>
-
-            <button
-              onClick={(e) => handleSelectTab('events', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'events'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>Événements ({events.length})</span>
+              <span>Banques d'images</span>
             </button>
 
             <button
@@ -2361,18 +2333,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             >
               <Cake className="w-4 h-4 text-pink-400" />
               <span>Anniversaires ({birthdays.length})</span>
-            </button>
-
-            <button
-              onClick={(e) => handleSelectTab('team_visuals', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'team_visuals'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>Visuels Victoire/Défaite</span>
             </button>
 
             <button
@@ -4080,9 +4040,93 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 3: PHOTOS DU CLUB */}
+          {/* BANQUES D'IMAGES & VISUELS DU CLUB */}
           {/* ========================================================================= */}
-          {activeTab === 'photos' && (
+          {activeTab === 'image_banks' && (
+            <div className="space-y-6">
+              {/* Entête & Sous-onglets des Banques d'images */}
+              <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
+                <div>
+                  <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-amber-400" />
+                    <span>BANQUES D'IMAGES & VISUELS DU CLUB</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Déposez et gérez l'ensemble des photos, logos, partenaires, affiches et visuels d'équipes.
+                  </p>
+                </div>
+
+                {/* Sous-onglets de navigation */}
+                <div className="flex items-center gap-1.5 flex-wrap bg-slate-950 p-1.5 rounded-2xl border border-slate-800/90 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setImageBankSubTab('photos')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'photos'
+                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Photos ({photos.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImageBankSubTab('sponsors')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'sponsors'
+                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-yellow-400" />
+                    <span>Sponsors ({sponsors.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImageBankSubTab('logos')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'logos'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Banque Logos ({logos.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImageBankSubTab('events')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'events'
+                        ? 'bg-orange-600 text-white shadow-md shadow-orange-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Événements ({events.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImageBankSubTab('team_visuals')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'team_visuals'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Visuels Victoire/Défaite</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Photos */}
+              {imageBankSubTab === 'photos' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
@@ -4232,7 +4276,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {/* TAB 4: SPONSORS & PARTENAIRES */}
           {/* ========================================================================= */}
-          {activeTab === 'sponsors' && (
+          {imageBankSubTab === 'sponsors' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
@@ -4383,7 +4427,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {/* BANQUE DÉDIÉE LOGOS (Club, Partenaires, Ligue, Comité) */}
           {/* ========================================================================= */}
-          {activeTab === 'logos' && (
+          {imageBankSubTab === 'logos' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
@@ -4540,7 +4584,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {/* TAB 5: ÉVÉNEMENTS */}
           {/* ========================================================================= */}
-          {activeTab === 'events' && (
+          {imageBankSubTab === 'events' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
                 <div>
@@ -4666,7 +4710,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           )}
           {/* ========================================================================= */}
           {/* TAB 3: VISUELS ÉQUIPES (VICTOIRE / DÉFAITE) */}
-          {activeTab === 'team_visuals' && (
+          {imageBankSubTab === 'team_visuals' && (
             <div className="space-y-6">
               <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -4839,6 +4883,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </div>
                 ))}
               </div>
+            </div>
+          )}
             </div>
           )}
 
