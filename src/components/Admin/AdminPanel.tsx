@@ -287,8 +287,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'logos'
     | 'events'
     | 'categories'
-    | 'folders'
-    | 'templates'
     | 'team_visuals'
     | 'social'
     | 'telegram'
@@ -299,7 +297,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'settings'
   >('matches');
 
-  const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events'>('photos');
+  const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events' | 'opponent_logos'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
   // Sous-onglets par catégorie pour intégrer directement le Studio Calques sur place
@@ -423,6 +421,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showCalendarInMatches, setShowCalendarInMatches] = useState<boolean>(true);
   const [showAddManualMatch, setShowAddManualMatch] = useState<boolean>(false);
   const [newResultDate, setNewResultDate] = useState<string>('Hier');
+
+  // Opponent Club Logos state & cache
+  const [autoFetchOpponentLogos, setAutoFetchOpponentLogos] = useState<boolean>(true);
+  const [isFetchingOpponentLogos, setIsFetchingOpponentLogos] = useState<boolean>(false);
+  const [opponentLogosCache, setOpponentLogosCache] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('club_opponent_logos_cache');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [newOpponentClubName, setNewOpponentClubName] = useState<string>('');
+  const [newOpponentLogoUrl, setNewOpponentLogoUrl] = useState<string>('');
   const [socialForm, setSocialForm] = useState({
     instagramHandle: clubSettings.instagramHandle || '',
     facebookPage: clubSettings.facebookPage || '',
@@ -1383,6 +1395,64 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setTimeout(() => setSyncMessage(null), 4000);
   };
 
+  // Récupération automatique des logos des clubs adverses (FFBB API)
+  const handleFetchOpponentLogos = async (overrideMatches?: MatchItem[], overrideResults?: MatchItem[]) => {
+    setIsFetchingOpponentLogos(true);
+    const targetMatches = overrideMatches || matches;
+    const targetResults = overrideResults || results;
+    const updatedCache = { ...opponentLogosCache };
+    let newLogosCount = 0;
+
+    const allOpponents = Array.from(
+      new Set(
+        [...targetMatches, ...targetResults]
+          .map((m) => (m.isHomeMatch ? m.teamAway : m.teamHome))
+          .filter(
+            (name) =>
+              name &&
+              name.trim().length > 1 &&
+              !name.toLowerCase().includes('clayette') &&
+              !name.toLowerCase().includes('src basket')
+          )
+      )
+    );
+
+    for (const opp of allOpponents) {
+      if (!updatedCache[opp]) {
+        const logoUrl = await FFBBService.fetchClubLogoByName(opp);
+        if (logoUrl) {
+          updatedCache[opp] = logoUrl;
+          newLogosCount++;
+        }
+      }
+    }
+
+    setOpponentLogosCache(updatedCache);
+    try {
+      localStorage.setItem('club_opponent_logos_cache', JSON.stringify(updatedCache));
+    } catch (e) {}
+
+    // Attacher les logos aux matchs et résultats
+    const applyLogos = (items: MatchItem[]) =>
+      items.map((m) => {
+        const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
+        const logo = updatedCache[oppName];
+        return logo ? { ...m, opponentLogo: logo } : m;
+      });
+
+    const updatedM = applyLogos(targetMatches);
+    const updatedR = applyLogos(targetResults);
+    onUpdateMatches(updatedM);
+    onUpdateResults(updatedR);
+    setIsFetchingOpponentLogos(false);
+
+    if (!overrideMatches) {
+      setSyncMessage(`🔍 Recherche de logos FFBB terminée : ${newLogosCount} nouveau(x) logo(s) de club(s) adverses trouvé(s) !`);
+      setTimeout(() => setSyncMessage(null), 4000);
+    }
+    return { updatedMatches: updatedM, updatedResults: updatedR, newLogosCount };
+  };
+
   // Sync with FFBB : Télécharge TOUTE la saison sans supprimer par date
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
@@ -1414,8 +1484,24 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           });
         }
 
+        // Attacher les logos adverses si disponibles en cache
+        const applyLogos = (items: MatchItem[]) =>
+          items.map((m) => {
+            const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
+            const logo = opponentLogosCache[oppName];
+            return logo ? { ...m, opponentLogo: logo } : m;
+          });
+
+        allSeasonMatches = applyLogos(allSeasonMatches);
+        allSeasonResults = applyLogos(allSeasonResults);
+
         onUpdateMatches(allSeasonMatches);
         onUpdateResults(allSeasonResults);
+
+        // Si l'option d'auto-récupération des logos adverses est cochée, lancer la recherche en arrière-plan
+        if (autoFetchOpponentLogos) {
+          handleFetchOpponentLogos(allSeasonMatches, allSeasonResults);
+        }
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
           setFfbbTeams(res.clubInfo.teamsList);
@@ -2625,7 +2711,17 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleFetchOpponentLogos()}
+                          disabled={isFetchingOpponentLogos}
+                          className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/35 text-sky-300 border border-sky-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          title="Rechercher et télécharger automatiquement les logos officiels FFBB des équipes adverses"
+                        >
+                          <Search className={`w-3.5 h-3.5 text-sky-400 ${isFetchingOpponentLogos ? 'animate-spin' : ''}`} />
+                          <span>{isFetchingOpponentLogos ? 'Recherche logos...' : 'Logos adverses (FFBB)'}</span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => setShowCalendarInMatches(true)}
@@ -2645,6 +2741,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
                   )}
+
+                  <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                      <input
+                        type="checkbox"
+                        checked={autoFetchOpponentLogos}
+                        onChange={(e) => setAutoFetchOpponentLogos(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0"
+                      />
+                      <span>Récupérer automatiquement les logos officiels FFBB des clubs adverses à chaque synchronisation</span>
+                    </label>
+                  </div>
 
                   {syncMessage && (
                     <p className={`text-[11px] font-medium p-2.5 rounded-xl border ${
@@ -4556,403 +4664,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </div>
           )}
           {/* ========================================================================= */}
-          {/* TAB 1: DOSSIERS IMAGES & DEPÔT */}
-          {/* ========================================================================= */}
-          {activeTab === 'folders' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/60">
-                <div>
-                  <h3 className="text-lg font-black text-white font-bebas tracking-wide">
-                    DÉPÔT D'IMAGES PAR DOSSIER DE CATÉGORIE
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Déposez vos photos, logos ou affiches directement dans le dossier correspondant pour alimenter la boucle de la télévision.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedFolderCategory('photos')}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ${
-                      selectedFolderCategory === 'photos'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Photos ({photos.length})</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedFolderCategory('sponsors')}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ${
-                      selectedFolderCategory === 'sponsors'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Sponsors ({sponsors.length})</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedFolderCategory('events')}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 ${
-                      selectedFolderCategory === 'events'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Affiches Événements ({events.length})</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Sub-view: Photos Folder */}
-              {selectedFolderCategory === 'photos' && (
-                <div className="space-y-4">
-                  {/* Upload Box for Photos */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingPhotos(true);
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      setIsDraggingPhotos(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDraggingPhotos(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingPhotos(false);
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        handleBatchPhotosUpload(e.dataTransfer.files);
-                      }
-                    }}
-                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
-                      isDraggingPhotos
-                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
-                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
-                    }`}
-                  >
-                    <Camera className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingPhotos ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
-                    <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      AJOUTER DES PHOTOS AU DOSSIER "VIE DU CLUB"
-                    </h4>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Glissez vos photos ici ou sélectionnez <strong className="text-orange-300">plusieurs images ou vidéos d'un coup</strong> (JPG, PNG, MP4, WebM).
-                    </p>
-
-                    <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si lot) :</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Victoire en prolongation"
-                          value={newPhotoTitle}
-                          onChange={(e) => setNewPhotoTitle(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Dossier / Équipe :</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Seniors 1, Stages..."
-                          value={newPhotoFolder}
-                          onChange={(e) => setNewPhotoFolder(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                        />
-                      </div>
-                    </div>
-
-                    <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
-                      <Upload className="w-4 h-4" />
-                      <span>Choisir un ou plusieurs fichiers (Photos / Vidéos)</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,video/*,.mp4,.webm,.mov"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files.length > 0) {
-                            handleBatchPhotosUpload(e.target.files);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Photo Gallery Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {photos.map((p) => (
-                      <div
-                        key={p.id}
-                        className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 group"
-                      >
-                        <img
-                          src={p.imageUrl}
-                          alt={p.title}
-                          className="w-full h-28 object-cover group-hover:scale-105 transition-transform"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="p-2">
-                          <p className="text-xs font-bold text-white truncate">{p.title}</p>
-                          <span className="text-[10px] text-orange-400 block">{p.categoryFolder || 'Général'}</span>
-                        </div>
-                        <button
-                          onClick={() => onUpdatePhotos(photos.filter((item) => item.id !== p.id))}
-                          className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Supprimer la photo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-view: Sponsors Folder */}
-              {selectedFolderCategory === 'sponsors' && (
-                <div className="space-y-4">
-                  {/* Upload Box for Sponsors */}
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingSponsors(true);
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      setIsDraggingSponsors(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDraggingSponsors(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingSponsors(false);
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        handleBatchSponsorsUpload(e.dataTransfer.files);
-                      }
-                    }}
-                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
-                      isDraggingSponsors
-                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
-                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
-                    }`}
-                  >
-                    <Building2 className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingSponsors ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
-                    <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      AJOUTER UN OU PLUSIEURS SPONSORS
-                    </h4>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Déposez un ou <strong className="text-orange-300">plusieurs logos de partenaires en même temps</strong> (PNG, SVG, JPG, MP4).
-                    </p>
-
-                    <div className="max-w-md mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-left">
-                      <div className="sm:col-span-2">
-                        <label className="text-xs text-slate-400 block mb-1">Nom (optionnel si lot) :</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Boulangerie Ducoin"
-                          value={newSponsorName}
-                          onChange={(e) => setNewSponsorName(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Rang :</label>
-                        <select
-                          value={newSponsorTier}
-                          onChange={(e) => setNewSponsorTier(e.target.value as any)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                        >
-                          <option value="gold">Gold (Majeur)</option>
-                          <option value="silver">Silver</option>
-                          <option value="bronze">Bronze</option>
-                          <option value="partenaire">Partenaire</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
-                      <Upload className="w-4 h-4" />
-                      <span>Déposer un ou plusieurs logos partenaires</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,video/*,.mp4,.webm,.mov"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files.length > 0) {
-                            handleBatchSponsorsUpload(e.target.files);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Sponsors List */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {sponsors.map((sp) => (
-                      <div
-                        key={sp.id}
-                        className="relative rounded-2xl p-3 border border-slate-800 bg-slate-950 flex flex-col items-center text-center group"
-                      >
-                        <div className="w-20 h-16 bg-white rounded-xl p-2 flex items-center justify-center mb-2">
-                          <img
-                            src={sp.logoUrl}
-                            alt={sp.name}
-                            className="max-h-full max-w-full object-contain"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <h4 className="text-xs font-bold text-white truncate w-full">{sp.name}</h4>
-                        <span className="text-[10px] text-amber-400 font-bold uppercase">{sp.tier}</span>
-                        <button
-                          onClick={() => onUpdateSponsors(sponsors.filter((item) => item.id !== sp.id))}
-                          className="absolute top-1.5 right-1.5 p-1 rounded bg-red-600/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-view: Events Folder */}
-              {selectedFolderCategory === 'events' && (
-                <div className="space-y-4">
-                  <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDraggingEvents(true);
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      setIsDraggingEvents(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsDraggingEvents(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsDraggingEvents(false);
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        handleBatchEventsUpload(e.dataTransfer.files);
-                      }
-                    }}
-                    className={`border-2 border-dashed rounded-3xl p-6 text-center transition-all ${
-                      isDraggingEvents
-                        ? 'border-orange-400 bg-orange-950/40 scale-[1.01] shadow-xl shadow-orange-500/20'
-                        : 'border-slate-700 hover:border-orange-500/80 bg-slate-950/60'
-                    }`}
-                  >
-                    <Sparkles className={`w-10 h-10 mx-auto mb-2 transition-transform ${isDraggingEvents ? 'text-orange-400 scale-125 animate-bounce' : 'text-orange-400'}`} />
-                    <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                      AJOUTER UNE OU PLUSIEURS AFFICHES D'ÉVÉNEMENTS (TOURNOI, SOIRÉE, STAGE)
-                    </h4>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                      Glissez une ou <strong className="text-orange-300">plusieurs affiches en même temps</strong>.
-                    </p>
-
-                    <div className="max-w-xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-left">
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Titre (optionnel si lot) :</label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Soirée Fondue du club"
-                          value={newEventTitle}
-                          onChange={(e) => setNewEventTitle(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Date de l'événement :</label>
-                        <SingleDatePicker
-                          value={newEventDate}
-                          onChange={(french) => setNewEventDate(french)}
-                          placeholder="Choisir la date sur le calendrier..."
-                        />
-                      </div>
-                    </div>
-
-                    <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105">
-                      <Upload className="w-4 h-4" />
-                      <span>Déposer une ou plusieurs affiches d'événements</span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*,video/*,.mp4,.webm,.mov"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files.length > 0) {
-                            handleBatchEventsUpload(e.target.files);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {events.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex flex-col group relative"
-                      >
-                        {ev.imageUrl && (
-                          <img
-                            src={ev.imageUrl}
-                            alt={ev.title}
-                            className="w-full h-32 object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        )}
-                        <div className="p-3">
-                          <h4 className="text-sm font-black text-white font-bebas">{ev.title}</h4>
-                          <p className="text-xs text-orange-400">{ev.date}</p>
-                          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{ev.description}</p>
-                        </div>
-                        <button
-                          onClick={() => onUpdateEvents(events.filter((item) => item.id !== ev.id))}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB 2: GABARITS & VISUELS SUPPORTS */}
-          {/* ========================================================================= */}
-          {activeTab === 'templates' && (
-            <div className="space-y-8">
-              {/* Studio Graphique Workbench Live */}
-              <StudioGraphiqueWorkbench
-                visualTemplates={visualTemplates}
-                onUpdateVisualTemplates={onUpdateVisualTemplates}
-                matches={matches}
-                results={results}
-                birthdays={birthdays}
-                clubSettings={clubSettings}
-              />
-            </div>
-          )}
-
-          {/* ========================================================================= */}
           {/* TAB 3: VISUELS ÉQUIPES (VICTOIRE / DÉFAITE) */}
-          {/* ========================================================================= */}
           {activeTab === 'team_visuals' && (
             <div className="space-y-6">
               <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

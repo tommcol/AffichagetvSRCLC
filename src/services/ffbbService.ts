@@ -533,6 +533,34 @@ export class FFBBService {
   }
 
   /**
+   * Tente de récupérer automatiquement le logo officiel FFBB d'un club adverse à partir de son nom
+   */
+  static async fetchClubLogoByName(clubName: string): Promise<string | null> {
+    if (!clubName || clubName.trim().length < 2) return null;
+    const cleanName = clubName.trim();
+
+    try {
+      const orgId = await resolveOrganismeId(cleanName);
+      if (orgId) {
+        const res = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
+          headers: { Accept: 'application/json' },
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          const data = await res.json();
+          const logoUrl = data?.logo?.id
+            ? `https://api.ffbb.com/assets/${data.logo.id}`
+            : (data?.logo_url || data?.logo || null);
+          if (logoUrl) return logoUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur lors de la recherche du logo FFBB du club:', cleanName, e);
+    }
+    return null;
+  }
+
+  /**
    * Helper to trigger and format a finished match notification event (1-hour overlay)
    */
   static createFinishedNotification(

@@ -362,13 +362,19 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
-                            <div className={`${homeSizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
+                            <div className={`flex items-center gap-2 flex-wrap ${homeSizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
+                              {isClubHome && clubSettings.logoUrl && (
+                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
+                              )}
                               <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={homeSizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
+                              {isClubAway && clubSettings.logoUrl && (
+                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
+                              )}
                               <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>
@@ -491,13 +497,19 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
-                            <div className={`${awaySizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
+                            <div className={`flex items-center gap-2 flex-wrap ${awaySizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
+                              {isClubHome && clubSettings.logoUrl && (
+                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
+                              )}
                               <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={awaySizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
+                              {isClubAway && clubSettings.logoUrl && (
+                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
+                              )}
                               <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>

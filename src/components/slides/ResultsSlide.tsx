@@ -319,15 +319,20 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                     {/* Rencontre / Adversaires & Score */}
                     <div className={`w-full mt-3 ${sizing.matchupBox}`}>
                       <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap">
-                        <span
-                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                            r.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || r.isHomeMatch
-                              ? 'text-orange-400'
-                              : 'text-slate-100'
-                          }`}
-                        >
-                          {r.teamHome}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {r.isHomeMatch && clubSettings.logoUrl && (
+                            <img src={clubSettings.logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow" referrerPolicy="no-referrer" />
+                          )}
+                          <span
+                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
+                              r.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || r.isHomeMatch
+                                ? 'text-orange-400'
+                                : 'text-slate-100'
+                            }`}
+                          >
+                            {r.teamHome}
+                          </span>
+                        </div>
 
                         {resultDisplayMode === 'status' || (r.homeScore === undefined && r.awayScore === undefined) ? (
                           <span
@@ -351,15 +356,20 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           </span>
                         )}
 
-                        <span
-                          className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                            r.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || !r.isHomeMatch
-                              ? 'text-orange-400'
-                              : 'text-slate-100'
-                          }`}
-                        >
-                          {r.teamAway}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {!r.isHomeMatch && clubSettings.logoUrl && (
+                            <img src={clubSettings.logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow" referrerPolicy="no-referrer" />
+                          )}
+                          <span
+                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
+                              r.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || !r.isHomeMatch
+                                ? 'text-orange-400'
+                                : 'text-slate-100'
+                            }`}
+                          >
+                            {r.teamAway}
+                          </span>
+                        </div>
                       </div>
 
                       {r.competition && (
