@@ -45,6 +45,7 @@ import {
   Video,
   Home,
   Navigation,
+  Search,
 } from 'lucide-react';
 import {
   CategoryConfig,
