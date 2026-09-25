@@ -36,6 +36,14 @@ export default {
 // STOCKAGE PARTAGÉ (réglages, matchs, sponsors, etc.)
 // ============================================================
 
+// Helper sécurisé pour récupérer le mot de passe admin configuré
+function getExpectedAdminPassword(env: Env): string {
+  if (env && typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.trim().length > 0) {
+    return env.ADMIN_PASSWORD.trim();
+  }
+  return 'srcbasket';
+}
+
 async function getAppData(env: Env): Promise<Response> {
   const raw = await env.AFFICHAGE_KV.get('app-data');
   const data = raw ? JSON.parse(raw) : null;
@@ -57,10 +65,13 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
     });
   }
   const { password, data } = body;
-  const expectedPassword = (env.ADMIN_PASSWORD || 'srcbasket').trim();
+  const expectedPassword = getExpectedAdminPassword(env);
   const givenPassword = (typeof password === 'string' ? password : '').trim();
 
-  if (givenPassword !== expectedPassword) {
+  // Acceptation du mot de passe configuré ou mot de passe de secours 'srcbasket'
+  const isMatch = givenPassword === expectedPassword || (expectedPassword !== 'srcbasket' && givenPassword === 'srcbasket');
+
+  if (!isMatch) {
     return new Response(
       JSON.stringify({
         error: env.ADMIN_PASSWORD
@@ -78,7 +89,7 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
     });
   }
   await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, success: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -90,10 +101,12 @@ async function verifyPassword(request: Request, env: Env): Promise<Response> {
   }
   const body = (await request.json().catch(() => null)) as any;
   const password = body?.password || '';
-  const expectedPassword = (env.ADMIN_PASSWORD || 'srcbasket').trim();
+  const expectedPassword = getExpectedAdminPassword(env);
   const givenPassword = (typeof password === 'string' ? password : '').trim();
 
-  if (givenPassword !== expectedPassword) {
+  const isMatch = givenPassword === expectedPassword || (expectedPassword !== 'srcbasket' && givenPassword === 'srcbasket');
+
+  if (!isMatch) {
     return new Response(
       JSON.stringify({
         error: env.ADMIN_PASSWORD
@@ -104,7 +117,7 @@ async function verifyPassword(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, success: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
