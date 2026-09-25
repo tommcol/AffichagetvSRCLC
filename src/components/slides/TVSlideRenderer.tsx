@@ -155,11 +155,13 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     }
 
     if (slide.categoryId === 'results') {
+      const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+      const resultsToUse = activeResults.length > 0 ? activeResults : results;
       const filteredResults = slide.filterScope === 'home'
-        ? results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        ? resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
         : slide.filterScope === 'away'
-        ? results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-        : results;
+        ? resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        : resultsToUse;
 
       return (
         <ResultsSlide

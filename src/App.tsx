@@ -531,6 +531,9 @@ export default function App() {
           }
         }
       } else if (cat.id === 'results') {
+        const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+        const resultsToUse = activeResults.length > 0 ? activeResults : results;
+
         const sortMatches = (a: MatchItem, b: MatchItem) => {
           const dateA = a.date || '';
           const dateB = b.date || '';
@@ -538,8 +541,8 @@ export default function App() {
           return (a.time || '').localeCompare(b.time || '');
         };
 
-        const homeResults = results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
-        const awayResults = results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+        const homeResults = resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+        const awayResults = resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
 
         const resultSlides: CarouselSlide[] = [];
 
@@ -570,7 +573,7 @@ export default function App() {
         }
 
         // Fallback si pas de distinction domicile/extérieur possible
-        if (resultSlides.length === 0 && results.length > 0) {
+        if (resultSlides.length === 0 && resultsToUse.length > 0) {
           resultSlides.push({
             id: 'cat-results',
             type: 'category' as const,

@@ -388,6 +388,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     return selected.length > 0 ? selected : matches;
   }, [matches]);
 
+  // Active results selection
+  const weekendResults = useMemo(() => {
+    const selected = results.filter((r) => r.selectedForWeekend !== false);
+    return selected.length > 0 ? selected : results;
+  }, [results]);
+
   // Counts per filter category to grey out empty filter buttons
   const homeMatchesCount = useMemo(
     () => weekendMatches.filter((m) => m.isHomeMatch).length,
@@ -409,22 +415,22 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   const homeResultsCount = useMemo(
-    () => results.filter((r) => r.isHomeMatch).length,
-    [results]
+    () => weekendResults.filter((r) => r.isHomeMatch).length,
+    [weekendResults]
   );
   const awayResultsCount = useMemo(
-    () => results.filter((r) => !r.isHomeMatch).length,
-    [results]
+    () => weekendResults.filter((r) => !r.isHomeMatch).length,
+    [weekendResults]
   );
   const exemptResultsCount = useMemo(
     () =>
-      results.filter(
+      weekendResults.filter(
         (r) =>
           (r.teamAway && r.teamAway.toLowerCase().includes('exempt')) ||
           (r.teamHome && r.teamHome.toLowerCase().includes('exempt')) ||
           (r.category && r.category.toLowerCase().includes('exempt'))
       ).length,
-    [results]
+    [weekendResults]
   );
 
   // Auto-reset filter to 'all' if active filter has 0 matches
@@ -464,21 +470,21 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const filteredResults = useMemo(() => {
     let list: MatchItem[] = [];
     if (posterFilter === 'home') {
-      list = results.filter((r) => r.isHomeMatch);
+      list = weekendResults.filter((r) => r.isHomeMatch);
     } else if (posterFilter === 'away') {
-      list = results.filter((r) => !r.isHomeMatch);
+      list = weekendResults.filter((r) => !r.isHomeMatch);
     } else if (posterFilter === 'exempt') {
-      list = results.filter(
+      list = weekendResults.filter(
         (r) =>
           (r.teamAway && r.teamAway.toLowerCase().includes('exempt')) ||
           (r.teamHome && r.teamHome.toLowerCase().includes('exempt')) ||
           (r.category && r.category.toLowerCase().includes('exempt'))
       );
     } else {
-      list = results;
+      list = weekendResults;
     }
     return [...list].sort(sortMatchesChronologically);
-  }, [results, posterFilter]);
+  }, [weekendResults, posterFilter]);
 
   // Compute effective header badge title
   const badgeTitle = useMemo(() => {
@@ -1211,7 +1217,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 <Layers className="w-3 h-3" />
                 <span>TOUT</span>
                 <span className="text-[10px] opacity-75">
-                  ({contentType === 'results' ? results.length : weekendMatches.length})
+                  ({contentType === 'results' ? weekendResults.length : weekendMatches.length})
                 </span>
               </button>
             </div>

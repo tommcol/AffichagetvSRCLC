@@ -45,8 +45,10 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  // Tri chronologique rigoureux : dates puis heures
-  const sortedResults = [...results].sort(sortMatchesChronologically);
+  // Only display results that are checked/selected for the weekend (selectedForWeekend !== false)
+  const weekendResults = results.filter((r) => r.selectedForWeekend !== false);
+  const activeResults = weekendResults.length > 0 ? weekendResults : results;
+  const sortedResults = [...activeResults].sort(sortMatchesChronologically);
 
   const totalWins = sortedResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
   const totalLosses = sortedResults.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
@@ -142,7 +144,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
     };
   };
 
-  const sizing = getResultsSizing(results.length);
+  const sizing = getResultsSizing(sortedResults.length);
 
   const activeStyle = theme?.visualStyle || 'poster-red';
 
