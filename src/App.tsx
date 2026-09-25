@@ -30,6 +30,8 @@ import {
 import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
 import { AdminPanel } from './components/Admin/AdminPanel';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { PWAInstallButton } from './components/common/PWAInstallButton';
 import { getEffectiveCategoryConfig } from './utils/themeUtils';
 import { isClubHomeMatch } from './utils/matchStatus';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
@@ -78,7 +80,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [showControls, setShowControls] = useState<boolean>(false);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Admin and modal state: default to 'admin' mode for configuration, or 'tv' if ?mode=tv is passed (for Fully Kiosk Browser)
   const [viewMode, setViewMode] = useState<'admin' | 'tv'>(() => {
@@ -96,34 +98,65 @@ export default function App() {
     type: 'matches',
   });
 
-  // Chargement des données depuis le serveur au démarrage
+  // Chargement des données avec support complet Hors-Ligne (PWA / Cache local)
   useEffect(() => {
+    const applyLoadedData = (d: any) => {
+      if (!d) return;
+      if (d.clubSettings) setClubSettings(d.clubSettings);
+      if (d.categories) {
+        const clampedCats = d.categories.map((c: CategoryConfig) => ({
+          ...c,
+          durationSeconds: Math.min(10, Math.max(3, c.durationSeconds || 6)),
+        }));
+        setCategories(clampedCats);
+      }
+      if (d.matches) setMatches(d.matches);
+      if (d.results) setResults(d.results);
+      if (d.sponsors) setSponsors(d.sponsors);
+      if (d.logos) setLogos(d.logos);
+      if (d.photos) setPhotos(d.photos);
+      if (d.birthdays) setBirthdays(d.birthdays);
+      if (d.events) setEvents(d.events);
+      if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
+      if (d.visualTemplates) setVisualTemplates(d.visualTemplates);
+    };
+
+    const loadFromOfflineCache = () => {
+      try {
+        const saved = localStorage.getItem('src_app_data_offline_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          applyLoadedData(parsed);
+          return true;
+        }
+      } catch (e) {
+        console.warn('Erreur lecture cache local hors-ligne:', e);
+      }
+      return false;
+    };
+
+    // 1. Tenter la récupération réseau avec fallback automatique sur cache hors-ligne
     fetch('/api/get-app-data')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Network error');
+        return res.json();
+      })
       .then((res: { data: any }) => {
         if (res.data) {
-          const d = res.data;
-          if (d.clubSettings) setClubSettings(d.clubSettings);
-          if (d.categories) {
-            const clampedCats = d.categories.map((c: CategoryConfig) => ({
-              ...c,
-              durationSeconds: Math.min(10, Math.max(3, c.durationSeconds || 6)),
-            }));
-            setCategories(clampedCats);
-          }
-          if (d.matches) setMatches(d.matches);
-          if (d.results) setResults(d.results);
-          if (d.sponsors) setSponsors(d.sponsors);
-          if (d.logos) setLogos(d.logos);
-          if (d.photos) setPhotos(d.photos);
-          if (d.birthdays) setBirthdays(d.birthdays);
-          if (d.events) setEvents(d.events);
-          if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
-          if (d.visualTemplates) setVisualTemplates(d.visualTemplates);
+          applyLoadedData(res.data);
+          try {
+            localStorage.setItem('src_app_data_offline_cache', JSON.stringify(res.data));
+          } catch (e) {}
+        } else {
+          loadFromOfflineCache();
         }
         setDataChargee(true);
       })
-      .catch(() => setDataChargee(true));
+      .catch((err) => {
+        console.warn('Réseau indisponible au démarrage - Bascule sur le cache local hors-ligne:', err);
+        loadFromOfflineCache();
+        setDataChargee(true);
+      });
 
     // Restauration automatique des vidéos stockées dans IndexedDB
     const restoreVideos = async () => {
@@ -199,6 +232,11 @@ export default function App() {
           visualTemplates,
         },
       };
+
+      // Sauvegarde immédiate dans le cache hors-ligne local
+      try {
+        localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+      } catch (e) {}
 
       const tenter = (estNouvelleTentative: boolean) => {
         fetch('/api/save-app-data', {

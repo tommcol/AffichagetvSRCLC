@@ -94,6 +94,27 @@ export const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({
     setCurrentMonth(fri.getMonth());
   };
 
+  const handleSelectLastWeekend = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    let diffToFriday = 5 - dayOfWeek - 7;
+    if (dayOfWeek === 0) diffToFriday = -2 - 7;
+    else if (dayOfWeek === 6) diffToFriday = -1 - 7;
+
+    const fri = new Date(today);
+    fri.setDate(today.getDate() + diffToFriday);
+
+    const sun = new Date(fri);
+    sun.setDate(fri.getDate() + 2);
+
+    const sIso = `${fri.getFullYear()}-${pad2(fri.getMonth() + 1)}-${pad2(fri.getDate())}`;
+    const eIso = `${sun.getFullYear()}-${pad2(sun.getMonth() + 1)}-${pad2(sun.getDate())}`;
+
+    onChangeRange(sIso, eIso);
+    setCurrentYear(fri.getFullYear());
+    setCurrentMonth(fri.getMonth());
+  };
+
   const handleSelectNextWeekend = () => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -249,25 +270,33 @@ export const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({
       </div>
 
       {/* Raccourcis Rapides en 1 Clic (Sans rien taper au clavier) */}
-      <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
         <button
           type="button"
           onClick={handleSelectThisWeekend}
-          className="py-1.5 px-2 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 font-bold transition-all text-center flex items-center justify-center gap-1"
+          className="py-1.5 px-1.5 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer"
         >
           <span>🔥 Ce week-end</span>
         </button>
         <button
           type="button"
+          onClick={handleSelectLastWeekend}
+          className="py-1.5 px-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer"
+          title="Week-end dernier (Idéal pour consulter et saisir les résultats)"
+        >
+          <span>⏮️ Week-end passé</span>
+        </button>
+        <button
+          type="button"
           onClick={handleSelectNextWeekend}
-          className="py-1.5 px-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/35 text-blue-300 border border-blue-500/30 font-bold transition-all text-center flex items-center justify-center gap-1"
+          className="py-1.5 px-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/35 text-blue-300 border border-blue-500/30 font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer"
         >
           <span>⏭️ Week-end +1</span>
         </button>
         <button
           type="button"
           onClick={handleSelectThisMonth}
-          className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition-all text-center flex items-center justify-center gap-1"
+          className="py-1.5 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-medium transition-all text-center flex items-center justify-center gap-1 cursor-pointer"
         >
           <span>📅 Tout le mois</span>
         </button>

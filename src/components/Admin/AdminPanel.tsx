@@ -419,6 +419,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isRewriting, setIsRewriting] = useState<boolean>(false);
   const [syncStartDate, setSyncStartDate] = useState<string>('');
   const [syncEndDate, setSyncEndDate] = useState<string>('');
+  const [resultsStartDate, setResultsStartDate] = useState<string>('');
+  const [resultsEndDate, setResultsEndDate] = useState<string>('');
+  const [showCalendarInResults, setShowCalendarInResults] = useState<boolean>(false);
   const [quickScoreMatchId, setQuickScoreMatchId] = useState<string | null>(null);
   const [quickHomeScore, setQuickHomeScore] = useState<string>('');
   const [quickAwayScore, setQuickAwayScore] = useState<string>('');
@@ -1336,11 +1339,40 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     const friday = new Date(today);
     friday.setDate(today.getDate() + daysToFriday);
     
-    const monday = new Date(friday);
-    monday.setDate(friday.getDate() + 3);
+    const sunday = new Date(friday);
+    sunday.setDate(friday.getDate() + 2);
     
     setSyncStartDate(friday.toISOString().slice(0, 10));
-    setSyncEndDate(monday.toISOString().slice(0, 10));
+    setSyncEndDate(sunday.toISOString().slice(0, 10));
+    setMatchesFilterMode('range');
+  };
+
+  const setResultsFilterToLastWeekend = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    let daysToFriday = 5 - dayOfWeek - 7;
+    if (dayOfWeek === 0) daysToFriday = -2 - 7;
+    else if (dayOfWeek === 6) daysToFriday = -1 - 7;
+    
+    const friday = new Date(today);
+    friday.setDate(today.getDate() + daysToFriday);
+    
+    const sunday = new Date(friday);
+    sunday.setDate(friday.getDate() + 2);
+    
+    setResultsStartDate(friday.toISOString().slice(0, 10));
+    setResultsEndDate(sunday.toISOString().slice(0, 10));
+  };
+
+  const handleSelectOnlyFilteredMatchesForTV = (filteredList: MatchItem[]) => {
+    const targetIds = new Set(filteredList.map((m) => m.id));
+    const updated = matches.map((m) => ({
+      ...m,
+      selectedForWeekend: targetIds.has(m.id),
+    }));
+    onUpdateMatches(updated);
+    setSyncMessage(`✓ ${filteredList.length} match(s) de la période cochés pour la TV.`);
+    setTimeout(() => setSyncMessage(null), 3500);
   };
 
   // Transformation rapide d'un match en Victoire / Défaite / Score et transfert direct dans Résultats
@@ -2556,20 +2588,20 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </button>
                 </div>
 
-                {/* Widget de Synchronisation Rapide FFBB Directe avec Petit Calendrier Visuel */}
+                {/* Widget de Filtrage Instantané par Calendrier & Synchronisation FFBB */}
                 <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 mt-2 space-y-3.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
                     <div className="flex items-center gap-2">
-                      <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                      <Calendar className="w-4 h-4 text-orange-400" />
                       <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
-                        Synchronisation FFBB (Sélection par calendrier)
+                        Filtrage instantané par date (En mémoire • Sans recharger FFBB)
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
                         onClick={() => setShowCalendarInMatches(!showCalendarInMatches)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold transition-all flex items-center gap-1 border border-slate-700"
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold transition-all flex items-center gap-1 border border-slate-700 cursor-pointer"
                       >
                         <Calendar className="w-3 h-3 text-orange-400" />
                         <span>{showCalendarInMatches ? 'Masquer le calendrier' : 'Afficher le calendrier'}</span>
@@ -2577,9 +2609,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       <button
                         type="button"
                         onClick={setFilterToCurrentWeekend}
-                        className="px-2.5 py-1 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all cursor-pointer"
                       >
-                        📅 Ce week-end
+                        🔥 Ce week-end
                       </button>
                       {(syncStartDate || syncEndDate) && (
                         <button
@@ -2587,16 +2619,17 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           onClick={() => {
                             setSyncStartDate('');
                             setSyncEndDate('');
+                            setMatchesFilterMode('all');
                           }}
-                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all"
+                          className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all cursor-pointer"
                         >
-                          Effacer le filtre
+                          Voir toute la saison
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Calendrier visuel interactif : zéro saisie manuelle requise */}
+                  {/* Calendrier visuel interactif : filtrage 100% instantané en mémoire */}
                   {showCalendarInMatches ? (
                     <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
                       <div className="shrink-0 flex justify-center">
@@ -2606,16 +2639,30 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           onChangeRange={(start, end) => {
                             setSyncStartDate(start);
                             setSyncEndDate(end);
+                            if (start || end) {
+                              setMatchesFilterMode('range');
+                            }
                           }}
-                          title="Petit calendrier interactif"
+                          title="Sélectionner les dates à afficher"
                         />
                       </div>
 
                       <div className="flex-1 flex flex-col justify-between bg-slate-900/60 rounded-2xl p-4 border border-slate-800 space-y-4">
                         <div className="space-y-2">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                            Période sélectionnée sur le calendrier :
-                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                              Filtre actif :
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">
+                              {
+                                (syncStartDate || syncEndDate
+                                  ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
+                                  : matches
+                                ).length
+                              } match(s) trouvé(s)
+                            </span>
+                          </div>
+
                           <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
                             {syncStartDate && syncEndDate ? (
                               <div className="space-y-0.5">
@@ -2632,31 +2679,45 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               </span>
                             ) : (
                               <span className="text-xs text-slate-400 italic">
-                                Aucun filtre : toute la saison FFBB sera importée.
+                                Aucun filtre : toute la saison ({matches.length} matchs) est affichée.
                               </span>
                             )}
                           </div>
+
                           <p className="text-[11px] text-slate-400 leading-relaxed">
-                            💡 <strong>Cliquez directement sur les jours du calendrier</strong> ci-contre ou sur les boutons rapides (<em>Ce week-end, Week-end +1, etc.</em>). Plus besoin de taper les dates au clavier !
+                            💡 <strong>Cliquez simplement sur une date du calendrier</strong> : le filtre s'applique instantanément sur la base sans aucun chargement réseau.
                           </p>
                         </div>
 
+                        {/* Actions directes sur la sélection filtrée */}
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                          <button
-                            type="button"
-                            onClick={handleSyncFFBB}
-                            disabled={isSyncingFFBB}
-                            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/25 cursor-pointer"
-                          >
-                            <RefreshCw className={`w-4 h-4 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
-                            <span>
-                              {isSyncingFFBB
-                                ? 'Synchronisation FFBB en cours...'
-                                : syncStartDate && syncEndDate
-                                ? 'Récupérer les matchs pour cette période'
-                                : 'Récupérer les matchs FFBB'}
-                            </span>
-                          </button>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const list = (syncStartDate || syncEndDate)
+                                  ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
+                                  : matches;
+                                handleSelectOnlyFilteredMatchesForTV(list);
+                              }}
+                              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                              title="Coche uniquement les matchs de cette période pour la boucle TV et décoche les autres"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Cocher cette période pour la TV</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleSyncFFBB}
+                              disabled={isSyncingFFBB}
+                              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all border border-slate-700 cursor-pointer"
+                              title="Utile si une nouvelle phase (Phase 2, Phase 3 jeunes) a débuté ou si des horaires ont été modifiés sur la FFBB"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                              <span>Actualiser depuis FFBB</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2667,13 +2728,25 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <Calendar className="w-4 h-4 text-orange-400" />
                         <span>
                           {syncStartDate && syncEndDate ? (
-                            <>Période : <strong>{formatDateToReadableFrench(syncStartDate)}</strong> au <strong>{formatDateToReadableFrench(syncEndDate)}</strong></>
+                            <>Période filtrée : <strong>{formatDateToReadableFrench(syncStartDate)}</strong> au <strong>{formatDateToReadableFrench(syncEndDate)}</strong></>
                           ) : (
-                            <span className="text-slate-400 italic">Aucune période filtrée (Tous les matchs)</span>
+                            <span className="text-slate-400 italic">Aucune période filtrée (Toute la saison : {matches.length} matchs)</span>
                           )}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const list = (syncStartDate || syncEndDate)
+                              ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
+                              : matches;
+                            handleSelectOnlyFilteredMatchesForTV(list);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Cocher pour la TV
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleFetchOpponentLogos()}
@@ -2687,18 +2760,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <button
                           type="button"
                           onClick={() => setShowCalendarInMatches(true)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold"
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
                         >
-                          Changer les dates
+                          Ouvrir le calendrier
                         </button>
                         <button
                           type="button"
                           onClick={handleSyncFFBB}
                           disabled={isSyncingFFBB}
-                          className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5"
+                          className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/35 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          title="Actualiser la base avec la FFBB (utile pour les nouvelles phases)"
                         >
                           <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
-                          <span>Synchroniser</span>
+                          <span>Actualiser FFBB</span>
                         </button>
                       </div>
                     </div>
@@ -2962,6 +3036,45 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               </div>
 
               {/* Liste des matchs */}
+              {matches.filter((m) => {
+                if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
+                  if (syncStartDate && m.date < syncStartDate) return false;
+                  if (syncEndDate && m.date > syncEndDate) return false;
+                }
+                return true;
+              }).length === 0 && (
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 space-y-2">
+                  <Calendar className="w-7 h-7 text-slate-500 mx-auto opacity-60" />
+                  <p className="text-xs font-bold text-slate-300">
+                    {matches.length === 0
+                      ? 'Aucune rencontre dans la base de données.'
+                      : `Aucune rencontre trouvée pour la période sélectionnée (${formatDateToReadableFrench(syncStartDate)} au ${formatDateToReadableFrench(syncEndDate)}).`}
+                  </p>
+                  {matches.length > 0 && (
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSyncStartDate('');
+                          setSyncEndDate('');
+                          setMatchesFilterMode('all');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Afficher toute la saison ({matches.length} matchs)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={setFilterToCurrentWeekend}
+                        className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Voir ce week-end
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {matches
                   .filter((m) => {
@@ -3389,10 +3502,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div>
                   <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-amber-400" />
-                    <span>RÉSULTATS ET SCORES DU WEEK-END ({results.length})</span>
+                    <span>RÉSULTATS ET SCORES ({results.length})</span>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Les résultats et scores officiels sont mis à jour automatiquement depuis la FFBB toutes les 3 minutes et affichés en direct sur la TV.
+                    Les résultats sont enregistrés dans votre base locale et synchronisés avec l'API FFBB officielle.
                   </p>
                 </div>
 
@@ -3401,7 +3514,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     type="button"
                     onClick={handleSyncFFBB}
                     disabled={isSyncingFFBB}
-                    className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-orange-600/20"
+                    className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-orange-600/20 cursor-pointer"
+                    title="Télécharger les derniers résultats officiels enregistrés sur la FFBB"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
                     <span>{isSyncingFFBB ? 'Actualisation...' : 'Actualiser FFBB'}</span>
@@ -3409,16 +3523,179 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   <button
                     type="button"
                     onClick={() => setResultsSubTab('calques')}
-                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                   >
                     <Layers className="w-4 h-4 text-sky-400" />
                     <span>Régler le fond & visuels de victoire</span>
                   </button>
-                  <span className="text-xs font-bold text-emerald-300 bg-emerald-950/60 px-3 py-1.5 rounded-xl border border-emerald-500/40 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Auto-sync FFBB actif</span>
-                  </span>
                 </div>
+              </div>
+
+              {/* Widget de Filtrage Instantané des Résultats par Calendrier */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                      Filtrer les résultats par date (Instant • Sans recharger)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendarInResults(!showCalendarInResults)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold transition-all flex items-center gap-1 border border-slate-700 cursor-pointer"
+                    >
+                      <Calendar className="w-3 h-3 text-emerald-400" />
+                      <span>{showCalendarInResults ? 'Masquer le calendrier' : 'Afficher le calendrier'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={setResultsFilterToLastWeekend}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold transition-all cursor-pointer"
+                      title="Afficher les résultats du week-end passé"
+                    >
+                      ⏮️ Week-end passé
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = new Date();
+                        const dayOfWeek = today.getDay();
+                        let diffToFriday = 5 - dayOfWeek;
+                        if (dayOfWeek === 0) diffToFriday = -2;
+                        else if (dayOfWeek === 6) diffToFriday = -1;
+                        const fri = new Date(today);
+                        fri.setDate(today.getDate() + diffToFriday);
+                        const sun = new Date(fri);
+                        sun.setDate(fri.getDate() + 2);
+                        setResultsStartDate(fri.toISOString().slice(0, 10));
+                        setResultsEndDate(sun.toISOString().slice(0, 10));
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-orange-600/20 hover:bg-orange-600/35 text-orange-300 border border-orange-500/30 text-[10px] font-bold transition-all cursor-pointer"
+                    >
+                      🔥 Ce week-end
+                    </button>
+                    {(resultsStartDate || resultsEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResultsStartDate('');
+                          setResultsEndDate('');
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all cursor-pointer"
+                      >
+                        Voir tous les résultats ({results.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {showCalendarInResults ? (
+                  <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
+                    <div className="shrink-0 flex justify-center">
+                      <MiniCalendarPicker
+                        startDate={resultsStartDate}
+                        endDate={resultsEndDate}
+                        onChangeRange={(start, end) => {
+                          setResultsStartDate(start);
+                          setResultsEndDate(end);
+                        }}
+                        title="Filtrer les résultats par date"
+                      />
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-between bg-slate-900/60 rounded-2xl p-4 border border-slate-800 space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                            Période sélectionnée :
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                            {
+                              (resultsStartDate || resultsEndDate
+                                ? results.filter((r) => (!resultsStartDate || r.date >= resultsStartDate) && (!resultsEndDate || r.date <= resultsEndDate))
+                                : results
+                              ).length
+                            } résultat(s) affiché(s)
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          {resultsStartDate && resultsEndDate ? (
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-bold text-emerald-400 block">
+                                Du {formatDateToReadableFrench(resultsStartDate)}
+                              </span>
+                              <span className="text-xs font-bold text-emerald-400 block">
+                                Au {formatDateToReadableFrench(resultsEndDate)}
+                              </span>
+                            </div>
+                          ) : resultsStartDate ? (
+                            <span className="text-xs font-bold text-emerald-400">
+                              À partir du {formatDateToReadableFrench(resultsStartDate)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">
+                              Aucun filtre : tous les résultats de la saison ({results.length}) sont affichés.
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          💡 <strong>Cliquez directement sur une date</strong> pour afficher les résultats de ce week-end spécifique sans recharger la page.
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResultsStartDate('');
+                            setResultsEndDate('');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Afficher toute la saison
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSyncFFBB}
+                          disabled={isSyncingFFBB}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/35 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          title="Interroger la FFBB pour récupérer les derniers scores saisis"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFFBB ? 'animate-spin' : ''}`} />
+                          <span>Actualiser depuis FFBB</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Calendar className="w-4 h-4 text-emerald-400" />
+                      <span>
+                        {resultsStartDate && resultsEndDate ? (
+                          <>Filtre actif : <strong>{formatDateToReadableFrench(resultsStartDate)}</strong> au <strong>{formatDateToReadableFrench(resultsEndDate)}</strong></>
+                        ) : (
+                          <span className="text-slate-400 italic">Tous les résultats de la saison ({results.length})</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCalendarInResults(true)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
+                      >
+                        Ouvrir le calendrier
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Raccourci 1 : Pré-remplissage depuis un match programmé du week-end */}
@@ -3746,7 +4023,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <div className="space-y-3">
                 <div className="flex items-center justify-between px-1">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>Résultats enregistrés ({results.length}) :</span>
+                    <span>
+                      {resultsStartDate || resultsEndDate ? (
+                        <>Résultats filtrés ({
+                          results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate))).length
+                        } / {results.length}) :</>
+                      ) : (
+                        <>Tous les résultats enregistrés ({results.length}) :</>
+                      )}
+                    </span>
                   </h4>
                   {results.length > 0 && (
                     <button
@@ -3768,72 +4053,101 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {results.map((r) => {
-                      const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-                      const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+                  (() => {
+                    const filteredList = (resultsStartDate || resultsEndDate)
+                      ? results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate)))
+                      : results;
+
+                    if (filteredList.length === 0) {
                       return (
-                        <div
-                          key={r.id}
-                          className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all hover:border-slate-600 ${
-                            isWin
-                              ? 'bg-emerald-950/20 border-emerald-500/30'
-                              : 'bg-rose-950/20 border-rose-500/30'
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
-                              <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
-                                {r.category}
-                              </span>
-                              <span className="text-slate-600">•</span>
-                              <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] text-slate-300 font-bold">
-                                {isHome ? '🏠 Domicile' : '🚗 Extérieur'}
-                              </span>
-                              {r.date && r.date !== 'Week-end dernier' && (
-                                <>
-                                  <span className="text-slate-600">•</span>
-                                  <span className="text-slate-400 font-mono text-[11px] font-bold">
-                                    {formatDateToEuropean(r.date)}
-                                  </span>
-                                </>
-                              )}
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                  isWin ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
-                                }`}
-                              >
-                                {isWin ? 'VICTOIRE 🏆' : 'DÉFAITE'}
-                              </span>
-                            </div>
-                            <div className="text-base font-black text-white font-mono tracking-wider">
-                              {r.teamHome} {r.homeScore !== undefined && r.awayScore !== undefined ? `${r.homeScore} - ${r.awayScore}` : ''} {r.teamAway}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setEditingResult({ ...r })}
-                              className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all"
-                              title="Modifier ce score ou la rencontre"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => onUpdateResults(results.filter((item) => item.id !== r.id))}
-                              className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all"
-                              title="Supprimer ce résultat"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 space-y-2">
+                          <Calendar className="w-7 h-7 text-slate-500 mx-auto opacity-60" />
+                          <p className="text-xs font-bold text-slate-300">
+                            Aucun résultat trouvé pour la période sélectionnée ({formatDateToReadableFrench(resultsStartDate)} au {formatDateToReadableFrench(resultsEndDate)}).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResultsStartDate('');
+                              setResultsEndDate('');
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
+                          >
+                            Afficher tous les {results.length} résultats de la saison
+                          </button>
                         </div>
                       );
-                    })}
-                  </div>
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {filteredList.map((r) => {
+                          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+                          const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+                          return (
+                            <div
+                              key={r.id}
+                              className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all hover:border-slate-600 ${
+                                isWin
+                                  ? 'bg-emerald-950/20 border-emerald-500/30'
+                                  : 'bg-rose-950/20 border-rose-500/30'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
+                                  <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                                    {r.category}
+                                  </span>
+                                  <span className="text-slate-600">•</span>
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] text-slate-300 font-bold">
+                                    {isHome ? '🏠 Domicile' : '🚗 Extérieur'}
+                                  </span>
+                                  {r.date && r.date !== 'Week-end dernier' && (
+                                    <>
+                                      <span className="text-slate-600">•</span>
+                                      <span className="text-slate-400 font-mono text-[11px] font-bold">
+                                        {formatDateToEuropean(r.date)}
+                                      </span>
+                                    </>
+                                  )}
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                      isWin ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                                    }`}
+                                  >
+                                    {isWin ? 'VICTOIRE 🏆' : 'DÉFAITE'}
+                                  </span>
+                                </div>
+                                <div className="text-base font-black text-white font-mono tracking-wider">
+                                  {r.teamHome} {r.homeScore !== undefined && r.awayScore !== undefined ? `${r.homeScore} - ${r.awayScore}` : ''} {r.teamAway}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingResult({ ...r })}
+                                  className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 transition-all cursor-pointer"
+                                  title="Modifier ce score ou la rencontre"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateResults(results.filter((item) => item.id !== r.id))}
+                                  className="p-2 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 transition-all cursor-pointer"
+                                  title="Supprimer ce résultat"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
 
