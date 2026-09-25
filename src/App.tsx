@@ -49,6 +49,9 @@ import {
   Flame,
   Radio,
   Sliders,
+  Eye,
+  EyeOff,
+  Lock,
 } from 'lucide-react';
 
 function loadStorage<T>(_key: string, fallback: T): T {
@@ -71,6 +74,7 @@ export default function App() {
   const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>([]);
   const [dataChargee, setDataChargee] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminAuthentifie, setAdminAuthentifie] = useState(false);
   const [erreurAuthAdmin, setErreurAuthAdmin] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -907,17 +911,53 @@ export default function App() {
 
     return (
       <div className="w-screen min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
-        <form onSubmit={tenterConnexion} className="bg-slate-900 p-8 rounded-2xl w-full max-w-sm border border-slate-700">
-          <h1 className="text-xl font-bold mb-4">Admin — SRC Basket</h1>
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            placeholder="Mot de passe"
-            className="w-full p-3 rounded-lg bg-slate-800 text-white mb-3"
-          />
-          {erreurAuthAdmin && <p className="text-red-400 text-sm mb-3">{erreurAuthAdmin}</p>}
-          <button type="submit" className="w-full bg-orange-600 p-3 rounded-lg font-bold">
+        <form onSubmit={tenterConnexion} className="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-700/80 shadow-2xl">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-2xl bg-orange-600/20 text-orange-500 border border-orange-500/30 flex items-center justify-center">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-wide">Admin — SRC Basket</h1>
+              <p className="text-xs text-slate-400">Authentification requise</p>
+            </div>
+          </div>
+
+          <div className="relative mb-3">
+            <input
+              type={showAdminPassword ? 'text' : 'password'}
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Mot de passe"
+              className="w-full p-3.5 pr-11 rounded-xl bg-slate-800/90 text-white placeholder-slate-500 border border-slate-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none text-sm transition-all"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShowAdminPassword((s) => !s)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 rounded-lg"
+              title={showAdminPassword ? 'Masquer' : 'Afficher'}
+            >
+              {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {erreurAuthAdmin && (
+            <div className="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs leading-relaxed">
+              {erreurAuthAdmin}
+            </div>
+          )}
+
+          <div className="mb-4 text-[11px] text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+            💡 <strong>Mot de passe par défaut :</strong> <code className="text-orange-400 font-bold bg-slate-900 px-1.5 py-0.5 rounded">srcbasket</code>
+            <span className="block mt-1 text-[10px] text-slate-500">
+              (ou celui défini dans Cloudflare &gt; Settings &gt; Variables et secrets)
+            </span>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-orange-600 hover:bg-orange-500 text-white p-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-orange-600/30 cursor-pointer"
+          >
             Se connecter
           </button>
         </form>

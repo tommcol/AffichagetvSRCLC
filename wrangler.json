@@ -9,6 +9,9 @@
     "not_found_handling": "single-page-application",
     "binding": "ASSETS"
   },
+  "vars": {
+    "ADMIN_PASSWORD": "srcbasket"
+  },
   "kv_namespaces": [
     {
       "binding": "AFFICHAGE_KV",

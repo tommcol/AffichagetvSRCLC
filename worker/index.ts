@@ -56,21 +56,16 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
     });
   }
   const { password, data } = body;
-  const expectedPassword = (env.ADMIN_PASSWORD || '').trim();
+  const expectedPassword = (env.ADMIN_PASSWORD || 'srcbasket').trim();
   const givenPassword = (typeof password === 'string' ? password : '').trim();
-
-  if (!expectedPassword) {
-    return new Response(
-      JSON.stringify({
-        error: "Variable ADMIN_PASSWORD non configurée dans Cloudflare (Vérifiez dans Cloudflare > Settings > Variables et secrets > section 'Exécution')",
-      }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
 
   if (givenPassword !== expectedPassword) {
     return new Response(
-      JSON.stringify({ error: 'Mot de passe incorrect' }),
+      JSON.stringify({
+        error: env.ADMIN_PASSWORD
+          ? 'Mot de passe incorrect'
+          : 'Mot de passe incorrect (Mot de passe par défaut : srcbasket)',
+      }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }
     );
   }

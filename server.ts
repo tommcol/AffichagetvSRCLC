@@ -242,7 +242,16 @@ app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data
 });
 
 app.post(["/api/app-data", "/api/save-app-data", "/.netlify/functions/save-app-data"], (req, res) => {
-  const { data } = req.body || {};
+  const { password, data } = req.body || {};
+  const expected = (process.env.ADMIN_PASSWORD || 'srcbasket').trim();
+  const given = (typeof password === 'string' ? password : '').trim();
+  if (given !== expected) {
+    return res.status(401).json({
+      error: process.env.ADMIN_PASSWORD
+        ? "Mot de passe incorrect"
+        : "Mot de passe incorrect (Mot de passe par défaut : srcbasket)",
+    });
+  }
   if (!data) {
     return res.status(400).json({ error: "Champ data requis" });
   }
