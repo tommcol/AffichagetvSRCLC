@@ -632,15 +632,25 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                         </div>
 
                         {resultDisplayMode === 'status' || (r.homeScore === undefined && r.awayScore === undefined) ? (
-                          <span
-                            className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md"
-                            style={{
-                              backgroundColor: badgeBgColor || '#0f172a',
-                              color: badgeTextColor || '#ffffff',
-                            }}
-                          >
-                            {isWin ? 'VICTOIRE' : 'DÉFAITE'}
-                          </span>
+                          (() => {
+                            const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
+                            const hasExplicitResult = r.result === 'win' || r.result === 'loss';
+                            const isPending = !hasScore && !hasExplicitResult;
+                            const label = isPending ? 'EN ATTENTE' : (isWin ? 'VICTOIRE' : 'DÉFAITE');
+                            const bg = isPending ? '#78350f' : (badgeBgColor || (isWin ? '#065f46' : '#9f1239'));
+                            const textCol = isPending ? '#fde68a' : (badgeTextColor || '#ffffff');
+                            return (
+                              <span
+                                className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md"
+                                style={{
+                                  backgroundColor: bg,
+                                  color: textCol,
+                                }}
+                              >
+                                {label}
+                              </span>
+                            );
+                          })()
                         ) : (
                           <span
                             className="px-4 py-1.5 rounded-2xl text-base md:text-2xl font-mono font-black tracking-wider shadow-lg border border-slate-700/80"
