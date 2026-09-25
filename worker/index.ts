@@ -41,7 +41,7 @@ function getExpectedAdminPassword(env: Env): string {
   if (env && typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.trim().length > 0) {
     return env.ADMIN_PASSWORD.trim();
   }
-  return 'srcbasket';
+  return '';
 }
 
 async function getAppData(env: Env): Promise<Response> {
@@ -68,15 +68,14 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
   const expectedPassword = getExpectedAdminPassword(env);
   const givenPassword = (typeof password === 'string' ? password : '').trim();
 
-  // Acceptation du mot de passe configuré ou mot de passe de secours 'srcbasket'
-  const isMatch = givenPassword === expectedPassword || (expectedPassword !== 'srcbasket' && givenPassword === 'srcbasket');
+  const isMatch = Boolean(expectedPassword) && givenPassword === expectedPassword;
 
   if (!isMatch) {
     return new Response(
       JSON.stringify({
         error: env.ADMIN_PASSWORD
           ? 'Mot de passe incorrect'
-          : 'Mot de passe incorrect (Mot de passe par défaut : srcbasket)',
+          : 'Aucun mot de passe admin configuré dans Cloudflare',
       }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }
     );
@@ -104,14 +103,14 @@ async function verifyPassword(request: Request, env: Env): Promise<Response> {
   const expectedPassword = getExpectedAdminPassword(env);
   const givenPassword = (typeof password === 'string' ? password : '').trim();
 
-  const isMatch = givenPassword === expectedPassword || (expectedPassword !== 'srcbasket' && givenPassword === 'srcbasket');
+  const isMatch = Boolean(expectedPassword) && givenPassword === expectedPassword;
 
   if (!isMatch) {
     return new Response(
       JSON.stringify({
         error: env.ADMIN_PASSWORD
           ? 'Mot de passe incorrect'
-          : 'Mot de passe incorrect (Mot de passe par défaut : srcbasket)',
+          : 'Aucun mot de passe admin configuré dans Cloudflare',
       }),
       { status: 401, headers: { 'Content-Type': 'application/json' } }
     );
