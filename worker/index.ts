@@ -50,18 +50,42 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
   }
   const body = (await request.json().catch(() => null)) as any;
   if (!body) {
-    return new Response(JSON.stringify({ error: 'JSON invalide' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'JSON invalide' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
   const { password, data } = body;
-  const expectedPassword = env.ADMIN_PASSWORD;
-  if (!expectedPassword || password !== expectedPassword) {
-    return new Response(JSON.stringify({ error: 'Mot de passe incorrect ou non configuré' }), { status: 401 });
+  const expectedPassword = (env.ADMIN_PASSWORD || '').trim();
+  const givenPassword = (typeof password === 'string' ? password : '').trim();
+
+  if (!expectedPassword) {
+    return new Response(
+      JSON.stringify({
+        error: "Variable ADMIN_PASSWORD non configurée dans Cloudflare (Vérifiez dans Cloudflare > Settings > Variables et secrets > section 'Exécution')",
+      }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
   }
+
+  if (givenPassword !== expectedPassword) {
+    return new Response(
+      JSON.stringify({ error: 'Mot de passe incorrect' }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   if (!data) {
-    return new Response(JSON.stringify({ error: 'Champ "data" requis' }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'Champ "data" requis' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
   await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
-  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 // ============================================================

@@ -897,7 +897,8 @@ export default function App() {
         if (res.ok) {
           setAdminAuthentifie(true);
         } else {
-          setErreurAuthAdmin('Mot de passe incorrect');
+          const errData = await res.json().catch(() => null);
+          setErreurAuthAdmin(errData?.error || 'Mot de passe incorrect');
         }
       } catch {
         setErreurAuthAdmin('Erreur de connexion');
