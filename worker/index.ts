@@ -36,14 +36,6 @@ export default {
 // STOCKAGE PARTAGÉ (réglages, matchs, sponsors, etc.)
 // ============================================================
 
-// Helper sécurisé pour récupérer le mot de passe admin configuré
-function getExpectedAdminPassword(env: Env): string {
-  if (env && typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.trim().length > 0) {
-    return env.ADMIN_PASSWORD.trim();
-  }
-  return '';
-}
-
 async function getAppData(env: Env): Promise<Response> {
   const raw = await env.AFFICHAGE_KV.get('app-data');
   const data = raw ? JSON.parse(raw) : null;
@@ -64,22 +56,7 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-  const { password, data } = body;
-  const expectedPassword = getExpectedAdminPassword(env);
-  const givenPassword = (typeof password === 'string' ? password : '').trim();
-
-  const isMatch = Boolean(expectedPassword) && givenPassword === expectedPassword;
-
-  if (!isMatch) {
-    return new Response(
-      JSON.stringify({
-        error: env.ADMIN_PASSWORD
-          ? 'Mot de passe incorrect'
-          : 'Aucun mot de passe admin configuré dans Cloudflare',
-      }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+  const { data } = body;
 
   if (!data) {
     return new Response(JSON.stringify({ error: 'Champ "data" requis' }), {
@@ -94,28 +71,7 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
   });
 }
 
-async function verifyPassword(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') {
-    return new Response('Méthode non autorisée', { status: 405 });
-  }
-  const body = (await request.json().catch(() => null)) as any;
-  const password = body?.password || '';
-  const expectedPassword = getExpectedAdminPassword(env);
-  const givenPassword = (typeof password === 'string' ? password : '').trim();
-
-  const isMatch = Boolean(expectedPassword) && givenPassword === expectedPassword;
-
-  if (!isMatch) {
-    return new Response(
-      JSON.stringify({
-        error: env.ADMIN_PASSWORD
-          ? 'Mot de passe incorrect'
-          : 'Aucun mot de passe admin configuré dans Cloudflare',
-      }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
+async function verifyPassword(_request: Request, _env: Env): Promise<Response> {
   return new Response(JSON.stringify({ ok: true, success: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },

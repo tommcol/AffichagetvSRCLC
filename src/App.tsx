@@ -73,20 +73,7 @@ export default function App() {
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
   const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>([]);
   const [dataChargee, setDataChargee] = useState(false);
-  const [adminPassword, setAdminPassword] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('src_admin_password') || '';
-    }
-    return '';
-  });
-  const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const [adminAuthentifie, setAdminAuthentifie] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('src_admin_authenticated') === 'true';
-    }
-    return false;
-  });
-  const [erreurAuthAdmin, setErreurAuthAdmin] = useState('');
+  const [adminAuthentifie, setAdminAuthentifie] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
@@ -226,14 +213,12 @@ export default function App() {
   // Enregistrement automatique (avec anti-rebond de 800ms) dès qu'une donnée change
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!dataChargee || !adminAuthentifie) return;
+    if (!dataChargee) return;
 
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
       setSaveStatus('saving');
-      const currentPassword = adminPassword || (typeof window !== 'undefined' ? localStorage.getItem('src_admin_password') : '') || 'srcbasket';
       const payload = {
-        password: currentPassword,
         data: {
           clubSettings,
           categories,
@@ -296,8 +281,6 @@ export default function App() {
     };
   }, [
     dataChargee,
-    adminAuthentifie,
-    adminPassword,
     clubSettings,
     categories,
     matches,
@@ -902,111 +885,6 @@ export default function App() {
         tv.shortAliases.some((alias) => currentSlide.alert!.team.toLowerCase().includes(alias.toLowerCase()))
       )
     : undefined;
-
-  // If in Admin Mode, render the full admin dashboard interface directly!
-  if (viewMode === 'admin' && !adminAuthentifie) {
-    const tenterConnexion = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setErreurAuthAdmin('');
-      const pwd = adminPassword.trim();
-      try {
-        const res = await fetch('/api/verify-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd }),
-        });
-        if (res.ok) {
-          setAdminAuthentifie(true);
-          try {
-            localStorage.setItem('src_admin_password', pwd);
-            localStorage.setItem('src_admin_authenticated', 'true');
-          } catch (e) {}
-        } else {
-          const errData = await res.json().catch(() => null);
-          setErreurAuthAdmin(errData?.error || 'Mot de passe incorrect');
-        }
-      } catch {
-        // Fallback si verify-password non disponible
-        try {
-          const res = await fetch('/api/save-app-data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              password: pwd,
-              data: { clubSettings, categories, matches, results, sponsors, logos, photos, birthdays, events, teamVisuals, visualTemplates },
-            }),
-          });
-          if (res.ok) {
-            setAdminAuthentifie(true);
-            try {
-              localStorage.setItem('src_admin_password', pwd);
-              localStorage.setItem('src_admin_authenticated', 'true');
-            } catch (e) {}
-          } else {
-            const errData = await res.json().catch(() => null);
-            setErreurAuthAdmin(errData?.error || 'Mot de passe incorrect');
-          }
-        } catch {
-          setErreurAuthAdmin('Erreur de connexion');
-        }
-      }
-    };
-
-    return (
-      <div className="w-screen min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
-        <form onSubmit={tenterConnexion} className="bg-slate-900 p-8 rounded-3xl w-full max-w-sm border border-slate-700/80 shadow-2xl">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-2xl bg-orange-600/20 text-orange-500 border border-orange-500/30 flex items-center justify-center">
-              <Lock className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white tracking-wide">Admin — SRC Basket</h1>
-              <p className="text-xs text-slate-400">Authentification requise</p>
-            </div>
-          </div>
-
-          <div className="relative mb-3">
-            <input
-              type={showAdminPassword ? 'text' : 'password'}
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Mot de passe"
-              className="w-full p-3.5 pr-11 rounded-xl bg-slate-800/90 text-white placeholder-slate-500 border border-slate-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none text-sm transition-all"
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={() => setShowAdminPassword((s) => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 rounded-lg"
-              title={showAdminPassword ? 'Masquer' : 'Afficher'}
-            >
-              {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {erreurAuthAdmin && (
-            <div className="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs leading-relaxed">
-              {erreurAuthAdmin}
-            </div>
-          )}
-
-          <div className="mb-4 text-[11px] text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
-            💡 <strong>Mot de passe par défaut :</strong> <code className="text-orange-400 font-bold bg-slate-900 px-1.5 py-0.5 rounded">srcbasket</code>
-            <span className="block mt-1 text-[10px] text-slate-500">
-              (ou celui défini dans Cloudflare &gt; Settings &gt; Variables et secrets)
-            </span>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-orange-600 hover:bg-orange-500 text-white p-3.5 rounded-xl font-bold text-sm transition-all shadow-lg shadow-orange-600/30 cursor-pointer"
-          >
-            Se connecter
-          </button>
-        </form>
-      </div>
-    );
-  }
 
   if (viewMode === 'admin') {
     return (
