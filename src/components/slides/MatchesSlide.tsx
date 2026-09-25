@@ -594,8 +594,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                     const isLive = isMatchLive(m, currentTime);
                     const isFinished = isMatchFinished(m, currentTime);
                     const isWin = m.result === 'win';
-                    const isClubHome = m.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase());
-                    const isClubAway = m.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase());
+                    const clubShort = (clubSettings?.shortName || '').toLowerCase();
+                    const isClubHome = clubShort ? (m.teamHome || '').toLowerCase().includes(clubShort) : false;
+                    const isClubAway = clubShort ? (m.teamAway || '').toLowerCase().includes(clubShort) : false;
                     const dateInfo = formatMatchDayAndDate(m.date);
 
                     return (
@@ -729,8 +730,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                     const isLive = isMatchLive(m, currentTime);
                     const isFinished = isMatchFinished(m, currentTime);
                     const isWin = m.result === 'win';
-                    const isClubHome = m.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase());
-                    const isClubAway = m.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase());
+                    const clubShort = (clubSettings?.shortName || '').toLowerCase();
+                    const isClubHome = clubShort ? (m.teamHome || '').toLowerCase().includes(clubShort) : false;
+                    const isClubAway = clubShort ? (m.teamAway || '').toLowerCase().includes(clubShort) : false;
                     const dateInfo = formatMatchDayAndDate(m.date);
 
                     return (

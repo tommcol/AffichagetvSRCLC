@@ -194,7 +194,7 @@ export const SponsorsSlide: React.FC<SponsorsSlideProps> = ({
       <div className="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-800/70">
         <span className="flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-          Vous souhaitez devenir sponsor du club ? Contactez-nous à la buvette ou par email à contact@{clubSettings.shortName.toLowerCase().replace(/\s+/g, '')}.fr
+          Vous souhaitez devenir sponsor du club ? Contactez-nous à la buvette ou par email à contact@{(clubSettings?.shortName || clubSettings?.name || 'srcbasket').toLowerCase().replace(/[^a-z0-9]/g, '')}.fr
         </span>
         <span className="font-mono text-orange-400">Total : {sponsors.length} Partenaires</span>
       </div>

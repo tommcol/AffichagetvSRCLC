@@ -171,8 +171,8 @@ export function parseMatchTimestamp(dateStr?: string, timeStr?: string): number 
  * Poids de tri par catégorie (U9 < U11 < U13 < U15 < U17 < U18 < U20 < Seniors < Loisirs)
  */
 export function getCategorySortWeight(category?: string): number {
-  if (!category) return 99;
-  const c = category.toUpperCase();
+  if (!category || typeof category !== 'string') return 99;
+  const c = category.trim().toUpperCase();
   if (c.includes('U9') || c.includes('BABY')) return 1;
   if (c.includes('U11')) return 2;
   if (c.includes('U13')) return 3;

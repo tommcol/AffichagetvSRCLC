@@ -1870,11 +1870,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       return aiCustomCaptions[platform]!;
     }
 
-    const clubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
-    const shortClub = clubSettings.shortName || 'SRC Basket';
-    const insta = socialForm.instagramHandle || clubSettings.instagramHandle || '@src_basket';
-    const fb = socialForm.facebookPage || clubSettings.facebookPage || 'SRC Basket';
-    const tiktok = socialForm.tiktokHandle || clubSettings.tiktokHandle || '@src_basket';
+    const clubName = String(clubSettings?.name || clubSettings?.shortName || 'Notre Club').trim();
+    const shortClub = String(clubSettings?.shortName || clubSettings?.name || 'SRC Basket').trim();
+    const gym = String(clubSettings?.gymnasiumDefault || 'Gymnase').trim();
+    const insta = socialForm.instagramHandle || clubSettings?.instagramHandle || '@src_basket';
+    const fb = socialForm.facebookPage || clubSettings?.facebookPage || 'SRC Basket';
+    const tiktok = socialForm.tiktokHandle || clubSettings?.tiktokHandle || '@src_basket';
 
     const targetMatches = socialOnlySelectedMatches
       ? matches.filter((m) => m.selectedForWeekend !== false)
@@ -1914,14 +1915,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         const homeList = buildGroupedMatchesText(homeMatches, true);
         const awayList = buildGroupedMatchesText(awayMatches, false);
 
-        return `🔥 PROGRAMME DU WEEK-END • ${shortClub.toUpperCase()} 🔥\n\nVenez soutenir nos équipes en nombre ce week-end !\n\n📍 À DOMICILE (${clubSettings.gymnasiumDefault}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette & ambiance au rendez-vous ! 🔴⚪\n.\n.\n#Basket #MatchDay #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #TeamSpirit #FFBB #Basketball #GameDay\n📲 Suivez-nous : ${insta}`;
+        return `🔥 PROGRAMME DU WEEK-END • ${shortClub.toUpperCase()} 🔥\n\nVenez soutenir nos équipes en nombre ce week-end !\n\n📍 À DOMICILE (${gym}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette & ambiance au rendez-vous ! 🔴⚪\n.\n.\n#Basket #MatchDay #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #TeamSpirit #FFBB #Basketball #GameDay\n📲 Suivez-nous : ${insta}`;
       } else if (platform === 'tiktok') {
         return `C'est le match day pour ${shortClub} ! 🏀🔥 Qui sera là pour faire du bruit ce week-end ? Rendez-vous sur le terrain ! ⚡💥\n\n#basketball #basket #matchday #pourtoi #fyp #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #foryou #viral #hoops #bball @${tiktok.replace(/^@/, '')}`;
       } else {
         const homeList = buildGroupedMatchesText(homeMatches, true);
         const awayList = buildGroupedMatchesText(awayMatches, false);
 
-        return `🏀 PROGRAMME DU WEEK-END — ${clubName.toUpperCase()} 🏀\n\nCe week-end, nos équipes sont d'attaque pour défendre nos couleurs ! Retrouvez ci-dessous le calendrier complet des rencontres :\n\n📍 À DOMICILE (${clubSettings.gymnasiumDefault}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette et restauration sur place pour les matchs à domicile ! Venez encourager nos joueuses et joueurs ! 👏\n\nRetrouvez toute l'actualité du club sur notre page : fb.com/${fb}`;
+        return `🏀 PROGRAMME DU WEEK-END — ${clubName.toUpperCase()} 🏀\n\nCe week-end, nos équipes sont d'attaque pour défendre nos couleurs ! Retrouvez ci-dessous le calendrier complet des rencontres :\n\n📍 À DOMICILE (${gym}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette et restauration sur place pour les matchs à domicile ! Venez encourager nos joueuses et joueurs ! 👏\n\nRetrouvez toute l'actualité du club sur notre page : fb.com/${fb}`;
       }
     } else {
       const wins = results.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;

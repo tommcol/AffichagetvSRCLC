@@ -123,13 +123,14 @@ async function resolveOrganismeId(codeOrName: string): Promise<string | null> {
  * Direct client-side fetch from the official FFBB CORS-enabled endpoint
  * (Guarantees synchronization works on Cloudflare static hosting)
  */
-async function fetchClubDataDirect(clubCode: string): Promise<{
+async function fetchClubDataDirect(rawClubCode?: string): Promise<{
   matches: MatchItem[];
   results: MatchItem[];
   clubInfo: FFBBClubInfo;
   source?: string;
   message?: string;
 } | null> {
+  const clubCode = (rawClubCode || 'BFC0071024').trim();
   try {
     const orgId = await resolveOrganismeId(clubCode);
     if (!orgId) return null;
@@ -154,7 +155,8 @@ async function fetchClubDataDirect(clubCode: string): Promise<{
 
     const data = await res.json();
     const rawMatches = Array.isArray(data.matches) ? data.matches : [];
-    const clubNom = clubRes?.nom || data.club || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+    const isSRC = clubCode.toUpperCase() === 'BFC0071024';
+    const clubNom = clubRes?.nom || data.club || (isSRC ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
     const clubLogoUrl = clubRes?.logo?.id
       ? `https://api.ffbb.com/assets/${clubRes.logo.id}`
       : (clubRes?.logo_url || clubRes?.logo || undefined);
@@ -351,9 +353,10 @@ export class FFBBService {
   /**
    * Search clubs on FFBB API
    */
-  static async searchClub(query: string): Promise<Array<{ code: string; name: string; city: string; committee: string }>> {
+  static async searchClub(rawQuery?: string): Promise<Array<{ code: string; name: string; city: string; committee: string }>> {
+    const clean = (rawQuery || '').trim();
     try {
-      const res = await fetch(`/api/ffbb/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/ffbb/search?q=${encodeURIComponent(clean)}`);
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
@@ -367,7 +370,6 @@ export class FFBBService {
 
     // Direct search on ffbb.desimone.fr
     try {
-      const clean = query.trim();
       const res = await fetch(`https://ffbb.desimone.fr/api/v1/next-match?club_name=${encodeURIComponent(clean)}`, {
         headers: { Accept: 'application/json' },
       });
@@ -396,10 +398,11 @@ export class FFBBService {
       console.warn('Erreur recherche directe FFBB:', e);
     }
 
+    const upper = (clean || 'BFC0071024').toUpperCase();
     return [
       {
-        code: query.toUpperCase().startsWith("BFC") ? query.toUpperCase() : `BFC${query.toUpperCase()}`,
-        name: `Basket Club ${query}`,
+        code: upper.startsWith("BFC") ? upper : `BFC${upper}`,
+        name: clean.toLowerCase().includes('basket') ? clean : `Basket Club ${clean || 'FFBB'}`,
         city: "Région Bourgogne-Franche-Comté",
         committee: "Comité Départemental FFBB",
       },
@@ -409,13 +412,14 @@ export class FFBBService {
   /**
    * Fetch club matches and results based on FFBB code
    */
-  static async fetchClubData(clubCode: string): Promise<{
+  static async fetchClubData(rawClubCode?: string): Promise<{
     matches: MatchItem[];
     results: MatchItem[];
     clubInfo: FFBBClubInfo;
     source?: string;
     message?: string;
   }> {
+    const clubCode = (rawClubCode || 'BFC0071024').trim();
     try {
       const res = await fetch(`/api/ffbb/matches?code=${encodeURIComponent(clubCode)}`);
       const contentType = res.headers.get('content-type') || '';
@@ -477,7 +481,8 @@ export class FFBBService {
           });
         }
 
-        const clubNom = data.clubName || (clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
+        const isSRC = clubCode.toUpperCase() === 'BFC0071024';
+        const clubNom = data.clubName || (isSRC ? 'Sports Réunis Clayettois' : `Club ${clubCode}`);
 
         const clubInfo: FFBBClubInfo = {
           clubCode,
@@ -513,7 +518,8 @@ export class FFBBService {
     }
 
     // When API fails or has no matches: RETURN EMPTY DATA — NEVER INVENT FAKE MATCHES
-    const clubNom = clubCode.toUpperCase() === 'BFC0071024' ? 'Sports Réunis Clayettois' : `Club ${clubCode}`;
+    const isSRC = clubCode.toUpperCase() === 'BFC0071024';
+    const clubNom = isSRC ? 'Sports Réunis Clayettois' : `Club ${clubCode}`;
     const clubInfo: FFBBClubInfo = {
       clubCode,
       clubName: clubNom,

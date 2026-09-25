@@ -331,6 +331,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   visualTemplates,
   embeddedInTab = false,
 }) => {
+  const safeShortName = (clubSettings?.shortName || clubSettings?.name || 'SRC Basket').trim();
+  const safeClubName = (clubSettings?.name || safeShortName).trim();
+  const safeGymnasium = (clubSettings?.gymnasiumDefault || 'Gymnase').trim();
+
+  const isExemptItem = (item?: { teamAway?: string; teamHome?: string; category?: string } | null) => {
+    if (!item) return false;
+    const away = (item.teamAway || '').toLowerCase();
+    const home = (item.teamHome || '').toLowerCase();
+    const cat = (item.category || '').toLowerCase();
+    return away.includes('exempt') || home.includes('exempt') || cat.includes('exempt');
+  };
+
   const [contentType, setContentType] = useState<'matches' | 'results' | 'notification'>(
     initialType === 'victory' || initialType === 'defeat'
       ? 'notification'
@@ -404,13 +416,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     [weekendMatches]
   );
   const exemptMatchesCount = useMemo(
-    () =>
-      weekendMatches.filter(
-        (m) =>
-          (m.teamAway && m.teamAway.toLowerCase().includes('exempt')) ||
-          (m.teamHome && m.teamHome.toLowerCase().includes('exempt')) ||
-          (m.category && m.category.toLowerCase().includes('exempt'))
-      ).length,
+    () => weekendMatches.filter(isExemptItem).length,
     [weekendMatches]
   );
 
@@ -423,13 +429,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     [weekendResults]
   );
   const exemptResultsCount = useMemo(
-    () =>
-      weekendResults.filter(
-        (r) =>
-          (r.teamAway && r.teamAway.toLowerCase().includes('exempt')) ||
-          (r.teamHome && r.teamHome.toLowerCase().includes('exempt')) ||
-          (r.category && r.category.toLowerCase().includes('exempt'))
-      ).length,
+    () => weekendResults.filter(isExemptItem).length,
     [weekendResults]
   );
 
@@ -454,12 +454,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     } else if (posterFilter === 'away') {
       list = weekendMatches.filter((m) => !m.isHomeMatch);
     } else if (posterFilter === 'exempt') {
-      list = weekendMatches.filter(
-        (m) =>
-          (m.teamAway && m.teamAway.toLowerCase().includes('exempt')) ||
-          (m.teamHome && m.teamHome.toLowerCase().includes('exempt')) ||
-          (m.category && m.category.toLowerCase().includes('exempt'))
-      );
+      list = weekendMatches.filter(isExemptItem);
     } else {
       list = weekendMatches;
     }
@@ -474,12 +469,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     } else if (posterFilter === 'away') {
       list = weekendResults.filter((r) => !r.isHomeMatch);
     } else if (posterFilter === 'exempt') {
-      list = weekendResults.filter(
-        (r) =>
-          (r.teamAway && r.teamAway.toLowerCase().includes('exempt')) ||
-          (r.teamHome && r.teamHome.toLowerCase().includes('exempt')) ||
-          (r.category && r.category.toLowerCase().includes('exempt'))
-      );
+      list = weekendResults.filter(isExemptItem);
     } else {
       list = weekendResults;
     }
@@ -488,7 +478,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Compute effective header badge title
   const badgeTitle = useMemo(() => {
-    if (customBadgeTitle.trim()) return customBadgeTitle.trim().toUpperCase();
+    const custom = (customBadgeTitle || '').trim();
+    if (custom) return custom.toUpperCase();
 
     if (contentType === 'results') {
       switch (posterFilter) {
@@ -720,26 +711,26 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Captions for social media
   const generatedCaptions = useMemo(() => {
-    const clubTag = clubSettings.instagramHandle || `@${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-    const fbTag = clubSettings.facebookPage || clubSettings.name;
+    const clubTag = clubSettings?.instagramHandle || `@${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    const fbTag = clubSettings?.facebookPage || safeClubName;
 
     if (contentType === 'matches') {
       const matchLinesStandard = captionMatches.map((m) => {
-        const isExempt = m.teamAway?.toLowerCase().includes('exempt') || m.teamHome?.toLowerCase().includes('exempt');
-        if (isExempt) return `⏸️ ${m.category} : EXEMPT ce week-end`;
-        return `🏀 ${m.category} : ${m.isHomeMatch ? m.teamHome : m.category} vs ${m.isHomeMatch ? m.teamAway : m.teamHome} (${formatPosterMatchDate(m.date, m.time)})`;
+        const isExempt = isExemptItem(m);
+        if (isExempt) return `⏸️ ${m.category || 'Équipe'} : EXEMPT ce week-end`;
+        return `🏀 ${m.category || 'Équipe'} : ${m.isHomeMatch ? (m.teamHome || safeShortName) : (m.category || 'Équipe')} vs ${m.isHomeMatch ? (m.teamAway || 'Adversaire') : (m.teamHome || safeShortName)} (${formatPosterMatchDate(m.date, m.time)})`;
       }).join('\n');
 
       const matchLinesShort = captionMatches.map((m) => {
-        const isExempt = m.teamAway?.toLowerCase().includes('exempt') || m.teamHome?.toLowerCase().includes('exempt');
-        if (isExempt) return `⏸️ ${m.category} : EXEMPT`;
-        return `👉 ${m.category} - ${m.time} (${m.isHomeMatch ? 'DOM' : 'EXT'})`;
+        const isExempt = isExemptItem(m);
+        if (isExempt) return `⏸️ ${m.category || 'Équipe'} : EXEMPT`;
+        return `👉 ${m.category || 'Équipe'} - ${m.time || 'Horaire'} (${m.isHomeMatch ? 'DOM' : 'EXT'})`;
       }).join('\n');
 
       const matchLinesHype = captionMatches.map((m) => {
-        const isExempt = m.teamAway?.toLowerCase().includes('exempt') || m.teamHome?.toLowerCase().includes('exempt');
-        if (isExempt) return `⏸️ ${m.category} : Repos (EXEMPT)`;
-        return `🔥 ${m.category} : ${m.isHomeMatch ? 'A DOMICILE 🏠' : 'A L\'EXTERIEUR 🚌'} vs ${m.isHomeMatch ? m.teamAway : m.teamHome} à ${m.time} !`;
+        const isExempt = isExemptItem(m);
+        if (isExempt) return `⏸️ ${m.category || 'Équipe'} : Repos (EXEMPT)`;
+        return `🔥 ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'A DOMICILE 🏠' : 'A L\'EXTERIEUR 🚌'} vs ${m.isHomeMatch ? (m.teamAway || 'Adversaire') : (m.teamHome || safeShortName)} à ${m.time || '20h30'} !`;
       }).join('\n');
 
       let insta = '';
@@ -747,17 +738,17 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       let fb = '';
 
       if (captionStyleProposal === 'short') {
-        insta = `⚡ AGENDA ${badgeTitle} | ${clubSettings.shortName.toUpperCase()} ⚡\n\n${matchLinesShort}\n\n📍 ${clubSettings.gymnasiumDefault}\nIdentifiez-nous : ${clubTag}\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Story #MatchDay`;
-        tiktok = `⚡ Matchs du week-end ! 🏀👇\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        fb = `⚡ RAPPEL PROGRAMME DU WEEK-END [${badgeTitle}] ⚡\n\n${matchLinesShort}\n\nVenez encourager nos équipes au ${clubSettings.gymnasiumDefault} ! 🍿🏀\nAllez le ${clubSettings.shortName} !`;
+        insta = `⚡ AGENDA ${badgeTitle} | ${safeShortName.toUpperCase()} ⚡\n\n${matchLinesShort}\n\n📍 ${safeGymnasium}\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Story #MatchDay`;
+        tiktok = `⚡ Matchs du week-end ! 🏀👇\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        fb = `⚡ RAPPEL PROGRAMME DU WEEK-END [${badgeTitle}] ⚡\n\n${matchLinesShort}\n\nVenez encourager nos équipes au ${safeGymnasium} ! 🍿🏀\nAllez le ${safeShortName} !`;
       } else if (captionStyleProposal === 'hype') {
-        insta = `🔴⚪ GAMEDAY ! TOUS ENSEMBLE AVEC LE ${clubSettings.shortName.toUpperCase()} ! 🔥🚨\n\nCe week-end, nos équipes ont besoin de VOS ENCOURAGEMENTS ! 🔥⚡\n\n${matchLinesHype}\n\nFaisons du bruit dans les tribunes ! 📣🔥 Buvette & snack sur place ! 🥤🍿\n\nIdentifiez-nous dans vos stories : ${clubTag} 📸\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #TousEnsemble #Gameday #Basketball #Supporters`;
-        tiktok = `🔥 CE WEEK-END C'EST MATCHDAY ! 🚨 Qui vient faire du bruit en tribunes ? 📢⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #gameday #hype #${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        fb = `🔥 WEEK-END DE BASKETBALL ET DE PASSION ! 🏀\n\nNos équipes entrent en piste pour ${badgeTitle} ! Chers supporters, rendez-vous au ${clubSettings.gymnasiumDefault} pour pousser les rouges et blancs vers la victoire ! 💪🍿\n\n${matchLinesHype}\n\nAllez ${clubSettings.shortName} ! 🔴⚪\nPage officielle : ${fbTag}`;
+        insta = `🔴⚪ GAMEDAY ! TOUS ENSEMBLE AVEC LE ${safeShortName.toUpperCase()} ! 🔥🚨\n\nCe week-end, nos équipes ont besoin de VOS ENCOURAGEMENTS ! 🔥⚡\n\n${matchLinesHype}\n\nFaisons du bruit dans les tribunes ! 📣🔥 Buvette & snack sur place ! 🥤🍿\n\nIdentifiez-nous dans vos stories : ${clubTag} 📸\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #TousEnsemble #Gameday #Basketball #Supporters`;
+        tiktok = `🔥 CE WEEK-END C'EST MATCHDAY ! 🚨 Qui vient faire du bruit en tribunes ? 📢⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #gameday #hype #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        fb = `🔥 WEEK-END DE BASKETBALL ET DE PASSION ! 🏀\n\nNos équipes entrent en piste pour ${badgeTitle} ! Chers supporters, rendez-vous au ${safeGymnasium} pour pousser les rouges et blancs vers la victoire ! 💪🍿\n\n${matchLinesHype}\n\nAllez ${safeShortName} ! 🔴⚪\nPage officielle : ${fbTag}`;
       } else {
-        insta = `🔥 PROGRAMME ${badgeTitle} | ${clubSettings.shortName.toUpperCase()} 🔥\n\nRetrouvez nos équipes sur les terrains ce week-end :\n\n${matchLinesStandard}\n\n📍 Soutenez nos couleurs au ${clubSettings.gymnasiumDefault} !\nBuvette & ambiance assurées ☕🍿\n\nIdentifiez-nous : ${clubTag} 📸\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #MatchDay #${badgeTitle.replace(/\s+/g, '')} #Basketball #FFBB #BasketFrance`;
-        tiktok = `🏀 Le programme ${badgeTitle} du week-end est là ! Qui vient au gymnase soutenir nos équipes ? 🔥⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #matchday #${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        fb = `🏀 PROGRAMME DU WEEK-END [${badgeTitle}] - ${clubSettings.name.toUpperCase()} 🏀\n\nChers supporters, voici le planning de nos rencontres :\n\n${matchLinesStandard}\n\nVenez nombreux encourager nos joueuses et joueurs !\n\nAllez le ${clubSettings.shortName} ! 🧡🖤\nPage officielle : ${fbTag}\n#Basketball #FFBB #${badgeTitle.replace(/\s+/g, '')}`;
+        insta = `🔥 PROGRAMME ${badgeTitle} | ${safeShortName.toUpperCase()} 🔥\n\nRetrouvez nos équipes sur les terrains ce week-end :\n\n${matchLinesStandard}\n\n📍 Soutenez nos couleurs au ${safeGymnasium} !\nBuvette & ambiance assurées ☕🍿\n\nIdentifiez-nous : ${clubTag} 📸\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #MatchDay #${(badgeTitle || '').replace(/\s+/g, '')} #Basketball #FFBB #BasketFrance`;
+        tiktok = `🏀 Le programme ${badgeTitle} du week-end est là ! Qui vient au gymnase soutenir nos équipes ? 🔥⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #matchday #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        fb = `🏀 PROGRAMME DU WEEK-END [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏀\n\nChers supporters, voici le planning de nos rencontres :\n\n${matchLinesStandard}\n\nVenez nombreux encourager nos joueuses et joueurs !\n\nAllez le ${safeShortName} ! 🧡🖤\nPage officielle : ${fbTag}\n#Basketball #FFBB #${(badgeTitle || '').replace(/\s+/g, '')}`;
       }
 
       return {
@@ -768,16 +759,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
 
     if (contentType === 'results') {
-      const wins = captionResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+      const wins = captionResults.filter((r) => isMatchWin(r, safeClubName, safeShortName)).length;
       const total = captionResults.length;
       const resultLinesStandard = captionResults.map((r) => {
-        const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-        return `${isWin ? '✅ VICTOIRE' : '❌ DÉFAITE'} [${r.category}] : ${r.teamHome} ${r.homeScore ?? ''} - ${r.awayScore ?? ''} ${r.teamAway}`;
+        const isWin = isMatchWin(r, safeClubName, safeShortName);
+        return `${isWin ? '✅ VICTOIRE' : '❌ DÉFAITE'} [${r.category || 'Équipe'}] : ${r.teamHome || safeShortName} ${r.homeScore ?? ''} - ${r.awayScore ?? ''} ${r.teamAway || 'Adversaire'}`;
       }).join('\n');
 
       const resultLinesShort = captionResults.map((r) => {
-        const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-        return `${isWin ? '✅' : '❌'} ${r.category} : ${r.homeScore ?? ''}-${r.awayScore ?? ''}`;
+        const isWin = isMatchWin(r, safeClubName, safeShortName);
+        return `${isWin ? '✅' : '❌'} ${r.category || 'Équipe'} : ${r.homeScore ?? ''}-${r.awayScore ?? ''}`;
       }).join('\n');
 
       let insta = '';
@@ -785,17 +776,17 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       let fb = '';
 
       if (captionStyleProposal === 'short') {
-        insta = `⚡ RÉSULTATS ${badgeTitle} | ${clubSettings.shortName.toUpperCase()} ⚡\n\nBilan : ${wins}/${total} victoires !\n\n${resultLinesShort}\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats`;
-        tiktok = `🏆 Bilan week-end : ${wins} victoires sur ${total} ! 🔥\n\n${resultLinesShort}\n\n#fyp #basketball #${clubSettings.shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        insta = `⚡ RÉSULTATS ${badgeTitle} | ${safeShortName.toUpperCase()} ⚡\n\nBilan : ${wins}/${total} victoires !\n\n${resultLinesShort}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats`;
+        tiktok = `🏆 Bilan week-end : ${wins} victoires sur ${total} ! 🔥\n\n${resultLinesShort}\n\n#fyp #basketball #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         fb = `⚡ BILAN EXPRESS [${badgeTitle}] : ${wins} victoires / ${total} matchs !\n\n${resultLinesShort}\n\nMerci aux supporters ! 👏`;
       } else if (captionStyleProposal === 'hype') {
-        insta = `🏆 QUEL WEEK-END POUR LE ${clubSettings.shortName.toUpperCase()} ! 🔥💪\n\nBilan : ${wins} victoires sur ${total} rencontres ! Gros travail de nos équipes et du staff 👏⚡\n\n${resultLinesStandard}\n\nUn grand MERCI à nos supporters et bénévoles en tribunes ! ❤️🖤\n\nIdentifiez-nous : ${clubTag}\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Victoire #Basketball #Supporters`;
+        insta = `🏆 QUEL WEEK-END POUR LE ${safeShortName.toUpperCase()} ! 🔥💪\n\nBilan : ${wins} victoires sur ${total} rencontres ! Gros travail de nos équipes et du staff 👏⚡\n\n${resultLinesStandard}\n\nUn grand MERCI à nos supporters et bénévoles en tribunes ! ❤️🖤\n\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Victoire #Basketball #Supporters`;
         tiktok = `🏆 Gros bilans pour le club ! ${wins} victoires sur ${total} matchs 🔥💪 Quelle performance t'a le plus marqué ? Dis-le en commentaire ! 👇\n\n#fyp #pourtoi #basketball #victoire`;
-        fb = `🏆 EXCELLENT BILAN DE RENCONTRES [${badgeTitle}] - ${clubSettings.name.toUpperCase()} 🏆\n\nFélicitations à tous nos joueurs et coachs pour ces résultats : ${wins} victoires sur ${total} matchs !\n\n${resultLinesStandard}\n\nMerci aux supporters pour l'ambiance au gymnase ! 🎉🍿\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball`;
+        fb = `🏆 EXCELLENT BILAN DE RENCONTRES [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏆\n\nFélicitations à tous nos joueurs et coachs pour ces résultats : ${wins} victoires sur ${total} matchs !\n\n${resultLinesStandard}\n\nMerci aux supporters pour l'ambiance au gymnase ! 🎉🍿\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball`;
       } else {
-        insta = `🏆 ${badgeTitle} | ${clubSettings.shortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs ! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLinesStandard}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\nIdentifiez-nous : ${clubTag}\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`;
-        tiktok = `🏆 Les ${badgeTitle.toLowerCase()} du week-end sont là ! ${wins} victoires au compteur 🔥💪 Quelle équipe t'a le plus impressionné ? 👇\n\n#fyp #pourtoi #basketball #resultats #victoire`;
-        fb = `🏆 BILAN DES RENCONTRES [${badgeTitle}] - ${clubSettings.name.toUpperCase()} 🏆\n\nFélicitations à nos équipes pour ce week-end ! Bilan : ${wins} victoires sur ${total} matchs.\n\n${resultLinesStandard}\n\nMerci à nos bénévoles pour la buvette et la table de marque !\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball #ResultatsWeekend`;
+        insta = `🏆 ${badgeTitle} | ${safeShortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs ! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLinesStandard}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`;
+        tiktok = `🏆 Les ${(badgeTitle || '').toLowerCase()} du week-end sont là ! ${wins} victoires au compteur 🔥💪 Quelle équipe t'a le plus impressionné ? 👇\n\n#fyp #pourtoi #basketball #resultats #victoire`;
+        fb = `🏆 BILAN DES RENCONTRES [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏆\n\nFélicitations à nos équipes pour ce week-end ! Bilan : ${wins} victoires sur ${total} matchs.\n\n${resultLinesStandard}\n\nMerci à nos bénévoles pour la buvette et la table de marque !\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball #ResultatsWeekend`;
       }
 
       return {
@@ -812,9 +803,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     const oppScore = alert?.opponentScore ?? 72;
     const opp = alert?.opponent || 'Adversaire';
 
-    const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} ${ourScore} - ${oppScore} ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
+    const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} ${ourScore} - ${oppScore} ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
     const tiktok = `${isWin ? '🏆 VICTOIRE !!' : '🏀 Fin de match !'} ${team} l'emporte ${ourScore}-${oppScore} contre ${opp} ! 🔥⚡ #fyp #pourtoi #basketball #victoire`;
-    const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} ${ourScore} - ${oppScore} ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${clubSettings.shortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
+    const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} ${ourScore} - ${oppScore} ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
 
     return {
       instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
@@ -831,6 +822,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     isCustomCaptionEdited,
     specificNotification,
     clubSettings,
+    safeShortName,
+    safeClubName,
+    safeGymnasium,
   ]);
 
   const handleCopyText = (text: string, key: string) => {
@@ -852,7 +846,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       const link = document.createElement('a');
       const filterLabel = contentType === 'matches' ? posterFilter : contentType;
       const ratioLabel = aspectRatio.replace(':', '_');
-      link.download = `${clubSettings.shortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}_${ratioLabel}_${Date.now()}.png`;
+      link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}_${ratioLabel}_${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
 
@@ -879,11 +873,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       const blob = await res.blob();
       const file = new File(
         [blob],
-        `${clubSettings.shortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${badgeTitle.toLowerCase()}.png`,
+        `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${(badgeTitle || '').toLowerCase()}.png`,
         { type: 'image/png' }
       );
 
-      const title = `Affiche ${badgeTitle} - ${clubSettings.shortName}`;
+      const title = `Affiche ${badgeTitle || ''} - ${safeShortName}`;
       const text =
         selectedSocialTab === 'tiktok'
           ? generatedCaptions.tiktok
@@ -932,7 +926,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           platform: selectedSocialTab,
           type: contentType,
           badgeTitle,
-          title: `${clubSettings.shortName} • ${badgeTitle}`,
+          title: `${safeShortName} • ${badgeTitle}`,
           caption: activeCaption,
           matches: contentType === 'matches' ? displayedMatches : [],
           results: contentType === 'results' ? displayedResults : [],
@@ -1799,10 +1793,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         }`}
                       >
                         {displayedMatches.map((m) => {
-                          const isExempt =
-                            posterFilter === 'exempt' ||
-                            m.teamAway?.toLowerCase().includes('exempt') ||
-                            m.teamHome?.toLowerCase().includes('exempt');
+                          const isExempt = posterFilter === 'exempt' || isExemptItem(m);
 
                           const teamLeft = m.isHomeMatch ? m.category : m.category;
                           const teamRight = isExempt ? 'Exempt' : (m.isHomeMatch ? m.teamAway : m.teamHome);
@@ -1891,7 +1882,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         }`}
                       >
                         {displayedResults.map((r) => {
-                          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+                          const isWin = isMatchWin(r, safeClubName, safeShortName);
                           const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
                           const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
                           const count = displayedResults.length;
@@ -1987,7 +1978,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                         <div className="w-full bg-black/60 rounded-2xl border border-white/20 p-4 my-3 flex items-center justify-center gap-3 backdrop-blur-md">
                           <div className="flex-1 font-montserrat font-extrabold text-sm text-right truncate">
-                            {specificNotification.ourTeam || clubSettings.shortName}
+                            {specificNotification.ourTeam || safeShortName}
                           </div>
                           <div className="px-3.5 py-1 bg-red-600 rounded-xl text-3xl font-black font-teko text-white border border-red-500 shadow-md">
                             {specificNotification.ourScore} : {specificNotification.opponentScore}

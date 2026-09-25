@@ -622,7 +622,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           )}
                           <span
                             className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                              r.teamHome.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || r.isHomeMatch
+                              (r.teamHome || '').toLowerCase().includes((clubSettings?.shortName || '').toLowerCase()) || r.isHomeMatch
                                 ? 'text-orange-400'
                                 : 'text-slate-100'
                             }`}
@@ -659,7 +659,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           )}
                           <span
                             className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                              r.teamAway.toLowerCase().includes(clubSettings.shortName.toLowerCase()) || !r.isHomeMatch
+                              (r.teamAway || '').toLowerCase().includes((clubSettings?.shortName || '').toLowerCase()) || !r.isHomeMatch
                                 ? 'text-orange-400'
                                 : 'text-slate-100'
                             }`}
