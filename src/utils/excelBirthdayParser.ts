@@ -258,20 +258,20 @@ export function isDateInSpecifiedWeek(
 ): { inWeek: boolean; targetDate: Date; dayOfWeekIndex: number } {
   const { monday, sunday } = getWeekBounds(referenceDate, weekOffset);
 
-  // Set birthday to reference year
-  const bdayThisYear = new Date(referenceDate.getFullYear(), date.getMonth(), date.getDate());
+  // Set birthday to reference year at NOON (12:00:00) to prevent any timezone boundary shifts
+  const bdayThisYear = new Date(referenceDate.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
 
   if (bdayThisYear >= monday && bdayThisYear <= sunday) {
     return { inWeek: true, targetDate: bdayThisYear, dayOfWeekIndex: (bdayThisYear.getDay() + 6) % 7 };
   }
 
   // Check year edges
-  const bdayNextYear = new Date(referenceDate.getFullYear() + 1, date.getMonth(), date.getDate());
+  const bdayNextYear = new Date(referenceDate.getFullYear() + 1, date.getMonth(), date.getDate(), 12, 0, 0);
   if (bdayNextYear >= monday && bdayNextYear <= sunday) {
     return { inWeek: true, targetDate: bdayNextYear, dayOfWeekIndex: (bdayNextYear.getDay() + 6) % 7 };
   }
 
-  const bdayPrevYear = new Date(referenceDate.getFullYear() - 1, date.getMonth(), date.getDate());
+  const bdayPrevYear = new Date(referenceDate.getFullYear() - 1, date.getMonth(), date.getDate(), 12, 0, 0);
   if (bdayPrevYear >= monday && bdayPrevYear <= sunday) {
     return { inWeek: true, targetDate: bdayPrevYear, dayOfWeekIndex: (bdayPrevYear.getDay() + 6) % 7 };
   }
@@ -448,7 +448,25 @@ export function filterAndSortBirthdaysForWeek(
 
   birthdays.forEach((b) => {
     if (!b.birthDate) return;
-    const d = new Date(b.birthDate);
+    let d: Date | null = null;
+
+    // Parse "YYYY-MM-DD" or "DD/MM/YYYY" without timezone shifts
+    const parts = String(b.birthDate).trim().split(/[-/.]/);
+    if (parts.length === 3) {
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      const p2 = parseInt(parts[2], 10);
+      if (p0 > 1000) {
+        // YYYY-MM-DD
+        d = new Date(p0, p1 - 1, p2, 12, 0, 0);
+      } else if (p2 > 1000) {
+        // DD-MM-YYYY
+        d = new Date(p2, p1 - 1, p0, 12, 0, 0);
+      }
+    }
+    if (!d || isNaN(d.getTime())) {
+      d = new Date(b.birthDate);
+    }
     if (isNaN(d.getTime())) return;
 
     const check = isDateInSpecifiedWeek(d, referenceDate, weekOffset);
@@ -566,51 +584,85 @@ export async function parseExcelBirthdays(
           if (!firstName) firstName = fullName;
 
           const rawDate = row[bdayIdx];
-          let parsedDate: Date | null = null;
+          let yearNum: number | undefined;
+          let monthNum: number | undefined;
+          let dayNum: number | undefined;
 
           if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
-            parsedDate = rawDate;
+            // SheetJS cellDates: true creates UTC dates (e.g. 2014-09-24T00:00:00.000Z)
+            // or local dates. Check UTC if UTC hours are 0, else local
+            if (rawDate.getUTCHours() === 0 && rawDate.getUTCMinutes() === 0) {
+              yearNum = rawDate.getUTCFullYear();
+              monthNum = rawDate.getUTCMonth() + 1;
+              dayNum = rawDate.getUTCDate();
+            } else {
+              yearNum = rawDate.getFullYear();
+              monthNum = rawDate.getMonth() + 1;
+              dayNum = rawDate.getDate();
+            }
           } else if (typeof rawDate === 'number') {
             // Excel serial date number
             const d = XLSX.SSF.parse_date_code(rawDate);
-            if (d) {
-              parsedDate = new Date(d.y, d.m - 1, d.d);
+            if (d && d.y && d.m && d.d) {
+              yearNum = d.y;
+              monthNum = d.m;
+              dayNum = d.d;
             }
           } else if (typeof rawDate === 'string' && rawDate.trim()) {
             const str = rawDate.trim();
-            // Try French DD/MM/YYYY or DD-MM-YYYY
+            // Try French DD/MM/YYYY or YYYY-MM-DD or DD-MM-YYYY
             const parts = str.split(/[/.-]/);
             if (parts.length === 3) {
-              const day = parseInt(parts[0], 10);
-              const month = parseInt(parts[1], 10) - 1;
-              let year = parseInt(parts[2], 10);
-              if (year < 100) year += 2000;
-              parsedDate = new Date(year, month, day);
+              const p0 = parseInt(parts[0], 10);
+              const p1 = parseInt(parts[1], 10);
+              let p2 = parseInt(parts[2], 10);
+              if (p2 > 1000) {
+                // DD/MM/YYYY
+                dayNum = p0;
+                monthNum = p1;
+                yearNum = p2;
+              } else if (p0 > 1000) {
+                // YYYY-MM-DD
+                yearNum = p0;
+                monthNum = p1;
+                dayNum = p2;
+              } else if (p2 < 100) {
+                // DD/MM/YY
+                dayNum = p0;
+                monthNum = p1;
+                yearNum = p2 + 2000;
+              }
             } else {
               const fallback = new Date(str);
               if (!isNaN(fallback.getTime())) {
-                parsedDate = fallback;
+                yearNum = fallback.getFullYear();
+                monthNum = fallback.getMonth() + 1;
+                dayNum = fallback.getDate();
               }
             }
           }
 
-          if (!parsedDate || isNaN(parsedDate.getTime())) {
+          if (!yearNum || !monthNum || !dayNum || isNaN(yearNum) || isNaN(monthNum) || isNaN(dayNum)) {
             errors.push(`Ligne ${i + 1} (${firstName}) : date de naissance invalide "${rawDate}".`);
             continue;
           }
 
+          // Create local Date object at 12:00 NOON to avoid any timezone boundary shift
+          const parsedDate = new Date(yearNum, monthNum - 1, dayNum, 12, 0, 0);
+          const birthDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+
           const rawCat = categoryIdx !== -1 && row[categoryIdx] ? String(row[categoryIdx]) : '';
           const categoryTeam = extractCleanCategory(rawCat, rawGender, firstName);
 
-          const { inWeek, targetDate, dayOfWeekIndex } = isDateInSpecifiedWeek(parsedDate, referenceDate, weekOffset);
-          const age = referenceDate.getFullYear() - parsedDate.getFullYear();
+          const { inWeek, targetDate } = isDateInSpecifiedWeek(parsedDate, referenceDate, weekOffset);
+          const age = referenceDate.getFullYear() - yearNum;
 
           const item: BirthdayItem = {
             id: `bd-parsed-${i}-${Date.now()}`,
             fullName: fullName || firstName,
             firstName,
             lastName: lastName || undefined,
-            birthDate: parsedDate.toISOString().split('T')[0],
+            birthDate: birthDateStr,
             birthDayFormatted: formatFrenchBirthday(targetDate),
             age: age > 0 ? age : undefined,
             teamCategory: categoryTeam,

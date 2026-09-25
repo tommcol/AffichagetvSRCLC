@@ -1,8 +1,9 @@
 import React from 'react';
-import { Trophy, CheckCircle2, XCircle, Share2 } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { isMatchWin, isClubHomeMatch } from '../../utils/matchStatus';
+import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
 import { getFontFamilyClass } from '../../utils/fontUtils';
@@ -17,6 +18,7 @@ interface ResultsSlideProps {
   mascot?: ForegroundMascotConfig;
   layer3?: OverlayLayerItem;
   layer4?: OverlayLayerItem;
+  customHeaderTitle?: string;
   isInteractiveOverlay?: boolean;
   onLayerPositionChange?: (layerNum: 3 | 4, x: number, y: number) => void;
   selectedLayerNum?: 3 | 4 | null;
@@ -35,6 +37,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   mascot,
   layer3,
   layer4,
+  customHeaderTitle,
   isInteractiveOverlay = false,
   onLayerPositionChange,
   selectedLayerNum,
@@ -42,8 +45,11 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  const totalWins = results.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
-  const totalLosses = results.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+  // Tri chronologique rigoureux : dates puis heures
+  const sortedResults = [...results].sort(sortMatchesChronologically);
+
+  const totalWins = sortedResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+  const totalLosses = sortedResults.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
   const hasVictory = totalWins > 0;
 
   // Video priority and synchronization determination
@@ -138,6 +144,295 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
   const sizing = getResultsSizing(results.length);
 
+  const activeStyle = theme?.visualStyle || 'poster-red';
+
+  // Helper pour dimensionner et adapter automatiquement la disposition 16:9 selon le nombre de résultats (jusqu'à 10)
+  const getPosterAdaptiveScale = (count: number) => {
+    if (count <= 2) {
+      return {
+        headerSize: 'text-2xl',
+        pillHeight: 'min-h-[86px]',
+        pillText: 'text-4xl',
+        centerPill: 'text-4xl px-8 min-h-[86px]',
+        badgeSize: 'text-sm px-4 py-1',
+        badgeIcon: 'w-5 h-5',
+      };
+    }
+    if (count <= 4) {
+      return {
+        headerSize: 'text-xl',
+        pillHeight: 'min-h-[76px]',
+        pillText: 'text-3xl',
+        centerPill: 'text-3xl px-6 min-h-[76px]',
+        badgeSize: 'text-sm px-3.5 py-1',
+        badgeIcon: 'w-4 h-4',
+      };
+    }
+    if (count <= 6) {
+      return {
+        headerSize: 'text-lg',
+        pillHeight: 'min-h-[64px]',
+        pillText: 'text-2xl',
+        centerPill: 'text-2xl px-5 min-h-[64px]',
+        badgeSize: 'text-sm px-3 py-0.5',
+        badgeIcon: 'w-3.5 h-3.5',
+      };
+    }
+    if (count <= 8) {
+      return {
+        headerSize: 'text-base',
+        pillHeight: 'min-h-[54px]',
+        pillText: 'text-xl',
+        centerPill: 'text-xl px-4 min-h-[54px]',
+        badgeSize: 'text-xs px-2.5 py-0.5',
+        badgeIcon: 'w-3 h-3',
+      };
+    }
+    // Jusqu'à 10 résultats (5 par colonne)
+    return {
+      headerSize: 'text-xs',
+      pillHeight: 'min-h-[48px]',
+      pillText: 'text-lg',
+      centerPill: 'text-lg px-3.5 min-h-[48px]',
+      badgeSize: 'text-[11px] px-2 py-0.5',
+      badgeIcon: 'w-3 h-3',
+    };
+  };
+
+  // =========================================================================
+  // MODE AFFICHE OFFICIELLE / PASSERELLE RÉSEAUX (Pill Badges 16:9)
+  // =========================================================================
+  if (activeStyle === 'poster-red') {
+    // Tri chronologique rigoureux : dates puis heures
+    const sortedResults = [...results].sort(sortMatchesChronologically);
+    const scale = getPosterAdaptiveScale(sortedResults.length);
+
+    // Répartition en 2 colonnes verticales s'il y a plus de 2 résultats
+    const half = Math.ceil(sortedResults.length / 2);
+    const leftResults = sortedResults.length <= 2 ? sortedResults : sortedResults.slice(0, half);
+    const rightResults = sortedResults.length <= 2 ? [] : sortedResults.slice(half);
+
+    const renderPosterResultItem = (r: MatchItem) => {
+      const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+      const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+      const dateObj = formatMatchDayAndDate(r.date);
+      const dayDisplay = dateObj?.display || dateObj?.dayName || '';
+      // Heures supprimées des résultats comme demandé
+      const dateText = dayDisplay.trim();
+
+      return (
+        <div key={r.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
+          {/* Intitulé au-dessus : Catégorie • Date (sans heure) et Icône Maison ou Avion */}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className={`flex items-center gap-2 font-black uppercase font-montserrat tracking-wider text-white ${scale.headerSize}`}>
+              <span className="drop-shadow-sm font-bebas tracking-wide text-2xl text-amber-400">{r.category}</span>
+              {dateText ? (
+                <>
+                  <span className="text-slate-500 text-xs">•</span>
+                  <span className="text-slate-200 text-sm font-semibold">{dateText}</span>
+                </>
+              ) : r.competition ? (
+                <>
+                  <span className="text-slate-500 text-xs hidden sm:inline">•</span>
+                  <span className="text-slate-400 text-xs font-normal truncate max-w-[150px] hidden sm:inline">{r.competition}</span>
+                </>
+              ) : null}
+            </div>
+
+            {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
+            {isHome ? (
+              <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
+                title="Match à Domicile"
+              >
+                <Home className="w-5 h-5 text-emerald-400" />
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
+                title="Match à l'Extérieur"
+              >
+                <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
+              </span>
+            )}
+          </div>
+
+          {/* Rangée de Pilules : Équipe Domicile, Bloc Central [Victoire/Défaite au-dessus du Score], Équipe Extérieur */}
+          <div className="flex items-center justify-between gap-2 md:gap-3 w-full">
+            {/* Pilule Équipe Domicile (À gauche) */}
+            <div
+              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+                isHome
+                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
+                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+              }`}
+            >
+              <span className="truncate">{r.teamHome}</span>
+            </div>
+
+            {/* Bloc Central : VICTOIRE / DÉFAITE AU-DESSUS DU SCORE */}
+            <div className="flex flex-col items-center shrink-0">
+              <span
+                className={`text-xs font-black uppercase tracking-wider px-3 py-0.5 rounded-full mb-1 shadow-md flex items-center gap-1.5 ${
+                  isWin
+                    ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
+                    : 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
+                }`}
+              >
+                {isWin ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+              </span>
+
+              {/* Pilule Centrale Blanche (Score) */}
+              <div
+                className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+              >
+                {r.homeScore ?? '-'} &nbsp;-&nbsp; {r.awayScore ?? '-'}
+              </div>
+            </div>
+
+            {/* Pilule Équipe Extérieur (À droite) */}
+            <div
+              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+                !isHome
+                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
+                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+              }`}
+            >
+              <span className="truncate">{r.teamAway}</span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="relative w-full h-full flex flex-col justify-between overflow-hidden select-none bg-[#111111]">
+        {/* Calque 1 : Arrière-plan photo / vidéo */}
+        {backgroundUrl && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            {isVideoMedia(backgroundUrl) ? (
+              <video
+                src={backgroundUrl}
+                autoPlay
+                loop={!bgHasControl || !onVideoEnded}
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+              />
+            ) : (
+              <img
+                src={backgroundUrl}
+                alt="Fond visuel"
+                className="w-full h-full object-cover"
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="absolute inset-0 bg-slate-950/70 pointer-events-none" />
+          </div>
+        )}
+
+        {/* Filigrane central Logo du Club (Optionnel, désactivé par défaut) */}
+        {theme?.showClubLogoWatermark && clubSettings.logoUrl && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-15">
+            <img
+              src={clubSettings.logoUrl}
+              alt=""
+              className="w-[440px] h-[440px] object-contain filter grayscale contrast-200"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        )}
+
+        {/* Rayures Zebra Blancs en bas à droite */}
+        <div className="absolute -bottom-4 -right-4 pointer-events-none z-10 flex flex-col gap-1.5 -rotate-45">
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+        </div>
+
+        {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES RÉSULTATS ÉTENDUE 16:9) */}
+        <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
+          
+          {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
+          <div className="w-full flex flex-col items-center relative shrink-0">
+            
+            {/* Boutons d'action haut droite (Passerelle Réseaux) */}
+            <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
+              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl shadow-md text-xs">
+                <span className="text-emerald-400 font-black">{totalWins} Victoires</span>
+                <span className="text-slate-700">|</span>
+                <span className="text-rose-400 font-black">{totalLosses} Défaites</span>
+              </div>
+              {!hideShareButton && (
+                <button
+                  onClick={onDownloadVisual}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-emerald-600 hover:from-pink-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
+                  title="Passerelle Réseaux Sociaux : Exporter pour Instagram, TikTok et Facebook"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Passerelle Réseaux</span>
+                </button>
+              )}
+            </div>
+
+            {/* 6 Traits Rouges Inclinés (Signature Graphique) */}
+            <div className="flex gap-1.5 transform -skew-x-[25deg] mb-1">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="w-2 md:w-2.5 h-3 md:h-3.5 bg-red-600 rounded-[1px] shadow-md" />
+              ))}
+            </div>
+
+            {/* Pastille Pilule de Titre Rouge */}
+            <div className="px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 font-bebas text-center">
+              {customHeaderTitle || theme?.customHeaderTitle || (
+                sortedResults.length > 0 && sortedResults.every((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+                  ? 'LES RÉSULTATS À DOMICILE'
+                  : sortedResults.length > 0 && sortedResults.every((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+                  ? "LES RÉSULTATS À L'EXTÉRIEUR"
+                  : 'RÉSULTATS DU WEEK-END'
+              )}
+            </div>
+          </div>
+
+          {/* LISTE ADAPTATIVE DES RÉSULTATS OCCUPANT TOUT L'ESPACE 16:9 */}
+          {sortedResults.length === 0 ? (
+            <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
+              <Trophy className="w-10 h-10 text-emerald-400/60 mx-auto mb-2" />
+              <h3 className="text-xl font-black text-white font-bebas">
+                AUCUN RÉSULTAT ENREGISTRÉ
+              </h3>
+              <p className="text-slate-400 text-xs mt-1 font-montserrat">
+                Les résultats apparaîtront dès la fin des rencontres du week-end.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full flex-1 flex flex-row gap-8 xl:gap-10 my-2 py-0.5 items-stretch min-h-0">
+              {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
+              <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+                {leftResults.map(renderPosterResultItem)}
+              </div>
+
+              {/* Colonne 2 : Deuxième moitié ordonnée chronologiquement */}
+              {rightResults.length > 0 && (
+                <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+                  {rightResults.map(renderPosterResultItem)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bas de page / Signature Club */}
+          <div className="w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 font-montserrat uppercase tracking-widest pt-1 shrink-0">
+            <span>SRC BASKET LA CLAYETTE</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden">
       {/* ========================================================================= */}
@@ -196,8 +491,8 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
         {/* Slide Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
           <div>
-            <h2 className={`text-4xl md:text-5xl lg:text-6xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-              RÉSULTATS DU WEEK-END
+            <h2 className={`text-4xl md:text-5xl lg:text-6xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
+              {customHeaderTitle || theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END'}
             </h2>
           </div>
 
@@ -232,7 +527,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
         </div>
 
         {/* Results Cards Grid */}
-        {results.length === 0 ? (
+        {sortedResults.length === 0 ? (
           <div className="my-auto text-center py-16 bg-slate-900/60 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto backdrop-blur-sm">
             <Trophy className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
             <h3 className={`text-2xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
@@ -246,7 +541,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           <div
             className={`grid gap-6 my-4 md:my-6 flex-1 items-stretch overflow-y-auto pr-1 min-h-0 ${sizing.gridClass}`}
           >
-            {results.map((r) => {
+            {sortedResults.map((r) => {
               const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
               const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
 

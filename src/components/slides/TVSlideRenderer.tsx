@@ -20,6 +20,7 @@ import { BirthdaysSlide } from './BirthdaysSlide';
 import { EventsSlide } from './EventsSlide';
 import { MatchAlertSlide } from './MatchAlertSlide';
 import { getEffectiveCategoryConfig } from '../../utils/themeUtils';
+import { isClubHomeMatch } from '../../utils/matchStatus';
 
 export interface TVSlideRendererProps {
   slide: CarouselSlide;
@@ -125,9 +126,15 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     }
 
     if (slide.categoryId === 'matches') {
+      const filteredMatches = slide.filterScope === 'home'
+        ? matches.filter((m) => m.isHomeMatch)
+        : slide.filterScope === 'away'
+        ? matches.filter((m) => !m.isHomeMatch)
+        : matches;
+
       return (
         <MatchesSlide
-          matches={matches}
+          matches={filteredMatches}
           customHomeMatches={slide.matchesPage?.homeMatches}
           customAwayMatches={slide.matchesPage?.awayMatches}
           pageNumber={slide.matchesPage?.pageNumber}
@@ -140,6 +147,7 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
           mascot={matchesEffective.mascot}
           layer3={matchesEffective.layer3}
           layer4={matchesEffective.layer4}
+          customHeaderTitle={slide.customTitle || matchesEffective.categoryTheme?.customHeaderTitle}
           onVideoEnded={onVideoEnded}
           onVideoTimeUpdate={onVideoTimeUpdate}
         />
@@ -147,9 +155,15 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     }
 
     if (slide.categoryId === 'results') {
+      const filteredResults = slide.filterScope === 'home'
+        ? results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        : slide.filterScope === 'away'
+        ? results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        : results;
+
       return (
         <ResultsSlide
-          results={results}
+          results={filteredResults}
           clubSettings={clubSettings}
           backgroundUrl={resultsEffective.backgroundUrl}
           onDownloadVisual={onDownloadVisual ? () => onDownloadVisual('results') : undefined}
@@ -158,6 +172,7 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
           mascot={resultsEffective.mascot}
           layer3={resultsEffective.layer3}
           layer4={resultsEffective.layer4}
+          customHeaderTitle={slide.customTitle || resultsEffective.categoryTheme?.customHeaderTitle}
           onVideoEnded={onVideoEnded}
           onVideoTimeUpdate={onVideoTimeUpdate}
         />

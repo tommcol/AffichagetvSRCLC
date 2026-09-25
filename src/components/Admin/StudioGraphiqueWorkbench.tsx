@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Layers,
   Palette,
@@ -25,6 +25,8 @@ import {
   HelpCircle,
   Monitor,
   Video,
+  Home,
+  Plane,
 } from 'lucide-react';
 import {
   VisualTemplatesConfig,
@@ -37,9 +39,11 @@ import {
 import { MatchesSlide } from '../slides/MatchesSlide';
 import { ResultsSlide } from '../slides/ResultsSlide';
 import { BirthdaysSlide } from '../slides/BirthdaysSlide';
+import { FixedCanvas169 } from '../common/FixedCanvas169';
 import { AVAILABLE_FONTS } from '../../utils/fontUtils';
 import { isVideoMedia, registerVideoBlob } from '../../utils/mediaUtils';
 import { saveMediaBlob, getMediaBlobUrl } from '../../utils/indexedDBStorage';
+import { isClubHomeMatch } from '../../utils/matchStatus';
 import {
   getEffectiveCategoryConfig,
   DEFAULT_MATCHES_THEME,
@@ -784,6 +788,21 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   // Mode d'affichage mobile : 'preview' (Aperçu TV 16:9) ou 'controls' (Réglages des Calques)
   const [mobileStudioTab, setMobileStudioTab] = useState<'preview' | 'controls'>('preview');
 
+  // Filtre de scope pour les matchs et résultats : 'home' (Domicile), 'away' (Extérieur), ou 'all' (Tous)
+  const [studioScope, setStudioScope] = useState<'home' | 'away' | 'all'>('home');
+
+  const displayedMatches = useMemo(() => {
+    if (studioScope === 'home') return matches.filter((m) => m.isHomeMatch);
+    if (studioScope === 'away') return matches.filter((m) => !m.isHomeMatch);
+    return matches;
+  }, [matches, studioScope]);
+
+  const displayedResults = useMemo(() => {
+    if (studioScope === 'home') return results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    if (studioScope === 'away') return results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    return results;
+  }, [results, studioScope, clubSettings]);
+
   const previewCanvasRef = useRef<HTMLDivElement | null>(null);
 
   // Configuration effective pour chaque catégorie
@@ -1284,6 +1303,34 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   className="w-full accent-orange-500 cursor-pointer"
                 />
               </div>
+
+              {/* Filigrane Logo du Club au centre */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+                    <ImageIcon className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Filigrane Logo du Club au centre</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Affiche le logo du club en filigrane discret au milieu de l'écran derrière les cartes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateCurrentCategoryTheme({
+                      showClubLogoWatermark: !currentEffective.categoryTheme.showClubLogoWatermark,
+                    })
+                  }
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                    currentEffective.categoryTheme.showClubLogoWatermark
+                      ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {currentEffective.categoryTheme.showClubLogoWatermark ? '✓ Affiché' : 'Désactivé (Masqué)'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1300,6 +1347,108 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 <p className="text-[11px] text-slate-400">
                   Personnalisez l'apparence des blocs de match, résultats ou anniversaires
                 </p>
+              </div>
+
+              {/* Design Visuel de la diapositive */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-red-400 font-black">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Design Visuel pour la TV & le Carrousel</span>
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ visualStyle: 'poster-red' })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      (currentEffective.categoryTheme.visualStyle || 'poster-red') === 'poster-red'
+                        ? 'bg-red-950/50 border-red-500 text-white shadow-lg shadow-red-500/20'
+                        : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-bold text-xs block text-red-300">🔴 Affiche Passerelle Réseaux</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Visuel 16:9 officiel avec pilules rouges et score blanc</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ visualStyle: 'cards' })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      currentEffective.categoryTheme.visualStyle === 'cards'
+                        ? 'bg-orange-950/50 border-orange-500 text-white shadow-lg shadow-orange-500/20'
+                        : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-bold text-xs block text-orange-300">🎴 Cartes Vitrées Glassmorphism</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Grille classique de cartes translucides avec scores</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Titre / Entête personnalisée */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-amber-400 font-black">
+                    <Type className="w-3.5 h-3.5" />
+                    <span>Titre / Entête Personnalisée</span>
+                  </span>
+                  {currentEffective.categoryTheme.customHeaderTitle && (
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: '' })}
+                      className="text-[10px] text-slate-400 hover:text-rose-400 transition-colors"
+                    >
+                      Réinitialiser
+                    </button>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={currentEffective.categoryTheme.customHeaderTitle || ''}
+                  onChange={(e) => updateCurrentCategoryTheme({ customHeaderTitle: e.target.value })}
+                  placeholder={
+                    activeCategory === 'matches'
+                      ? 'LES RENCONTRES DU WEEK-END'
+                      : activeCategory === 'results'
+                      ? 'RÉSULTATS DU WEEK-END'
+                      : 'BON ANNIVERSAIRE'
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-amber-500"
+                />
+                {/* Boutons d'accès rapide aux modèles de titres */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'LES MATCHS DU WEEK-END' })}
+                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-slate-700"
+                  >
+                    🏀 Matchs Week-end
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END' })}
+                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold border border-slate-700"
+                  >
+                    🏆 Résultats Week-end
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END (RÉSEAUX)' })}
+                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-pink-300 font-bold border border-slate-700"
+                  >
+                    📱 Résultats Réseaux
+                  </button>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
+                    <button
+                      key={j}
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: `RÉSULTATS J-${j}` })}
+                      className="text-[10px] px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-amber-950 text-slate-300 hover:text-amber-300 font-mono font-bold border border-slate-800"
+                    >
+                      J-{j}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Palettes rapides */}
@@ -1635,13 +1784,57 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
 
         {/* COLONNE DROITE (7 colonnes) : APERÇU 16:9 INTERACTIF DIRECT */}
         <div className={`xl:col-span-7 space-y-3 sticky top-4 ${mobileStudioTab === 'preview' ? 'block' : 'hidden'} xl:block`}>
-          <div className="flex items-center justify-between bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-800">
+          <div className="flex items-center justify-between bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-800 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 text-orange-400" />
               <span className="text-xs font-black text-white uppercase tracking-wider">
-                Aperçu 16:9 TV & Déplacement Souris
+                Aperçu 16:9 TV
               </span>
             </div>
+
+            {/* Sélecteur Domicile / Extérieur pour prévisualiser chaque slide de catégorie */}
+            {(previewMode === 'matches' || previewMode === 'results') && (
+              <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('home')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    studioScope === 'home'
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Voir la slide des rencontres à domicile"
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span>Domicile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('away')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    studioScope === 'away'
+                      ? 'bg-sky-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Voir la slide des rencontres à l'extérieur"
+                >
+                  <Plane className="w-3.5 h-3.5 -rotate-45" />
+                  <span>Extérieur</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('all')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
+                    studioScope === 'all'
+                      ? 'bg-slate-700 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Voir tous les matchs"
+                >
+                  <span>Tous</span>
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <button
@@ -1660,62 +1853,64 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
             ref={previewCanvasRef}
             className="relative w-full aspect-video rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-black select-none"
           >
-            {previewMode === 'matches' ? (
-              <MatchesSlide
-                matches={matches}
-                clubSettings={clubSettings}
-                backgroundUrl={matchesEffective.backgroundUrl}
-                onDownloadVisual={() => {}}
-                hideShareButton={true}
-                theme={matchesEffective.theme}
-                mascot={matchesEffective.mascot}
-                layer3={matchesEffective.layer3}
-                layer4={matchesEffective.layer4}
-                isInteractiveOverlay={true}
-                selectedLayerNum={selectedLayerNum}
-                onSelectLayer={(num) => {
-                  setSelectedLayerNum(num);
-                  setActiveLayerTab(num);
-                }}
-                onLayerPositionChange={handleLayerPositionChange}
-              />
-            ) : previewMode === 'results' ? (
-              <ResultsSlide
-                results={results}
-                clubSettings={clubSettings}
-                backgroundUrl={resultsEffective.backgroundUrl}
-                onDownloadVisual={() => {}}
-                hideShareButton={true}
-                theme={resultsEffective.theme}
-                mascot={resultsEffective.mascot}
-                layer3={resultsEffective.layer3}
-                layer4={resultsEffective.layer4}
-                isInteractiveOverlay={true}
-                selectedLayerNum={selectedLayerNum}
-                onSelectLayer={(num) => {
-                  setSelectedLayerNum(num);
-                  setActiveLayerTab(num);
-                }}
-                onLayerPositionChange={handleLayerPositionChange}
-              />
-            ) : (
-              <BirthdaysSlide
-                birthdays={birthdays}
-                clubSettings={clubSettings}
-                backgroundUrl={birthdaysEffective.backgroundUrl}
-                theme={birthdaysEffective.theme}
-                mascot={birthdaysEffective.mascot}
-                layer3={birthdaysEffective.layer3}
-                layer4={birthdaysEffective.layer4}
-                isInteractiveOverlay={true}
-                selectedLayerNum={selectedLayerNum}
-                onSelectLayer={(num) => {
-                  setSelectedLayerNum(num);
-                  setActiveLayerTab(num);
-                }}
-                onLayerPositionChange={handleLayerPositionChange}
-              />
-            )}
+            <FixedCanvas169>
+              {previewMode === 'matches' ? (
+                <MatchesSlide
+                  matches={displayedMatches}
+                  clubSettings={clubSettings}
+                  backgroundUrl={matchesEffective.backgroundUrl}
+                  onDownloadVisual={() => {}}
+                  hideShareButton={true}
+                  theme={matchesEffective.theme}
+                  mascot={matchesEffective.mascot}
+                  layer3={matchesEffective.layer3}
+                  layer4={matchesEffective.layer4}
+                  isInteractiveOverlay={true}
+                  selectedLayerNum={selectedLayerNum}
+                  onSelectLayer={(num) => {
+                    setSelectedLayerNum(num);
+                    setActiveLayerTab(num);
+                  }}
+                  onLayerPositionChange={handleLayerPositionChange}
+                />
+              ) : previewMode === 'results' ? (
+                <ResultsSlide
+                  results={displayedResults}
+                  clubSettings={clubSettings}
+                  backgroundUrl={resultsEffective.backgroundUrl}
+                  onDownloadVisual={() => {}}
+                  hideShareButton={true}
+                  theme={resultsEffective.theme}
+                  mascot={resultsEffective.mascot}
+                  layer3={resultsEffective.layer3}
+                  layer4={resultsEffective.layer4}
+                  isInteractiveOverlay={true}
+                  selectedLayerNum={selectedLayerNum}
+                  onSelectLayer={(num) => {
+                    setSelectedLayerNum(num);
+                    setActiveLayerTab(num);
+                  }}
+                  onLayerPositionChange={handleLayerPositionChange}
+                />
+              ) : (
+                <BirthdaysSlide
+                  birthdays={birthdays}
+                  clubSettings={clubSettings}
+                  backgroundUrl={birthdaysEffective.backgroundUrl}
+                  theme={birthdaysEffective.theme}
+                  mascot={birthdaysEffective.mascot}
+                  layer3={birthdaysEffective.layer3}
+                  layer4={birthdaysEffective.layer4}
+                  isInteractiveOverlay={true}
+                  selectedLayerNum={selectedLayerNum}
+                  onSelectLayer={(num) => {
+                    setSelectedLayerNum(num);
+                    setActiveLayerTab(num);
+                  }}
+                  onLayerPositionChange={handleLayerPositionChange}
+                />
+              )}
+            </FixedCanvas169>
 
             {/* Indicateur de calques interactifs */}
             <div className="absolute top-3 left-3 z-40 flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white pointer-events-none">
@@ -1784,6 +1979,44 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </button>
             </div>
 
+            {/* Sélecteur Domicile / Extérieur Plein Écran */}
+            {(previewMode === 'matches' || previewMode === 'results') && (
+              <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('home')}
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                    studioScope === 'home' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Rencontres à Domicile"
+                >
+                  <Home className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Domicile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('away')}
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                    studioScope === 'away' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Rencontres à l'Extérieur"
+                >
+                  <Plane className="w-3.5 h-3.5 -rotate-45" />
+                  <span className="hidden sm:inline">Extérieur</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStudioScope('all')}
+                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
+                    studioScope === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Tous les matchs"
+                >
+                  <span>Tous</span>
+                </button>
+              </div>
+            )}
+
             {/* Mode Agrandir sur toute la page / Cadre 16:9 */}
             <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
               <button
@@ -1834,41 +2067,43 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 : 'w-full h-full max-w-[96vw] max-h-[92vh] aspect-video rounded-2xl overflow-hidden border-2 border-slate-800 shadow-2xl relative bg-black'
             }
           >
-            {previewMode === 'matches' ? (
-              <MatchesSlide
-                matches={matches}
-                clubSettings={clubSettings}
-                backgroundUrl={matchesEffective.backgroundUrl}
-                onDownloadVisual={() => {}}
-                hideShareButton={true}
-                theme={matchesEffective.theme}
-                mascot={matchesEffective.mascot}
-                layer3={matchesEffective.layer3}
-                layer4={matchesEffective.layer4}
-              />
-            ) : previewMode === 'results' ? (
-              <ResultsSlide
-                results={results}
-                clubSettings={clubSettings}
-                backgroundUrl={resultsEffective.backgroundUrl}
-                onDownloadVisual={() => {}}
-                hideShareButton={true}
-                theme={resultsEffective.theme}
-                mascot={resultsEffective.mascot}
-                layer3={resultsEffective.layer3}
-                layer4={resultsEffective.layer4}
-              />
-            ) : (
-              <BirthdaysSlide
-                birthdays={birthdays}
-                clubSettings={clubSettings}
-                backgroundUrl={birthdaysEffective.backgroundUrl}
-                theme={birthdaysEffective.theme}
-                mascot={birthdaysEffective.mascot}
-                layer3={birthdaysEffective.layer3}
-                layer4={birthdaysEffective.layer4}
-              />
-            )}
+            <FixedCanvas169>
+              {previewMode === 'matches' ? (
+                <MatchesSlide
+                  matches={displayedMatches}
+                  clubSettings={clubSettings}
+                  backgroundUrl={matchesEffective.backgroundUrl}
+                  onDownloadVisual={() => {}}
+                  hideShareButton={true}
+                  theme={matchesEffective.theme}
+                  mascot={matchesEffective.mascot}
+                  layer3={matchesEffective.layer3}
+                  layer4={matchesEffective.layer4}
+                />
+              ) : previewMode === 'results' ? (
+                <ResultsSlide
+                  results={displayedResults}
+                  clubSettings={clubSettings}
+                  backgroundUrl={resultsEffective.backgroundUrl}
+                  onDownloadVisual={() => {}}
+                  hideShareButton={true}
+                  theme={resultsEffective.theme}
+                  mascot={resultsEffective.mascot}
+                  layer3={resultsEffective.layer3}
+                  layer4={resultsEffective.layer4}
+                />
+              ) : (
+                <BirthdaysSlide
+                  birthdays={birthdays}
+                  clubSettings={clubSettings}
+                  backgroundUrl={birthdaysEffective.backgroundUrl}
+                  theme={birthdaysEffective.theme}
+                  mascot={birthdaysEffective.mascot}
+                  layer3={birthdaysEffective.layer3}
+                  layer4={birthdaysEffective.layer4}
+                />
+              )}
+            </FixedCanvas169>
           </div>
         </div>
       )}

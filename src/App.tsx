@@ -25,14 +25,17 @@ import {
   ActiveMatchAlert,
   TeamVisualItem,
   VisualTemplatesConfig,
+  CarouselSlide,
 } from './types';
 import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { getEffectiveCategoryConfig } from './utils/themeUtils';
+import { isClubHomeMatch } from './utils/matchStatus';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
+import { FixedCanvas169 } from './components/common/FixedCanvas169';
 import {
   ChevronLeft,
   ChevronRight,
@@ -48,28 +51,6 @@ import {
 
 function loadStorage<T>(_key: string, fallback: T): T {
   return fallback;
-}
-
-// Represents one item in the carousel rotation
-interface CarouselSlide {
-  id: string;
-  type: 'category' | 'alert';
-  categoryId?: SlideCategory;
-  alert?: ActiveMatchAlert;
-  sponsor?: SponsorItem;
-  photo?: ClubPhotoItem;
-  event?: ClubEventItem;
-  logo?: ClubLogoItem;
-  matchesPage?: {
-    homeMatches: MatchItem[];
-    awayMatches: MatchItem[];
-    pageNumber: number;
-    totalPages: number;
-  };
-  itemIndex?: number;
-  totalItems?: number;
-  durationSeconds: number;
-  label: string;
 }
 
 export default function App() {
@@ -430,45 +411,140 @@ export default function App() {
           if (dateA !== dateB) return dateA.localeCompare(dateB);
           return (a.time || '').localeCompare(b.time || '');
         };
-        const homeList = weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatches);
-        const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
 
         if (weekendMatches.length > 0) {
-          const totalPages = Math.max(
-            1,
-            Math.ceil(homeList.length / 4),
-            Math.ceil(awayList.length / 4)
-          );
+          const homeList = weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatches);
+          const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
 
-          pools['matches'] = Array.from({ length: totalPages }, (_, pageIdx) => {
-            const pageHome = homeList.slice(pageIdx * 4, (pageIdx + 1) * 4);
-            const pageAway = awayList.slice(pageIdx * 4, (pageIdx + 1) * 4);
-            return {
-              id: `cat-matches-page-${pageIdx + 1}`,
-              type: 'category' as const,
-              categoryId: 'matches' as const,
-              matchesPage: {
-                homeMatches: pageHome,
-                awayMatches: pageAway,
-                pageNumber: pageIdx + 1,
-                totalPages,
-              },
-              durationSeconds: cat.durationSeconds,
-              label: totalPages > 1 ? `Matchs (Page ${pageIdx + 1}/${totalPages})` : cat.label,
-            };
-          });
+          const matchSlides: CarouselSlide[] = [];
+
+          // Slide(s) Domicile
+          if (homeList.length > 0) {
+            if (homeList.length <= 10) {
+              matchSlides.push({
+                id: 'cat-matches-home',
+                type: 'category' as const,
+                categoryId: 'matches' as const,
+                filterScope: 'home' as const,
+                customTitle: 'LES RENCONTRES À DOMICILE',
+                durationSeconds: cat.durationSeconds,
+                label: 'Matchs Domicile',
+              });
+            } else {
+              const totalPages = Math.ceil(homeList.length / 10);
+              for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+                const pageMatches = homeList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                matchSlides.push({
+                  id: `cat-matches-home-page-${pageIdx + 1}`,
+                  type: 'category' as const,
+                  categoryId: 'matches' as const,
+                  filterScope: 'home' as const,
+                  matchesPage: {
+                    homeMatches: pageMatches,
+                    awayMatches: [],
+                    pageNumber: pageIdx + 1,
+                    totalPages,
+                  },
+                  customTitle: totalPages > 1 ? `LES RENCONTRES À DOMICILE (${pageIdx + 1}/${totalPages})` : 'LES RENCONTRES À DOMICILE',
+                  durationSeconds: cat.durationSeconds,
+                  label: `Matchs Domicile (Page ${pageIdx + 1}/${totalPages})`,
+                });
+              }
+            }
+          }
+
+          // Slide(s) Extérieur
+          if (awayList.length > 0) {
+            if (awayList.length <= 10) {
+              matchSlides.push({
+                id: 'cat-matches-away',
+                type: 'category' as const,
+                categoryId: 'matches' as const,
+                filterScope: 'away' as const,
+                customTitle: "LES RENCONTRES À L'EXTÉRIEUR",
+                durationSeconds: cat.durationSeconds,
+                label: 'Matchs Extérieur',
+              });
+            } else {
+              const totalPages = Math.ceil(awayList.length / 10);
+              for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+                const pageMatches = awayList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                matchSlides.push({
+                  id: `cat-matches-away-page-${pageIdx + 1}`,
+                  type: 'category' as const,
+                  categoryId: 'matches' as const,
+                  filterScope: 'away' as const,
+                  matchesPage: {
+                    homeMatches: [],
+                    awayMatches: pageMatches,
+                    pageNumber: pageIdx + 1,
+                    totalPages,
+                  },
+                  customTitle: totalPages > 1 ? `LES RENCONTRES À L'EXTÉRIEUR (${pageIdx + 1}/${totalPages})` : "LES RENCONTRES À L'EXTÉRIEUR",
+                  durationSeconds: cat.durationSeconds,
+                  label: `Matchs Extérieur (Page ${pageIdx + 1}/${totalPages})`,
+                });
+              }
+            }
+          }
+
+          if (matchSlides.length > 0) {
+            pools['matches'] = matchSlides;
+          }
         }
       } else if (cat.id === 'results') {
-        if (results.length > 0) {
-          pools['results'] = [
-            {
-              id: `cat-${cat.id}`,
-              type: 'category' as const,
-              categoryId: cat.id,
-              durationSeconds: cat.durationSeconds,
-              label: cat.label,
-            },
-          ];
+        const sortMatches = (a: MatchItem, b: MatchItem) => {
+          const dateA = a.date || '';
+          const dateB = b.date || '';
+          if (dateA !== dateB) return dateA.localeCompare(dateB);
+          return (a.time || '').localeCompare(b.time || '');
+        };
+
+        const homeResults = results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+        const awayResults = results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+
+        const resultSlides: CarouselSlide[] = [];
+
+        // Slide(s) Résultats Domicile
+        if (homeResults.length > 0) {
+          resultSlides.push({
+            id: 'cat-results-home',
+            type: 'category' as const,
+            categoryId: 'results' as const,
+            filterScope: 'home' as const,
+            customTitle: 'LES RÉSULTATS À DOMICILE',
+            durationSeconds: cat.durationSeconds,
+            label: 'Résultats Domicile',
+          });
+        }
+
+        // Slide(s) Résultats Extérieur
+        if (awayResults.length > 0) {
+          resultSlides.push({
+            id: 'cat-results-away',
+            type: 'category' as const,
+            categoryId: 'results' as const,
+            filterScope: 'away' as const,
+            customTitle: "LES RÉSULTATS À L'EXTÉRIEUR",
+            durationSeconds: cat.durationSeconds,
+            label: 'Résultats Extérieur',
+          });
+        }
+
+        // Fallback si pas de distinction domicile/extérieur possible
+        if (resultSlides.length === 0 && results.length > 0) {
+          resultSlides.push({
+            id: 'cat-results',
+            type: 'category' as const,
+            categoryId: 'results' as const,
+            filterScope: 'all' as const,
+            durationSeconds: cat.durationSeconds,
+            label: cat.label,
+          });
+        }
+
+        if (resultSlides.length > 0) {
+          pools['results'] = resultSlides;
         }
       } else if (cat.id === 'birthdays') {
         if (birthdays.length > 0) {
@@ -556,7 +632,7 @@ export default function App() {
     });
 
     return balancedList.length > 0 ? balancedList : [fallbackSlide];
-  }, [activeAlerts, categories, sponsors, logos, photos, events, matches, results, birthdays, clubSettings.name, clubSettings.balancedLoopMode]);
+  }, [activeAlerts, categories, sponsors, logos, photos, events, matches, results, birthdays, clubSettings.name, clubSettings.balancedLoopMode, visualTemplates]);
 
   // Keep index within playlist boundaries
   const activeSlideIndex = currentSlideIndex % carouselPlaylist.length;
@@ -882,37 +958,39 @@ export default function App() {
       onMouseMove={handleUserActivity}
     >
       {/* ========================================================================= */}
-      {/* 1. 100% PURE FULL-SCREEN VISUAL CAROUSEL STAGE (NO CLOCK, NO PERMANENT HEADER) */}
+      {/* 1. 100% PURE FULL-SCREEN VISUAL CAROUSEL STAGE (FIXED 16:9 SCALED CANVAS) */}
       {/* ========================================================================= */}
       <main className="relative w-full h-full flex-1 overflow-hidden flex items-center justify-center bg-black">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide.id}
-            initial={{ opacity: 0, scale: 0.99 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.01 }}
-            transition={{ duration: 0.6, ease: 'easeInOut' }}
-            className="w-full h-full flex items-center justify-center"
-          >
-            <TVSlideRenderer
-              slide={currentSlide}
-              clubSettings={clubSettings}
-              matches={matches}
-              results={results}
-              sponsors={sponsors}
-              logos={logos}
-              photos={photos}
-              birthdays={birthdays}
-              events={events}
-              teamVisuals={teamVisuals}
-              visualTemplates={visualTemplates}
-              onVideoEnded={nextSlide}
-              onVideoTimeUpdate={setProgressPercent}
-              onDownloadVisual={(type) => setVisualModalState({ isOpen: true, type })}
-              hideShareButton={true}
-            />
-          </motion.div>
-        </AnimatePresence>
+        <FixedCanvas169>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide.id}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.01 }}
+              transition={{ duration: 0.6, ease: 'easeInOut' }}
+              className="w-full h-full flex items-center justify-center"
+            >
+              <TVSlideRenderer
+                slide={currentSlide}
+                clubSettings={clubSettings}
+                matches={matches}
+                results={results}
+                sponsors={sponsors}
+                logos={logos}
+                photos={photos}
+                birthdays={birthdays}
+                events={events}
+                teamVisuals={teamVisuals}
+                visualTemplates={visualTemplates}
+                onVideoEnded={nextSlide}
+                onVideoTimeUpdate={setProgressPercent}
+                onDownloadVisual={(type) => setVisualModalState({ isOpen: true, type })}
+                hideShareButton={true}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </FixedCanvas169>
 
         {/* Discreet TV Remote Next/Prev Click Zones on sides */}
         <button

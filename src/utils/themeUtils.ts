@@ -214,6 +214,8 @@ export function getEffectiveCategoryConfig(
 
   const backgroundMediaType = specific.backgroundMediaType || (isVideoMedia(backgroundUrl) ? 'video' : 'image');
 
+  const showClubLogoWatermark = specific.showClubLogoWatermark ?? globalTheme?.showClubLogoWatermark ?? false;
+
   const theme: SlideDesignTheme = {
     primaryColor,
     secondaryColor: '#0f172a',
@@ -225,6 +227,9 @@ export function getEffectiveCategoryConfig(
     backgroundBrightness,
     backgroundBlur,
     backgroundMediaType,
+    customHeaderTitle: specific.customHeaderTitle,
+    visualStyle: specific.visualStyle || 'poster-red',
+    showClubLogoWatermark,
   };
 
   const mascot: ForegroundMascotConfig = {
@@ -237,10 +242,13 @@ export function getEffectiveCategoryConfig(
   };
 
   const categoryTheme: CategorySlideTheme = {
+    customHeaderTitle: specific.customHeaderTitle,
+    visualStyle: specific.visualStyle || 'poster-red',
     backgroundUrl,
     backgroundMediaType,
     backgroundBrightness,
     backgroundBlur,
+    showClubLogoWatermark,
     primaryColor,
     cardBgColor,
     cardOpacity,

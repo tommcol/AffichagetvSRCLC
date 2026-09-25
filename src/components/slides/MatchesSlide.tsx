@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Clock, Home, Plane, CheckCircle2, XCircle, Share2 } from 'lucide-react';
+import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2 } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
 import { isMatchLive, isMatchFinished } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
-import { formatMatchDayAndDate } from '../../utils/matchDateHelper';
+import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
 import { getFontFamilyClass } from '../../utils/fontUtils';
@@ -22,6 +22,7 @@ interface MatchesSlideProps {
   mascot?: ForegroundMascotConfig;
   layer3?: OverlayLayerItem;
   layer4?: OverlayLayerItem;
+  customHeaderTitle?: string;
   isInteractiveOverlay?: boolean;
   onLayerPositionChange?: (layerNum: 3 | 4, x: number, y: number) => void;
   selectedLayerNum?: 3 | 4 | null;
@@ -44,6 +45,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   mascot,
   layer3,
   layer4,
+  customHeaderTitle,
   isInteractiveOverlay = false,
   onLayerPositionChange,
   selectedLayerNum,
@@ -97,16 +99,6 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     backgroundColor: `${cardBg}${Math.round(cardOpacity * 255).toString(16).padStart(2, '0')}`,
     backdropFilter: `blur(${cardBlur}px)`,
     WebkitBackdropFilter: `blur(${cardBlur}px)`,
-  };
-
-  // Helper to sort matches chronologically (by date then by kick-off time)
-  const sortMatchesChronologically = (a: MatchItem, b: MatchItem) => {
-    const dateA = a.date || '';
-    const dateB = b.date || '';
-    if (dateA !== dateB) {
-      return dateA.localeCompare(dateB);
-    }
-    return (a.time || '').localeCompare(b.time || '');
   };
 
   // Only display matches that are checked/selected for the weekend (selectedForWeekend !== false)
@@ -192,6 +184,273 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   const homeSizing = getColumnSizing(homeMatches.length);
   const awaySizing = getColumnSizing(awayMatches.length);
 
+  const activeStyle = theme?.visualStyle || 'poster-red';
+
+  // Helper pour dimensionner et adapter automatiquement la disposition 16:9 selon le nombre de matchs (jusqu'à 10)
+  const getPosterAdaptiveScale = (count: number) => {
+    if (count <= 2) {
+      return {
+        headerSize: 'text-2xl',
+        pillHeight: 'min-h-[86px]',
+        pillText: 'text-4xl',
+        centerPill: 'text-4xl px-8 min-h-[86px]',
+        badgeSize: 'text-sm px-4 py-1',
+        badgeIcon: 'w-5 h-5',
+      };
+    }
+    if (count <= 4) {
+      return {
+        headerSize: 'text-xl',
+        pillHeight: 'min-h-[76px]',
+        pillText: 'text-3xl',
+        centerPill: 'text-3xl px-6 min-h-[76px]',
+        badgeSize: 'text-sm px-3.5 py-1',
+        badgeIcon: 'w-4 h-4',
+      };
+    }
+    if (count <= 6) {
+      return {
+        headerSize: 'text-lg',
+        pillHeight: 'min-h-[64px]',
+        pillText: 'text-2xl',
+        centerPill: 'text-2xl px-5 min-h-[64px]',
+        badgeSize: 'text-sm px-3 py-0.5',
+        badgeIcon: 'w-3.5 h-3.5',
+      };
+    }
+    if (count <= 8) {
+      return {
+        headerSize: 'text-base',
+        pillHeight: 'min-h-[54px]',
+        pillText: 'text-xl',
+        centerPill: 'text-xl px-4 min-h-[54px]',
+        badgeSize: 'text-xs px-2.5 py-0.5',
+        badgeIcon: 'w-3 h-3',
+      };
+    }
+    // Jusqu'à 10 matchs (5 par colonne)
+    return {
+      headerSize: 'text-xs',
+      pillHeight: 'min-h-[48px]',
+      pillText: 'text-lg',
+      centerPill: 'text-lg px-3.5 min-h-[48px]',
+      badgeSize: 'text-[11px] px-2 py-0.5',
+      badgeIcon: 'w-3 h-3',
+    };
+  };
+
+  // =========================================================================
+  // MODE AFFICHE OFFICIELLE / PASSERELLE RÉSEAUX (Pill Badges 16:9)
+  // =========================================================================
+  if (activeStyle === 'poster-red') {
+    const allMatches = customHomeMatches !== undefined && customAwayMatches !== undefined
+      ? [...customHomeMatches, ...customAwayMatches]
+      : weekendMatches;
+    // Tri chronologique rigoureux : dates puis heures
+    const sortedMatches = [...allMatches].sort(sortMatchesChronologically);
+    const scale = getPosterAdaptiveScale(sortedMatches.length);
+
+    // Répartition en 2 colonnes verticales s'il y a plus de 2 matchs
+    const half = Math.ceil(sortedMatches.length / 2);
+    const leftMatches = sortedMatches.length <= 2 ? sortedMatches : sortedMatches.slice(0, half);
+    const rightMatches = sortedMatches.length <= 2 ? [] : sortedMatches.slice(half);
+
+    const renderPosterMatchItem = (m: MatchItem) => {
+      const isHome = Boolean(m.isHomeMatch);
+      const dateObj = formatMatchDayAndDate(m.date);
+      const dayDisplay = dateObj?.display || dateObj?.dayName || '';
+      const timeDisplay = m.time ? ` à ${m.time}` : '';
+      const dateTimeText = `${dayDisplay}${timeDisplay}`.trim();
+
+      return (
+        <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
+          {/* Intitulé au-dessus : Catégorie • Date & Heure • Badge Domicile / Extérieur distinct */}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className={`flex items-center gap-2 font-black uppercase font-montserrat tracking-wider text-white ${scale.headerSize}`}>
+              <span className="drop-shadow-sm font-bebas tracking-wide text-2xl text-amber-400">{m.category}</span>
+              {dateTimeText && (
+                <>
+                  <span className="text-slate-500 text-xs">•</span>
+                  <span className="text-slate-200 text-sm font-semibold">{dateTimeText}</span>
+                </>
+              )}
+            </div>
+
+            {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
+            {isHome ? (
+              <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
+                title="Match à Domicile"
+              >
+                <Home className="w-5 h-5 text-emerald-400" />
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
+                title="Match à l'Extérieur"
+              >
+                <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
+              </span>
+            )}
+          </div>
+
+          {/* Rangée de Pilules : Notre Club en ROUGE OFFICIEL, Adversaire en ANTHRACITE CONTRASTÉ */}
+          <div className="flex items-center justify-between gap-2 md:gap-3 w-full">
+            {/* Pilule Équipe Domicile (À gauche) */}
+            <div
+              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+                isHome
+                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
+                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+              }`}
+            >
+              <span className="truncate">{m.teamHome}</span>
+            </div>
+
+            {/* Pilule Centrale Blanche (Heure / VS) */}
+            <div
+              className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+            >
+              {m.time || 'VS'}
+            </div>
+
+            {/* Pilule Équipe Extérieur (À droite) */}
+            <div
+              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+                !isHome
+                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
+                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+              }`}
+            >
+              <span className="truncate">{m.teamAway}</span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="relative w-full h-full flex flex-col justify-between overflow-hidden select-none bg-[#111111]">
+        {/* Calque 1 : Arrière-plan photo / vidéo */}
+        {backgroundUrl && (
+          <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+            {isVideoMedia(backgroundUrl) ? (
+              <video
+                src={backgroundUrl}
+                autoPlay
+                loop={!bgHasControl || !onVideoEnded}
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+              />
+            ) : (
+              <img
+                src={backgroundUrl}
+                alt="Fond visuel"
+                className="w-full h-full object-cover"
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+                referrerPolicy="no-referrer"
+              />
+            )}
+            <div className="absolute inset-0 bg-slate-950/70 pointer-events-none" />
+          </div>
+        )}
+
+        {/* Filigrane central Logo du Club (Optionnel, désactivé par défaut) */}
+        {theme?.showClubLogoWatermark && clubSettings.logoUrl && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-15">
+            <img
+              src={clubSettings.logoUrl}
+              alt=""
+              className="w-[440px] h-[440px] object-contain filter grayscale contrast-200"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        )}
+
+        {/* Rayures Zebra Blancs en bas à droite */}
+        <div className="absolute -bottom-4 -right-4 pointer-events-none z-10 flex flex-col gap-1.5 -rotate-45">
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+          <div className="w-24 h-2.5 bg-white shadow-md" />
+        </div>
+
+        {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES MATCHS ÉTENDUE 16:9) */}
+        <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
+          
+          {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
+          <div className="w-full flex flex-col items-center relative shrink-0">
+            
+            {/* Boutons d'action haut droite (Passerelle Réseaux) */}
+            {!hideShareButton && (
+              <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
+                <button
+                  onClick={onDownloadVisual}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 hover:from-pink-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
+                  title="Passerelle Réseaux Sociaux : Exporter pour Instagram, TikTok et Facebook"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Passerelle Réseaux</span>
+                </button>
+              </div>
+            )}
+
+            {/* 6 Traits Rouges Inclinés (Signature Graphique) */}
+            <div className="flex gap-1.5 transform -skew-x-[25deg] mb-1">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="w-2 md:w-2.5 h-3 md:h-3.5 bg-red-600 rounded-[1px] shadow-md" />
+              ))}
+            </div>
+
+            {/* Pastille Pilule de Titre Rouge */}
+            <div className="px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 font-bebas text-center">
+              {customHeaderTitle || theme?.customHeaderTitle || (
+                sortedMatches.length > 0 && sortedMatches.every((m) => m.isHomeMatch)
+                  ? 'LES RENCONTRES À DOMICILE'
+                  : sortedMatches.length > 0 && sortedMatches.every((m) => !m.isHomeMatch)
+                  ? "LES RENCONTRES À L'EXTÉRIEUR"
+                  : 'LES RENCONTRES DU WEEK-END'
+              )}
+            </div>
+          </div>
+
+          {/* LISTE ADAPTATIVE DES MATCHS OCCUPANT TOUT L'ESPACE 16:9 */}
+          {sortedMatches.length === 0 ? (
+            <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
+              <Calendar className="w-10 h-10 text-orange-400/60 mx-auto mb-2" />
+              <h3 className="text-xl font-black text-white font-bebas">
+                AUCUNE RENCONTRE CE WEEK-END
+              </h3>
+              <p className="text-slate-400 text-xs mt-1 font-montserrat">
+                Le calendrier sera mis à jour dès la programmation des prochains matchs.
+              </p>
+            </div>
+          ) : (
+            <div className="w-full flex-1 flex flex-row gap-8 xl:gap-10 my-2 py-0.5 items-stretch min-h-0">
+              {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
+              <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+                {leftMatches.map(renderPosterMatchItem)}
+              </div>
+
+              {/* Colonne 2 : Deuxième moitié ordonnée chronologiquement */}
+              {rightMatches.length > 0 && (
+                <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+                  {rightMatches.map(renderPosterMatchItem)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bas de page / Signature Club */}
+          <div className="w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 font-montserrat uppercase tracking-widest pt-1 shrink-0">
+            <span>SRC BASKET LA CLAYETTE</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden">
       {/* ========================================================================= */}
@@ -250,8 +509,8 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         {/* Slide Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-2 md:pb-3">
           <div className="flex items-center gap-3">
-            <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-              LES RENCONTRES DU WEEK-END
+            <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
+              {customHeaderTitle || theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'}
             </h2>
             {totalPages && totalPages > 1 && (
               <span

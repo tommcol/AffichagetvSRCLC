@@ -96,3 +96,107 @@ export function formatMatchDayAndDate(dateStr?: string): {
     display: str,
   };
 }
+
+/**
+ * Calcule un timestamp numérique pour trier les matchs et résultats rigoureusement par ordre chronologique
+ * (Vendredi < Samedi < Dimanche, et heure par heure : 13:00 < 13:30 < 14:15 < 15:00 < 17:00 < 19:00...)
+ */
+export function parseMatchTimestamp(dateStr?: string, timeStr?: string): number {
+  let dayScore = 2000; // Samedi par défaut
+  let dayNum = 0;
+  let monthNum = 0;
+  let yearNum = 2026;
+
+  if (dateStr) {
+    const s = dateStr.toLowerCase().trim();
+
+    if (s.includes('vendredi')) dayScore = 1000;
+    else if (s.includes('samedi')) dayScore = 2000;
+    else if (s.includes('dimanche')) dayScore = 3000;
+    else if (s.includes('lundi')) dayScore = 4000;
+
+    // DD/MM ou DD-MM
+    const dateMatch = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+    if (dateMatch) {
+      dayNum = parseInt(dateMatch[1], 10);
+      monthNum = parseInt(dateMatch[2], 10);
+      if (dateMatch[3]) {
+        yearNum = parseInt(dateMatch[3].length === 2 ? '20' + dateMatch[3] : dateMatch[3], 10);
+      }
+    } else {
+      // YYYY-MM-DD
+      const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        yearNum = parseInt(isoMatch[1], 10);
+        monthNum = parseInt(isoMatch[2], 10);
+        dayNum = parseInt(isoMatch[3], 10);
+      } else {
+        // Noms de mois en français : ex: "Samedi 26 Septembre", "Dimanche 27 Septembre 2026"
+        const frenchMonthMatch = s.match(/(\d{1,2})\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|a[oô]ut|septembre|octobre|novembre|d[ée]cembre)(?:\s+(\d{2,4}))?/i);
+        if (frenchMonthMatch) {
+          dayNum = parseInt(frenchMonthMatch[1], 10);
+          const mStr = frenchMonthMatch[2].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const months = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
+          const idx = months.findIndex(m => mStr.startsWith(m.slice(0, 3)));
+          if (idx !== -1) {
+            monthNum = idx + 1;
+          }
+          if (frenchMonthMatch[3]) {
+            yearNum = parseInt(frenchMonthMatch[3].length === 2 ? '20' + frenchMonthMatch[3] : frenchMonthMatch[3], 10);
+          }
+        }
+      }
+    }
+  }
+
+  let minutesOfDay = 0;
+  if (timeStr) {
+    const t = timeStr.toLowerCase().replace('h', ':').trim();
+    const parts = t.split(':');
+    if (parts.length >= 2) {
+      const h = parseInt(parts[0], 10) || 0;
+      const m = parseInt(parts[1], 10) || 0;
+      minutesOfDay = h * 60 + m;
+    }
+  }
+
+  if (monthNum > 0 && dayNum > 0) {
+    return new Date(yearNum, monthNum - 1, dayNum).getTime() + minutesOfDay * 60000;
+  }
+
+  return dayScore * 100000 + minutesOfDay;
+}
+
+/**
+ * Poids de tri par catégorie (U9 < U11 < U13 < U15 < U17 < U18 < U20 < Seniors < Loisirs)
+ */
+export function getCategorySortWeight(category?: string): number {
+  if (!category) return 99;
+  const c = category.toUpperCase();
+  if (c.includes('U9') || c.includes('BABY')) return 1;
+  if (c.includes('U11')) return 2;
+  if (c.includes('U13')) return 3;
+  if (c.includes('U15')) return 4;
+  if (c.includes('U17') || c.includes('U18')) return 5;
+  if (c.includes('U20')) return 6;
+  if (c.includes('SENIOR')) return 7;
+  if (c.includes('LOISIR') || c.includes('VETERAN')) return 8;
+  return 10;
+}
+
+/**
+ * Trieur universel pour Matchs et Résultats par ordre chronologique rigoureux (date + heure + catégorie)
+ */
+export function sortMatchesChronologically<T extends { date?: string; time?: string; category?: string }>(a: T, b: T): number {
+  const timeA = parseMatchTimestamp(a.date, a.time);
+  const timeB = parseMatchTimestamp(b.date, b.time);
+  if (timeA !== timeB) {
+    return timeA - timeB;
+  }
+  const catA = getCategorySortWeight(a.category);
+  const catB = getCategorySortWeight(b.category);
+  if (catA !== catB) {
+    return catA - catB;
+  }
+  return (a.category || '').localeCompare(b.category || '');
+}
