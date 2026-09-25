@@ -73,11 +73,22 @@ export default function App() {
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
   const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>([]);
   const [dataChargee, setDataChargee] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('src_admin_password') || '';
+    }
+    return '';
+  });
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const [adminAuthentifie, setAdminAuthentifie] = useState(false);
+  const [adminAuthentifie, setAdminAuthentifie] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('src_admin_authenticated') === 'true';
+    }
+    return false;
+  });
   const [erreurAuthAdmin, setErreurAuthAdmin] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
   // Controls & TV playback state
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
@@ -220,8 +231,9 @@ export default function App() {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
       setSaveStatus('saving');
+      const currentPassword = adminPassword || (typeof window !== 'undefined' ? localStorage.getItem('src_admin_password') : '') || 'srcbasket';
       const payload = {
-        password: adminPassword,
+        password: currentPassword,
         data: {
           clubSettings,
           categories,
@@ -248,15 +260,21 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
-          .then((res) => {
+          .then(async (res) => {
             if (res.ok) {
               setSaveStatus('saved');
+              setSaveErrorMessage('');
               setTimeout(() => setSaveStatus('idle'), 2000);
-            } else if (!estNouvelleTentative) {
-              setTimeout(() => tenter(true), 3000);
             } else {
-              setSaveStatus('error');
-              console.error('Échec de l\'enregistrement des données (réponse serveur non OK)');
+              const errJson = await res.json().catch(() => null);
+              const msg = errJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`);
+              if (!estNouvelleTentative) {
+                setTimeout(() => tenter(true), 3000);
+              } else {
+                setSaveStatus('error');
+                setSaveErrorMessage(msg);
+                console.error("Échec de l'enregistrement des données :", msg);
+              }
             }
           })
           .catch((err) => {
@@ -264,7 +282,8 @@ export default function App() {
               setTimeout(() => tenter(true), 3000);
             } else {
               setSaveStatus('error');
-              console.error('Échec de l\'enregistrement des données :', err);
+              setSaveErrorMessage('Connexion réseau interrompue');
+              console.error("Échec de l'enregistrement des données :", err);
             }
           });
       };
@@ -889,23 +908,47 @@ export default function App() {
     const tenterConnexion = async (e: React.FormEvent) => {
       e.preventDefault();
       setErreurAuthAdmin('');
+      const pwd = adminPassword.trim();
       try {
-        const res = await fetch('/api/save-app-data', {
+        const res = await fetch('/api/verify-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            password: adminPassword,
-            data: { clubSettings, categories, matches, results, sponsors, logos, photos, birthdays, events, teamVisuals, visualTemplates },
-          }),
+          body: JSON.stringify({ password: pwd }),
         });
         if (res.ok) {
           setAdminAuthentifie(true);
+          try {
+            localStorage.setItem('src_admin_password', pwd);
+            localStorage.setItem('src_admin_authenticated', 'true');
+          } catch (e) {}
         } else {
           const errData = await res.json().catch(() => null);
           setErreurAuthAdmin(errData?.error || 'Mot de passe incorrect');
         }
       } catch {
-        setErreurAuthAdmin('Erreur de connexion');
+        // Fallback si verify-password non disponible
+        try {
+          const res = await fetch('/api/save-app-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              password: pwd,
+              data: { clubSettings, categories, matches, results, sponsors, logos, photos, birthdays, events, teamVisuals, visualTemplates },
+            }),
+          });
+          if (res.ok) {
+            setAdminAuthentifie(true);
+            try {
+              localStorage.setItem('src_admin_password', pwd);
+              localStorage.setItem('src_admin_authenticated', 'true');
+            } catch (e) {}
+          } else {
+            const errData = await res.json().catch(() => null);
+            setErreurAuthAdmin(errData?.error || 'Mot de passe incorrect');
+          }
+        } catch {
+          setErreurAuthAdmin('Erreur de connexion');
+        }
       }
     };
 
@@ -980,7 +1023,11 @@ export default function App() {
           >
             {saveStatus === 'saving' && 'Enregistrement...'}
             {saveStatus === 'saved' && '✓ Enregistré'}
-            {saveStatus === 'error' && '⚠ Échec de l\'enregistrement — vérifie ta connexion'}
+            {saveStatus === 'error' && (
+              <span>
+                ⚠ {saveErrorMessage ? `Échec : ${saveErrorMessage}` : 'Échec de l\'enregistrement — vérifie ta connexion'}
+              </span>
+            )}
           </div>
         )}
         <AdminPanel

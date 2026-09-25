@@ -259,6 +259,20 @@ app.post(["/api/app-data", "/api/save-app-data", "/.netlify/functions/save-app-d
   res.json({ ok, success: ok });
 });
 
+app.post("/api/verify-password", (req, res) => {
+  const { password } = req.body || {};
+  const expected = (process.env.ADMIN_PASSWORD || 'srcbasket').trim();
+  const given = (typeof password === 'string' ? password : '').trim();
+  if (given !== expected) {
+    return res.status(401).json({
+      error: process.env.ADMIN_PASSWORD
+        ? "Mot de passe incorrect"
+        : "Mot de passe incorrect (Mot de passe par défaut : srcbasket)",
+    });
+  }
+  res.json({ ok: true, success: true });
+});
+
 // 2. Active 1-hour alerts list (polled by the TV carousel)
 app.get(["/api/alerts", "/api/get-alerts", "/.netlify/functions/get-alerts"], (req, res) => {
   cleanExpiredAlerts();

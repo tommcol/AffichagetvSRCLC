@@ -15,6 +15,7 @@ export default {
     try {
       if (path === '/api/get-app-data') return await getAppData(env);
       if (path === '/api/save-app-data') return await saveAppData(request, env);
+      if (path === '/api/verify-password') return await verifyPassword(request, env);
       if (path === '/api/get-alerts') return await getAlerts(env);
       if (path === '/api/add-alert') return await addAlert(request, env);
       if (path === '/api/delete-alert') return await deleteAlert(request, env);
@@ -77,6 +78,32 @@ async function saveAppData(request: Request, env: Env): Promise<Response> {
     });
   }
   await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+async function verifyPassword(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Méthode non autorisée', { status: 405 });
+  }
+  const body = (await request.json().catch(() => null)) as any;
+  const password = body?.password || '';
+  const expectedPassword = (env.ADMIN_PASSWORD || 'srcbasket').trim();
+  const givenPassword = (typeof password === 'string' ? password : '').trim();
+
+  if (givenPassword !== expectedPassword) {
+    return new Response(
+      JSON.stringify({
+        error: env.ADMIN_PASSWORD
+          ? 'Mot de passe incorrect'
+          : 'Mot de passe incorrect (Mot de passe par défaut : srcbasket)',
+      }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },

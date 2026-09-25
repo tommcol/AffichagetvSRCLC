@@ -1417,37 +1417,96 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 />
                 {/* Boutons d'accès rapide aux modèles de titres */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'LES MATCHS DU WEEK-END' })}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-slate-700"
-                  >
-                    🏀 Matchs Week-end
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END' })}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold border border-slate-700"
-                  >
-                    🏆 Résultats Week-end
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END (RÉSEAUX)' })}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-pink-300 font-bold border border-slate-700"
-                  >
-                    📱 Résultats Réseaux
-                  </button>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
-                    <button
-                      key={j}
-                      type="button"
-                      onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: `RÉSULTATS J-${j}` })}
-                      className="text-[10px] px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-amber-950 text-slate-300 hover:text-amber-300 font-mono font-bold border border-slate-800"
-                    >
-                      J-{j}
-                    </button>
-                  ))}
+                  {activeCategory === 'birthdays' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'JOYEUX ANNIVERSAIRE' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-pink-300 font-bold border border-slate-700"
+                      >
+                        🎂 Joyeux Anniversaire
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'LES ANNIVERSAIRES DE LA SEMAINE' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-slate-700"
+                      >
+                        🎉 Anniversaires Semaine
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'ANNIVERSAIRES DU MOIS' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold border border-slate-700"
+                      >
+                        ⭐ Anniversaires du Mois
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'JOYEUX ANNIVERSAIRE À NOS LICENCIÉS' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold border border-slate-700"
+                      >
+                        🎈 Nos Licenciés
+                      </button>
+                    </>
+                  ) : activeCategory === 'matches' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'LES MATCHS DU WEEK-END' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-slate-700"
+                      >
+                        🏀 Matchs Week-end
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'MATCHS À DOMICILE' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold border border-slate-700"
+                      >
+                        🏠 À Domicile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: "MATCHS À L'EXTÉRIEUR" })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold border border-slate-700"
+                      >
+                        🚌 À l'Extérieur
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'GAMEDAY' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-orange-400 font-bold border border-slate-700"
+                      >
+                        🔥 Gameday
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold border border-slate-700"
+                      >
+                        🏆 Résultats Week-end
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: 'RÉSULTATS DU WEEK-END (RÉSEAUX)' })}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-pink-300 font-bold border border-slate-700"
+                      >
+                        📱 Résultats Réseaux
+                      </button>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
+                        <button
+                          key={j}
+                          type="button"
+                          onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: `RÉSULTATS J-${j}` })}
+                          className="text-[10px] px-1.5 py-1 rounded-lg bg-slate-900 hover:bg-amber-950 text-slate-300 hover:text-amber-300 font-mono font-bold border border-slate-800"
+                        >
+                          J-{j}
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
 

@@ -80,6 +80,9 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
     return sortBirthdaysByHierarchy(birthdays || []);
   }, [birthdays]);
 
+  // Dynamic header title if customized in Studio Calques
+  const headerTitle = theme?.customHeaderTitle?.trim() || 'LES ANNIVERSAIRES DE LA SEMAINE';
+
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-slate-950 select-none">
       {/* ========================================================================= */}
@@ -180,14 +183,14 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
                   headerFont
                 )}`}
               >
-                LES ANNIVERSAIRES DE LA SEMAINE
+                {headerTitle}
               </h1>
             </div>
           </div>
         </div>
 
-        {/* Liste des Anniversaires (Prénom et Catégorie uniquement) */}
-        <div className="my-auto w-full max-w-4xl py-4">
+        {/* Liste des Anniversaires (Prénom et Catégorie - Cartes empilées verticalement) */}
+        <div className="my-auto w-full max-w-3xl py-4">
           {sortedBirthdays.length === 0 ? (
             <div
               className="border border-white/15 rounded-3xl p-8 text-white max-w-xl shadow-2xl"
@@ -200,7 +203,7 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 max-h-[62vh] overflow-y-auto pr-2">
+            <div className="flex flex-col gap-3 md:gap-3.5 max-h-[62vh] overflow-y-auto pr-2">
               {sortedBirthdays.map((b) => {
                 // Display strictly the First Name (Prénom) as requested
                 const displayName = b.firstName || (b.fullName ? b.fullName.trim().split(/\s+/)[0] : 'Licencié');

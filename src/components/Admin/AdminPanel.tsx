@@ -65,6 +65,7 @@ import {
 } from '../../types';
 import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
+import { compressImageFile } from '../../utils/imageCompressor';
 import { FFBBService, isTeamCategoryIgnored, normalizeCategoryKey } from '../../services/ffbbService';
 import {
   parseExcelBirthdays,
@@ -903,36 +904,43 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       console.warn('Upload serveur direct indisponible, bascule sur ObjectURL/FileReader local:', err);
     }
 
-    // 2. Safe local fallback
-    return new Promise((resolve) => {
-      // For videos, use blob URL to avoid huge base64 strings in memory
-      if (isVideo) {
-        try {
-          const blobUrl = URL.createObjectURL(file);
-          resolve({ url: blobUrl, isVideo: true, fileName: file.name });
-          return;
-        } catch {
-          // fallback
-        }
+    // 2. Safe local fallback with automatic image compression (reduces 10MB -> 120KB for fast Cloudflare KV saving)
+    if (isVideo) {
+      try {
+        const blobUrl = URL.createObjectURL(file);
+        return { url: blobUrl, isVideo: true, fileName: file.name };
+      } catch {
+        return { url: '', isVideo: true, fileName: file.name };
       }
+    }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve({
-          url: (e.target?.result as string) || '',
-          isVideo,
-          fileName: file.name,
-        });
+    try {
+      const compressedUrl = await compressImageFile(file);
+      return {
+        url: compressedUrl,
+        isVideo: false,
+        fileName: file.name,
       };
-      reader.onerror = () => {
-        resolve({
-          url: URL.createObjectURL(file),
-          isVideo,
-          fileName: file.name,
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    } catch {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            url: (e.target?.result as string) || '',
+            isVideo: false,
+            fileName: file.name,
+          });
+        };
+        reader.onerror = () => {
+          resolve({
+            url: URL.createObjectURL(file),
+            isVideo: false,
+            fileName: file.name,
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
   };
 
   // Upload du logo officiel du club
@@ -4227,26 +4235,20 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {filteredList.map((r) => {
-                          const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
-                          const hasExplicitResult = r.result === 'win' || r.result === 'loss';
                           const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
                           const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-                          const isPendingScore = !hasScore && !hasExplicitResult;
-
                           return (
                             <div
                               key={r.id}
                               className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all hover:border-slate-600 ${
-                                isPendingScore
-                                  ? 'bg-slate-900/60 border-slate-700/60'
-                                  : isWin
+                                isWin
                                   ? 'bg-emerald-950/20 border-emerald-500/30'
                                   : 'bg-rose-950/20 border-rose-500/30'
                               }`}
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 text-xs font-bold mb-1 flex-wrap">
-                                  <span className={isPendingScore ? 'text-slate-300' : isWin ? 'text-emerald-400' : 'text-rose-400'}>
+                                  <span className={isWin ? 'text-emerald-400' : 'text-rose-400'}>
                                     {r.category}
                                   </span>
                                   <span className="text-slate-600">•</span>
@@ -4263,30 +4265,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                                   )}
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                                      isPendingScore
-                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                        : isWin
-                                        ? 'bg-emerald-500/20 text-emerald-300'
-                                        : 'bg-rose-500/20 text-rose-300'
+                                      isWin ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
                                     }`}
                                   >
-                                    {isPendingScore
-                                      ? 'SCORE EN ATTENTE'
-                                      : isWin
-                                      ? 'VICTOIRE 🏆'
-                                      : 'DÉFAITE'}
+                                    {isWin ? 'VICTOIRE 🏆' : 'DÉFAITE'}
                                   </span>
                                 </div>
-                                <div className="text-base font-black text-white font-mono tracking-wider flex items-center gap-1.5 flex-wrap">
-                                  <span>{r.teamHome}</span>
-                                  {hasScore ? (
-                                    <span className="px-2 py-0.5 rounded bg-black/60 text-orange-400 border border-orange-500/30 font-bold">
-                                      {r.homeScore} - {r.awayScore}
-                                    </span>
-                                  ) : (
-                                    <span className="text-slate-500 text-xs font-sans px-1">vs</span>
-                                  )}
-                                  <span>{r.teamAway}</span>
+                                <div className="text-base font-black text-white font-mono tracking-wider">
+                                  {r.teamHome} {r.homeScore !== undefined && r.awayScore !== undefined ? `${r.homeScore} - ${r.awayScore}` : ''} {r.teamAway}
                                 </div>
                               </div>
 

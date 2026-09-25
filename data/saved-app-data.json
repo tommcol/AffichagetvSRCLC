@@ -1,3 +1,6 @@
 {
-  "clubSettings": {}
+  "clubSettings": {
+    "name": "SRC Basket",
+    "codeFFBB": "BFC0071024"
+  }
 }
