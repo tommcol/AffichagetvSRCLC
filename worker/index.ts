@@ -5,6 +5,7 @@ interface Env {
   AFFICHAGE_R2?: R2Bucket;
   ADMIN_PASSWORD?: string;
   GEMINI_API_KEY?: string;
+  TELEGRAM_BOT_TOKEN?: string;
   ASSETS: { fetch: typeof fetch };
 }
 
@@ -14,16 +15,23 @@ export default {
     const path = url.pathname;
 
     try {
-      if (path === '/api/get-app-data') return await getAppData(env);
-      if (path === '/api/save-app-data') return await saveAppData(request, env);
+      if (path === '/api/get-app-data' || path === '/api/app-data') return await getAppData(env);
+      if (path === '/api/save-app-data' || path === '/api/app-data' && request.method === 'POST') return await saveAppData(request, env);
       if (path === '/api/verify-password') return await verifyPassword(request, env);
       if (path === '/api/upload') return await uploadFile(request, env);
       if (path === '/api/upload-multiple') return await uploadMultiple(request, env);
       if (path.startsWith('/api/media/')) return await serveMedia(path.replace('/api/media/', ''), env);
       if (path.startsWith('/uploads/')) return await serveMedia(path.replace('/uploads/', ''), env);
-      if (path === '/api/get-alerts') return await getAlerts(env);
+      if (path === '/api/get-alerts' || path === '/api/alerts') {
+        if (request.method === 'POST') return await addAlert(request, env);
+        if (request.method === 'DELETE') return await deleteAlert(request, env);
+        return await getAlerts(env);
+      }
       if (path === '/api/add-alert') return await addAlert(request, env);
-      if (path === '/api/delete-alert') return await deleteAlert(request, env);
+      if (path === '/api/delete-alert' || path.startsWith('/api/alerts/')) return await deleteAlert(request, env);
+      if (path === '/api/telegram-webhook') return await telegramWebhook(request, env);
+      if (path === '/api/telegram/test') return await telegramTest(request, env);
+      if (path === '/api/telegram/config') return await telegramConfig(request, env);
       if (path === '/api/ffbb/matches') return await ffbbMatches(request);
       if (path === '/api/ffbb/search') return await ffbbSearch(request);
       if (path === '/api/generate-caption') return await generateCaption(request, env);
@@ -296,18 +304,95 @@ async function uploadMultiple(request: Request, env: Env): Promise<Response> {
 }
 
 // ============================================================
-// ALERTES VICTOIRE / DÉFAITE
+// ALERTES VICTOIRE / DÉFAITE & TÉLÉGRAM
 // ============================================================
 
+function parseTelegramMatchMessage(text: string): {
+  isWin: boolean | null;
+  team: string;
+  ourScore?: number;
+  opponentScore?: number;
+  opponent?: string;
+} {
+  const clean = text.trim();
+  const lower = clean.toLowerCase();
+
+  let isWin: boolean | null = null;
+  if (lower.startsWith('/victoire') || lower.startsWith('victoire') || lower.includes('gagné') || lower.includes('gagne') || lower.includes('win')) {
+    isWin = true;
+  } else if (lower.startsWith('/defaite') || lower.startsWith('/défaite') || lower.startsWith('defaite') || lower.startsWith('défaite') || lower.includes('perdu') || lower.includes('loss')) {
+    isWin = false;
+  }
+
+  // Extract scores if present: e.g. "82-74", "82 - 74", "82/74", "82 74"
+  let ourScore: number | undefined;
+  let opponentScore: number | undefined;
+
+  const scoreRegex = /(\b\d{2,3}\b)\s*[-–/:]\s*(\b\d{2,3}\b)/;
+  const scoreMatch = clean.match(scoreRegex);
+
+  let textWithoutScore = clean;
+  if (scoreMatch) {
+    const s1 = parseInt(scoreMatch[1], 10);
+    const s2 = parseInt(scoreMatch[2], 10);
+    textWithoutScore = clean.replace(scoreRegex, '').trim();
+
+    if (isWin === true) {
+      ourScore = Math.max(s1, s2);
+      opponentScore = Math.min(s1, s2);
+    } else if (isWin === false) {
+      ourScore = Math.min(s1, s2);
+      opponentScore = Math.max(s1, s2);
+    } else {
+      ourScore = s1;
+      opponentScore = s2;
+      isWin = s1 >= s2;
+    }
+  }
+
+  // Remove command or trigger words from text to find the team name
+  let teamPart = textWithoutScore
+    .replace(/^(\/victoire|\/defaite|\/défaite|victoire|defaite|défaite|gagné|perdu|win|loss)/i, '')
+    .replace(/(contre|vs|face à|face a)/i, 'contre')
+    .trim();
+
+  let opponent: string | undefined;
+  if (teamPart.toLowerCase().includes('contre')) {
+    const parts = teamPart.split(/contre/i);
+    teamPart = parts[0]?.trim() || '';
+    opponent = parts[1]?.trim() || undefined;
+  }
+
+  // Fallback default team if empty
+  if (!teamPart) {
+    teamPart = 'Seniors Garçons 1';
+  }
+
+  return {
+    isWin: isWin ?? true,
+    team: teamPart,
+    ourScore,
+    opponentScore,
+    opponent,
+  };
+}
+
 async function getAlerts(env: Env): Promise<Response> {
-  const raw = await env.AFFICHAGE_KV.get('alerts');
-  const alerts = raw ? JSON.parse(raw) : [];
-  const now = Date.now();
-  const actives = alerts.filter((a: { expiresAt: number }) => a.expiresAt > now);
-  return new Response(JSON.stringify({ alerts: actives, count: actives.length }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  try {
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    const now = Date.now();
+    const actives = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
+    return new Response(JSON.stringify({ alerts: actives, count: actives.length }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ alerts: [], count: 0, error: err.message }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
 
 async function addAlert(request: Request, env: Env): Promise<Response> {
@@ -319,8 +404,9 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
     return new Response(JSON.stringify({ error: 'Champ "team" requis' }), { status: 400 });
   }
   const {
+    id: inputId,
     team, isWin, ourScore, opponentScore, opponent, customImageUrl,
-    triggeredBy = 'manual', durationMinutes = 60,
+    triggeredBy = 'manual', durationMinutes = 60, expiresAt: inputExpiresAt, timestamp: inputTimestamp,
   } = body;
   const durationMs = (durationMinutes || 60) * 60 * 1000;
 
@@ -349,35 +435,235 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  const newAlert = {
-    id: 'alert-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-    team, isWin: Boolean(isWin),
-    ourScore: ourScore ? Number(ourScore) : undefined,
-    opponentScore: opponentScore ? Number(opponentScore) : undefined,
-    opponent, customImageUrl: finalCustomImageUrl, triggeredBy,
-    timestamp: Date.now(),
-    expiresAt: Date.now() + durationMs,
-  };
-  const raw = await env.AFFICHAGE_KV.get('alerts');
-  const alerts = raw ? JSON.parse(raw) : [];
   const now = Date.now();
-  const alertesValides = alerts.filter((a: { expiresAt: number }) => a.expiresAt > now);
-  alertesValides.unshift(newAlert);
-  await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
-  return new Response(JSON.stringify({ success: true, alert: newAlert }), { status: 200 });
+  const alertId = inputId || ('alert-' + now + '-' + Math.random().toString(36).substring(2, 6));
+  const newAlert = {
+    id: alertId,
+    team,
+    isWin: Boolean(isWin),
+    ourScore: (ourScore !== undefined && ourScore !== null && ourScore !== '') ? Number(ourScore) : undefined,
+    opponentScore: (opponentScore !== undefined && opponentScore !== null && opponentScore !== '') ? Number(opponentScore) : undefined,
+    opponent: opponent || undefined,
+    customImageUrl: finalCustomImageUrl,
+    triggeredBy,
+    timestamp: inputTimestamp || now,
+    expiresAt: inputExpiresAt || (now + durationMs),
+  };
+
+  try {
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    const alertesValides = Array.isArray(alerts)
+      ? alerts.filter((a: { id: string; expiresAt: number }) => a && a.id !== alertId && a.expiresAt > now)
+      : [];
+    alertesValides.unshift(newAlert);
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+  } catch (kvErr) {
+    console.error('Erreur KV put alerts:', kvErr);
+  }
+
+  return new Response(JSON.stringify({ success: true, alert: newAlert }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 async function deleteAlert(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const id = url.searchParams.get('id');
+  let id = url.searchParams.get('id') || url.pathname.replace('/api/alerts/', '').replace('/api/delete-alert/', '');
+  if (!id || id === '/api/delete-alert' || id === '/api/alerts') {
+    const body = (await request.json().catch(() => null)) as any;
+    if (body?.id) id = body.id;
+  }
   if (!id) {
     return new Response(JSON.stringify({ error: 'Paramètre "id" requis' }), { status: 400 });
   }
-  const raw = await env.AFFICHAGE_KV.get('alerts');
-  const alerts = raw ? JSON.parse(raw) : [];
-  const nouvelleListe = alerts.filter((a: { id: string }) => a.id !== id);
-  await env.AFFICHAGE_KV.put('alerts', JSON.stringify(nouvelleListe));
-  return new Response(JSON.stringify({ success: true, count: nouvelleListe.length }), { status: 200 });
+  try {
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    const nouvelleListe = Array.isArray(alerts) ? alerts.filter((a: { id: string }) => a && a.id !== id) : [];
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(nouvelleListe));
+    return new Response(JSON.stringify({ success: true, count: nouvelleListe.length }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+}
+
+async function telegramWebhook(request: Request, env: Env): Promise<Response> {
+  try {
+    const update = (await request.json().catch(() => null)) as any;
+    const message = update?.message || update?.channel_post;
+
+    if (!message || !message.text) {
+      return new Response('OK: pas de texte', { status: 200 });
+    }
+
+    const text = message.text;
+    const chatId = message.chat?.id;
+
+    // Parse the message
+    const parsed = parseTelegramMatchMessage(text);
+    const durationMs = 60 * 60 * 1000; // 1 heure
+
+    let customImg: string | undefined = undefined;
+    try {
+      const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+      if (appDataRaw) {
+        const appData = JSON.parse(appDataRaw);
+        const vt = appData.visualTemplates;
+        const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
+        if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
+          customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
+        } else if (Array.isArray(appData.teamVisuals)) {
+          const tv = appData.teamVisuals.find((t: any) =>
+            t.teamName?.toLowerCase().includes(parsed.team.toLowerCase()) ||
+            t.category?.toLowerCase() === parsed.team.toLowerCase()
+          );
+          if (tv) {
+            customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
+          }
+        }
+      }
+    } catch (e) {}
+
+    const now = Date.now();
+    const newAlert = {
+      id: 'tg-' + now + '-' + Math.random().toString(36).substring(2, 6),
+      team: parsed.team,
+      isWin: parsed.isWin ?? true,
+      ourScore: parsed.ourScore,
+      opponentScore: parsed.opponentScore,
+      opponent: parsed.opponent,
+      customImageUrl: customImg,
+      triggeredBy: 'telegram',
+      timestamp: now,
+      expiresAt: now + durationMs,
+      rawMessage: text,
+    };
+
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    const alertesValides = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
+    alertesValides.unshift(newAlert);
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+
+    // Reply back on Telegram if token is set
+    const botToken = env.TELEGRAM_BOT_TOKEN;
+    if (botToken && chatId) {
+      const outcomeText = newAlert.isWin ? '🏆 VICTOIRE' : '🏀 DÉFAITE';
+      const scoreText = newAlert.ourScore !== undefined && newAlert.opponentScore !== undefined
+        ? ` (${newAlert.ourScore} - ${newAlert.opponentScore})`
+        : '';
+
+      const replyText = `✅ Visuel ${outcomeText} pour *${newAlert.team}*${scoreText} injecté sur l'écran TV !\n⏱ Durée dans la boucle : 1 heure.`;
+
+      try {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: replyText,
+            parse_mode: 'Markdown',
+          }),
+        });
+      } catch (err) {
+        console.error('Erreur envoi réponse Telegram:', err);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, alert: newAlert }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error: any) {
+    console.error('Erreur webhook Telegram:', error);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
+}
+
+async function telegramTest(request: Request, env: Env): Promise<Response> {
+  const body = (await request.json().catch(() => null)) as any;
+  const messageText = body?.messageText;
+  if (!messageText) {
+    return new Response(JSON.stringify({ error: 'Message text requis' }), { status: 400 });
+  }
+
+  const parsed = parseTelegramMatchMessage(messageText);
+  let customImg: string | undefined = undefined;
+  try {
+    const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+    if (appDataRaw) {
+      const appData = JSON.parse(appDataRaw);
+      const vt = appData.visualTemplates;
+      const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
+      if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
+        customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
+      } else if (Array.isArray(appData.teamVisuals)) {
+        const tv = appData.teamVisuals.find((t: any) =>
+          t.teamName?.toLowerCase().includes(parsed.team.toLowerCase()) ||
+          t.category?.toLowerCase() === parsed.team.toLowerCase()
+        );
+        if (tv) {
+          customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
+        }
+      }
+    }
+  } catch (e) {}
+
+  const now = Date.now();
+  const newAlert = {
+    id: 'test-' + now + '-' + Math.random().toString(36).substring(2, 6),
+    team: parsed.team,
+    isWin: parsed.isWin ?? true,
+    ourScore: parsed.ourScore,
+    opponentScore: parsed.opponentScore,
+    opponent: parsed.opponent,
+    customImageUrl: customImg,
+    triggeredBy: 'telegram',
+    timestamp: now,
+    expiresAt: now + 60 * 60 * 1000,
+    rawMessage: messageText,
+  };
+
+  try {
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    const alertesValides = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
+    alertesValides.unshift(newAlert);
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+  } catch (e) {}
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      parsed,
+      alert: newAlert,
+      confirmationMessage: `✅ Visuel ${newAlert.isWin ? 'VICTOIRE' : 'DÉFAITE'} pour ${newAlert.team} injecté dans la boucle TV pendant 1 heure !`,
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+async function telegramConfig(request: Request, env: Env): Promise<Response> {
+  const hasEnvToken = Boolean(env.TELEGRAM_BOT_TOKEN);
+  if (request.method === 'POST') {
+    return new Response(JSON.stringify({ success: true, configured: hasEnvToken }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return new Response(
+    JSON.stringify({
+      configured: hasEnvToken,
+      hasBotToken: hasEnvToken,
+      botTokenMasked: hasEnvToken ? 'Configuré via variables Cloudflare' : '',
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  );
 }
 
 // ============================================================

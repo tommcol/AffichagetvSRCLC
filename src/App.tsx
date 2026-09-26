@@ -71,7 +71,19 @@ export default function App() {
   const [events, setEvents] = useState<ClubEventItem[]>(DEFAULT_EVENTS);
   const [teamVisuals, setTeamVisuals] = useState<TeamVisualItem[]>(DEFAULT_TEAM_VISUALS);
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
-  const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>(() => {
+    try {
+      const cached = localStorage.getItem('src_active_alerts_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const now = Date.now();
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a) => a && a.expiresAt > now);
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [dataChargee, setDataChargee] = useState(false);
   const [adminAuthentifie, setAdminAuthentifie] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -362,7 +374,10 @@ export default function App() {
           const data = await res.json();
           if (data.alerts && Array.isArray(data.alerts)) {
             const now = Date.now();
-            const valid = data.alerts.filter((a: ActiveMatchAlert) => a.expiresAt > now);
+            const valid = data.alerts.filter((a: ActiveMatchAlert) => a && a.expiresAt > now);
+            try {
+              localStorage.setItem('src_active_alerts_cache', JSON.stringify(valid));
+            } catch (e) {}
             setActiveAlerts((prev) => {
               if (prev.length === valid.length && prev.every((p, i) => p.id === valid[i]?.id)) {
                 return prev;
@@ -377,7 +392,7 @@ export default function App() {
     };
 
     fetchServerAlerts();
-    const interval = setInterval(fetchServerAlerts, 15000);
+    const interval = setInterval(fetchServerAlerts, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1006,7 +1021,13 @@ export default function App() {
 
   // Helper to add an alert to local and server state
   const handleAddAlert = async (alert: ActiveMatchAlert) => {
-    setActiveAlerts((prev) => [alert, ...prev.filter((a) => a.id !== alert.id)]);
+    setActiveAlerts((prev) => {
+      const updated = [alert, ...prev.filter((a) => a.id !== alert.id)];
+      try {
+        localStorage.setItem('src_active_alerts_cache', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     try {
       await fetch('/api/add-alert', {
         method: 'POST',
@@ -1019,7 +1040,13 @@ export default function App() {
   };
 
   const handleRemoveAlert = (id: string) => {
-    setActiveAlerts((prev) => prev.filter((a) => a.id !== id));
+    setActiveAlerts((prev) => {
+      const updated = prev.filter((a) => a.id !== id);
+      try {
+        localStorage.setItem('src_active_alerts_cache', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     fetch(`/api/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch((err) => {
       console.error('Échec de la suppression de l\'alerte côté serveur :', err);
     });
