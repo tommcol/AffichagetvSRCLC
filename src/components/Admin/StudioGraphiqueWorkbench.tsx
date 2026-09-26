@@ -885,8 +885,14 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     if (partial.badgeTextColor) rememberColor(partial.badgeTextColor);
     if (partial.cardBgColor) rememberColor(partial.cardBgColor);
 
-    if (partial.matchDisplayScope && (partial.matchDisplayScope === 'home' || partial.matchDisplayScope === 'away' || partial.matchDisplayScope === 'all')) {
-      setStudioScope(partial.matchDisplayScope);
+    if (partial.matchDisplayScope) {
+      if (partial.matchDisplayScope === 'split' || partial.matchDisplayScope === 'home') {
+        setStudioScope('home');
+      } else if (partial.matchDisplayScope === 'away') {
+        setStudioScope('away');
+      } else if (partial.matchDisplayScope === 'all') {
+        setStudioScope('all');
+      }
     }
 
     if (activeCategory === 'matches') {

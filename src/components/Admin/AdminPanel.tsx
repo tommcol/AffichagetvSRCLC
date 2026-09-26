@@ -83,6 +83,7 @@ import {
 import { MiniCalendarPicker, SingleDatePicker, formatDateToReadableFrench } from './MiniCalendarPicker';
 import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
 import { VisualExporterModal } from '../VisualExporterModal';
+import { AVAILABLE_FONTS, getFontFamilyClass } from '../../utils/fontUtils';
 
 
 const formatDateToEuropean = (dateStr: string): string => {
@@ -439,6 +440,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [matchesFilterMode, setMatchesFilterMode] = useState<'all' | 'range'>('all');
   const [showCalendarInMatches, setShowCalendarInMatches] = useState<boolean>(true);
   const [showAddManualMatch, setShowAddManualMatch] = useState<boolean>(false);
+  const [showPerTeamVisuals, setShowPerTeamVisuals] = useState<boolean>(false);
   const [newResultDate, setNewResultDate] = useState<string>('Hier');
 
   // Opponent Club Logos state & cache
@@ -1293,7 +1295,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
   // Trigger Victory or Defeat manually for 1 hour in loop
   const handleTriggerMatchOutcome = (team: TeamVisualItem, isWin: boolean, ourScore = 82, oppScore = 74) => {
-    const customImg = isWin ? team.winVisualUrl : team.lossVisualUrl;
+    let customImg = isWin ? team.winVisualUrl : team.lossVisualUrl;
+    const commonBank = isWin ? visualTemplates.commonVictoryVisuals : visualTemplates.commonDefeatVisuals;
+    if (commonBank && commonBank.length > 0) {
+      const randomIndex = Math.floor(Math.random() * commonBank.length);
+      customImg = commonBank[randomIndex];
+    }
+
     const alert: ActiveMatchAlert = {
       id: 'alert-' + Date.now(),
       team: team.teamName,
@@ -1330,7 +1338,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           tv.shortAliases.some((alias) => data.parsed.team.toLowerCase().includes(alias.toLowerCase()))
         );
 
-        if (teamMatch) {
+        const commonBank = data.alert.isWin ? visualTemplates.commonVictoryVisuals : visualTemplates.commonDefeatVisuals;
+        if (commonBank && commonBank.length > 0) {
+          const randomIndex = Math.floor(Math.random() * commonBank.length);
+          data.alert.customImageUrl = commonBank[randomIndex];
+        } else if (teamMatch) {
           data.alert.customImageUrl = data.alert.isWin ? teamMatch.winVisualUrl : teamMatch.lossVisualUrl;
         }
 
@@ -5266,161 +5278,690 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </span>
               </div>
 
-              {/* Grid of Teams */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {teamVisuals.map((team) => (
-                  <div
-                    key={team.id}
-                    className="rounded-3xl border border-slate-800 bg-slate-950 p-5 flex flex-col justify-between"
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
-                      <div>
-                        <h4 className="text-xl font-black text-white font-bebas">{team.teamName}</h4>
-                        <span className="text-xs text-slate-400">Catégorie : {team.category}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {team.shortAliases.map((a, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
-                            {a}
+              {/* ========================================================================= */}
+              {/* SECTION 1 : BANQUE COMMUNE DE VISUELS GÉNÉRAUX (VICTOIRE & DÉFAITE)     */}
+              {/* ========================================================================= */}
+              <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 rounded-3xl border-2 border-emerald-500/40 shadow-2xl space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-xs uppercase border border-emerald-500/30">
+                        ⭐ NOUVELLE FONCTIONNALITÉ CLUB
+                      </span>
+                      <span className="text-xs text-amber-400 font-bold">Rotation 1h stable</span>
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-amber-400" />
+                      <span>BANQUE COMMUNE DE VISUELS GÉNÉRAUX & MONTAGE DU TEXTE</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+                      Chargez ici vos visuels généraux de <strong>Victoire</strong> et de <strong>Défaite</strong> (photos ou vidéos). 
+                      À la réception d'un match (FFBB, Telegram ou Manuel), l'application pioche automatiquement un visuel et 
+                      <strong> conserve ce même visuel pendant 1 heure</strong> pour l'équipe concernée, avec votre texte personnalisé et positionné au millimètre !
+                    </p>
+                  </div>
+                </div>
+
+                {/* GRILLE 2 COLONNES : BANQUE VICTOIRES & BANQUE DÉFAITES */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* COLONNE VICTOIRES COMMUNES */}
+                  <div className="bg-emerald-950/20 border border-emerald-500/30 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          <Trophy className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                            Visuels Communs Victoire
+                          </h4>
+                          <span className="text-[11px] text-emerald-400 font-bold">
+                            {(visualTemplates.commonVictoryVisuals || []).length} visuel(s) disponible(s)
                           </span>
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105 shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Ajouter (Img / Vidéo)</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,video/*,.mp4,.webm,.mov"
+                          className="hidden"
+                          onChange={async (e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              const results = await uploadMultipleFiles(e.target.files);
+                              const newUrls = results.map((r) => r.url);
+                              const existing = visualTemplates.commonVictoryVisuals || [];
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                commonVictoryVisuals: [...existing, ...newUrls],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Liste des visuels de victoire */}
+                    {(visualTemplates.commonVictoryVisuals || []).length === 0 ? (
+                      <div className="text-center py-8 px-4 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-950/10 text-slate-400 text-xs">
+                        <p className="font-semibold text-emerald-300 mb-1">Aucun visuel de victoire commun</p>
+                        <p className="text-[11px]">Ajoutez 2 à 4 visuels/vidéos pour apporter de la variété automatique !</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
+                        {(visualTemplates.commonVictoryVisuals || []).map((url, idx) => (
+                          <div
+                            key={idx}
+                            className="group relative rounded-xl overflow-hidden border border-emerald-500/40 bg-black aspect-video flex items-center justify-center shadow-md"
+                          >
+                            {isVideoMedia(url) ? (
+                              <video
+                                src={url}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={url}
+                                alt={`Victoire ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            {isVideoMedia(url) && (
+                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-emerald-300 text-[9px] font-bold">
+                                Vidéo
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const existing = visualTemplates.commonVictoryVisuals || [];
+                                const updated = existing.filter((_, i) => i !== idx);
+                                onUpdateVisualTemplates({
+                                  ...visualTemplates,
+                                  commonVictoryVisuals: updated,
+                                });
+                              }}
+                              className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              title="Supprimer ce visuel"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         ))}
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    {/* Both visuals side by side */}
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      {/* Win visual */}
-                      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-2.5 flex flex-col">
-                        <div className="flex items-center justify-between mb-1.5 text-emerald-400 text-xs font-bold">
-                          <span className="flex items-center gap-1">
-                            <Trophy className="w-3.5 h-3.5" /> Victoire
-                          </span>
-                          <span className="text-[10px] opacity-70">16:9</span>
-                        </div>
-                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
-                          {isVideoMedia(team.winVisualUrl) ? (
-                            <video
-                              src={team.winVisualUrl}
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <img
-                              src={team.winVisualUrl}
-                              alt="Victoire"
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          {isVideoMedia(team.winVisualUrl) && (
-                            <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-emerald-300 text-[9px] font-bold flex items-center gap-0.5">
-                              <Video className="w-2.5 h-2.5" /> Vidéo
-                            </div>
-                          )}
-                        </div>
-                        <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white cursor-pointer transition-colors mt-auto">
-                          Changer visuel (Img / Vidéo)
-                          <input
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleImageFileChange(file, (dataUrl) => {
-                                  const updated = teamVisuals.map((tv) =>
-                                    tv.id === team.id ? { ...tv, winVisualUrl: dataUrl } : tv
-                                  );
-                                  onUpdateTeamVisuals(updated);
-                                });
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-
-                      {/* Loss visual */}
-                      <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-2.5 flex flex-col">
-                        <div className="flex items-center justify-between mb-1.5 text-rose-400 text-xs font-bold">
-                          <span className="flex items-center gap-1">
-                            <Frown className="w-3.5 h-3.5" /> Défaite
-                          </span>
-                          <span className="text-[10px] opacity-70">16:9</span>
-                        </div>
-                        <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
-                          {isVideoMedia(team.lossVisualUrl) ? (
-                            <video
-                              src={team.lossVisualUrl}
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <img
-                              src={team.lossVisualUrl}
-                              alt="Défaite"
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                          )}
-                          {isVideoMedia(team.lossVisualUrl) && (
-                            <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-rose-300 text-[9px] font-bold flex items-center gap-0.5">
-                              <Video className="w-2.5 h-2.5" /> Vidéo
-                            </div>
-                          )}
-                        </div>
-                        <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white cursor-pointer transition-colors mt-auto">
-                          Changer visuel (Img / Vidéo)
-                          <input
-                            type="file"
-                            accept="image/*,video/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleImageFileChange(file, (dataUrl) => {
-                                  const updated = teamVisuals.map((tv) =>
-                                    tv.id === team.id ? { ...tv, lossVisualUrl: dataUrl } : tv
-                                  );
-                                  onUpdateTeamVisuals(updated);
-                                });
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Quick Simulation Buttons */}
-                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                  {/* COLONNE DÉFAITES COMMUNES */}
+                  <div className="bg-rose-950/20 border border-rose-500/30 p-5 rounded-2xl space-y-4">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleTriggerMatchOutcome(team, true, 84, 76)}
-                          className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
-                          title="Injecter le visuel Victoire pendant 1 heure dans la boucle TV"
-                        >
-                          <Trophy className="w-3 h-3 text-emerald-500" />
-                          <span>Injecter Victoire (1h)</span>
-                        </button>
+                        <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          <Frown className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                            Visuels Communs Défaite
+                          </h4>
+                          <span className="text-[11px] text-rose-400 font-bold">
+                            {(visualTemplates.commonDefeatVisuals || []).length} visuel(s) disponible(s)
+                          </span>
+                        </div>
+                      </div>
 
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer shadow-lg transition-all hover:scale-105 shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Ajouter (Img / Vidéo)</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,video/*,.mp4,.webm,.mov"
+                          className="hidden"
+                          onChange={async (e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              const results = await uploadMultipleFiles(e.target.files);
+                              const newUrls = results.map((r) => r.url);
+                              const existing = visualTemplates.commonDefeatVisuals || [];
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                commonDefeatVisuals: [...existing, ...newUrls],
+                              });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Liste des visuels de défaite */}
+                    {(visualTemplates.commonDefeatVisuals || []).length === 0 ? (
+                      <div className="text-center py-8 px-4 rounded-xl border border-dashed border-rose-500/30 bg-rose-950/10 text-slate-400 text-xs">
+                        <p className="font-semibold text-rose-300 mb-1">Aucun visuel de défaite commun</p>
+                        <p className="text-[11px]">Ajoutez 1 à 3 visuels/vidéos de soutien et combativité !</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
+                        {(visualTemplates.commonDefeatVisuals || []).map((url, idx) => (
+                          <div
+                            key={idx}
+                            className="group relative rounded-xl overflow-hidden border border-rose-500/40 bg-black aspect-video flex items-center justify-center shadow-md"
+                          >
+                            {isVideoMedia(url) ? (
+                              <video
+                                src={url}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={url}
+                                alt={`Défaite ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            {isVideoMedia(url) && (
+                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-rose-300 text-[9px] font-bold">
+                                Vidéo
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const existing = visualTemplates.commonDefeatVisuals || [];
+                                const updated = existing.filter((_, i) => i !== idx);
+                                onUpdateVisualTemplates({
+                                  ...visualTemplates,
+                                  commonDefeatVisuals: updated,
+                                });
+                              }}
+                              className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              title="Supprimer ce visuel"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ATELIER DE MONTAGE : POSITIONNEMENT DU TEXTE PAR RAPPORT À LA PHOTO OU VIDÉO */}
+                <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
+                    <div>
+                      <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                        <Sliders className="w-4 h-4" />
+                        <span>Montage & Emplacement du texte sur l'image / vidéo</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Positionnez librement le bloc de texte (Victoire / Défaite et Nom de l'équipe) par rapport à votre fond visuel.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUpdateVisualTemplates({
+                          ...visualTemplates,
+                          alertTextX: 50,
+                          alertTextY: 50,
+                          alertTextScale: 1.0,
+                          alertTextColor: '#ffffff',
+                          alertTextFont: 'Bebas Neue',
+                          alertTextBgOpacity: 0.65,
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3 h-3 text-orange-400" />
+                      <span>Réinitialiser au centre</span>
+                    </button>
+                  </div>
+
+                  {/* Contrôles du montage (Curseurs X, Y, Échelle, Police, Couleur) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Position Horizontale X */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                        <span>Position Horizontale (Axe X)</span>
+                        <span className="font-mono text-orange-400">
+                          {visualTemplates.alertTextX ?? 50}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="90"
+                        step="1"
+                        value={visualTemplates.alertTextX ?? 50}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextX: parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="w-full accent-orange-500 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Gauche (10%)</span>
+                        <span>Centre (50%)</span>
+                        <span>Droite (90%)</span>
+                      </div>
+                    </div>
+
+                    {/* Position Verticale Y */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                        <span>Position Verticale (Axe Y / Hauteur)</span>
+                        <span className="font-mono text-orange-400">
+                          {visualTemplates.alertTextY ?? 50}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="15"
+                        max="85"
+                        step="1"
+                        value={visualTemplates.alertTextY ?? 50}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextY: parseInt(e.target.value, 10),
+                          })
+                        }
+                        className="w-full accent-orange-500 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Haut (15%)</span>
+                        <span>Milieu (50%)</span>
+                        <span>Bas (85%)</span>
+                      </div>
+                    </div>
+
+                    {/* Échelle / Taille du texte */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                        <span>Taille du texte (Échelle)</span>
+                        <span className="font-mono text-amber-400">
+                          {Math.round((visualTemplates.alertTextScale ?? 1.0) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.6"
+                        max="1.4"
+                        step="0.05"
+                        value={visualTemplates.alertTextScale ?? 1.0}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextScale: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full accent-amber-500 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Compact (60%)</span>
+                        <span>Standard (100%)</span>
+                        <span>Grand (140%)</span>
+                      </div>
+                    </div>
+
+                    {/* Police de caractères */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 block">
+                        Police du texte d'alerte
+                      </label>
+                      <select
+                        value={visualTemplates.alertTextFont || 'Bebas Neue'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextFont: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                      >
+                        {AVAILABLE_FONTS.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} ({f.category})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Couleur du texte */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">
+                          Couleur du texte
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Titre Victoire/Défaite
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={visualTemplates.alertTextColor || '#ffffff'}
+                          onChange={(e) =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertTextColor: e.target.value,
+                            })
+                          }
+                          className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                        />
                         <button
-                          onClick={() => handleTriggerMatchOutcome(team, false, 68, 74)}
-                          className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
-                          title="Injecter le visuel Défaite pendant 1 heure dans la boucle TV"
+                          type="button"
+                          onClick={() =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertTextColor: '#ffffff',
+                            })
+                          }
+                          className="px-2 py-1 rounded bg-slate-800 text-[10px] text-white font-bold"
                         >
-                          <Frown className="w-3 h-3 text-rose-500" />
-                          <span>Injecter Défaite (1h)</span>
+                          Blanc
                         </button>
+                      </div>
+                    </div>
+
+                    {/* Opacité du fond noir translucide */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                        <span>Opacité du fond protecteur</span>
+                        <span className="font-mono text-emerald-400">
+                          {Math.round((visualTemplates.alertTextBgOpacity ?? 0.65) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={visualTemplates.alertTextBgOpacity ?? 0.65}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextBgOpacity: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full accent-emerald-500 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Transparent (0%)</span>
+                        <span>Équilibré (65%)</span>
+                        <span>Opaque (100%)</span>
                       </div>
                     </div>
                   </div>
-                ))}
+
+                  {/* Aperçu en direct du montage 16:9 */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Aperçu en direct du montage (Simulation 16:9) :</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Taille et positionnement tels qu'ils apparaîtront sur les TV
+                      </span>
+                    </div>
+
+                    <div className="relative w-full aspect-video max-w-2xl mx-auto rounded-2xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-slate-950 flex items-center justify-center select-none">
+                      {/* Image d'arrière-plan de l'aperçu */}
+                      {(() => {
+                        const previewBg =
+                          (visualTemplates.commonVictoryVisuals && visualTemplates.commonVictoryVisuals[0]) ||
+                          visualTemplates.defaultVictoryBackgroundUrl;
+                        return previewBg ? (
+                          isVideoMedia(previewBg) ? (
+                            <video
+                              src={previewBg}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="w-full h-full object-cover brightness-[0.85]"
+                            />
+                          ) : (
+                            <img
+                              src={previewBg}
+                              alt=""
+                              className="w-full h-full object-cover brightness-[0.85]"
+                            />
+                          )
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-emerald-950 via-slate-950 to-slate-900" />
+                        );
+                      })()}
+
+                      {/* Bloc de texte simulé positionné */}
+                      <div
+                        className="absolute z-10 flex flex-col items-center text-center transition-all duration-150"
+                        style={{
+                          left: `${visualTemplates.alertTextX ?? 50}%`,
+                          top: `${visualTemplates.alertTextY ?? 50}%`,
+                          transform: `translate(-50%, -50%) scale(${(visualTemplates.alertTextScale ?? 1.0) * 0.75})`,
+                        }}
+                      >
+                        <div
+                          className="p-4 rounded-2xl border border-white/20 shadow-xl backdrop-blur-sm flex flex-col items-center"
+                          style={{
+                            backgroundColor: `rgba(0, 0, 0, ${visualTemplates.alertTextBgOpacity ?? 0.65})`,
+                          }}
+                        >
+                          <Trophy className="w-8 h-8 text-amber-300 animate-bounce mb-1" />
+                          <h2
+                            className={`text-2xl font-black uppercase tracking-wider ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}
+                            style={{ color: visualTemplates.alertTextColor || '#ffffff' }}
+                          >
+                            VICTOIRE !
+                          </h2>
+                          <div className="mt-1 px-4 py-1 rounded-xl bg-white/10 border border-white/20 text-xs font-black text-emerald-400 uppercase font-bebas">
+                            Seniors Garçons 1
+                          </div>
+                          <span className="mt-1 text-[11px] text-amber-300 font-mono font-bold">
+                            84 - 76
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2 : VISUELS INDIVIDUELS PAR ÉQUIPE (OPTIONNEL - MASQUÉ PAR DÉFAUT) */}
+              <div className="pt-2 border-t border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+                  <div>
+                    <h4 className="text-base font-black text-slate-300 font-bebas tracking-wide flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <span>VISUELS INDIVIDUELS PAR ÉQUIPE ({teamVisuals.length})</span>
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Optionnel : la banque commune ci-dessus gère automatiquement toutes vos équipes sans avoir à téléverser 30 visuels.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPerTeamVisuals(!showPerTeamVisuals)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    <span>{showPerTeamVisuals ? 'Masquer la section par équipe' : 'Afficher la section par équipe (avancé)'}</span>
+                  </button>
+                </div>
+
+                {showPerTeamVisuals && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                    {teamVisuals.map((team) => (
+                      <div
+                        key={team.id}
+                        className="rounded-3xl border border-slate-800 bg-slate-950 p-5 flex flex-col justify-between"
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                          <div>
+                            <h4 className="text-xl font-black text-white font-bebas">{team.teamName}</h4>
+                            <span className="text-xs text-slate-400">Catégorie : {team.category}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {team.shortAliases.map((a, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
+                                {a}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Both visuals side by side */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          {/* Win visual */}
+                          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-2.5 flex flex-col">
+                            <div className="flex items-center justify-between mb-1.5 text-emerald-400 text-xs font-bold">
+                              <span className="flex items-center gap-1">
+                                <Trophy className="w-3.5 h-3.5" /> Victoire
+                              </span>
+                              <span className="text-[10px] opacity-70">16:9</span>
+                            </div>
+                            <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
+                              {isVideoMedia(team.winVisualUrl) ? (
+                                <video
+                                  src={team.winVisualUrl}
+                                  autoPlay
+                                  loop
+                                  muted
+                                  playsInline
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <img
+                                  src={team.winVisualUrl}
+                                  alt="Victoire"
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              )}
+                              {isVideoMedia(team.winVisualUrl) && (
+                                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-emerald-300 text-[9px] font-bold flex items-center gap-0.5">
+                                  <Video className="w-2.5 h-2.5" /> Vidéo
+                                </div>
+                              )}
+                            </div>
+                            <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white cursor-pointer transition-colors mt-auto">
+                              Changer visuel (Img / Vidéo)
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileChange(file, (dataUrl) => {
+                                      const updated = teamVisuals.map((t) =>
+                                        t.id === team.id ? { ...t, winVisualUrl: dataUrl } : t
+                                      );
+                                      onUpdateTeamVisuals(updated);
+                                    });
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Loss visual */}
+                          <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-2.5 flex flex-col">
+                            <div className="flex items-center justify-between mb-1.5 text-rose-400 text-xs font-bold">
+                              <span className="flex items-center gap-1">
+                                <Frown className="w-3.5 h-3.5" /> Défaite
+                              </span>
+                              <span className="text-[10px] opacity-70">16:9</span>
+                            </div>
+                            <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
+                              {isVideoMedia(team.lossVisualUrl) ? (
+                                <video
+                                  src={team.lossVisualUrl}
+                                  autoPlay
+                                  loop
+                                  muted
+                                  playsInline
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <img
+                                  src={team.lossVisualUrl}
+                                  alt="Défaite"
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              )}
+                              {isVideoMedia(team.lossVisualUrl) && (
+                                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-rose-300 text-[9px] font-bold flex items-center gap-0.5">
+                                  <Video className="w-2.5 h-2.5" /> Vidéo
+                                </div>
+                              )}
+                            </div>
+                            <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white cursor-pointer transition-colors mt-auto">
+                              Changer visuel (Img / Vidéo)
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    handleImageFileChange(file, (dataUrl) => {
+                                      const updated = teamVisuals.map((t) =>
+                                        t.id === team.id ? { ...t, lossVisualUrl: dataUrl } : t
+                                      );
+                                      onUpdateTeamVisuals(updated);
+                                    });
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Quick Simulation Buttons */}
+                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleTriggerMatchOutcome(team, true, 84, 76)}
+                              className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
+                              title="Injecter le visuel Victoire pendant 1 heure dans la boucle TV"
+                            >
+                              <Trophy className="w-3 h-3 text-emerald-500" />
+                              <span>Injecter Victoire (1h)</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleTriggerMatchOutcome(team, false, 68, 74)}
+                              className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
+                              title="Injecter le visuel Défaite pendant 1 heure dans la boucle TV"
+                            >
+                              <Frown className="w-3 h-3 text-rose-500" />
+                              <span>Injecter Défaite (1h)</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -211,6 +211,16 @@ export interface VisualTemplatesConfig {
   matchesSettings?: CategorySlideTheme;
   resultsSettings?: CategorySlideTheme;
   birthdaysSettings?: CategorySlideTheme;
+  // Banque commune de visuels (Victoire / Défaite) pour toutes les équipes
+  commonVictoryVisuals?: string[];
+  commonDefeatVisuals?: string[];
+  // Montage & Positionnement du texte sur le visuel d'alerte (Victoire / Défaite)
+  alertTextX?: number; // 0 à 100% horizontal (défaut 50 = centré)
+  alertTextY?: number; // 0 à 100% vertical (défaut 55)
+  alertTextColor?: string; // couleur du texte (défaut #ffffff)
+  alertTextFont?: FontFamilyOption; // police (défaut 'Bebas Neue')
+  alertTextScale?: number; // échelle de taille du bloc (défaut 1.0)
+  alertTextBgOpacity?: number; // opacité du fond translucide derrière le texte (0 à 1, défaut 0.6)
 }
 
 // Pre-made Win / Loss visuals per team in the club

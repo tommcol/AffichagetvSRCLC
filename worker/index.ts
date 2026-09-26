@@ -323,12 +323,38 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
     triggeredBy = 'manual', durationMinutes = 60,
   } = body;
   const durationMs = (durationMinutes || 60) * 60 * 1000;
+
+  let finalCustomImageUrl = customImageUrl;
+  if (!finalCustomImageUrl) {
+    try {
+      const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+      if (appDataRaw) {
+        const appData = JSON.parse(appDataRaw);
+        const vt = appData.visualTemplates;
+        const commonBank = isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
+        if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
+          finalCustomImageUrl = commonBank[Math.floor(Math.random() * commonBank.length)];
+        } else if (Array.isArray(appData.teamVisuals)) {
+          const tv = appData.teamVisuals.find((t: any) =>
+            t.teamName?.toLowerCase().includes(team.toLowerCase()) ||
+            t.category?.toLowerCase() === team.toLowerCase()
+          );
+          if (tv) {
+            finalCustomImageUrl = isWin ? tv.winVisualUrl : tv.lossVisualUrl;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur lors de la sélection du visuel dans la banque commune:', e);
+    }
+  }
+
   const newAlert = {
     id: 'alert-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
     team, isWin: Boolean(isWin),
     ourScore: ourScore ? Number(ourScore) : undefined,
     opponentScore: opponentScore ? Number(opponentScore) : undefined,
-    opponent, customImageUrl, triggeredBy,
+    opponent, customImageUrl: finalCustomImageUrl, triggeredBy,
     timestamp: Date.now(),
     expiresAt: Date.now() + durationMs,
   };

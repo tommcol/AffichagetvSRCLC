@@ -43,7 +43,7 @@ import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConf
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../utils/matchDateHelper';
 import { getEffectiveCategoryConfig } from '../utils/themeUtils';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
-import { isMatchWin, isClubHomeMatch } from '../utils/matchStatus';
+import { isMatchWin, isClubHomeMatch, isMatchLive, isMatchFinished } from '../utils/matchStatus';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 const TRANSPARENT_IMAGE_FALLBACK =
@@ -1854,18 +1854,28 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
                           const vsBadgeSize = aspectRatio === '16:9' ? 'w-6 h-6 text-[9.5px]' : (count >= 6 ? 'w-6 h-6 text-[10px]' : count === 5 ? 'w-6 h-6 text-[10.5px]' : 'w-7 h-7 text-[11px]');
 
+                          const isLive = isMatchLive(m);
+                          const isFinished = isMatchFinished(m);
+                          const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
+
                           return (
                             <div key={m.id} className="w-full flex flex-col items-center">
-                              {/* Match Date Header: Samedi 19 septembre | 13h30 */}
+                              {/* Match Date Header: Samedi 19 septembre | 13h30 + Statut DIRECT */}
                               <div
-                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`}
+                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center justify-center gap-1.5`}
                                 style={{
                                   fontSize: headerFontSize,
                                   color: layer2TextColor,
                                   letterSpacing: '0.4px',
                                 }}
                               >
-                                {formatPosterMatchDate(m.date, m.time)}
+                                <span>{formatPosterMatchDate(m.date, m.time)}</span>
+                                {isLive && (
+                                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse shadow-sm flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                                    EN COURS
+                                  </span>
+                                )}
                               </div>
 
                               {/* Match Row: [Team Left Pill] (vs) [Team Right Pill] */}
@@ -1883,16 +1893,31 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                   <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
 
-                                {/* Center Round VS Badge */}
-                                <div
-                                  className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
-                                  style={{
-                                    backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                    color: layer2BadgeBgColor || '#111111',
-                                  }}
-                                >
-                                  vs
-                                </div>
+                                {/* Center Round VS Badge / Live / Score */}
+                                {isLive ? (
+                                  <div
+                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] select-none bg-red-600 text-white uppercase text-[8px] animate-pulse border border-red-300`}
+                                    title="Match en cours"
+                                  >
+                                    {hasScore ? `${m.homeScore}-${m.awayScore}` : 'en cours'}
+                                  </div>
+                                ) : isFinished && hasScore ? (
+                                  <div
+                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] select-none bg-white text-slate-900 border border-slate-300 text-[8.5px]`}
+                                  >
+                                    {m.homeScore}-{m.awayScore}
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
+                                    style={{
+                                      backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
+                                      color: layer2BadgeBgColor || '#111111',
+                                    }}
+                                  >
+                                    vs
+                                  </div>
+                                )}
 
                                 {/* Away / Opponent Pill with Auto-adaptive font */}
                                 <div

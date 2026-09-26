@@ -36,7 +36,7 @@ export const DEFAULT_CLUB_SETTINGS: ClubSettings = {
 
 export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
   matchesBackgroundUrl: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1920&auto=format&fit=crop&q=80',
-  resultsBackgroundUrl: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1920&auto=format&fit=crop&q=80',
+  resultsBackgroundUrl: 'https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=1920&auto=format&fit=crop&q=80',
   birthdaysBackgroundUrl: birthdayBgImage,
   defaultVictoryBackgroundUrl: 'https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=1920&auto=format&fit=crop&q=80',
   defaultDefeatBackgroundUrl: 'https://images.unsplash.com/photo-1519861531473-9200262188bf?w=1920&auto=format&fit=crop&q=80',
@@ -94,7 +94,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     },
   },
   resultsSettings: {
-    backgroundUrl: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=1920&auto=format&fit=crop&q=80',
+    backgroundUrl: 'https://images.unsplash.com/photo-1519766304817-4f37bda74a29?w=1920&auto=format&fit=crop&q=80',
     primaryColor: '#ea580c',
     cardBgColor: '#020617',
     cardOpacity: 0.85,

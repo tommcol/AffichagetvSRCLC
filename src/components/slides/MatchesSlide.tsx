@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2 } from 'lucide-react';
+import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2, Flame } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
-import { isMatchLive, isMatchFinished } from '../../utils/matchStatus';
+import { isMatchLive, isMatchFinished, isMatchWin } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
@@ -206,39 +206,39 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     if (count <= 2) {
       return {
         headerSize: 'text-2xl',
-        pillHeight: 'min-h-[86px]',
-        pillText: 'text-4xl',
-        centerPill: 'text-4xl px-8 min-h-[86px]',
+        pillHeight: 'min-h-[76px] md:min-h-[82px]',
+        pillText: 'text-2xl md:text-3xl',
+        centerPill: 'text-2xl md:text-3xl px-6 md:px-8 min-h-[76px] md:min-h-[82px]',
         badgeSize: 'text-sm px-4 py-1',
         badgeIcon: 'w-5 h-5',
       };
     }
     if (count <= 4) {
       return {
-        headerSize: 'text-xl',
-        pillHeight: 'min-h-[76px]',
-        pillText: 'text-3xl',
-        centerPill: 'text-3xl px-6 min-h-[76px]',
-        badgeSize: 'text-sm px-3.5 py-1',
+        headerSize: 'text-base md:text-lg',
+        pillHeight: 'min-h-[60px] md:min-h-[66px]',
+        pillText: 'text-xl md:text-2xl',
+        centerPill: 'text-xl md:text-2xl px-3.5 md:px-5 min-h-[60px] md:min-h-[66px]',
+        badgeSize: 'text-xs md:text-sm px-3 py-1',
         badgeIcon: 'w-4 h-4',
       };
     }
     if (count <= 6) {
       return {
-        headerSize: 'text-lg',
-        pillHeight: 'min-h-[64px]',
-        pillText: 'text-2xl',
-        centerPill: 'text-2xl px-5 min-h-[64px]',
-        badgeSize: 'text-sm px-3 py-0.5',
+        headerSize: 'text-sm md:text-base',
+        pillHeight: 'min-h-[50px] md:min-h-[56px]',
+        pillText: 'text-lg md:text-xl',
+        centerPill: 'text-lg md:text-xl px-3 md:px-4 min-h-[50px] md:min-h-[56px]',
+        badgeSize: 'text-xs px-2.5 py-0.5',
         badgeIcon: 'w-3.5 h-3.5',
       };
     }
     if (count <= 8) {
       return {
-        headerSize: 'text-base',
-        pillHeight: 'min-h-[54px]',
-        pillText: 'text-xl',
-        centerPill: 'text-xl px-4 min-h-[54px]',
+        headerSize: 'text-xs md:text-sm',
+        pillHeight: 'min-h-[44px] md:min-h-[48px]',
+        pillText: 'text-base md:text-lg',
+        centerPill: 'text-base md:text-lg px-2.5 md:px-3 min-h-[44px] md:min-h-[48px]',
         badgeSize: 'text-xs px-2.5 py-0.5',
         badgeIcon: 'w-3 h-3',
       };
@@ -246,9 +246,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     // Jusqu'à 10 matchs (5 par colonne)
     return {
       headerSize: 'text-xs',
-      pillHeight: 'min-h-[48px]',
-      pillText: 'text-lg',
-      centerPill: 'text-lg px-3.5 min-h-[48px]',
+      pillHeight: 'min-h-[38px] md:min-h-[42px]',
+      pillText: 'text-sm md:text-base',
+      centerPill: 'text-sm md:text-base px-2 min-h-[38px] md:min-h-[42px]',
       badgeSize: 'text-[11px] px-2 py-0.5',
       badgeIcon: 'w-3 h-3',
     };
@@ -272,6 +272,11 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
     const renderPosterMatchItem = (m: MatchItem) => {
       const isHome = Boolean(m.isHomeMatch);
+      const isLive = isMatchLive(m, currentTime);
+      const isFinished = isMatchFinished(m, currentTime);
+      const isWin = isMatchWin(m, clubSettings?.name, clubSettings?.shortName);
+      const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
+
       const dateObj = formatMatchDayAndDate(m.date);
       const dayDisplay = dateObj?.display || dateObj?.dayName || '';
       const timeDisplay = m.time ? ` à ${m.time}` : '';
@@ -282,10 +287,29 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
       return (
         <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
-          {/* Intitulé au-dessus : Catégorie • Date & Heure • Badge Domicile / Extérieur distinct */}
+          {/* Intitulé au-dessus : Catégorie • Statut En Direct / En Cours • Date & Heure • Badge Domicile / Extérieur */}
           <div className="flex items-center justify-between gap-2 px-1">
-            <div className={`flex items-center gap-2 font-black uppercase font-montserrat tracking-wider text-white ${scale.headerSize}`}>
-              <span className="drop-shadow-sm font-bebas tracking-wide text-2xl text-amber-400">{m.category}</span>
+            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white ${scale.headerSize} ${getFontFamilyClass(bodyFont)}`}>
+              <span className={`drop-shadow-sm tracking-wide text-2xl text-amber-400 ${getFontFamilyClass(headerFont)}`}>
+                {m.category}
+              </span>
+
+              {/* BADGE EN COURS */}
+              {isLive ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider animate-pulse shadow-lg shadow-red-600/50 border border-red-400 ring-2 ring-red-400/30 shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                  <Flame className="w-3.5 h-3.5 text-amber-300" />
+                  <span>EN COURS</span>
+                </span>
+              ) : isFinished ? (
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider shrink-0 ${
+                  isWin ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white'
+                }`}>
+                  {isWin ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                  <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                </span>
+              ) : null}
+
               {dateTimeText && (
                 <>
                   <span className="text-slate-500 text-xs">•</span>
@@ -313,34 +337,56 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           </div>
 
           {/* Rangée de Pilules : Notre Club en ROUGE OFFICIEL, Adversaire en ANTHRACITE CONTRASTÉ */}
-          <div className="flex items-center justify-between gap-2 md:gap-3 w-full">
+          <div className="flex items-center justify-between gap-1.5 md:gap-2.5 w-full min-w-0">
             {/* Pilule Équipe Domicile (À gauche) */}
             <div
-              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
                 isHome
                   ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{teamLeft}</span>
+              <span className="truncate block w-full text-center">{teamLeft}</span>
             </div>
 
-            {/* Pilule Centrale Blanche (Heure / VS) */}
-            <div
-              className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
-            >
-              {m.time || 'VS'}
-            </div>
+            {/* Pilule Centrale Blanche ou Rouge EN COURS (Heure / VS / Score) */}
+            {isLive ? (
+              <div
+                className={`shrink-0 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 text-white font-mono font-black shadow-xl shadow-red-600/40 text-center border-2 border-red-300 ring-2 ring-red-400/60 flex flex-col items-center justify-center rounded-full animate-pulse ${scale.pillHeight} ${scale.centerPill}`}
+                title="Match actuellement en cours"
+              >
+                <span className="text-[10px] md:text-xs font-black uppercase tracking-wider flex items-center gap-1 text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  EN COURS
+                </span>
+                <span className="text-base md:text-2xl font-black tracking-tight leading-none">
+                  {hasScore ? `${m.homeScore} - ${m.awayScore}` : (m.time || 'EN COURS')}
+                </span>
+              </div>
+            ) : isFinished && hasScore ? (
+              <div
+                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+              >
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">SCORE</span>
+                <span className="text-base md:text-2xl font-black leading-none">{m.homeScore}&nbsp;-&nbsp;{m.awayScore}</span>
+              </div>
+            ) : (
+              <div
+                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+              >
+                {m.time || 'VS'}
+              </div>
+            )}
 
             {/* Pilule Équipe Extérieur (À droite) */}
             <div
-              className={`flex-1 font-black uppercase tracking-wider py-1.5 md:py-2 px-3 md:px-5 rounded-full shadow-lg text-center truncate flex items-center justify-center font-bebas ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
                 !isHome
                   ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{teamRight}</span>
+              <span className="truncate block w-full text-center">{teamRight}</span>
             </div>
           </div>
         </div>
@@ -424,7 +470,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             </div>
 
             {/* Pastille Pilule de Titre Rouge */}
-            <div className="px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 font-bebas text-center">
+            <div className={`px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center ${getFontFamilyClass(headerFont)}`}>
               {customHeaderTitle || theme?.customHeaderTitle || (
                 sortedMatches.length > 0 && sortedMatches.every((m) => m.isHomeMatch)
                   ? 'LES RENCONTRES À DOMICILE'
@@ -439,23 +485,23 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           {sortedMatches.length === 0 ? (
             <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
               <Calendar className="w-10 h-10 text-orange-400/60 mx-auto mb-2" />
-              <h3 className="text-xl font-black text-white font-bebas">
+              <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
                 AUCUNE RENCONTRE CE WEEK-END
               </h3>
-              <p className="text-slate-400 text-xs mt-1 font-montserrat">
+              <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
                 Le calendrier sera mis à jour dès la programmation des prochains matchs.
               </p>
             </div>
           ) : (
-            <div className="w-full flex-1 flex flex-row gap-8 xl:gap-10 my-2 py-0.5 items-stretch min-h-0">
+            <div className="w-full flex-1 flex flex-row gap-5 xl:gap-8 my-2 py-0.5 items-stretch min-h-0 min-w-0 overflow-hidden">
               {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
-              <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+              <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
                 {leftMatches.map(renderPosterMatchItem)}
               </div>
 
               {/* Colonne 2 : Deuxième moitié ordonnée chronologiquement */}
               {rightMatches.length > 0 && (
-                <div className="flex-1 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
+                <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
                   {rightMatches.map(renderPosterMatchItem)}
                 </div>
               )}
@@ -463,7 +509,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           )}
 
           {/* Bas de page / Signature Club */}
-          <div className="w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 font-montserrat uppercase tracking-widest pt-1 shrink-0">
+          <div className={`w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 uppercase tracking-widest pt-1 shrink-0 ${getFontFamilyClass(bodyFont)}`}>
             <span>SRC BASKET LA CLAYETTE</span>
           </div>
         </div>
@@ -532,7 +578,13 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         }`}>
           <div className={`flex items-center gap-3 ${titleAlign === 'center' ? 'w-full justify-center text-center' : titleAlign === 'right' ? 'w-full justify-end text-right' : ''}`}>
             <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'}
+              {customHeaderTitle || theme?.customHeaderTitle || (
+                weekendMatches.length > 0 && weekendMatches.every((m) => m.isHomeMatch)
+                  ? 'LES RENCONTRES À DOMICILE'
+                  : weekendMatches.length > 0 && weekendMatches.every((m) => !m.isHomeMatch)
+                  ? "LES RENCONTRES À L'EXTÉRIEUR"
+                  : 'LES RENCONTRES DU WEEK-END'
+              )}
             </h2>
             {totalPages && totalPages > 1 && (
               <span
@@ -712,7 +764,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                             {isLive ? (
                               <div className={`${homeSizing.statusBadge} bg-red-600/90 text-white animate-pulse flex items-center gap-2 border border-red-400/50`}>
                                 <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                                <span>EN DIRECT</span>
+                                <span>EN COURS</span>
                               </div>
                             ) : isFinished ? (
                               m.homeScore !== undefined && m.awayScore !== undefined ? (
@@ -864,7 +916,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                             {isLive ? (
                               <div className={`${awaySizing.statusBadge} bg-red-600/90 text-white animate-pulse flex items-center gap-2 border border-red-400/50`}>
                                 <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                                <span>EN DIRECT</span>
+                                <span>EN COURS</span>
                               </div>
                             ) : isFinished ? (
                               m.homeScore !== undefined && m.awayScore !== undefined ? (
