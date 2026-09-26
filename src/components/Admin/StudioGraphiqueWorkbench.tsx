@@ -125,6 +125,35 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
     if (!file) return;
     const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
 
+    // 1. Essai PUT binaire direct (vidéo / gros fichier vers R2)
+    if (isVideo || file.size > 2 * 1024 * 1024) {
+      try {
+        const uploadUrl = `/api/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'video/mp4')}`;
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+            'X-Filename': encodeURIComponent(file.name),
+          },
+          body: file,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            onChange({
+              ...layer,
+              mediaUrl: data.url,
+              mediaType: isVideo ? 'video' : 'image',
+              enabled: true,
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('PUT upload failed, fallback to POST:', err);
+      }
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -1145,6 +1174,33 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                         if (!file) return;
                         const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
                         
+                        // 1. Essai PUT direct (vidéo / gros fichier vers R2)
+                        if (isVideo || file.size > 2 * 1024 * 1024) {
+                          try {
+                            const uploadUrl = `/api/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'video/mp4')}`;
+                            const res = await fetch(uploadUrl, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': file.type || 'application/octet-stream',
+                                'X-Filename': encodeURIComponent(file.name),
+                              },
+                              body: file,
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              if (data.url) {
+                                updateCurrentCategoryTheme({
+                                  backgroundUrl: data.url,
+                                  backgroundMediaType: isVideo ? 'video' : 'image',
+                                });
+                                return;
+                              }
+                            }
+                          } catch (err) {
+                            console.warn('PUT upload failed, fallback to POST:', err);
+                          }
+                        }
+
                         try {
                           const formData = new FormData();
                           formData.append('file', file);

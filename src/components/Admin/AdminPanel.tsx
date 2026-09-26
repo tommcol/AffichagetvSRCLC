@@ -881,7 +881,35 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   const uploadSingleFile = async (file: File): Promise<{ url: string; isVideo: boolean; fileName: string }> => {
     const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|m4v)$/i.test(file.name);
 
-    // 1. Prioritize direct server upload
+    // 1. Pour les vidéos et gros fichiers : Flux binaire direct (PUT) vers R2 (contourne l'erreur 413)
+    if (isVideo || file.size > 2 * 1024 * 1024) {
+      try {
+        const uploadUrl = `/api/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'video/mp4')}`;
+        const res = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+            'X-Filename': encodeURIComponent(file.name),
+          },
+          body: file,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            return {
+              url: data.url,
+              isVideo: data.mediaType === 'video' || isVideo,
+              fileName: data.fileName || file.name,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Upload flux binaire (PUT) échoué, essai POST standard:', err);
+      }
+    }
+
+    // 2. Upload standard POST FormData (images légères, logos classiques)
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -904,7 +932,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       console.warn('Upload serveur direct indisponible, bascule sur ObjectURL/FileReader local:', err);
     }
 
-    // 2. Safe local fallback with automatic image compression (reduces 10MB -> 120KB for fast Cloudflare KV saving)
+    // 3. Safe local fallback with automatic image compression
     if (isVideo) {
       try {
         const blobUrl = URL.createObjectURL(file);

@@ -144,51 +144,102 @@ async function serveMedia(filename: string, env: Env): Promise<Response> {
 }
 
 async function uploadFile(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
-  try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    if (!file) {
-      return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
-    const mime = file.type || getMimeType(filename);
+  const url = new URL(request.url);
 
-    // Si Cloudflare R2 est activé, on stream directement dedans sans limite de 25 Mo
-    if (env.AFFICHAGE_R2) {
-      await env.AFFICHAGE_R2.put(filename, file.stream(), {
-        httpMetadata: { contentType: mime },
-      });
-    } else {
-      // Repli KV
-      const arrayBuffer = await file.arrayBuffer();
-      await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
-    }
+  // 1. Mode Flux Binaire Direct (PUT) : Idéal pour les grosses vidéos / clips sans limite 413
+  if (request.method === 'PUT') {
+    try {
+      const rawName = url.searchParams.get('name') || request.headers.get('x-filename') || 'media_file';
+      const cleanName = decodeURIComponent(rawName).replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      const isVideo = /\.(mp4|webm|mov|m4v)$/i.test(filename) || (request.headers.get('content-type') || '').startsWith('video/');
+      const mime = url.searchParams.get('type') || request.headers.get('content-type') || getMimeType(filename);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        url: `/api/media/${filename}`,
-        fileName: file.name,
-        mediaType: isVideo ? 'video' : 'image',
-        size: file.size,
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+      if (!request.body) {
+        return new Response(JSON.stringify({ error: 'Flux binaire vide' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
-    );
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || 'Erreur lors du téléversement' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+
+      if (env.AFFICHAGE_R2) {
+        // Envoi direct en flux continu dans Cloudflare R2 (aucune limite de 25 Mo)
+        await env.AFFICHAGE_R2.put(filename, request.body, {
+          httpMetadata: { contentType: mime },
+        });
+      } else {
+        // Repli KV
+        const arrayBuffer = await request.arrayBuffer();
+        await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          url: `/api/media/${filename}`,
+          fileName: decodeURIComponent(rawName),
+          mediaType: isVideo ? 'video' : 'image',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Erreur flux binaire' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
+
+  // 2. Mode Formulaire Standard (POST)
+  if (request.method === 'POST') {
+    try {
+      const formData = await request.formData();
+      const file = formData.get('file') as File | null;
+      if (!file) {
+        return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
+      const mime = file.type || getMimeType(filename);
+
+      if (env.AFFICHAGE_R2) {
+        await env.AFFICHAGE_R2.put(filename, file.stream(), {
+          httpMetadata: { contentType: mime },
+        });
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          url: `/api/media/${filename}`,
+          fileName: file.name,
+          mediaType: isVideo ? 'video' : 'image',
+          size: file.size,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message || 'Erreur lors du téléversement' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  return new Response('Méthode non autorisée', { status: 405 });
 }
 
 async function uploadMultiple(request: Request, env: Env): Promise<Response> {

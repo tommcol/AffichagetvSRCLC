@@ -153,6 +153,43 @@ app.get("/api/health", (req, res) => {
 });
 
 // 1b. Direct File Upload (Images & Videos) - High performance, zero RAM exhaustion
+app.put("/api/upload", (req, res) => {
+  try {
+    const rawName = (req.query.name as string) || (req.headers["x-filename"] as string) || "media_file";
+    const cleanName = decodeURIComponent(rawName).replace(/[^a-zA-Z0-9.-]/g, "_");
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+    const targetPath = path.join(UPLOADS_DIR, filename);
+    const writeStream = fs.createWriteStream(targetPath);
+
+    req.pipe(writeStream);
+
+    writeStream.on("finish", () => {
+      const stats = fs.statSync(targetPath);
+      const isVideo = /\.(mp4|webm|mov|m4v)$/i.test(filename) || (req.headers["content-type"] || "").startsWith("video/");
+      const publicUrl = `/api/media/${filename}`;
+      console.log(`[UPLOAD PUT STREAM] ${cleanName} -> ${publicUrl} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
+      return res.json({
+        success: true,
+        url: publicUrl,
+        fileName: decodeURIComponent(rawName),
+        mediaType: isVideo ? "video" : "image",
+        size: stats.size,
+      });
+    });
+
+    writeStream.on("error", (err) => {
+      console.error("Erreur écriture flux PUT:", err);
+      return res.status(500).json({ error: "Erreur écriture fichier" });
+    });
+  } catch (err: any) {
+    console.error("Erreur PUT /api/upload:", err);
+    return res.status(500).json({ error: err.message || "Erreur upload PUT" });
+  }
+});
+
 app.post("/api/upload", upload.single("file"), (req, res) => {
   try {
     if (!req.file) {
