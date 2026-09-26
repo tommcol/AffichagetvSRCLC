@@ -1085,6 +1085,7 @@ export default function App() {
           clubSettings={clubSettings}
           specificNotification={activeAlerts[0] || null}
           visualTemplates={visualTemplates}
+          onUpdateVisualTemplates={setVisualTemplates}
         />
       </div>
     );

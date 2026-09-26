@@ -1843,9 +1843,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       >
                         {displayedMatches.map((m) => {
                           const isExempt = posterFilter === 'exempt' || isExemptItem(m);
+                          const isHome = Boolean(m.isHomeMatch);
 
-                          const teamLeft = m.teamHome || 'Notre Club';
-                          const teamRight = isExempt ? 'Exempt' : (m.teamAway || 'Adversaire');
+                          const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
+                          const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
                           const count = displayedMatches.length;
 
                           const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');

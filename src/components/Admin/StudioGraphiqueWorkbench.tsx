@@ -853,19 +853,26 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
       ? resultsEffective
       : birthdaysEffective;
 
-  // Scope effectif pour la prévisualisation (Regroupement sélectionné ou bouton aperçu)
-  const effectiveScope = currentEffective.categoryTheme?.matchDisplayScope || studioScope;
+  // Scope effectif pour la prévisualisation (le bouton aperçu a priorité absolue pour permettre de tester les slides Domicile/Extérieur)
+  const effectiveScope = studioScope;
 
   const displayedMatches = useMemo(() => {
-    if (effectiveScope === 'home') return matches.filter((m) => m.isHomeMatch);
-    if (effectiveScope === 'away') return matches.filter((m) => !m.isHomeMatch);
-    return matches;
+    // Filtrer par sélection du week-end pour correspondre exactement à l'affichage TV réel
+    const activeMatches = matches.filter((m) => m.selectedForWeekend !== false);
+
+    if (effectiveScope === 'home') return activeMatches.filter((m) => m.isHomeMatch);
+    if (effectiveScope === 'away') return activeMatches.filter((m) => !m.isHomeMatch);
+    return activeMatches;
   }, [matches, effectiveScope]);
 
   const displayedResults = useMemo(() => {
-    if (effectiveScope === 'home') return results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
-    if (effectiveScope === 'away') return results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
-    return results;
+    // Filtrer par sélection du week-end pour correspondre exactement à l'affichage TV réel
+    const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+    const resultsToUse = activeResults.length > 0 ? activeResults : results;
+
+    if (effectiveScope === 'home') return resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    if (effectiveScope === 'away') return resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    return resultsToUse;
   }, [results, effectiveScope, clubSettings]);
 
   const previewCanvasRef = useRef<HTMLDivElement | null>(null);

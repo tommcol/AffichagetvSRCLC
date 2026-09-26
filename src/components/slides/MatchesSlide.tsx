@@ -277,6 +277,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       const timeDisplay = m.time ? ` à ${m.time}` : '';
       const dateTimeText = `${dayDisplay}${timeDisplay}`.trim();
 
+      const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
+      const teamRight = isHome ? (m.teamAway || 'Adversaire') : m.category;
+
       return (
         <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
           {/* Intitulé au-dessus : Catégorie • Date & Heure • Badge Domicile / Extérieur distinct */}
@@ -319,7 +322,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{m.teamHome}</span>
+              <span className="truncate">{teamLeft}</span>
             </div>
 
             {/* Pilule Centrale Blanche (Heure / VS) */}
@@ -337,7 +340,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{m.teamAway}</span>
+              <span className="truncate">{teamRight}</span>
             </div>
           </div>
         </div>
