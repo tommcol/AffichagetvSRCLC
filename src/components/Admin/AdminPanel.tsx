@@ -46,6 +46,8 @@ import {
   Home,
   Navigation,
   Search,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -247,6 +249,9 @@ interface AdminPanelProps {
   onRemoveAlert: (alertId: string) => void;
   onSwitchToTvMode: () => void;
   onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat') => void;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
+  saveErrorMessage?: string;
+  onManualSave?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -280,6 +285,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRemoveAlert,
   onSwitchToTvMode,
   onOpenVisualExporter,
+  saveStatus = 'idle',
+  saveErrorMessage,
+  onManualSave,
 }) => {
   const [activeTab, setActiveTab] = useState<
     | 'club_identity'
@@ -2314,17 +2322,52 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-200">C</span> Switch TV
             </div>
 
-            {onOpenVisualExporter && (
-              <button
-                onClick={() => onOpenVisualExporter(socialContentType)}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 hover:from-pink-500 hover:to-orange-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
-                title="Ouvrir le Studio Visuel & Passerelle Réseaux (Instagram, TikTok, Facebook)"
-                id="btn-header-social-exporter"
-              >
-                <Share2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Passerelle Réseaux</span>
-              </button>
-            )}
+            {/* Bouton dynamique Enregistrer en haut à droite */}
+            <button
+              onClick={onManualSave}
+              disabled={saveStatus === 'saving'}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg transition-all hover:scale-105 cursor-pointer ${
+                saveStatus === 'saving'
+                  ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40 cursor-wait'
+                  : saveStatus === 'saved'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                  : saveStatus === 'error'
+                  ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/20'
+              }`}
+              title={
+                saveStatus === 'saving'
+                  ? 'Enregistrement en cours...'
+                  : saveStatus === 'saved'
+                  ? 'Données enregistrées avec succès !'
+                  : saveStatus === 'error'
+                  ? saveErrorMessage || 'Erreur lors de la sauvegarde — Cliquez pour réorganiser'
+                  : 'Enregistrer manuellement les modifications'
+              }
+              id="btn-header-save"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
+                  <span>Enregistrement...</span>
+                </>
+              ) : saveStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                  <span>Enregistré !</span>
+                </>
+              ) : saveStatus === 'error' ? (
+                <>
+                  <AlertCircle className="w-4 h-4 text-white" />
+                  <span>Échec (Réessayer)</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Enregistrer</span>
+                </>
+              )}
+            </button>
 
             {/* Direct Switch to TV Broadcast Mode Button */}
             <button

@@ -203,7 +203,7 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 md:gap-3.5 max-h-[62vh] overflow-y-auto pr-2">
+            <div className="flex flex-col gap-2 md:gap-3 max-h-[62vh] overflow-y-auto pr-2">
               {sortedBirthdays.map((b) => {
                 // Display strictly the First Name (Prénom) as requested
                 const displayName = b.firstName || (b.fullName ? b.fullName.trim().split(/\s+/)[0] : 'Licencié');
@@ -212,31 +212,20 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
                 return (
                   <div
                     key={b.id}
-                    className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border border-white/15 shadow-xl transition-all hover:scale-[1.01]"
-                    style={cardBackdropStyle}
+                    className="flex items-center gap-3 sm:gap-4 py-1.5 px-1 transition-all"
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div
-                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-black text-white shrink-0 shadow"
-                        style={{ backgroundColor: primaryColor }}
-                      >
-                        <Cake className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                      </div>
-                      <div className="min-w-0">
-                        <div
-                          className={`text-2xl sm:text-3xl md:text-4xl font-black truncate drop-shadow tracking-wide ${getFontFamilyClass(
-                            headerFont
-                          )}`}
-                          style={{ color: textColor }}
-                        >
-                          {displayName}
-                        </div>
-                      </div>
-                    </div>
+                    <span
+                      className={`text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)] tracking-wide ${getFontFamilyClass(
+                        headerFont
+                      )}`}
+                      style={{ color: textColor }}
+                    >
+                      {displayName}
+                    </span>
 
                     {displayCategory && (
                       <span
-                        className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-sm md:text-base font-black shrink-0 border border-white/20 shadow-md ml-2 tracking-wider uppercase ${getFontFamilyClass(
+                        className={`px-3.5 py-1.5 rounded-xl text-sm sm:text-base md:text-lg font-black shrink-0 border border-white/20 shadow-xl tracking-wider uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${getFontFamilyClass(
                           bodyFont
                         )}`}
                         style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}

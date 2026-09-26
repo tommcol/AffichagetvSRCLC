@@ -294,6 +294,65 @@ export default function App() {
     visualTemplates,
   ]);
 
+  const handleManualSave = useCallback(() => {
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    setSaveStatus('saving');
+    const payload = {
+      data: {
+        clubSettings,
+        categories,
+        matches,
+        results,
+        sponsors,
+        logos,
+        photos,
+        birthdays,
+        events,
+        teamVisuals,
+        visualTemplates,
+      },
+    };
+
+    try {
+      localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+    } catch (e) {}
+
+    fetch('/api/save-app-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          setSaveStatus('saved');
+          setSaveErrorMessage('');
+          setTimeout(() => setSaveStatus('idle'), 2500);
+        } else {
+          const errJson = await res.json().catch(() => null);
+          const msg = errJson?.error || `Erreur serveur (${res.status})`;
+          setSaveStatus('error');
+          setSaveErrorMessage(msg);
+        }
+      })
+      .catch((err) => {
+        setSaveStatus('error');
+        setSaveErrorMessage('Connexion réseau interrompue');
+        console.error("Échec de l'enregistrement des données :", err);
+      });
+  }, [
+    clubSettings,
+    categories,
+    matches,
+    results,
+    sponsors,
+    logos,
+    photos,
+    birthdays,
+    events,
+    teamVisuals,
+    visualTemplates,
+  ]);
+
   // Vérification périodique des alertes victoire/défaite actives
   useEffect(() => {
     const fetchServerAlerts = async () => {
@@ -889,25 +948,6 @@ export default function App() {
   if (viewMode === 'admin') {
     return (
       <div className="w-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-        {saveStatus !== 'idle' && (
-          <div
-            className={`fixed top-4 right-4 z-[999] px-4 py-2 rounded-full text-sm font-bold shadow-xl flex items-center gap-2 ${
-              saveStatus === 'saving'
-                ? 'bg-slate-700 text-slate-200'
-                : saveStatus === 'saved'
-                ? 'bg-green-600 text-white'
-                : 'bg-red-600 text-white'
-            }`}
-          >
-            {saveStatus === 'saving' && 'Enregistrement...'}
-            {saveStatus === 'saved' && '✓ Enregistré'}
-            {saveStatus === 'error' && (
-              <span>
-                ⚠ {saveErrorMessage ? `Échec : ${saveErrorMessage}` : 'Échec de l\'enregistrement — vérifie ta connexion'}
-              </span>
-            )}
-          </div>
-        )}
         <AdminPanel
           isOpen={true}
           isFullPage={true}
@@ -937,6 +977,9 @@ export default function App() {
           activeAlerts={activeAlerts}
           onAddAlert={handleAddAlert}
           onRemoveAlert={handleRemoveAlert}
+          saveStatus={saveStatus}
+          saveErrorMessage={saveErrorMessage}
+          onManualSave={handleManualSave}
           onSwitchToTvMode={() => {
             setViewMode('tv');
             handleToggleFullscreen();
