@@ -211,6 +211,16 @@ app.post("/api/upload-multiple", upload.array("files", 30), (req, res) => {
   }
 });
 
+// 1c2. Serve media endpoint in dev
+app.get(["/api/media/:filename", "/uploads/:filename"], (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const target = path.join(DATA_DIR, "uploads", filename);
+  if (fs.existsSync(target)) {
+    return res.sendFile(target);
+  }
+  return res.status(404).send("Média non trouvé");
+});
+
 // 1d. Persistent App Data Storage (Server-side JSON file)
 const APP_DATA_FILE = path.join(DATA_DIR, "saved-app-data.json");
 

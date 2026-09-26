@@ -16,6 +16,10 @@ export default {
       if (path === '/api/get-app-data') return await getAppData(env);
       if (path === '/api/save-app-data') return await saveAppData(request, env);
       if (path === '/api/verify-password') return await verifyPassword(request, env);
+      if (path === '/api/upload') return await uploadFile(request, env);
+      if (path === '/api/upload-multiple') return await uploadMultiple(request, env);
+      if (path.startsWith('/api/media/')) return await serveMedia(path.replace('/api/media/', ''), env);
+      if (path.startsWith('/uploads/')) return await serveMedia(path.replace('/uploads/', ''), env);
       if (path === '/api/get-alerts') return await getAlerts(env);
       if (path === '/api/add-alert') return await addAlert(request, env);
       if (path === '/api/delete-alert') return await deleteAlert(request, env);
@@ -76,6 +80,125 @@ async function verifyPassword(_request: Request, _env: Env): Promise<Response> {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// ============================================================
+// GESTION DU STOCKAGE MULTIMÉDIA (PHOTOS, LOGOS HD, CLIPS)
+// ============================================================
+
+function getMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'webp': return 'image/webp';
+    case 'svg': return 'image/svg+xml';
+    case 'gif': return 'image/gif';
+    case 'mp4': return 'video/mp4';
+    case 'webm': return 'video/webm';
+    case 'mov': return 'video/quicktime';
+    case 'pdf': return 'application/pdf';
+    default: return 'application/octet-stream';
+  }
+}
+
+async function serveMedia(filename: string, env: Env): Promise<Response> {
+  const cleanKey = 'media:' + decodeURIComponent(filename);
+  const data = await env.AFFICHAGE_KV.get(cleanKey, { type: 'arrayBuffer' });
+  if (!data) {
+    return new Response('Média non trouvé', { status: 404 });
+  }
+  const mime = getMimeType(filename);
+  return new Response(data, {
+    status: 200,
+    headers: {
+      'Content-Type': mime,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+async function uploadFile(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    if (!file) {
+      return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+    const arrayBuffer = await file.arrayBuffer();
+    await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
+    return new Response(
+      JSON.stringify({
+        success: true,
+        url: `/api/media/${filename}`,
+        fileName: file.name,
+        mediaType: isVideo ? 'video' : 'image',
+        size: arrayBuffer.byteLength,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message || 'Erreur lors du téléversement' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+async function uploadMultiple(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
+  try {
+    const formData = await request.formData();
+    const files = formData.getAll('files') as File[];
+    if (!files || files.length === 0) {
+      return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const uploaded = [];
+    for (const file of files) {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
+      const arrayBuffer = await file.arrayBuffer();
+      await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
+      uploaded.push({
+        url: `/api/media/${filename}`,
+        fileName: file.name,
+        mediaType: isVideo ? 'video' : 'image',
+        size: arrayBuffer.byteLength,
+      });
+    }
+    return new Response(
+      JSON.stringify({
+        success: true,
+        files: uploaded,
+        count: uploaded.length,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message || 'Erreur upload multiple' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
 
 // ============================================================
