@@ -15,5 +15,11 @@
       "binding": "AFFICHAGE_KV",
       "id": "c35c137f47ec4c7183db32c6d76e3fd8"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AFFICHAGE_R2",
+      "bucket_name": "srcbasket-media"
+    }
   ]
 }

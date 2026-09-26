@@ -974,35 +974,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     );
     if (fileArray.length === 0) return [];
 
-    // 1. Try batch upload API
-    try {
-      const formData = new FormData();
-      fileArray.forEach((f) => formData.append('files', f));
-
-      const res = await fetch('/api/upload-multiple', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.files) && data.files.length > 0) {
-          return data.files.map((df: any) => ({
-            url: df.url,
-            isVideo: df.mediaType === 'video' || /\.(mp4|webm|mov|m4v)$/i.test(df.fileName),
-            fileName: df.fileName,
-          }));
-        }
-      }
-    } catch (err) {
-      console.warn('Upload multiple via API indisponible, bascule par fichier:', err);
-    }
-
-    // 2. Fallback: upload one by one
+    // Téléversement individuel fichier par fichier (idéal pour le streaming R2 sans saturation de payload)
     const results: Array<{ url: string; isVideo: boolean; fileName: string }> = [];
     for (const f of fileArray) {
-      const single = await uploadSingleFile(f);
-      results.push(single);
+      try {
+        const single = await uploadSingleFile(f);
+        results.push(single);
+      } catch (err) {
+        console.warn('Erreur téléversement fichier:', f.name, err);
+      }
     }
     return results;
   };

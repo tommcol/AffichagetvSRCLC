@@ -2,8 +2,9 @@ import { GoogleGenAI } from '@google/genai';
 
 interface Env {
   AFFICHAGE_KV: KVNamespace;
-  ADMIN_PASSWORD: string;
-  GEMINI_API_KEY: string;
+  AFFICHAGE_R2?: R2Bucket;
+  ADMIN_PASSWORD?: string;
+  GEMINI_API_KEY?: string;
   ASSETS: { fetch: typeof fetch };
 }
 
@@ -104,12 +105,34 @@ function getMimeType(filename: string): string {
 }
 
 async function serveMedia(filename: string, env: Env): Promise<Response> {
-  const cleanKey = 'media:' + decodeURIComponent(filename);
+  const decoded = decodeURIComponent(filename);
+  const mime = getMimeType(decoded);
+
+  // 1. Priorité à Cloudflare R2 (Streaming vidéo & stockage fichiers volumineux)
+  if (env.AFFICHAGE_R2) {
+    try {
+      const object = await env.AFFICHAGE_R2.get(decoded);
+      if (object) {
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        headers.set('Content-Type', mime);
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        headers.set('Access-Control-Allow-Origin', '*');
+        return new Response(object.body, { headers });
+      }
+    } catch (e) {
+      console.warn('Erreur lecture R2, essai KV:', e);
+    }
+  }
+
+  // 2. Repli automatique sur Cloudflare KV
+  const cleanKey = 'media:' + decoded;
   const data = await env.AFFICHAGE_KV.get(cleanKey, { type: 'arrayBuffer' });
   if (!data) {
     return new Response('Média non trouvé', { status: 404 });
   }
-  const mime = getMimeType(filename);
+
   return new Response(data, {
     status: 200,
     headers: {
@@ -133,16 +156,27 @@ async function uploadFile(request: Request, env: Env): Promise<Response> {
     }
     const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
-    const arrayBuffer = await file.arrayBuffer();
-    await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
     const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
+    const mime = file.type || getMimeType(filename);
+
+    // Si Cloudflare R2 est activé, on stream directement dedans sans limite de 25 Mo
+    if (env.AFFICHAGE_R2) {
+      await env.AFFICHAGE_R2.put(filename, file.stream(), {
+        httpMetadata: { contentType: mime },
+      });
+    } else {
+      // Repli KV
+      const arrayBuffer = await file.arrayBuffer();
+      await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         url: `/api/media/${filename}`,
         fileName: file.name,
         mediaType: isVideo ? 'video' : 'image',
-        size: arrayBuffer.byteLength,
+        size: file.size,
       }),
       {
         status: 200,
@@ -172,14 +206,23 @@ async function uploadMultiple(request: Request, env: Env): Promise<Response> {
     for (const file of files) {
       const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}-${cleanName}`;
-      const arrayBuffer = await file.arrayBuffer();
-      await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
       const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(filename);
+      const mime = file.type || getMimeType(filename);
+
+      if (env.AFFICHAGE_R2) {
+        await env.AFFICHAGE_R2.put(filename, file.stream(), {
+          httpMetadata: { contentType: mime },
+        });
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        await env.AFFICHAGE_KV.put('media:' + filename, arrayBuffer);
+      }
+
       uploaded.push({
         url: `/api/media/${filename}`,
         fileName: file.name,
         mediaType: isVideo ? 'video' : 'image',
-        size: arrayBuffer.byteLength,
+        size: file.size,
       });
     }
     return new Response(
