@@ -79,7 +79,14 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
 
   // Case A: Active Victory / Defeat Alert Slide
   if (slide.type === 'alert' && slide.alert) {
-    return <MatchAlertSlide alert={slide.alert} teamVisual={matchingTeamVisual} visualTemplates={visualTemplates} />;
+    return (
+      <MatchAlertSlide
+        alert={slide.alert}
+        teamVisual={matchingTeamVisual}
+        visualTemplates={visualTemplates}
+        clubSettings={clubSettings}
+      />
+    );
   }
 
   // Case B: Category Visuals

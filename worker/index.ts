@@ -903,10 +903,12 @@ async function ffbbMatches(request: Request): Promise<Response> {
         pouleId: m.pouleId || undefined,
       };
 
-      if (hasPouleScore) {
+      // Le match reste dans le planning des matchs
+      mappedMatches.push(matchItem);
+
+      // S'il a un score ou est terminé, il s'ajoute aussi aux résultats
+      if (hasPouleScore || isPast && (homeScore !== undefined || matchResult)) {
         resultsList.push(matchItem);
-      } else {
-        mappedMatches.push(matchItem);
       }
     }
 

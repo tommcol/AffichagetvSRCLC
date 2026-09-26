@@ -1,8 +1,8 @@
 import React from 'react';
-import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane, Clock } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
-import { isMatchWin, isClubHomeMatch } from '../../utils/matchStatus';
+import { isMatchWin, isClubHomeMatch, getMatchOutcome } from '../../utils/matchStatus';
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
@@ -64,8 +64,8 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
     return null;
   };
 
-  const totalWins = sortedResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
-  const totalLosses = sortedResults.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
+  const totalWins = sortedResults.filter((r) => getMatchOutcome(r, clubSettings.name, clubSettings.shortName) === 'win').length;
+  const totalLosses = sortedResults.filter((r) => getMatchOutcome(r, clubSettings.name, clubSettings.shortName) === 'loss').length;
   const hasVictory = totalWins > 0;
 
   // Video priority and synchronization determination
@@ -230,7 +230,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
     const rightResults = sortedResults.length <= 2 ? [] : sortedResults.slice(half);
 
     const renderPosterResultItem = (r: MatchItem) => {
-      const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+      const outcome = getMatchOutcome(r, clubSettings.name, clubSettings.shortName);
+      const isWin = outcome === 'win';
+      const isLoss = outcome === 'loss';
       const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
       const dateObj = formatMatchDayAndDate(r.date);
       const dayDisplay = dateObj?.display || dateObj?.dayName || '';
@@ -279,18 +281,26 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
               <span className="truncate block w-full text-center">{teamLeft}</span>
             </div>
 
-            {/* Bloc Central : VICTOIRE / DÉFAITE ET / OU SCORE SELON RESULTDISPLAYMODE */}
+            {/* Bloc Central : VICTOIRE / DÉFAITE / MATCH FINI ET / OU SCORE SELON RESULTDISPLAYMODE */}
             <div className="flex flex-col items-center shrink-0">
               {resultDisplayMode !== 'score' && (
                 <span
                   className={`text-[10px] md:text-xs font-black uppercase tracking-wider px-2 md:px-3 py-0.5 rounded-full mb-1 shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
                     isWin
                       ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
-                      : 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
+                      : isLoss
+                      ? 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
+                      : 'bg-slate-700 text-slate-200 border border-slate-600 shadow-slate-900/30'
                   }`}
                 >
-                  {isWin ? <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" /> : <XCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />}
-                  <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                  {isWin ? (
+                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  ) : isLoss ? (
+                    <XCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  ) : (
+                    <Clock className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
+                  )}
+                  <span>{isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI'}</span>
                 </span>
               )}
 
@@ -298,7 +308,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                 <div
                   className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
                 >
-                  {r.homeScore ?? '-'} &nbsp;-&nbsp; {r.awayScore ?? '-'}
+                  {r.homeScore !== undefined && r.awayScore !== undefined
+                    ? `${r.homeScore} - ${r.awayScore}`
+                    : 'FINI'}
                 </div>
               )}
             </div>
@@ -546,7 +558,10 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             className={`grid gap-6 my-4 md:my-6 flex-1 items-stretch overflow-y-auto pr-1 min-h-0 ${sizing.gridClass}`}
           >
             {sortedResults.map((r) => {
-              const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
+              const outcome = getMatchOutcome(r, clubSettings.name, clubSettings.shortName);
+              const isWin = outcome === 'win';
+              const isLoss = outcome === 'loss';
+              const isFinishedNoScore = outcome === 'finished_no_score';
               const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
               const clubShort = (clubSettings?.shortName || '').toLowerCase();
               const clubName = (clubSettings?.name || '').toLowerCase();
@@ -564,32 +579,38 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   className={`relative rounded-3xl ${sizing.cardPadding} border shadow-2xl transition-all flex flex-col justify-between overflow-hidden ${
                     isWin
                       ? 'border-emerald-500/60 shadow-emerald-950/40'
-                      : 'border-rose-500/60 shadow-rose-950/40'
+                      : isLoss
+                      ? 'border-rose-500/60 shadow-rose-950/40'
+                      : 'border-slate-700/80 shadow-slate-950/40'
                   }`}
                 >
-                  {/* Effet lumineux d'ambiance Victoire / Défaite */}
+                  {/* Effet lumineux d'ambiance Victoire / Défaite / Neutre */}
                   <div
                     className={`absolute -top-10 -right-10 w-44 h-44 rounded-full pointer-events-none blur-3xl opacity-25 ${
-                      isWin ? 'bg-emerald-400' : 'bg-rose-500'
+                      isWin ? 'bg-emerald-400' : isLoss ? 'bg-rose-500' : 'bg-slate-600'
                     }`}
                   />
 
-                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE (masqué en mode score seul) */}
+                  {/* Grand Bandeau Haut : VICTOIRE, DÉFAITE ou MATCH FINI */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-800/80 relative z-10">
                     {resultDisplayMode !== 'score' ? (
                       <div
                         className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
                           isWin
                             ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400/80 shadow-emerald-500/50'
-                            : 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white ring-2 ring-rose-400/80 shadow-rose-600/50'
+                            : isLoss
+                            ? 'bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white ring-2 ring-rose-400/80 shadow-rose-600/50'
+                            : 'bg-slate-800 text-slate-200 border border-slate-700 ring-1 ring-slate-600'
                         }`}
                       >
                         {isWin ? (
                           <Trophy className={`${sizing.outcomeIcon} animate-bounce shrink-0 text-amber-300 drop-shadow`} />
-                        ) : (
+                        ) : isLoss ? (
                           <XCircle className={`${sizing.outcomeIcon} shrink-0 text-white/90`} />
+                        ) : (
+                          <Clock className={`${sizing.outcomeIcon} shrink-0 text-slate-300`} />
                         )}
-                        <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                        <span>{isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI'}</span>
                       </div>
                     ) : (
                       <div />
@@ -609,7 +630,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                       className={`${sizing.categoryDisplay} ${getFontFamilyClass(headerFont)} font-black text-transparent bg-clip-text ${
                         isWin
                           ? 'bg-gradient-to-b from-white via-slate-100 to-emerald-200 drop-shadow-[0_2px_12px_rgba(52,211,153,0.3)]'
-                          : 'bg-gradient-to-b from-white via-slate-100 to-rose-200 drop-shadow-[0_2px_12px_rgba(244,63,94,0.3)]'
+                          : isLoss
+                          ? 'bg-gradient-to-b from-white via-slate-100 to-rose-200 drop-shadow-[0_2px_12px_rgba(244,63,94,0.3)]'
+                          : 'bg-gradient-to-b from-white via-slate-200 to-slate-400 drop-shadow-[0_2px_12px_rgba(148,163,184,0.3)]'
                       }`}
                     >
                       {r.category}
@@ -642,9 +665,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                             const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
                             const hasExplicitResult = r.result === 'win' || r.result === 'loss';
                             const isPending = !hasScore && !hasExplicitResult;
-                            const label = isPending ? 'EN ATTENTE' : (isWin ? 'VICTOIRE' : 'DÉFAITE');
-                            const bg = isPending ? '#78350f' : (badgeBgColor || (isWin ? '#065f46' : '#9f1239'));
-                            const textCol = isPending ? '#fde68a' : (badgeTextColor || '#ffffff');
+                            const label = isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI';
+                            const bg = isWin ? '#065f46' : isLoss ? '#9f1239' : '#334155';
+                            const textCol = '#ffffff';
                             return (
                               <span
                                 className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md shrink-0"
@@ -662,7 +685,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                             className="px-4 py-1.5 rounded-2xl text-base md:text-2xl font-mono font-black tracking-wider shadow-lg border border-slate-700/80 shrink-0"
                             style={{
                               backgroundColor: '#090d16',
-                              color: isWin ? '#34d399' : '#f43f5e',
+                              color: isWin ? '#34d399' : isLoss ? '#f43f5e' : '#e2e8f0',
                             }}
                           >
                             {r.homeScore} - {r.awayScore}

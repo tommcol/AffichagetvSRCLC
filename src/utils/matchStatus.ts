@@ -172,21 +172,65 @@ export function getMatchOurAndOpponentScores(
   return { ourScore, oppScore, isHome };
 }
 
+export type MatchOutcomeType = 'win' | 'loss' | 'finished_no_score' | 'upcoming' | 'live';
+
 /**
- * Détermine avec certitude si le match est une VICTOIRE ou une DÉFAITE pour notre club
- * (prend rigoureusement en compte si le match se joue à domicile ou à l'extérieur)
+ * Détermine le statut et résultat précis d'une rencontre SANS AUCUNE SUPPOSITION.
+ * Règle stricte : si aucun résultat ou score n'est fourni par la FFBB ou Telegram,
+ * on n'affiche JAMAIS "Victoire" ou "Défaite", mais "Match fini".
+ */
+export function getMatchOutcome(
+  match: MatchItem,
+  clubName?: string,
+  clubShortName?: string
+): MatchOutcomeType {
+  const { ourScore, oppScore } = getMatchOurAndOpponentScores(match, clubName, clubShortName);
+
+  // 1. Si les scores réels sont présents
+  if (ourScore !== undefined && oppScore !== undefined && !isNaN(ourScore) && !isNaN(oppScore)) {
+    if (ourScore > oppScore) return 'win';
+    if (ourScore < oppScore) return 'loss';
+    return 'win';
+  }
+
+  // 2. Si le résultat explicite a été saisi (ex: via Telegram ou formulaire direct)
+  if (match.result === 'win') return 'win';
+  if (match.result === 'loss') return 'loss';
+
+  // 3. Si le match est passé ou marqué comme terminé SANS score ni résultat connu
+  if (match.status === 'finished' || isMatchFinished(match)) {
+    return 'finished_no_score';
+  }
+
+  if (match.status === 'live' || isMatchLive(match)) {
+    return 'live';
+  }
+
+  return 'upcoming';
+}
+
+/**
+ * Détermine avec certitude si le match est une VICTOIRE certifiée pour notre club.
+ * Retourne false si le match est indéterminé ou sans score.
  */
 export function isMatchWin(
   match: MatchItem,
   clubName?: string,
   clubShortName?: string
 ): boolean {
-  const { ourScore, oppScore } = getMatchOurAndOpponentScores(match, clubName, clubShortName);
-  if (ourScore !== undefined && oppScore !== undefined) {
-    return ourScore > oppScore;
-  }
-  if (match.result === 'win') return true;
-  if (match.result === 'loss') return false;
-  return false;
+  return getMatchOutcome(match, clubName, clubShortName) === 'win';
 }
+
+/**
+ * Détermine avec certitude si le match est une DÉFAITE certifiée pour notre club.
+ * Retourne false si le match est indéterminé ou sans score.
+ */
+export function isMatchLoss(
+  match: MatchItem,
+  clubName?: string,
+  clubShortName?: string
+): boolean {
+  return getMatchOutcome(match, clubName, clubShortName) === 'loss';
+}
+
 

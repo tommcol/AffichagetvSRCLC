@@ -1094,10 +1094,12 @@ async function fetchOfficialClubData(clubCode: string) {
       pouleId: m.pouleId || undefined,
     };
 
-    if (hasPouleScore) {
+    // Le match reste dans le planning des matchs de la saison
+    mappedMatches.push(matchItem);
+
+    // S'il a un score ou est terminé, il s'ajoute aussi aux résultats
+    if (hasPouleScore || isPast && (homeScore !== undefined || matchResult)) {
       resultsList.push(matchItem);
-    } else {
-      mappedMatches.push(matchItem);
     }
   }
 

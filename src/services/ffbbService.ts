@@ -283,10 +283,12 @@ async function fetchClubDataDirect(rawClubCode?: string): Promise<{
         pouleId: m.pouleId || undefined,
       };
 
-      if (hasPouleScore) {
+      // Le match fait toujours partie du planning des rencontres de la saison
+      mappedMatches.push(matchItem);
+
+      // Si le match a un score officiel ou est joué, il s'ajoute également aux résultats
+      if (hasPouleScore || isPast && (homeScore !== undefined || matchResult)) {
         resultsList.push(matchItem);
-      } else {
-        mappedMatches.push(matchItem);
       }
     }
 
@@ -298,9 +300,6 @@ async function fetchClubDataDirect(rawClubCode?: string): Promise<{
       return timeA.localeCompare(timeB);
     });
     resultsList.sort((a, b) => b.date.localeCompare(a.date));
-
-    const upcomingMatches = mappedMatches.filter(m => m.status === 'upcoming');
-    const pastResults = resultsList;
 
     const distinctCategories = Array.from(new Set(mappedMatches.map(m => m.category))).filter(Boolean);
     const teamsList: FFBBTeamItem[] = distinctCategories.map((cat, idx) => {
@@ -333,11 +332,11 @@ async function fetchClubDataDirect(rawClubCode?: string): Promise<{
     };
 
     return {
-      matches: upcomingMatches,
-      results: pastResults,
+      matches: mappedMatches,
+      results: resultsList,
       clubInfo,
       source: 'ffbb_api_desimone',
-      message: `API FFBB Officielle : ${upcomingMatches.length} rencontres à venir pour ${clubNom}.`,
+      message: `API FFBB Officielle : ${mappedMatches.length} rencontres pour ${clubNom}.`,
     };
   } catch (e) {
     console.warn('Erreur appel direct ffbb.desimone.fr:', e);

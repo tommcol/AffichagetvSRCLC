@@ -215,12 +215,23 @@ export interface VisualTemplatesConfig {
   commonVictoryVisuals?: string[];
   commonDefeatVisuals?: string[];
   // Montage & Positionnement du texte sur le visuel d'alerte (Victoire / Défaite)
+  alertLayoutStyle?: 'poster' | 'card' | 'banner' | 'badge' | 'minimal'; // Style de disposition graphique
   alertTextX?: number; // 0 à 100% horizontal (défaut 50 = centré)
-  alertTextY?: number; // 0 à 100% vertical (défaut 55)
+  alertTextY?: number; // 0 à 100% vertical (défaut 50)
   alertTextColor?: string; // couleur du texte (défaut #ffffff)
-  alertTextFont?: FontFamilyOption; // police (défaut 'Bebas Neue')
+  alertTextFont?: FontFamilyOption; // police du titre (défaut 'Bebas Neue')
+  alertTeamFont?: FontFamilyOption; // police de l'équipe/catégorie (défaut 'Montserrat')
+  alertScoreFont?: FontFamilyOption; // police des scores (défaut 'Teko')
   alertTextScale?: number; // échelle de taille du bloc (défaut 1.0)
   alertTextBgOpacity?: number; // opacité du fond translucide derrière le texte (0 à 1, défaut 0.6)
+  alertWinColor?: string; // couleur d'accent pour la victoire (défaut #10b981)
+  alertLossColor?: string; // couleur d'accent pour la défaite (défaut #ef4444)
+  alertShowIcon?: boolean; // afficher l'icône coupe / défaite (défaut true)
+  alertShowScore?: boolean; // afficher le score si disponible (défaut true)
+  alertShowSubtitle?: boolean; // afficher le message de félicitations/encouragements (défaut true)
+  alertGlowEffect?: boolean; // effet néon / lueur sportive (défaut true)
+  alertCustomWinTitle?: string; // titre personnalisé victoire (défaut "VICTOIRE !")
+  alertCustomLossTitle?: string; // titre personnalisé défaite (défaut "DÉFAITE")
 }
 
 // Pre-made Win / Loss visuals per team in the club

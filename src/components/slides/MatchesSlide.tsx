@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2, Flame } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
-import { isMatchLive, isMatchFinished, isMatchWin } from '../../utils/matchStatus';
+import { isMatchLive, isMatchFinished, isMatchWin, getMatchOutcome } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
@@ -274,7 +274,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       const isHome = Boolean(m.isHomeMatch);
       const isLive = isMatchLive(m, currentTime);
       const isFinished = isMatchFinished(m, currentTime);
-      const isWin = isMatchWin(m, clubSettings?.name, clubSettings?.shortName);
+      const outcome = getMatchOutcome(m, clubSettings?.name, clubSettings?.shortName);
       const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
 
       const dateObj = formatMatchDayAndDate(m.date);
@@ -294,7 +294,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 {m.category}
               </span>
 
-              {/* BADGE EN COURS */}
+              {/* BADGE EN COURS OU STATUT */}
               {isLive ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider animate-pulse shadow-lg shadow-red-600/50 border border-red-400 ring-2 ring-red-400/30 shrink-0">
                   <span className="w-2 h-2 rounded-full bg-white animate-ping" />
@@ -303,10 +303,20 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 </span>
               ) : isFinished ? (
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider shrink-0 ${
-                  isWin ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white'
+                  outcome === 'win'
+                    ? 'bg-emerald-600/90 text-white'
+                    : outcome === 'loss'
+                    ? 'bg-rose-600/90 text-white'
+                    : 'bg-slate-700/90 text-slate-200'
                 }`}>
-                  {isWin ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                  <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                  {outcome === 'win' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : outcome === 'loss' ? (
+                    <XCircle className="w-3.5 h-3.5" />
+                  ) : (
+                    <Clock className="w-3.5 h-3.5 text-slate-300" />
+                  )}
+                  <span>{outcome === 'win' ? 'VICTOIRE' : outcome === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}</span>
                 </span>
               ) : null}
 
@@ -775,8 +785,14 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                                   <span>{m.homeScore} - {m.awayScore}</span>
                                 </div>
                               ) : (
-                                <div className={`${homeSizing.statusBadge} ${isWin ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                                  {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                                <div className={`${homeSizing.statusBadge} ${
+                                  m.result === 'win'
+                                    ? 'bg-emerald-600 text-white'
+                                    : m.result === 'loss'
+                                    ? 'bg-rose-600 text-white'
+                                    : 'bg-slate-700 text-slate-200'
+                                }`}>
+                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}
                                 </div>
                               )
                             ) : (
@@ -927,8 +943,14 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                                   <span>{m.homeScore} - {m.awayScore}</span>
                                 </div>
                               ) : (
-                                <div className={`${awaySizing.statusBadge} ${isWin ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                                  {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                                <div className={`${awaySizing.statusBadge} ${
+                                  m.result === 'win'
+                                    ? 'bg-emerald-600 text-white'
+                                    : m.result === 'loss'
+                                    ? 'bg-rose-600 text-white'
+                                    : 'bg-slate-700 text-slate-200'
+                                }`}>
+                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}
                                 </div>
                               )
                             ) : (

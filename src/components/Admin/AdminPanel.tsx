@@ -48,6 +48,8 @@ import {
   Search,
   Save,
   Loader2,
+  Type,
+  Zap,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -65,6 +67,7 @@ import {
   VisualTemplatesConfig,
   FFBBTeamItem,
 } from '../../types';
+import { MatchAlertSlide } from '../slides/MatchAlertSlide';
 import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { compressImageFile } from '../../utils/imageCompressor';
@@ -319,6 +322,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [matchesSubTab, setMatchesSubTab] = useState<'list' | 'calques'>('list');
   const [resultsSubTab, setResultsSubTab] = useState<'list' | 'calques'>('list');
   const [birthdaysSubTab, setBirthdaysSubTab] = useState<'list' | 'calques'>('list');
+
+  // État de simulation et d'aperçu d'alerte Victoire / Défaite
+  const [alertPreviewType, setAlertPreviewType] = useState<'win' | 'loss'>('loss');
+  const [alertPreviewTeam, setAlertPreviewTeam] = useState<string>('U11 Filles');
 
 
 
@@ -5498,15 +5505,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 {/* ATELIER DE MONTAGE : POSITIONNEMENT DU TEXTE PAR RAPPORT À LA PHOTO OU VIDÉO */}
-                <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl space-y-4">
+                <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
                     <div>
                       <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
                         <Sliders className="w-4 h-4" />
-                        <span>Montage & Emplacement du texte sur l'image / vidéo</span>
+                        <span>Style Visuel, Typographie & Montage (Victoire & Défaite)</span>
                       </h4>
                       <p className="text-[11px] text-slate-400">
-                        Positionnez librement le bloc de texte (Victoire / Défaite et Nom de l'équipe) par rapport à votre fond visuel.
+                        Personnalisez le style d'écriture de « DÉFAITE » et « VICTOIRE », la police de la catégorie d'équipe (ex: U11F) et la disposition.
                       </p>
                     </div>
 
@@ -5515,30 +5522,259 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       onClick={() =>
                         onUpdateVisualTemplates({
                           ...visualTemplates,
+                          alertLayoutStyle: 'poster',
                           alertTextX: 50,
                           alertTextY: 50,
                           alertTextScale: 1.0,
                           alertTextColor: '#ffffff',
                           alertTextFont: 'Bebas Neue',
+                          alertTeamFont: 'Montserrat',
+                          alertScoreFont: 'Teko',
                           alertTextBgOpacity: 0.65,
+                          alertWinColor: '#10b981',
+                          alertLossColor: '#ef4444',
+                          alertShowIcon: true,
+                          alertShowScore: true,
+                          alertShowSubtitle: true,
+                          alertGlowEffect: true,
                         })
                       }
                       className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3 h-3 text-orange-400" />
-                      <span>Réinitialiser au centre</span>
+                      <span>Réinitialiser aux réglages sportifs optimaux</span>
                     </button>
                   </div>
 
-                  {/* Contrôles du montage (Curseurs X, Y, Échelle, Police, Couleur) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* 1. SÉLECTION DU STYLE DE DISPOSITION (LAYOUT PRESET) */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-orange-400" />
+                      <span>Style de disposition graphique de l'alerte</span>
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                      {[
+                        { id: 'poster', label: '🏀 Affiche Pro (Recommandé)', desc: 'Titre géant, badge athlétique, score dynamique' },
+                        { id: 'banner', label: '⚡ Bandeau Athlétique', desc: 'Ligne horizontale split score & équipe' },
+                        { id: 'card', label: '🎴 Carte Glassmorphism', desc: 'Encadré translucide givré centré' },
+                        { id: 'badge', label: '🛡️ Badge & Écusson', desc: 'Format compact style blason de club' },
+                        { id: 'minimal', label: '📌 Bannière Basse', desc: 'Bandeau inférieur dégageant toute la photo' },
+                      ].map((style) => (
+                        <button
+                          key={style.id}
+                          type="button"
+                          onClick={() =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertLayoutStyle: style.id as any,
+                            })
+                          }
+                          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            (visualTemplates.alertLayoutStyle || 'poster') === style.id
+                              ? 'bg-orange-600/20 border-orange-500 text-white ring-2 ring-orange-500/50 shadow-lg'
+                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <span className="text-xs font-black block text-white">{style.label}</span>
+                          <span className="text-[10px] text-slate-400 mt-1 leading-tight">{style.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. TYPOGRAPHIES DÉDIÉES (TITRE, ÉQUIPE, SCORE) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                    {/* Police Titre Victoire / Défaite */}
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                          <Type className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Police TITRE (Victoire / Défaite)</span>
+                        </label>
+                      </div>
+                      <select
+                        value={visualTemplates.alertTextFont || 'Bebas Neue'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextFont: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                      >
+                        {AVAILABLE_FONTS.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} ({f.category})
+                          </option>
+                        ))}
+                      </select>
+                      <div className={`text-xl font-black uppercase text-amber-400 tracking-wider text-center py-1 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}>
+                        DÉFAITE • VICTOIRE
+                      </div>
+                    </div>
+
+                    {/* Police Catégorie d'équipe (ex: U11F) */}
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Police ÉQUIPE (ex: U11F, Seniors)</span>
+                        </label>
+                      </div>
+                      <select
+                        value={visualTemplates.alertTeamFont || 'Montserrat'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTeamFont: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                      >
+                        {AVAILABLE_FONTS.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} ({f.category})
+                          </option>
+                        ))}
+                      </select>
+                      <div className={`text-lg font-black uppercase text-emerald-400 tracking-wider text-center py-1 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertTeamFont || 'Montserrat')}`}>
+                        U11 FILLES (U11F)
+                      </div>
+                    </div>
+
+                    {/* Police Score (Chiffres) */}
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Police SCORE (Chiffres)</span>
+                        </label>
+                      </div>
+                      <select
+                        value={visualTemplates.alertScoreFont || 'Teko'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertScoreFont: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
+                      >
+                        {AVAILABLE_FONTS.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} ({f.category})
+                          </option>
+                        ))}
+                      </select>
+                      <div className={`text-2xl font-black text-amber-300 tracking-widest text-center py-0.5 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertScoreFont || 'Teko')}`}>
+                        42 : 58
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. COULEURS & PERSONNALISATION DE L'ÉCRITURE */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Couleur Défaite */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">Accent Défaite</span>
+                        <span className="text-[10px] text-red-400">Couleur titre & badge défaite</span>
+                      </div>
+                      <input
+                        type="color"
+                        value={visualTemplates.alertLossColor || '#ef4444'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertLossColor: e.target.value,
+                          })
+                        }
+                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+
+                    {/* Couleur Victoire */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">Accent Victoire</span>
+                        <span className="text-[10px] text-emerald-400">Couleur titre & badge victoire</span>
+                      </div>
+                      <input
+                        type="color"
+                        value={visualTemplates.alertWinColor || '#10b981'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertWinColor: e.target.value,
+                          })
+                        }
+                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+
+                    {/* Couleur du texte principal */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">Couleur Texte</span>
+                        <span className="text-[10px] text-slate-400">Lettres du titre</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={visualTemplates.alertTextColor || '#ffffff'}
+                          onChange={(e) =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertTextColor: e.target.value,
+                            })
+                          }
+                          className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertTextColor: '#ffffff',
+                            })
+                          }
+                          className="px-2 py-1 rounded bg-slate-800 text-[10px] text-white font-bold"
+                        >
+                          Blanc
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Effet Néon / Glow */}
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">Effet Glow / Lueur</span>
+                        <span className="text-[10px] text-slate-400">Ombre portée 3D sportive</span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={visualTemplates.alertGlowEffect ?? true}
+                          onChange={(e) =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertGlowEffect: e.target.checked,
+                            })
+                          }
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-600" />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 4. CURSEURS DE POSITIONNEMENT & ÉCHELLE */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Position Horizontale X */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Position Horizontale (Axe X)</span>
-                        <span className="font-mono text-orange-400">
-                          {visualTemplates.alertTextX ?? 50}%
-                        </span>
+                        <span className="font-mono text-orange-400">{visualTemplates.alertTextX ?? 50}%</span>
                       </div>
                       <input
                         type="range"
@@ -5564,10 +5800,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     {/* Position Verticale Y */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                        <span>Position Verticale (Axe Y / Hauteur)</span>
-                        <span className="font-mono text-orange-400">
-                          {visualTemplates.alertTextY ?? 50}%
-                        </span>
+                        <span>Position Verticale (Axe Y)</span>
+                        <span className="font-mono text-orange-400">{visualTemplates.alertTextY ?? 50}%</span>
                       </div>
                       <input
                         type="range"
@@ -5619,67 +5853,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
 
-                    {/* Police de caractères */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                      <label className="text-xs font-bold text-slate-300 block">
-                        Police du texte d'alerte
-                      </label>
-                      <select
-                        value={visualTemplates.alertTextFont || 'Bebas Neue'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextFont: e.target.value as any,
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
-                      >
-                        {AVAILABLE_FONTS.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name} ({f.category})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Couleur du texte */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-slate-200 block">
-                          Couleur du texte
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          Titre Victoire/Défaite
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={visualTemplates.alertTextColor || '#ffffff'}
-                          onChange={(e) =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertTextColor: e.target.value,
-                            })
-                          }
-                          className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertTextColor: '#ffffff',
-                            })
-                          }
-                          className="px-2 py-1 rounded bg-slate-800 text-[10px] text-white font-bold"
-                        >
-                          Blanc
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Opacité du fond noir translucide */}
+                    {/* Opacité du fond noir protecteur */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Opacité du fond protecteur</span>
@@ -5709,76 +5883,81 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </div>
                   </div>
 
-                  {/* Aperçu en direct du montage 16:9 */}
-                  <div className="pt-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5 text-orange-400" />
-                        <span>Aperçu en direct du montage (Simulation 16:9) :</span>
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        Taille et positionnement tels qu'ils apparaîtront sur les TV
-                      </span>
-                    </div>
+                  {/* 5. APERÇU INTERACTIF EN DIRECT DU MONTAGE 16:9 */}
+                  <div className="pt-2 border-t border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-orange-400" />
+                        <span className="text-xs font-black text-white uppercase tracking-wider">
+                          Aperçu en direct (Simulation TV 16:9)
+                        </span>
+                      </div>
 
-                    <div className="relative w-full aspect-video max-w-2xl mx-auto rounded-2xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-slate-950 flex items-center justify-center select-none">
-                      {/* Image d'arrière-plan de l'aperçu */}
-                      {(() => {
-                        const previewBg =
-                          (visualTemplates.commonVictoryVisuals && visualTemplates.commonVictoryVisuals[0]) ||
-                          visualTemplates.defaultVictoryBackgroundUrl;
-                        return previewBg ? (
-                          isVideoMedia(previewBg) ? (
-                            <video
-                              src={previewBg}
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                              className="w-full h-full object-cover brightness-[0.85]"
-                            />
-                          ) : (
-                            <img
-                              src={previewBg}
-                              alt=""
-                              className="w-full h-full object-cover brightness-[0.85]"
-                            />
-                          )
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-emerald-950 via-slate-950 to-slate-900" />
-                        );
-                      })()}
-
-                      {/* Bloc de texte simulé positionné */}
-                      <div
-                        className="absolute z-10 flex flex-col items-center text-center transition-all duration-150"
-                        style={{
-                          left: `${visualTemplates.alertTextX ?? 50}%`,
-                          top: `${visualTemplates.alertTextY ?? 50}%`,
-                          transform: `translate(-50%, -50%) scale(${(visualTemplates.alertTextScale ?? 1.0) * 0.75})`,
-                        }}
-                      >
-                        <div
-                          className="p-4 rounded-2xl border border-white/20 shadow-xl backdrop-blur-sm flex flex-col items-center"
-                          style={{
-                            backgroundColor: `rgba(0, 0, 0, ${visualTemplates.alertTextBgOpacity ?? 0.65})`,
-                          }}
-                        >
-                          <Trophy className="w-8 h-8 text-amber-300 animate-bounce mb-1" />
-                          <h2
-                            className={`text-2xl font-black uppercase tracking-wider ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}
-                            style={{ color: visualTemplates.alertTextColor || '#ffffff' }}
+                      {/* Sélecteur de test Défaite / Victoire et Équipe */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setAlertPreviewType('loss')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              alertPreviewType === 'loss'
+                                ? 'bg-red-600 text-white shadow'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
                           >
-                            VICTOIRE !
-                          </h2>
-                          <div className="mt-1 px-4 py-1 rounded-xl bg-white/10 border border-white/20 text-xs font-black text-emerald-400 uppercase font-bebas">
-                            Seniors Garçons 1
-                          </div>
-                          <span className="mt-1 text-[11px] text-amber-300 font-mono font-bold">
-                            84 - 76
-                          </span>
+                            <Frown className="w-3.5 h-3.5" />
+                            <span>Tester DÉFAITE</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAlertPreviewType('win')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                              alertPreviewType === 'win'
+                                ? 'bg-emerald-600 text-white shadow'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Trophy className="w-3.5 h-3.5" />
+                            <span>Tester VICTOIRE</span>
+                          </button>
+                        </div>
+
+                        {/* Choix de l'équipe de test */}
+                        <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800 text-xs">
+                          <span className="text-slate-400">Équipe :</span>
+                          <select
+                            value={alertPreviewTeam}
+                            onChange={(e) => setAlertPreviewTeam(e.target.value)}
+                            className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
+                          >
+                            <option value="U11 Filles" className="bg-slate-900">U11 Filles (U11F)</option>
+                            <option value="U13 Garçons" className="bg-slate-900">U13 Garçons (U13M)</option>
+                            <option value="U15 Filles" className="bg-slate-900">U15 Filles</option>
+                            <option value="U18 Garçons" className="bg-slate-900">U18 Garçons</option>
+                            <option value="Seniors Garçons 1" className="bg-slate-900">Seniors Garçons 1</option>
+                            <option value="Seniors Filles 1" className="bg-slate-900">Seniors Filles 1</option>
+                          </select>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Cadre de rendu 16:9 réel */}
+                    <div className="relative w-full aspect-video max-w-3xl mx-auto rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-slate-950 select-none">
+                      <MatchAlertSlide
+                        alert={{
+                          id: 'preview-alert',
+                          team: alertPreviewTeam,
+                          isWin: alertPreviewType === 'win',
+                          ourScore: alertPreviewType === 'win' ? 68 : 42,
+                          opponentScore: alertPreviewType === 'win' ? 54 : 58,
+                          opponent: 'CHARNAY BASKET',
+                          triggeredBy: 'manual',
+                          timestamp: Date.now(),
+                          expiresAt: Date.now() + 3600000,
+                        }}
+                        visualTemplates={visualTemplates}
+                        clubSettings={clubSettings}
+                      />
                     </div>
                   </div>
                 </div>
