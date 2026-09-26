@@ -94,11 +94,26 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   const bodyFont = theme?.fontFamilyBody || 'Montserrat';
   const bgBrightness = theme?.backgroundBrightness ?? 0.35;
   const bgBlur = theme?.backgroundBlur ?? 0;
+  const titleAlign = theme?.headerTitleAlignment || 'left';
 
   const cardBackdropStyle = {
     backgroundColor: `${cardBg}${Math.round(cardOpacity * 255).toString(16).padStart(2, '0')}`,
     backdropFilter: `blur(${cardBlur}px)`,
     WebkitBackdropFilter: `blur(${cardBlur}px)`,
+  };
+
+  const getOpponentLogo = (m: MatchItem): string | null => {
+    if (m.opponentLogo) return m.opponentLogo;
+    const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
+    try {
+      const rawCache = localStorage.getItem('club_opponent_logos_cache');
+      if (rawCache) {
+        const cache = JSON.parse(rawCache);
+        if (cache && oppName && cache[oppName]) return cache[oppName];
+      }
+    } catch (e) {}
+    if (m.teamLogo && m.teamLogo !== clubSettings.logoUrl) return m.teamLogo;
+    return null;
   };
 
   // Only display matches that are checked/selected for the weekend (selectedForWeekend !== false)
@@ -380,7 +395,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
           
           {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
-          <div className="w-full flex flex-col items-center relative shrink-0">
+          <div className={`w-full flex flex-col relative shrink-0 ${
+            titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
+          }`}>
             
             {/* Boutons d'action haut droite (Passerelle Réseaux) */}
             {!hideShareButton && (
@@ -507,8 +524,10 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       {/* ========================================================================= */}
       <div className="relative z-10 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
         {/* Slide Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-2 md:pb-3">
-          <div className="flex items-center gap-3">
+        <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-800/80 pb-2 md:pb-3 ${
+          titleAlign === 'center' ? 'sm:justify-center text-center' : titleAlign === 'right' ? 'sm:justify-end text-right' : ''
+        }`}>
+          <div className={`flex items-center gap-3 ${titleAlign === 'center' ? 'w-full justify-center text-center' : titleAlign === 'right' ? 'w-full justify-end text-right' : ''}`}>
             <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
               {customHeaderTitle || theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'}
             </h2>
@@ -552,12 +571,19 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 my-2 md:my-3 flex-1 items-stretch min-h-0">
-            {/* DOMICILE COLUMN */}
-            <div
-              style={cardBackdropStyle}
-              className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
-            >
+          (() => {
+            const renderHomeCol = homeMatches.length > 0 && theme?.matchDisplayScope !== 'away';
+            const renderAwayCol = awayMatches.length > 0 && theme?.matchDisplayScope !== 'home';
+            const gridColsClass = renderHomeCol && renderAwayCol ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1';
+
+            return (
+              <div className={`grid ${gridColsClass} gap-4 lg:gap-6 my-2 md:my-3 flex-1 items-stretch min-h-0`}>
+                {/* DOMICILE COLUMN */}
+                {renderHomeCol && (
+                  <div
+                    style={cardBackdropStyle}
+                    className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
+                  >
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <div
@@ -623,18 +649,32 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
                             <div className={`flex items-center gap-2 flex-wrap ${homeSizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
-                              {isClubHome && clubSettings.logoUrl && (
-                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
-                              )}
+                              {/* Équipe Domicile */}
+                              {(() => {
+                                const logo = isClubHome ? clubSettings.logoUrl : getOpponentLogo(m);
+                                const logoClass = theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : '';
+                                return logo ? (
+                                  <img src={logo} alt="" className={`w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md ${logoClass}`} referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-slate-300 shrink-0">🏀</div>
+                                );
+                              })()}
                               <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={homeSizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
-                              {isClubAway && clubSettings.logoUrl && (
-                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
-                              )}
+                              {/* Équipe Extérieur */}
+                              {(() => {
+                                const logo = isClubAway ? clubSettings.logoUrl : getOpponentLogo(m);
+                                const logoClass = theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : '';
+                                return logo ? (
+                                  <img src={logo} alt="" className={`w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md ${logoClass}`} referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-slate-300 shrink-0">🏀</div>
+                                );
+                              })()}
                               <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>
@@ -698,12 +738,14 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 )}
               </div>
             </div>
+          )}
 
             {/* EXTÉRIEUR COLUMN */}
-            <div
-              style={cardBackdropStyle}
-              className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
-            >
+            {renderAwayCol && (
+              <div
+                style={cardBackdropStyle}
+                className="border border-slate-800/90 rounded-2xl p-3.5 md:p-4 lg:p-5 shadow-xl flex flex-col h-full min-h-0"
+              >
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 md:p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -759,18 +801,32 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                         <div className="flex items-center justify-between gap-4 my-auto">
                           <div className="flex-1 min-w-0">
                             <div className={`flex items-center gap-2 flex-wrap ${awaySizing.teamNames} ${getFontFamilyClass(headerFont)}`}>
-                              {isClubHome && clubSettings.logoUrl && (
-                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
-                              )}
+                              {/* Équipe Domicile */}
+                              {(() => {
+                                const logo = isClubHome ? clubSettings.logoUrl : getOpponentLogo(m);
+                                const logoClass = theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : '';
+                                return logo ? (
+                                  <img src={logo} alt="" className={`w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md ${logoClass}`} referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-slate-300 shrink-0">🏀</div>
+                                );
+                              })()}
                               <span style={{ color: isClubHome ? primaryColor : textColor }}>
                                 {m.teamHome}
                               </span>
                               <span className={awaySizing.vsBadge} style={{ color: primaryColor }}>
                                 VS
                               </span>
-                              {isClubAway && clubSettings.logoUrl && (
-                                <img src={clubSettings.logoUrl} alt="" className="w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md" referrerPolicy="no-referrer" />
-                              )}
+                              {/* Équipe Extérieur */}
+                              {(() => {
+                                const logo = isClubAway ? clubSettings.logoUrl : getOpponentLogo(m);
+                                const logoClass = theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : '';
+                                return logo ? (
+                                  <img src={logo} alt="" className={`w-7 h-7 md:w-9 md:h-9 object-contain inline-block shrink-0 drop-shadow-md ${logoClass}`} referrerPolicy="no-referrer" />
+                                ) : (
+                                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center font-bold text-xs text-slate-300 shrink-0">🏀</div>
+                                );
+                              })()}
                               <span style={{ color: isClubAway ? primaryColor : textColor }}>
                                 {m.teamAway}
                               </span>
@@ -834,9 +890,12 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      );
+    })()
+  )}
+</div>
 
       {/* ========================================================================= */}
       {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (MASCOTTE, LOGO, BADGE, ETC.)  */}

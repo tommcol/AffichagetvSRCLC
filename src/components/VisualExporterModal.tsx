@@ -534,6 +534,23 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [layer2FontBody, setLayer2FontBody] = useState<FontFamilyOption>('Montserrat');
   const [resultDisplayMode, setResultDisplayMode] = useState<'both' | 'score' | 'status'>('both');
 
+  const handleColorChange = (
+    primary?: string,
+    text?: string,
+    badgeBg?: string,
+    badgeText?: string
+  ) => {
+    const newPrimary = primary ?? layer2PrimaryColor;
+    const newText = text ?? layer2TextColor;
+    const newBadgeBg = badgeBg ?? layer2BadgeBgColor;
+    const newBadgeText = badgeText ?? layer2BadgeTextColor;
+
+    if (primary !== undefined) setLayer2PrimaryColor(primary);
+    if (text !== undefined) setLayer2TextColor(text);
+    if (badgeBg !== undefined) setLayer2BadgeBgColor(badgeBg);
+    if (badgeText !== undefined) setLayer2BadgeTextColor(badgeText);
+  };
+
   useEffect(() => {
     if (effectiveCategoryConfig && effectiveCategoryConfig.categoryTheme) {
       const ct = effectiveCategoryConfig.categoryTheme;
@@ -2949,7 +2966,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           <input
                             type="color"
                             value={layer2PrimaryColor}
-                            onChange={(e) => setLayer2PrimaryColor(e.target.value)}
+                            onChange={(e) => handleColorChange(e.target.value, undefined, undefined, undefined)}
                             className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
                           />
                           <span className="text-[9px] font-mono text-orange-400 truncate">
@@ -2965,7 +2982,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           <input
                             type="color"
                             value={layer2TextColor}
-                            onChange={(e) => setLayer2TextColor(e.target.value)}
+                            onChange={(e) => handleColorChange(undefined, e.target.value, undefined, undefined)}
                             className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
                           />
                           <span className="text-[9px] font-mono text-amber-400 truncate">
@@ -2981,7 +2998,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           <input
                             type="color"
                             value={layer2BadgeBgColor}
-                            onChange={(e) => setLayer2BadgeBgColor(e.target.value)}
+                            onChange={(e) => handleColorChange(undefined, undefined, e.target.value, undefined)}
                             className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
                           />
                           <span className="text-[9px] font-mono text-sky-400 truncate">
@@ -2997,7 +3014,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         <input
                           type="color"
                           value={layer2BadgeTextColor}
-                          onChange={(e) => setLayer2BadgeTextColor(e.target.value)}
+                          onChange={(e) => handleColorChange(undefined, undefined, undefined, e.target.value)}
                           className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 shrink-0"
                         />
                         <span className="text-[10px] font-bold text-slate-300 truncate">
@@ -3007,14 +3024,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       <div className="flex gap-1 shrink-0">
                         <button
                           type="button"
-                          onClick={() => setLayer2BadgeTextColor('#ffffff')}
+                          onClick={() => handleColorChange(undefined, undefined, undefined, '#ffffff')}
                           className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-white text-[9px] font-bold border border-slate-700"
                         >
                           Blanc
                         </button>
                         <button
                           type="button"
-                          onClick={() => setLayer2BadgeTextColor('#000000')}
+                          onClick={() => handleColorChange(undefined, undefined, undefined, '#000000')}
                           className="px-2 py-0.5 rounded bg-slate-200 hover:bg-white text-black text-[9px] font-bold"
                         >
                           Noir

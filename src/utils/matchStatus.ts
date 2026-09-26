@@ -143,17 +143,19 @@ export function isClubHomeMatch(
   const isHomeClay =
     home.includes('clayette') ||
     home.includes('clayettois') ||
+    home.includes('src') ||
     (cName && home.includes(cName)) ||
     (cShort && home.includes(cShort));
   const isAwayClay =
     away.includes('clayette') ||
     away.includes('clayettois') ||
+    away.includes('src') ||
     (cName && away.includes(cName)) ||
     (cShort && away.includes(cShort));
 
   if (isHomeClay && !isAwayClay) return true;
   if (isAwayClay && !isHomeClay) return false;
-  return true;
+  return match.isHomeMatch ?? true;
 }
 
 /**

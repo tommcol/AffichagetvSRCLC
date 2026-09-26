@@ -216,6 +216,10 @@ export function getEffectiveCategoryConfig(
 
   const showClubLogoWatermark = specific.showClubLogoWatermark ?? globalTheme?.showClubLogoWatermark ?? false;
 
+  const headerTitleAlignment = specific.headerTitleAlignment || globalTheme?.headerTitleAlignment || 'left';
+  const matchDisplayScope = specific.matchDisplayScope || globalTheme?.matchDisplayScope || 'split';
+  const removeWhiteBgLogos = specific.removeWhiteBgLogos ?? globalTheme?.removeWhiteBgLogos ?? true;
+
   const theme: SlideDesignTheme = {
     primaryColor,
     secondaryColor: '#0f172a',
@@ -234,6 +238,10 @@ export function getEffectiveCategoryConfig(
     customHeaderTitle: specific.customHeaderTitle,
     visualStyle: specific.visualStyle || 'poster-red',
     showClubLogoWatermark,
+    resultDisplayMode: specific.resultDisplayMode || globalTheme?.resultDisplayMode || 'both',
+    headerTitleAlignment,
+    matchDisplayScope,
+    removeWhiteBgLogos,
   };
 
   const mascot: ForegroundMascotConfig = {
@@ -247,6 +255,10 @@ export function getEffectiveCategoryConfig(
 
   const categoryTheme: CategorySlideTheme = {
     customHeaderTitle: specific.customHeaderTitle,
+    matchDisplayScope,
+    headerTitleAlignment,
+    removeWhiteBgLogos,
+    resultDisplayMode: specific.resultDisplayMode || globalTheme?.resultDisplayMode || 'both',
     visualStyle: specific.visualStyle || 'poster-red',
     backgroundUrl,
     backgroundMediaType,

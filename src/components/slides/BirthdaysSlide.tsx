@@ -83,6 +83,8 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
   // Dynamic header title if customized in Studio Calques
   const headerTitle = theme?.customHeaderTitle?.trim() || 'LES ANNIVERSAIRES DE LA SEMAINE';
 
+  const titleAlign = theme?.headerTitleAlignment || 'left';
+
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-slate-950 select-none">
       {/* ========================================================================= */}
@@ -169,7 +171,9 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
       {/* ========================================================================= */}
       <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 md:p-10 lg:p-14">
         {/* En-tête Titre Anniversaires */}
-        <div className="w-full flex items-center justify-start gap-4">
+        <div className={`w-full flex items-center gap-4 ${
+          titleAlign === 'center' ? 'justify-center text-center' : titleAlign === 'right' ? 'justify-end text-right' : 'justify-start'
+        }`}>
           <div className="flex items-center gap-4">
             <div
               className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center shadow-lg border border-white/20 shrink-0"

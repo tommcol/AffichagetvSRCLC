@@ -820,19 +820,26 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   // Filtre de scope pour les matchs et résultats : 'home' (Domicile), 'away' (Extérieur), ou 'all' (Tous)
   const [studioScope, setStudioScope] = useState<'home' | 'away' | 'all'>('home');
 
-  const displayedMatches = useMemo(() => {
-    if (studioScope === 'home') return matches.filter((m) => m.isHomeMatch);
-    if (studioScope === 'away') return matches.filter((m) => !m.isHomeMatch);
-    return matches;
-  }, [matches, studioScope]);
+  // Mémoire des couleurs personnalisées utilisées sur les visuels
+  const [recentColors, setRecentColors] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('studio_recent_colors');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return ['#ea580c', '#dc2626', '#2563eb', '#16a34a', '#7c3aed', '#db2777', '#0284c7', '#ffffff', '#000000'];
+  });
 
-  const displayedResults = useMemo(() => {
-    if (studioScope === 'home') return results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
-    if (studioScope === 'away') return results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
-    return results;
-  }, [results, studioScope, clubSettings]);
-
-  const previewCanvasRef = useRef<HTMLDivElement | null>(null);
+  const rememberColor = (color: string) => {
+    if (!color || !color.startsWith('#')) return;
+    setRecentColors((prev) => {
+      const filtered = prev.filter((c) => c.toLowerCase() !== color.toLowerCase());
+      const updated = [color, ...filtered].slice(0, 12);
+      try {
+        localStorage.setItem('studio_recent_colors', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
 
   // Configuration effective pour chaque catégorie
   const matchesEffective = getEffectiveCategoryConfig('matches', visualTemplates, clubSettings);
@@ -846,8 +853,35 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
       ? resultsEffective
       : birthdaysEffective;
 
+  // Scope effectif pour la prévisualisation (Regroupement sélectionné ou bouton aperçu)
+  const effectiveScope = currentEffective.categoryTheme?.matchDisplayScope || studioScope;
+
+  const displayedMatches = useMemo(() => {
+    if (effectiveScope === 'home') return matches.filter((m) => m.isHomeMatch);
+    if (effectiveScope === 'away') return matches.filter((m) => !m.isHomeMatch);
+    return matches;
+  }, [matches, effectiveScope]);
+
+  const displayedResults = useMemo(() => {
+    if (effectiveScope === 'home') return results.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    if (effectiveScope === 'away') return results.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
+    return results;
+  }, [results, effectiveScope, clubSettings]);
+
+  const previewCanvasRef = useRef<HTMLDivElement | null>(null);
+
   // Mise à jour de la catégorie active
   const updateCurrentCategoryTheme = (partial: Partial<CategorySlideTheme>) => {
+    if (partial.primaryColor) rememberColor(partial.primaryColor);
+    if (partial.textColor) rememberColor(partial.textColor);
+    if (partial.badgeBgColor) rememberColor(partial.badgeBgColor);
+    if (partial.badgeTextColor) rememberColor(partial.badgeTextColor);
+    if (partial.cardBgColor) rememberColor(partial.cardBgColor);
+
+    if (partial.matchDisplayScope && (partial.matchDisplayScope === 'home' || partial.matchDisplayScope === 'away' || partial.matchDisplayScope === 'all')) {
+      setStudioScope(partial.matchDisplayScope);
+    }
+
     if (activeCategory === 'matches') {
       const current = visualTemplates.matchesSettings || matchesEffective.categoryTheme;
       const updated = { ...current, ...partial };
@@ -1471,6 +1505,46 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   }
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-amber-500"
                 />
+
+                {/* Alignement du titre (Gauche, Centré, Droite) */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <span className="text-[11px] font-bold text-slate-300">Emplacement du Titre :</span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'left' })}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                        (currentEffective.categoryTheme.headerTitleAlignment || 'left') === 'left'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ⬅️ Gauche
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'center' })}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                        currentEffective.categoryTheme.headerTitleAlignment === 'center'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ↔️ Centré
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'right' })}
+                      className={`text-xs px-2.5 py-1 rounded-lg border font-bold transition-all ${
+                        currentEffective.categoryTheme.headerTitleAlignment === 'right'
+                          ? 'bg-amber-600 text-white border-amber-400 shadow-md'
+                          : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ➡️ Droite
+                    </button>
+                  </div>
+                </div>
                 {/* Boutons d'accès rapide aux modèles de titres */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {activeCategory === 'birthdays' ? (
@@ -1565,6 +1639,68 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   )}
                 </div>
               </div>
+
+              {/* Mode de regroupement des Matchs / Résultats sur la TV */}
+              {(activeCategory === 'matches' || activeCategory === 'results') && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                  <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-emerald-400 font-black">
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>Diffuser sur la TV : Regroupement</span>
+                    </span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'split' })}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                        (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                      }`}
+                    >
+                      <span className="text-xs">🔄</span>
+                      <span>Domicile / Extérieur Séparés (2 diapos)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'all' })}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                        currentEffective.categoryTheme.matchDisplayScope === 'all'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                      }`}
+                    >
+                      <span className="text-xs">🏀</span>
+                      <span>Tout regrouper sur 1 diapo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'home' })}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                        currentEffective.categoryTheme.matchDisplayScope === 'home'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                      }`}
+                    >
+                      <span className="text-xs">🏠</span>
+                      <span>Domicile Uniquement</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'away' })}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                        currentEffective.categoryTheme.matchDisplayScope === 'away'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700/80'
+                      }`}
+                    >
+                      <span className="text-xs">✈️</span>
+                      <span>Extérieur Uniquement</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Palettes rapides */}
               <div className="grid grid-cols-2 gap-2">
@@ -1689,6 +1825,66 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                     Noir
                   </button>
                 </div>
+              </div>
+
+              {/* Mémoire des Couleurs Gardées (Accès rapide 1-clic) */}
+              {recentColors.length > 0 && (
+                <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                      <span>🎨</span> Couleurs Gardées en Mémoire :
+                    </span>
+                    <span className="text-[10px] text-slate-500">Clic rapide pour réutiliser</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {recentColors.map((hex, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() =>
+                          updateCurrentCategoryTheme({
+                            primaryColor: hex,
+                            badgeBgColor: hex,
+                          })
+                        }
+                        className="w-7 h-7 rounded-xl border-2 border-slate-700/80 hover:scale-110 transition-all shadow-md relative group shrink-0"
+                        style={{ backgroundColor: hex }}
+                        title={`Appliquer la couleur ${hex}`}
+                      >
+                        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-20 whitespace-nowrap font-mono">
+                          {hex}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Option Détourer / Enlever les fonds blancs des logos */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-slate-200 block">
+                    ✨ Détourer les fonds blancs des logos
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    Masque automatiquement les fond blancs rectangulaires des logos d'équipes et partenaires
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateCurrentCategoryTheme({
+                      removeWhiteBgLogos: currentEffective.categoryTheme.removeWhiteBgLogos === false ? true : false,
+                    })
+                  }
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                    currentEffective.categoryTheme.removeWhiteBgLogos !== false
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {currentEffective.categoryTheme.removeWhiteBgLogos !== false ? '✓ Activé (Détouré)' : 'Désactivé'}
+                </button>
               </div>
 
               {/* Mode d'affichage des résultats (Score / Mention / Les 2) */}
@@ -1980,6 +2176,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={matchesEffective.mascot}
                   layer3={matchesEffective.layer3}
                   layer4={matchesEffective.layer4}
+                  customHeaderTitle={matchesEffective.categoryTheme?.customHeaderTitle}
                   isInteractiveOverlay={true}
                   selectedLayerNum={selectedLayerNum}
                   onSelectLayer={(num) => {
@@ -1999,6 +2196,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={resultsEffective.mascot}
                   layer3={resultsEffective.layer3}
                   layer4={resultsEffective.layer4}
+                  customHeaderTitle={resultsEffective.categoryTheme?.customHeaderTitle}
                   isInteractiveOverlay={true}
                   selectedLayerNum={selectedLayerNum}
                   onSelectLayer={(num) => {
@@ -2194,6 +2392,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={matchesEffective.mascot}
                   layer3={matchesEffective.layer3}
                   layer4={matchesEffective.layer4}
+                  customHeaderTitle={matchesEffective.categoryTheme?.customHeaderTitle}
                 />
               ) : previewMode === 'results' ? (
                 <ResultsSlide
@@ -2206,6 +2405,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={resultsEffective.mascot}
                   layer3={resultsEffective.layer3}
                   layer4={resultsEffective.layer4}
+                  customHeaderTitle={resultsEffective.categoryTheme?.customHeaderTitle}
                 />
               ) : (
                 <BirthdaysSlide

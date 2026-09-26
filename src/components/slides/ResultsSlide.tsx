@@ -45,10 +45,31 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  // Only display results that are checked/selected for the weekend (selectedForWeekend !== false)
+  // Filter results by matchDisplayScope if set
+  const scope = theme?.matchDisplayScope || 'split';
   const weekendResults = results.filter((r) => r.selectedForWeekend !== false);
-  const activeResults = weekendResults.length > 0 ? weekendResults : results;
+  const scopedResults = weekendResults.filter((r) => {
+    if (scope === 'home') return isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+    if (scope === 'away') return !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+    return true;
+  });
+  const activeResults = scopedResults.length > 0 ? scopedResults : (weekendResults.length > 0 ? weekendResults : results);
   const sortedResults = [...activeResults].sort(sortMatchesChronologically);
+
+  const getOpponentLogo = (r: MatchItem): string | null => {
+    if (r.opponentLogo) return r.opponentLogo;
+    const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+    const oppName = isHome ? r.teamAway : r.teamHome;
+    try {
+      const rawCache = localStorage.getItem('club_opponent_logos_cache');
+      if (rawCache) {
+        const cache = JSON.parse(rawCache);
+        if (cache && oppName && cache[oppName]) return cache[oppName];
+      }
+    } catch (e) {}
+    if (r.teamLogo && r.teamLogo !== clubSettings.logoUrl) return r.teamLogo;
+    return null;
+  };
 
   const totalWins = sortedResults.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
   const totalLosses = sortedResults.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
@@ -87,6 +108,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   const bodyFont = theme?.fontFamilyBody || 'Montserrat';
   const bgBrightness = theme?.backgroundBrightness ?? 0.35;
   const bgBlur = theme?.backgroundBlur ?? 0;
+  const titleAlign = theme?.headerTitleAlignment || 'left';
 
   const cardBackdropStyle = {
     backgroundColor: `${cardBg}${Math.round(cardOpacity * 255).toString(16).padStart(2, '0')}`,
@@ -206,7 +228,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   // =========================================================================
   if (activeStyle === 'poster-red') {
     // Tri chronologique rigoureux : dates puis heures
-    const sortedResults = [...results].sort(sortMatchesChronologically);
+    const sortedResults = [...activeResults].sort(sortMatchesChronologically);
     const scale = getPosterAdaptiveScale(sortedResults.length);
 
     // Répartition en 2 colonnes verticales s'il y a plus de 2 résultats
@@ -272,25 +294,28 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
               <span className="truncate">{r.teamHome}</span>
             </div>
 
-            {/* Bloc Central : VICTOIRE / DÉFAITE AU-DESSUS DU SCORE */}
+            {/* Bloc Central : VICTOIRE / DÉFAITE ET / OU SCORE SELON RESULTDISPLAYMODE */}
             <div className="flex flex-col items-center shrink-0">
-              <span
-                className={`text-xs font-black uppercase tracking-wider px-3 py-0.5 rounded-full mb-1 shadow-md flex items-center gap-1.5 ${
-                  isWin
-                    ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
-                    : 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
-                }`}
-              >
-                {isWin ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
-              </span>
+              {resultDisplayMode !== 'score' && (
+                <span
+                  className={`text-xs font-black uppercase tracking-wider px-3 py-0.5 rounded-full mb-1 shadow-md flex items-center gap-1.5 ${
+                    isWin
+                      ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
+                      : 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
+                  }`}
+                >
+                  {isWin ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                  <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
+                </span>
+              )}
 
-              {/* Pilule Centrale Blanche (Score) */}
-              <div
-                className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
-              >
-                {r.homeScore ?? '-'} &nbsp;-&nbsp; {r.awayScore ?? '-'}
-              </div>
+              {resultDisplayMode !== 'status' && (
+                <div
+                  className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+                >
+                  {r.homeScore ?? '-'} &nbsp;-&nbsp; {r.awayScore ?? '-'}
+                </div>
+              )}
             </div>
 
             {/* Pilule Équipe Extérieur (À droite) */}
@@ -359,15 +384,12 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
         <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
           
           {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
-          <div className="w-full flex flex-col items-center relative shrink-0">
+          <div className={`w-full flex flex-col relative shrink-0 ${
+            titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
+          }`}>
             
             {/* Boutons d'action haut droite (Passerelle Réseaux) */}
             <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
-              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl shadow-md text-xs">
-                <span className="text-emerald-400 font-black">{totalWins} Victoires</span>
-                <span className="text-slate-700">|</span>
-                <span className="text-rose-400 font-black">{totalLosses} Défaites</span>
-              </div>
               {!hideShareButton && (
                 <button
                   onClick={onDownloadVisual}
@@ -491,27 +513,16 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
       {/* ========================================================================= */}
       <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 md:p-8 lg:p-10 xl:p-12">
         {/* Slide Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-          <div>
+        <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-800/80 pb-4 ${
+          titleAlign === 'center' ? 'sm:justify-center text-center' : titleAlign === 'right' ? 'sm:justify-end text-right' : ''
+        }`}>
+          <div className={titleAlign === 'center' ? 'w-full text-center' : titleAlign === 'right' ? 'w-full text-right' : ''}>
             <h2 className={`text-4xl md:text-5xl lg:text-6xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
               {customHeaderTitle || theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END'}
             </h2>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Weekend Summary Pill */}
-            <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-800 px-4 py-2 rounded-2xl">
-              <div className="flex items-center gap-1.5 text-emerald-400 font-black text-sm">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span>{totalWins} Victoires</span>
-              </div>
-              <span className="text-slate-700">|</span>
-              <div className="flex items-center gap-1.5 text-rose-400 font-black text-sm">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <span>{totalLosses} Défaites</span>
-              </div>
-            </div>
-
             {/* Passerelle Réseaux Sociaux Button */}
             {!hideShareButton && (
               <button
@@ -546,6 +557,14 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             {sortedResults.map((r) => {
               const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
               const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
+              const clubShort = (clubSettings?.shortName || '').toLowerCase();
+              const clubName = (clubSettings?.name || '').toLowerCase();
+              const isHomeTeamClub = clubShort
+                ? (r.teamHome || '').toLowerCase().includes(clubShort) || (r.teamHome || '').toLowerCase().includes(clubName)
+                : isHome;
+              const isAwayTeamClub = clubShort
+                ? (r.teamAway || '').toLowerCase().includes(clubShort) || (r.teamAway || '').toLowerCase().includes(clubName)
+                : !isHome;
 
               return (
                 <div
@@ -564,9 +583,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                     }`}
                   />
 
-                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE ou SCORE */}
+                  {/* Grand Bandeau Haut : VICTOIRE ou DÉFAITE (masqué en mode score seul) */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-2 border-b border-slate-800/80 relative z-10">
-                    {resultDisplayMode !== 'score' || (r.homeScore === undefined && r.awayScore === undefined) ? (
+                    {resultDisplayMode !== 'score' ? (
                       <div
                         className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase ${
                           isWin
@@ -582,15 +601,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                         <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
                       </div>
                     ) : (
-                      <div
-                        className={`inline-flex items-center ${sizing.outcomeBanner} ${getFontFamilyClass(headerFont)} uppercase tracking-wider text-white font-black shadow-md`}
-                        style={{
-                          background: `linear-gradient(135deg, ${badgeBgColor} 0%, ${badgeBgColor}dd 100%)`,
-                          color: badgeTextColor,
-                        }}
-                      >
-                        <span>SCORE : {r.homeScore} - {r.awayScore}</span>
-                      </div>
+                      <div />
                     )}
 
                     <span className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-xs md:text-sm lg:text-base text-slate-300 font-bold shrink-0">
@@ -616,21 +627,25 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                     {/* Rencontre / Adversaires & Score */}
                     <div className={`w-full mt-3 ${sizing.matchupBox}`}>
                       <div className="flex items-center justify-center gap-3 md:gap-5 flex-wrap">
+                        {/* Équipe Domicile avec Logo (Club uniquement) */}
                         <div className="flex items-center gap-2">
-                          {r.isHomeMatch && clubSettings.logoUrl && (
-                            <img src={clubSettings.logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow" referrerPolicy="no-referrer" />
+                          {isHome && clubSettings.logoUrl && (
+                            <img
+                              src={clubSettings.logoUrl}
+                              alt=""
+                              className={`w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow shrink-0 ${theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : ''}`}
+                              referrerPolicy="no-referrer"
+                            />
                           )}
                           <span
-                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                              (r.teamHome || '').toLowerCase().includes((clubSettings?.shortName || '').toLowerCase()) || r.isHomeMatch
-                                ? 'text-orange-400'
-                                : 'text-slate-100'
-                            }`}
+                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
+                            style={{ color: isHomeTeamClub ? primaryColor : textColor }}
                           >
                             {r.teamHome}
                           </span>
                         </div>
 
+                        {/* Affichage Central (Score ou Statut ou les Deux) */}
                         {resultDisplayMode === 'status' || (r.homeScore === undefined && r.awayScore === undefined) ? (
                           (() => {
                             const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
@@ -641,7 +656,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                             const textCol = isPending ? '#fde68a' : (badgeTextColor || '#ffffff');
                             return (
                               <span
-                                className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md"
+                                className="px-3.5 py-1 rounded-full text-xs md:text-sm font-black tracking-wider uppercase shadow-md shrink-0"
                                 style={{
                                   backgroundColor: bg,
                                   color: textCol,
@@ -653,7 +668,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           })()
                         ) : (
                           <span
-                            className="px-4 py-1.5 rounded-2xl text-base md:text-2xl font-mono font-black tracking-wider shadow-lg border border-slate-700/80"
+                            className="px-4 py-1.5 rounded-2xl text-base md:text-2xl font-mono font-black tracking-wider shadow-lg border border-slate-700/80 shrink-0"
                             style={{
                               backgroundColor: '#090d16',
                               color: isWin ? '#34d399' : '#f43f5e',
@@ -663,19 +678,22 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                           </span>
                         )}
 
+                        {/* Équipe Extérieur avec Logo (Club uniquement) */}
                         <div className="flex items-center gap-2">
-                          {!r.isHomeMatch && clubSettings.logoUrl && (
-                            <img src={clubSettings.logoUrl} alt="" className="w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow" referrerPolicy="no-referrer" />
-                          )}
                           <span
-                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)} ${
-                              (r.teamAway || '').toLowerCase().includes((clubSettings?.shortName || '').toLowerCase()) || !r.isHomeMatch
-                                ? 'text-orange-400'
-                                : 'text-slate-100'
-                            }`}
+                            className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
+                            style={{ color: isAwayTeamClub ? primaryColor : textColor }}
                           >
                             {r.teamAway}
                           </span>
+                          {!isHome && clubSettings.logoUrl && (
+                            <img
+                              src={clubSettings.logoUrl}
+                              alt=""
+                              className={`w-6 h-6 md:w-8 md:h-8 object-contain drop-shadow shrink-0 ${theme?.removeWhiteBgLogos !== false ? 'mix-blend-multiply bg-white/10 rounded-full p-0.5' : ''}`}
+                              referrerPolicy="no-referrer"
+                            />
+                          )}
                         </div>
                       </div>
 

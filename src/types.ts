@@ -122,6 +122,7 @@ export interface SlideDesignTheme {
   backgroundBlur: number; // 0 à 20px (défaut 0)
   backgroundMediaType?: 'image' | 'video';
   customHeaderTitle?: string;
+  matchDisplayScope?: 'split' | 'all' | 'home' | 'away';
   visualStyle?: 'poster-red' | 'cards';
   showClubLogoWatermark?: boolean; // Filigrane central du logo du club
 }
@@ -162,6 +163,7 @@ export interface CategorySlideTheme {
 
   // Calque 2 : Cartes & Données
   customHeaderTitle?: string; // Titre / Entête personnalisée (ex: "LES MATCHS DU WEEK-END", "RÉSULTATS J-5")
+  matchDisplayScope?: 'split' | 'all' | 'home' | 'away'; // Mode de regroupement des matchs/résultats ('split' Domicile/Extérieur, 'all' Tous ensemble)
   visualStyle?: 'poster-red' | 'cards'; // Style visuel ('poster-red' Affiche Officielle Pill Badges ou 'cards' Cartes)
   primaryColor?: string; // Couleur d'accentuation spécifique
   cardBgColor?: string; // Couleur de fond des cartes
@@ -182,6 +184,12 @@ export interface CategorySlideTheme {
 
   // Mode d'affichage du résultat (Score + Statut, Score seul, Statut seul)
   resultDisplayMode?: 'both' | 'score' | 'status';
+
+  // Alignement du titre (Gauche, Centré, Droite)
+  headerTitleAlignment?: 'left' | 'center' | 'right';
+
+  // Enlever le fond blanc des logos (Détourer en transparence)
+  removeWhiteBgLogos?: boolean;
 
   // Rétro-compatibilité
   showMascot?: boolean;
