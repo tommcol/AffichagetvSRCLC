@@ -39,7 +39,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { toPng, toJpeg, toCanvas } from 'html-to-image';
-import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption } from '../types';
+import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption, CategorySlideTheme, SlideDesignTheme } from '../types';
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../utils/matchDateHelper';
 import { getEffectiveCategoryConfig } from '../utils/themeUtils';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
@@ -121,6 +121,7 @@ interface VisualExporterModalProps {
   clubSettings: ClubSettings;
   specificNotification?: FinishedMatchNotification | null;
   visualTemplates?: VisualTemplatesConfig;
+  onUpdateVisualTemplates?: (config: VisualTemplatesConfig) => void;
   embeddedInTab?: boolean;
 }
 
@@ -329,6 +330,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   clubSettings,
   specificNotification,
   visualTemplates,
+  onUpdateVisualTemplates,
   embeddedInTab = false,
 }) => {
   const safeShortName = (clubSettings?.shortName || clubSettings?.name || 'SRC Basket').trim();
@@ -534,21 +536,51 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [layer2FontBody, setLayer2FontBody] = useState<FontFamilyOption>('Montserrat');
   const [resultDisplayMode, setResultDisplayMode] = useState<'both' | 'score' | 'status'>('both');
 
+  const updateTemplateSetting = (partial: Partial<CategorySlideTheme>) => {
+    if (partial.primaryColor !== undefined) setLayer2PrimaryColor(partial.primaryColor);
+    if (partial.textColor !== undefined) setLayer2TextColor(partial.textColor);
+    if (partial.badgeBgColor !== undefined) setLayer2BadgeBgColor(partial.badgeBgColor);
+    if (partial.badgeTextColor !== undefined) setLayer2BadgeTextColor(partial.badgeTextColor);
+    if (partial.fontFamilyHeader !== undefined) setLayer2FontHeader(partial.fontFamilyHeader);
+    if (partial.fontFamilyBody !== undefined) setLayer2FontBody(partial.fontFamilyBody);
+    if (partial.resultDisplayMode !== undefined) setResultDisplayMode(partial.resultDisplayMode);
+
+    if (onUpdateVisualTemplates && visualTemplates) {
+      if (categoryType === 'matches') {
+        const current = visualTemplates.matchesSettings || {};
+        onUpdateVisualTemplates({
+          ...visualTemplates,
+          matchesSettings: {
+            ...current,
+            ...partial,
+          },
+        });
+      } else if (categoryType === 'results') {
+        const current = visualTemplates.resultsSettings || {};
+        onUpdateVisualTemplates({
+          ...visualTemplates,
+          resultsSettings: {
+            ...current,
+            ...partial,
+          },
+        });
+      }
+    }
+  };
+
   const handleColorChange = (
     primary?: string,
     text?: string,
     badgeBg?: string,
     badgeText?: string
   ) => {
-    const newPrimary = primary ?? layer2PrimaryColor;
-    const newText = text ?? layer2TextColor;
-    const newBadgeBg = badgeBg ?? layer2BadgeBgColor;
-    const newBadgeText = badgeText ?? layer2BadgeTextColor;
-
-    if (primary !== undefined) setLayer2PrimaryColor(primary);
-    if (text !== undefined) setLayer2TextColor(text);
-    if (badgeBg !== undefined) setLayer2BadgeBgColor(badgeBg);
-    if (badgeText !== undefined) setLayer2BadgeTextColor(badgeText);
+    const partial: Partial<CategorySlideTheme> = {};
+    if (primary !== undefined) partial.primaryColor = primary;
+    if (text !== undefined) partial.textColor = text;
+    if (badgeBg !== undefined) partial.badgeBgColor = badgeBg;
+    if (badgeText !== undefined) partial.badgeTextColor = badgeText;
+    
+    updateTemplateSetting(partial);
   };
 
   useEffect(() => {
@@ -1452,7 +1484,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
                     <button
                       type="button"
-                      onClick={() => setResultDisplayMode('both')}
+                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'both' })}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                         resultDisplayMode === 'both' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
                       }`}
@@ -1461,7 +1493,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setResultDisplayMode('score')}
+                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'score' })}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                         resultDisplayMode === 'score' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
                       }`}
@@ -1470,7 +1502,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setResultDisplayMode('status')}
+                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'status' })}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                         resultDisplayMode === 'status' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
                       }`}
@@ -1812,8 +1844,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         {displayedMatches.map((m) => {
                           const isExempt = posterFilter === 'exempt' || isExemptItem(m);
 
-                          const teamLeft = m.isHomeMatch ? m.category : m.category;
-                          const teamRight = isExempt ? 'Exempt' : (m.isHomeMatch ? m.teamAway : m.teamHome);
+                          const teamLeft = m.teamHome || 'Notre Club';
+                          const teamRight = isExempt ? 'Exempt' : (m.teamAway || 'Adversaire');
                           const count = displayedMatches.length;
 
                           const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');
@@ -1900,6 +1932,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       >
                         {displayedResults.map((r) => {
                           const isWin = isMatchWin(r, safeClubName, safeShortName);
+                          const isHomeClub = isClubHomeMatch(r, safeClubName, safeShortName);
+                          const teamLeft = isHomeClub ? r.category : (r.teamHome || 'Notre Club');
+                          const teamRight = isHomeClub ? (r.teamAway || 'Adversaire') : r.category;
+                          const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
+
                           const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
                           const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
                           const count = displayedResults.length;
@@ -1919,7 +1956,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                   letterSpacing: '0.4px',
                                 }}
                               >
-                                <span>{r.category}</span>
+                                <span>{matchDateText || r.category}</span>
                                 {resultDisplayMode !== 'score' && (
                                   <>
                                     <span>•</span>
@@ -1940,7 +1977,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={r.teamHome} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                  <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
 
                                 <div
@@ -1967,7 +2004,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
                                   }}
                                 >
-                                  <AutoFitTeamName name={r.teamAway} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                  <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
                                 </div>
                               </div>
                             </div>
@@ -3048,7 +3085,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         <div className="grid grid-cols-3 gap-1">
                           <button
                             type="button"
-                            onClick={() => setResultDisplayMode('both')}
+                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'both' })}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
                               resultDisplayMode === 'both'
                                 ? 'bg-emerald-600 text-white shadow-sm'
@@ -3060,7 +3097,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setResultDisplayMode('score')}
+                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'score' })}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
                               resultDisplayMode === 'score'
                                 ? 'bg-emerald-600 text-white shadow-sm'
@@ -3072,7 +3109,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setResultDisplayMode('status')}
+                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'status' })}
                             className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
                               resultDisplayMode === 'status'
                                 ? 'bg-emerald-600 text-white shadow-sm'
@@ -3095,7 +3132,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         </label>
                         <select
                           value={layer2FontHeader}
-                          onChange={(e) => setLayer2FontHeader(e.target.value as FontFamilyOption)}
+                          onChange={(e) => updateTemplateSetting({ fontFamilyHeader: e.target.value as FontFamilyOption })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:outline-none focus:border-red-500"
                         >
                           {AVAILABLE_FONTS.map((f) => (
@@ -3113,7 +3150,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                         </label>
                         <select
                           value={layer2FontBody}
-                          onChange={(e) => setLayer2FontBody(e.target.value as FontFamilyOption)}
+                          onChange={(e) => updateTemplateSetting({ fontFamilyBody: e.target.value as FontFamilyOption })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[10px] font-bold text-white focus:outline-none focus:border-red-500"
                         >
                           {AVAILABLE_FONTS.map((f) => (

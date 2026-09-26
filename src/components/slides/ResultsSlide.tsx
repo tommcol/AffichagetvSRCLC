@@ -45,15 +45,8 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
-  // Filter results by matchDisplayScope if set
-  const scope = theme?.matchDisplayScope || 'split';
-  const weekendResults = results.filter((r) => r.selectedForWeekend !== false);
-  const scopedResults = weekendResults.filter((r) => {
-    if (scope === 'home') return isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-    if (scope === 'away') return !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-    return true;
-  });
-  const activeResults = scopedResults.length > 0 ? scopedResults : (weekendResults.length > 0 ? weekendResults : results);
+  // Use the results directly since they are already pre-filtered externally
+  const activeResults = results;
   const sortedResults = [...activeResults].sort(sortMatchesChronologically);
 
   const getOpponentLogo = (r: MatchItem): string | null => {
@@ -244,23 +237,15 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
       // Heures supprimées des résultats comme demandé
       const dateText = dayDisplay.trim();
 
+      const teamLeft = isHome ? r.category : (r.teamHome || 'Notre Club');
+      const teamRight = isHome ? (r.teamAway || 'Adversaire') : r.category;
+
       return (
         <div key={r.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
-          {/* Intitulé au-dessus : Catégorie • Date (sans heure) et Icône Maison ou Avion */}
+          {/* Intitulé au-dessus : Date en grand et Icône Maison ou Avion */}
           <div className="flex items-center justify-between gap-2 px-1">
             <div className={`flex items-center gap-2 font-black uppercase font-montserrat tracking-wider text-white ${scale.headerSize}`}>
-              <span className="drop-shadow-sm font-bebas tracking-wide text-2xl text-amber-400">{r.category}</span>
-              {dateText ? (
-                <>
-                  <span className="text-slate-500 text-xs">•</span>
-                  <span className="text-slate-200 text-sm font-semibold">{dateText}</span>
-                </>
-              ) : r.competition ? (
-                <>
-                  <span className="text-slate-500 text-xs hidden sm:inline">•</span>
-                  <span className="text-slate-400 text-xs font-normal truncate max-w-[150px] hidden sm:inline">{r.competition}</span>
-                </>
-              ) : null}
+              <span className="drop-shadow-sm font-bebas tracking-wide text-2xl text-amber-400">{dateText || 'Match'}</span>
             </div>
 
             {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
@@ -281,7 +266,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             )}
           </div>
 
-          {/* Rangée de Pilules : Équipe Domicile, Bloc Central [Victoire/Défaite au-dessus du Score], Équipe Extérieur */}
+          {/* Rangée de Pilules : Équipe Domicile (ou catégorie), Bloc Central [Victoire/Défaite au-dessus du Score], Équipe Extérieur (ou catégorie) */}
           <div className="flex items-center justify-between gap-2 md:gap-3 w-full">
             {/* Pilule Équipe Domicile (À gauche) */}
             <div
@@ -291,7 +276,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{r.teamHome}</span>
+              <span className="truncate">{teamLeft}</span>
             </div>
 
             {/* Bloc Central : VICTOIRE / DÉFAITE ET / OU SCORE SELON RESULTDISPLAYMODE */}
@@ -326,7 +311,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
-              <span className="truncate">{r.teamAway}</span>
+              <span className="truncate">{teamRight}</span>
             </div>
           </div>
         </div>
@@ -641,7 +626,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                             className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
                             style={{ color: isHomeTeamClub ? primaryColor : textColor }}
                           >
-                            {r.teamHome}
+                            {isHomeTeamClub ? r.category : r.teamHome}
                           </span>
                         </div>
 
@@ -684,7 +669,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                             className={`${sizing.teamName} ${getFontFamilyClass(headerFont)}`}
                             style={{ color: isAwayTeamClub ? primaryColor : textColor }}
                           >
-                            {r.teamAway}
+                            {isAwayTeamClub ? r.category : r.teamAway}
                           </span>
                           {!isHome && clubSettings.logoUrl && (
                             <img

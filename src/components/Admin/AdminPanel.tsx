@@ -5441,6 +5441,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 results={results}
                 clubSettings={clubSettings}
                 visualTemplates={visualTemplates}
+                onUpdateVisualTemplates={onUpdateVisualTemplates}
                 embeddedInTab={true}
               />
 

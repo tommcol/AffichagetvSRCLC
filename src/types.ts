@@ -125,6 +125,8 @@ export interface SlideDesignTheme {
   matchDisplayScope?: 'split' | 'all' | 'home' | 'away';
   visualStyle?: 'poster-red' | 'cards';
   showClubLogoWatermark?: boolean; // Filigrane central du logo du club
+  headerTitleAlignment?: 'left' | 'center' | 'right';
+  removeWhiteBgLogos?: boolean;
 }
 
 // Élément superposé libre (Calque 3 et Calque 4 : mascotte, logo, badge derby, sponsor, sticker...)
