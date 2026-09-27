@@ -2199,15 +2199,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleDismissIdentityProposal}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors self-end sm:self-auto"
-            title="Ignorer la proposition"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Comparatif Nom & Logo */}
@@ -2364,13 +2355,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Quick Keyboard shortcuts badge on desktop */}
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 font-mono">
-              <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-200">F</span> Plein écran
-              <span className="text-slate-600">•</span>
-              <span className="px-1.5 py-0.5 bg-slate-800 rounded text-slate-200">C</span> Switch TV
-            </div>
-
             {/* Bouton dynamique Enregistrer en haut à droite */}
             <button
               onClick={onManualSave}
@@ -2731,15 +2715,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
                     </p>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setMatchesSubTab('calques')}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
-                  >
-                    <Layers className="w-4 h-4 text-sky-400" />
-                    <span>Régler le fond & les calques de la diapositive</span>
-                  </button>
                 </div>
 
                 {/* Widget de Filtrage Instantané par Calendrier & Synchronisation FFBB */}
@@ -2980,17 +2955,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div className="flex items-center gap-2 flex-wrap text-xs">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSocialOnlySelectedMatches(true);
-                      setActiveTab('social');
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-pink-600/20"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>Passerelle Réseaux ({matches.filter((m) => m.selectedForWeekend !== false).length} cochés)</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: true })))}
                     className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all"
                   >
@@ -3002,13 +2966,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold transition-all"
                   >
                     Tout décocher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: m.isHomeMatch })))}
-                    className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 font-bold transition-all"
-                  >
-                    Domicile uniquement
                   </button>
                   <button
                     type="button"
@@ -3174,17 +3131,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     title="Cocher tous les matchs affichés pour la diffusion TV"
                   >
                     ✓ Tout cocher pour la TV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = matches.map((item) => ({ ...item, selectedForWeekend: false }));
-                      onUpdateMatches(updated);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] font-medium transition-all cursor-pointer"
-                    title="Décocher tous les matchs"
-                  >
-                    Tout décocher
                   </button>
                 </div>
               </div>
@@ -3662,15 +3608,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
                     </p>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setResultsSubTab('calques')}
-                    className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto shadow-sm cursor-pointer"
-                  >
-                    <Layers className="w-4 h-4 text-sky-400" />
-                    <span>Régler le fond & les calques de la diapositive</span>
-                  </button>
                 </div>
 
                 {/* Widget de Filtrage Instantané par Calendrier & Synchronisation FFBB */}
@@ -3898,17 +3835,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div className="flex items-center gap-2 flex-wrap text-xs">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSocialOnlySelectedMatches(true);
-                      setActiveTab('social');
-                    }}
-                    className="px-3.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold flex items-center gap-1.5 transition-all shadow-md shadow-pink-600/20 cursor-pointer"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>Passerelle Réseaux ({results.filter((r) => r.selectedForWeekend !== false).length} cochés)</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => onUpdateResults(results.map((r) => ({ ...r, selectedForWeekend: true })))}
                     className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all cursor-pointer"
                   >
@@ -3920,20 +3846,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold transition-all cursor-pointer"
                   >
                     Tout décocher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateResults(results.map((r) => ({ ...r, selectedForWeekend: isMatchWin(r, clubSettings.name, clubSettings.shortName) })))}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all cursor-pointer"
-                  >
-                    🏆 Victoires uniquement
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateResults(results.map((r) => ({ ...r, selectedForWeekend: isClubHomeMatch(r, clubSettings.name, clubSettings.shortName) })))}
-                    className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 font-bold transition-all cursor-pointer"
-                  >
-                    Domicile uniquement
                   </button>
                   <button
                     type="button"
@@ -6759,14 +6671,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setBirthdaysSubTab('calques')}
-                    className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Layers className="w-4 h-4 text-sky-400" />
-                    <span>Régler le fond & visuels festifs</span>
-                  </button>
                   <button
                     onClick={() => setIsAddingManualBday(!isAddingManualBday)}
                     className="px-4 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center gap-2 transition-colors shadow-lg shadow-pink-600/20 whitespace-nowrap"

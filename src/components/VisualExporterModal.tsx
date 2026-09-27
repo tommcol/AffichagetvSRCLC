@@ -1828,57 +1828,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   className="flex-1 bg-slate-950 border border-slate-700 focus:border-red-500 rounded-xl px-3 py-1.5 text-xs text-white uppercase font-bold focus:outline-none transition-all"
                 />
               </div>
-
-              {/* Presets rapides 1-clic */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => setCustomBadgeTitle('LES MATCHS DU WEEK-END')}
-                  className={`text-[10px] px-2 py-1 rounded-lg font-bold border transition-all ${
-                    customBadgeTitle === 'LES MATCHS DU WEEK-END'
-                      ? 'bg-amber-500 text-black border-amber-400 font-black'
-                      : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
-                  }`}
-                >
-                  🏀 Matchs Week-end
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomBadgeTitle('RÉSULTATS DU WEEK-END')}
-                  className={`text-[10px] px-2 py-1 rounded-lg font-bold border transition-all ${
-                    customBadgeTitle === 'RÉSULTATS DU WEEK-END'
-                      ? 'bg-emerald-500 text-black border-emerald-400 font-black'
-                      : 'bg-slate-800 hover:bg-slate-700 text-emerald-300 border-slate-700'
-                  }`}
-                >
-                  🏆 Résultats Week-end
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomBadgeTitle('RÉSULTATS DU WEEK-END (RÉSEAUX)')}
-                  className={`text-[10px] px-2 py-1 rounded-lg font-bold border transition-all ${
-                    customBadgeTitle === 'RÉSULTATS DU WEEK-END (RÉSEAUX)'
-                      ? 'bg-pink-500 text-white border-pink-400 font-black'
-                      : 'bg-slate-800 hover:bg-slate-700 text-pink-300 border-slate-700'
-                  }`}
-                >
-                  📱 Résultats Réseaux
-                </button>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((j) => (
-                  <button
-                    key={j}
-                    type="button"
-                    onClick={() => setCustomBadgeTitle(`RÉSULTATS J-${j}`)}
-                    className={`text-[10px] px-1.5 py-1 rounded-lg font-mono font-bold border transition-all ${
-                      customBadgeTitle === `RÉSULTATS J-${j}`
-                        ? 'bg-red-600 text-white border-red-400 font-black'
-                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
-                    }`}
-                  >
-                    J-{j}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* ========================================================================= */}
@@ -2645,27 +2594,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             }`}
                           >
                             🔥 Hype
-                          </button>
-                          
-                          {/* AI Generation Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleGenerateAICaption(selectedSocialTab as 'instagram' | 'tiktok' | 'facebook')}
-                            disabled={aiGenerating}
-                            className="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-sm flex items-center gap-1 disabled:opacity-50"
-                            title="Générer un texte optimisé avec l'IA prenant en compte l'ensemble des rencontres de la publication"
-                          >
-                            {aiGenerating ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin text-white" />
-                                <span>Génération IA...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Wand2 className="w-3 h-3 text-amber-300" />
-                                <span>✨ Rédiger avec l'IA</span>
-                              </>
-                            )}
                           </button>
                         </div>
                       </div>
