@@ -37,6 +37,8 @@ import {
   Maximize2,
   Type,
   AlertCircle,
+  Wand2,
+  Loader2,
 } from 'lucide-react';
 import { toPng, toJpeg, toCanvas } from 'html-to-image';
 import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption, CategorySlideTheme, SlideDesignTheme } from '../types';
@@ -383,8 +385,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [captionStyleProposal, setCaptionStyleProposal] = useState<'standard' | 'short' | 'hype'>('standard');
   const [customCaptions, setCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
   const [isCustomCaptionEdited, setIsCustomCaptionEdited] = useState<{ instagram?: boolean; tiktok?: boolean; facebook?: boolean }>({});
+  
+  // AI Caption Generator state
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [aiTone, setAiTone] = useState<'supporter' | 'officiel' | 'fun' | 'ambiance'>('supporter');
+  const [aiExtraContext, setAiExtraContext] = useState<string>('');
+  const [previousAiCaption, setPreviousAiCaption] = useState<string | null>(null);
+  const [showAiRewriteBox, setShowAiRewriteBox] = useState<boolean>(false);
+  const [customRewriteInstructions, setCustomRewriteInstructions] = useState<string>('');
+  const [isRewriting, setIsRewriting] = useState<boolean>(false);
 
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isExportingAll, setIsExportingAll] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState<boolean>(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
@@ -711,30 +724,30 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     return `${item.category || 'cat'}-${item.teamHome || 'home'}-${item.teamAway || 'away'}-${index}`;
   };
 
-  // Items for caption selection
+  // Items for caption selection (Global Publication: covers ALL matches/results of this publication regardless of number of posters)
   const allCurrentCaptionItems = useMemo(() => {
-    return contentType === 'results' ? displayedResults : displayedMatches;
-  }, [contentType, displayedResults, displayedMatches]);
+    return contentType === 'results' ? filteredResults : filteredMatches;
+  }, [contentType, filteredResults, filteredMatches]);
 
   const allCurrentCaptionItemKeys = useMemo(() => {
     return allCurrentCaptionItems.map((item, idx) => getItemKey(item, idx));
   }, [allCurrentCaptionItems]);
 
   const captionMatches = useMemo(() => {
-    return displayedMatches.filter((m, idx) => {
+    return filteredMatches.filter((m, idx) => {
       if (selectedItemKeysForCaption === null) return true;
       const k = getItemKey(m, idx);
       return selectedItemKeysForCaption.includes(k);
     });
-  }, [displayedMatches, selectedItemKeysForCaption]);
+  }, [filteredMatches, selectedItemKeysForCaption]);
 
   const captionResults = useMemo(() => {
-    return displayedResults.filter((r, idx) => {
+    return filteredResults.filter((r, idx) => {
       if (selectedItemKeysForCaption === null) return true;
       const k = getItemKey(r, idx);
       return selectedItemKeysForCaption.includes(k);
     });
-  }, [displayedResults, selectedItemKeysForCaption]);
+  }, [filteredResults, selectedItemKeysForCaption]);
 
   // Toggle selection of a match/result for text captions
   const toggleCaptionItemKey = (key: string, allKeys: string[]) => {
@@ -884,6 +897,161 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   };
 
+  // AI Caption Generation helper using /api/generate-caption (Single global text for the whole publication)
+  const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
+    setAiGenerating(true);
+    try {
+      const publicationMatches = contentType === 'matches' ? captionMatches : [];
+      const publicationResults = contentType === 'results' ? captionResults : [];
+
+      if (targetPlatform === 'all') {
+        const [resInsta, resTikTok, resFB] = await Promise.all([
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'instagram',
+              type: contentType === 'results' ? 'results' : 'matches',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortName,
+              gymnasium: safeGymnasium,
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'tiktok',
+              type: contentType === 'results' ? 'results' : 'matches',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortName,
+              gymnasium: safeGymnasium,
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+
+          fetch('/api/generate-caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'facebook',
+              type: contentType === 'results' ? 'results' : 'matches',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortName,
+              gymnasium: safeGymnasium,
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            }),
+          }).then((r) => r.json()).catch(() => null),
+        ]);
+
+        setCustomCaptions((prev) => ({
+          ...prev,
+          instagram: resInsta?.caption || prev.instagram,
+          tiktok: resTikTok?.caption || prev.tiktok,
+          facebook: resFB?.caption || prev.facebook,
+        }));
+        setIsCustomCaptionEdited({ instagram: true, tiktok: true, facebook: true });
+      } else {
+        const res = await fetch('/api/generate-caption', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: targetPlatform,
+            type: contentType === 'results' ? 'results' : 'matches',
+            matches: publicationMatches,
+            results: publicationResults,
+            clubName: safeClubName,
+            shortClub: safeShortName,
+            gymnasium: safeGymnasium,
+            tone: aiTone,
+            extraContext: aiExtraContext.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.caption) {
+          setCustomCaptions((prev) => ({ ...prev, [targetPlatform]: data.caption }));
+          setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: true }));
+        }
+      }
+    } catch (err) {
+      console.error('Erreur génération IA:', err);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  // BOUTON 1 : Régénérer avec l'IA (sauvegarde la version actuelle dans previousAiCaption)
+  const handleRegenerateWithAI = async (platform: 'instagram' | 'tiktok' | 'facebook') => {
+    const currentCaption = customCaptions[platform] || generatedCaptions[platform] || '';
+    if (currentCaption) {
+      setPreviousAiCaption(currentCaption);
+    }
+    await handleGenerateAICaption(platform);
+  };
+
+  // BOUTON 2 : Modifier le texte actuel avec l'IA selon consignes utilisateur
+  const handleApplyAiRewrite = async (platform: 'instagram' | 'tiktok' | 'facebook') => {
+    const currentCaption = customCaptions[platform] || generatedCaptions[platform] || '';
+    if (!currentCaption.trim() || !customRewriteInstructions.trim()) return;
+
+    setIsRewriting(true);
+    try {
+      const response = await fetch('/api/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          type: contentType === 'results' ? 'results' : 'matches',
+          matches: [],
+          results: [],
+          clubName: safeClubName,
+          shortClub: safeShortName,
+          gymnasium: safeGymnasium,
+          tone: aiTone,
+          extraContext: `RÉÉCRITURE DU TEXTE ACTUEL - Consignes d'amélioration : "${customRewriteInstructions.trim()}".
+Voici le texte brut que tu dois améliorer et réécrire :
+"${currentCaption}"
+Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni phrases d'introduction.`,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.caption) {
+        setPreviousAiCaption(currentCaption);
+        setCustomCaptions((prev) => ({ ...prev, [platform]: data.caption }));
+        setIsCustomCaptionEdited((prev) => ({ ...prev, [platform]: true }));
+        setShowAiRewriteBox(false);
+        setCustomRewriteInstructions('');
+      }
+    } catch (err) {
+      console.error('Erreur lors de la modification IA:', err);
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  // BOUTON 3 : Annuler la dernière modification (bascule entre version précédente et actuelle)
+  const handleUndoAiCaption = (platform: 'instagram' | 'tiktok' | 'facebook') => {
+    if (!previousAiCaption) return;
+    const current = customCaptions[platform] || generatedCaptions[platform] || '';
+    setCustomCaptions((prev) => ({
+      ...prev,
+      [platform]: previousAiCaption,
+    }));
+    setIsCustomCaptionEdited((prev) => ({ ...prev, [platform]: true }));
+    setPreviousAiCaption(current);
+  };
+
   // High-Resolution Image Export (Retina -> yields clean 1080x1350 for 4:5 ratio)
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
@@ -895,7 +1063,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       const link = document.createElement('a');
       const filterLabel = contentType === 'matches' ? posterFilter : contentType;
       const ratioLabel = aspectRatio.replace(':', '_');
-      link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}_${ratioLabel}_${Date.now()}.png`;
+      const pageSuffix = totalPages > 1 ? `_affiche${currentPage}_sur_${totalPages}` : '';
+      link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}${pageSuffix}_${ratioLabel}_${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
 
@@ -907,6 +1076,43 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Export all pages of the publication
+  const handleDownloadAllPages = async () => {
+    if (!cardRef.current || totalPages <= 1) {
+      await handleDownloadImage();
+      return;
+    }
+    const initialPage = currentPage;
+    setIsExportingAll(true);
+    setExportError(null);
+    try {
+      for (let p = 1; p <= totalPages; p++) {
+        setCurrentPage(p);
+        setExportProgress(`Affiche ${p}/${totalPages}...`);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        if (cardRef.current) {
+          const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.98, 2.2);
+          const link = document.createElement('a');
+          const filterLabel = contentType === 'matches' ? posterFilter : contentType;
+          const ratioLabel = aspectRatio.replace(':', '_');
+          link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}_affiche${p}_sur_${totalPages}_${ratioLabel}_${Date.now()}.png`;
+          link.href = dataUrl;
+          link.click();
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+      }
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Erreur export multi-affiches:', err);
+      setExportError("Erreur lors de la génération de toutes les affiches. Téléchargez chaque affiche individuellement.");
+    } finally {
+      setCurrentPage(initialPage);
+      setIsExportingAll(false);
+      setExportProgress(null);
     }
   };
 
@@ -957,7 +1163,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   };
 
-  // Webhook
+  // Webhook: transmits the single global caption and all publication items
   const handleSendToWebhook = async () => {
     setWebhookStatus({ loading: true });
     try {
@@ -977,8 +1183,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           badgeTitle,
           title: `${safeShortName} • ${badgeTitle}`,
           caption: activeCaption,
-          matches: contentType === 'matches' ? displayedMatches : [],
-          results: contentType === 'results' ? displayedResults : [],
+          matches: contentType === 'matches' ? captionMatches : [],
+          results: contentType === 'results' ? captionResults : [],
+          totalPages,
+          itemsCount: contentType === 'matches' ? captionMatches.length : captionResults.length,
           webhookUrl: clubSettings.socialWebhookUrl || '',
         }),
       });
@@ -1568,10 +1776,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                 <div className="flex flex-col items-center">
                   <span className="text-xs font-black text-white font-montserrat uppercase tracking-wider">
-                    Visuel {currentPage} / {totalPages}
+                    Affiche {currentPage} / {totalPages}
                   </span>
-                  <span className="text-[10px] text-slate-400">
-                    {contentType === 'matches' ? 'Matchs' : 'Résultats'} {(currentPage - 1) * maxDisplayMatches + 1} à {Math.min(currentPage * maxDisplayMatches, allSourceItems.length)} sur {allSourceItems.length}
+                  <span className="text-[10px] text-slate-300">
+                    {contentType === 'matches' ? 'Matchs' : 'Résultats'} {(currentPage - 1) * maxDisplayMatches + 1} à {Math.min(currentPage * maxDisplayMatches, allSourceItems.length)} sur {allSourceItems.length} • 1 seul texte global
                   </span>
                 </div>
 
@@ -2158,12 +2366,23 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   <span>{exportError}</span>
                 </div>
               )}
+              {totalPages > 1 && (
+                <button
+                  type="button"
+                  onClick={handleDownloadAllPages}
+                  disabled={isExporting || isExportingAll}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-red-700 to-rose-700 active:from-red-800 active:to-rose-800 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-700/20 transition-all disabled:opacity-50 mb-2"
+                >
+                  <Layers className="w-4 h-4 text-white" />
+                  <span>{isExportingAll ? (exportProgress || 'Génération...') : `Télécharger les ${totalPages} affiches`}</span>
+                </button>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleDownloadImage}
-                  disabled={isExporting}
-                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 active:from-red-700 active:to-rose-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 transition-all"
+                  disabled={isExporting || isExportingAll}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 active:from-red-700 active:to-rose-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 transition-all disabled:opacity-50"
                 >
                   {downloadSuccess ? (
                     <>
@@ -2173,7 +2392,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   ) : (
                     <>
                       <Download className="w-5 h-5" />
-                      <span>{isExporting ? 'Génération...' : `Télécharger l'Affiche (${aspectRatio})`}</span>
+                      <span>{isExporting ? 'Génération...' : totalPages > 1 ? `Télécharger affiche ${currentPage}/${totalPages}` : `Télécharger l'Affiche (${aspectRatio})`}</span>
                     </>
                   )}
                 </button>
@@ -2181,8 +2400,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 <button
                   type="button"
                   onClick={handleNativeShare}
-                  disabled={isSharing || isExporting}
-                  className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 shadow-md transition-all"
+                  disabled={isSharing || isExporting || isExportingAll}
+                  className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 shadow-md transition-all disabled:opacity-50"
                 >
                   <Share2 className="w-5 h-5 text-orange-400" />
                   <span>{isSharing ? 'Préparation...' : 'Partager (WhatsApp / Insta)'}</span>
@@ -2361,13 +2580,30 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   {/* PROPOSITIONS DE STYLE & SÉLECTION DES MATCHS À INCLURE DANS LE TEXTE */}
                   {selectedSocialTab !== 'webhook' && (
                     <div className="bg-slate-950/90 p-2.5 rounded-xl border border-slate-800 space-y-2">
-                      {/* Style Proposals Bar */}
-                      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-slate-800/60">
+                      {/* Global Publication Header */}
+                      <div className="flex items-center justify-between gap-2 px-1 pb-1.5 border-b border-slate-800/80">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-pink-950/80 text-pink-300 border border-pink-700/50 text-[10px] font-black uppercase tracking-wider">
+                            PUBLICATION GLOBALE
+                          </span>
+                          <span className="text-[11px] text-slate-300 font-bold">
+                            1 seul texte pour les {allCurrentCaptionItems.length} {contentType === 'matches' ? 'matchs' : 'résultats'}
+                          </span>
+                        </div>
+                        {totalPages > 1 && (
+                          <span className="text-[10px] text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-800/50 font-medium">
+                            {totalPages} affiches générées
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Style Proposals Bar & AI Generation */}
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                          <span className="text-xs font-bold text-slate-300">Propositions de textes :</span>
+                          <span className="text-xs font-bold text-slate-300">Style du texte :</span>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
                           <button
                             type="button"
                             onClick={() => {
@@ -2394,7 +2630,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 : 'bg-slate-900 text-slate-400 hover:text-white'
                             }`}
                           >
-                            ⚡ Court / Story
+                            ⚡ Court
                           </button>
                           <button
                             type="button"
@@ -2408,17 +2644,38 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                                 : 'bg-slate-900 text-slate-400 hover:text-white'
                             }`}
                           >
-                            🔥 Hype & Fan
+                            🔥 Hype
+                          </button>
+                          
+                          {/* AI Generation Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateAICaption(selectedSocialTab as 'instagram' | 'tiktok' | 'facebook')}
+                            disabled={aiGenerating}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-sm flex items-center gap-1 disabled:opacity-50"
+                            title="Générer un texte optimisé avec l'IA prenant en compte l'ensemble des rencontres de la publication"
+                          >
+                            {aiGenerating ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin text-white" />
+                                <span>Génération IA...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="w-3 h-3 text-amber-300" />
+                                <span>✨ Rédiger avec l'IA</span>
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
 
                       {/* Match / Result Selection Checkboxes */}
                       {allCurrentCaptionItems.length > 0 && (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                              <span>Matchs/Équipes inclus dans le texte :</span>
+                              <span>Rencontres incluses dans le texte global :</span>
                               <span className="text-[10px] text-amber-400 font-mono">
                                 ({captionMatches.length || captionResults.length}/{allCurrentCaptionItems.length})
                               </span>
@@ -2471,221 +2728,225 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     </div>
                   )}
 
-                  {/* INSTAGRAM PANEL */}
-                  {selectedSocialTab === 'instagram' && (
-                    <div className="space-y-2.5 flex-1 flex flex-col">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-pink-400 text-xs font-bold">
-                          <Instagram className="w-4 h-4" />
-                          <span>Légende Instagram modifiable ({badgeTitle})</span>
+                  {/* ✨ TEXTE IA DE LA PUBLICATION (INSTAGRAM / TIKTOK / FACEBOOK) */}
+                  {selectedSocialTab !== 'webhook' && (() => {
+                    const targetPlatform = selectedSocialTab as 'instagram' | 'tiktok' | 'facebook';
+                    const currentCaptionValue = customCaptions[targetPlatform] || generatedCaptions[targetPlatform] || '';
+                    const platformTitle =
+                      targetPlatform === 'instagram'
+                        ? 'Instagram'
+                        : targetPlatform === 'tiktok'
+                        ? 'TikTok'
+                        : 'Facebook';
+                    const platformIcon =
+                      targetPlatform === 'instagram' ? (
+                        <Instagram className="w-4 h-4 text-pink-400" />
+                      ) : targetPlatform === 'tiktok' ? (
+                        <Flame className="w-4 h-4 text-cyan-400" />
+                      ) : (
+                        <Facebook className="w-4 h-4 text-blue-400" />
+                      );
+                    const openLink =
+                      targetPlatform === 'instagram'
+                        ? 'https://www.instagram.com/'
+                        : targetPlatform === 'tiktok'
+                        ? 'https://www.tiktok.com/upload'
+                        : 'https://www.facebook.com/';
+                    const copyKey = targetPlatform === 'instagram' ? 'insta' : targetPlatform === 'tiktok' ? 'tiktok' : 'fb';
+
+                    return (
+                      <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-3 flex-1 flex flex-col">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-purple-600 via-pink-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-purple-600/25 shrink-0">
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 font-montserrat">
+                                <span>✨ TEXTE IA DE LA PUBLICATION</span>
+                                <span className="text-[10px] text-pink-400 font-bold">({platformTitle})</span>
+                              </h4>
+                              <p className="text-[10px] text-slate-400">
+                                1 seul texte global pour les {allCurrentCaptionItems.length} {contentType === 'matches' ? 'matchs' : 'résultats'} • Modifiable librement
+                              </p>
+                            </div>
+                          </div>
+
+                          <a
+                            href={openLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-slate-300 hover:text-white hover:underline flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-800 transition-colors shrink-0"
+                          >
+                            {platformIcon}
+                            <span>Ouvrir {platformTitle}</span>
+                            <ExternalLink className="w-3 h-3 text-slate-500" />
+                          </a>
                         </div>
 
-                        <a
-                          href="https://www.instagram.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-pink-400 hover:underline flex items-center gap-1"
-                        >
-                          <span>Ouvrir Instagram</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
+                        {/* Textarea pour le texte de la publication */}
+                        <div className="relative flex-1 min-h-[140px]">
+                          <textarea
+                            value={currentCaptionValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCustomCaptions((prev) => ({ ...prev, [targetPlatform]: val }));
+                              setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: true }));
+                            }}
+                            rows={8}
+                            className="w-full h-full bg-slate-900/90 border border-slate-700/80 focus:border-pink-500 rounded-xl p-3 text-xs text-slate-100 font-mono resize-none focus:outline-none transition-colors shadow-inner leading-relaxed"
+                            placeholder="Le texte de la publication apparaîtra ici..."
+                          />
+                        </div>
 
-                      <div className="relative flex-1">
-                        <textarea
-                          value={generatedCaptions.instagram}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setCustomCaptions((prev) => ({ ...prev, instagram: val }));
-                            setIsCustomCaptionEdited((prev) => ({ ...prev, instagram: true }));
-                          }}
-                          rows={6}
-                          className="w-full h-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono resize-none focus:outline-none focus:border-pink-500"
-                          placeholder="Personnalisez ou modifiez votre texte..."
-                        />
-                      </div>
+                        {isCustomCaptionEdited[targetPlatform] && (
+                          <div className="flex items-center justify-between text-[10px] text-amber-400 px-1">
+                            <span>✏️ Texte personnalisé</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: false }));
+                                setCustomCaptions((prev) => {
+                                  const next = { ...prev };
+                                  delete next[targetPlatform];
+                                  return next;
+                                });
+                              }}
+                              className="hover:underline text-rose-400 font-bold"
+                            >
+                              🔄 Réinitialiser la proposition
+                            </button>
+                          </div>
+                        )}
 
-                      {isCustomCaptionEdited.instagram && (
-                        <div className="flex items-center justify-between text-[10px] text-amber-400 px-1">
-                          <span>✏️ Texte modifié manuellement</span>
+                        {/* ZONE DE MODIFICATION PAR L'IA (Bouton 2) */}
+                        {showAiRewriteBox && (
+                          <div className="p-3 bg-purple-950/40 border border-purple-800/60 rounded-xl space-y-2 animate-fadeIn">
+                            <div className="flex items-center justify-between text-xs text-purple-300 font-bold">
+                              <span className="flex items-center gap-1.5">
+                                <Wand2 className="w-3.5 h-3.5 text-purple-400" />
+                                <span>Demander une retouche à l'IA sur le texte actuel :</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setShowAiRewriteBox(false)}
+                                className="text-[10px] text-slate-400 hover:text-white"
+                              >
+                                ✕ Fermer
+                              </button>
+                            </div>
+                            <textarea
+                              value={customRewriteInstructions}
+                              onChange={(e) => setCustomRewriteInstructions(e.target.value)}
+                              placeholder="Ex : Fais plus court, plus dynamique et parle de la buvette."
+                              rows={3}
+                              className="w-full bg-slate-950 border border-purple-700/50 rounded-lg p-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 font-sans"
+                            />
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowAiRewriteBox(false)}
+                                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyAiRewrite(targetPlatform)}
+                                disabled={isRewriting || !customRewriteInstructions.trim()}
+                                className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 transition-all"
+                              >
+                                {isRewriting ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                                    <span>Modification en cours...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                    <span>✨ APPLIQUER AVEC L'IA</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ACTIONS BAR : BOUTONS 1, 2, 3 + COPIER */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {/* BOUTON 1 : RÉGÉNÉRER AVEC L'IA */}
+                            <button
+                              type="button"
+                              onClick={() => handleRegenerateWithAI(targetPlatform)}
+                              disabled={aiGenerating}
+                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 active:bg-purple-700/60 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                              title="Générer une nouvelle proposition avec l'IA"
+                            >
+                              {aiGenerating ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-300" />
+                                  <span>✨ Génération en cours...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                  <span>✨ Régénérer avec l'IA</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* BOUTON 2 : MODIFIER AVEC L'IA */}
+                            <button
+                              type="button"
+                              onClick={() => setShowAiRewriteBox((prev) => !prev)}
+                              className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                                showAiRewriteBox
+                                  ? 'bg-purple-600 text-white border-purple-500 shadow-md'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-900/60'
+                              }`}
+                              title="Demander à l'IA d'ajuster le texte actuel"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-purple-400" />
+                              <span>✏️ Modifier avec l'IA</span>
+                            </button>
+
+                            {/* BOUTON 3 : ANNULER LA DERNIÈRE MODIFICATION */}
+                            {previousAiCaption && (
+                              <button
+                                type="button"
+                                onClick={() => handleUndoAiCaption(targetPlatform)}
+                                className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                                title="Revenir à la version précédente du texte"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                                <span>↩ Annuler la modif</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Bouton Copier */}
                           <button
                             type="button"
-                            onClick={() => setIsCustomCaptionEdited((prev) => ({ ...prev, instagram: false }))}
-                            className="hover:underline text-rose-400 font-bold"
+                            onClick={() => handleCopyText(currentCaptionValue, copyKey)}
+                            className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 active:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
                           >
-                            🔄 Réinitialiser la proposition
+                            {copiedKey === copyKey ? (
+                              <>
+                                <Check className="w-4 h-4 text-emerald-300" />
+                                <span>Légende copiée !</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span>Copier la Légende</span>
+                              </>
+                            )}
                           </button>
                         </div>
-                      )}
-
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-[11px] text-slate-400">
-                          Format conseillé : <strong>Portrait (4:5)</strong> ou <strong>Story (9:16)</strong>
-                        </span>
-
-                        <button
-                          onClick={() => handleCopyText(generatedCaptions.instagram, 'insta')}
-                          className="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
-                        >
-                          {copiedKey === 'insta' ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-300" />
-                              <span>Légende copiée !</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copier la Légende</span>
-                            </>
-                          )}
-                        </button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* TIKTOK PANEL */}
-                  {selectedSocialTab === 'tiktok' && (
-                    <div className="space-y-2.5 flex-1 flex flex-col">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold">
-                          <Flame className="w-4 h-4 text-cyan-400" />
-                          <span>Description TikTok modifiable</span>
-                        </div>
-
-                        <a
-                          href="https://www.tiktok.com/upload"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1"
-                        >
-                          <span>Ouvrir TikTok Studio</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-
-                      <div className="relative flex-1">
-                        <textarea
-                          value={generatedCaptions.tiktok}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setCustomCaptions((prev) => ({ ...prev, tiktok: val }));
-                            setIsCustomCaptionEdited((prev) => ({ ...prev, tiktok: true }));
-                          }}
-                          rows={5}
-                          className="w-full h-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono resize-none focus:outline-none focus:border-cyan-500"
-                          placeholder="Personnalisez ou modifiez votre texte..."
-                        />
-                      </div>
-
-                      {isCustomCaptionEdited.tiktok && (
-                        <div className="flex items-center justify-between text-[10px] text-amber-400 px-1">
-                          <span>✏️ Texte modifié manuellement</span>
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomCaptionEdited((prev) => ({ ...prev, tiktok: false }))}
-                            className="hover:underline text-rose-400 font-bold"
-                          >
-                            🔄 Réinitialiser la proposition
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-[11px] text-slate-400">
-                          Hashtags optimisés pour le feed <strong>#PourToi #FYP</strong>
-                        </span>
-
-                        <button
-                          onClick={() => handleCopyText(generatedCaptions.tiktok, 'tiktok')}
-                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-pink-600 hover:from-cyan-500 hover:to-pink-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
-                        >
-                          {copiedKey === 'tiktok' ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-300" />
-                              <span>Description TikTok Copiée !</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copier la Description</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* FACEBOOK PANEL */}
-                  {selectedSocialTab === 'facebook' && (
-                    <div className="space-y-2.5 flex-1 flex flex-col">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-blue-400 text-xs font-bold">
-                          <Facebook className="w-4 h-4" />
-                          <span>Post Facebook modifiable</span>
-                        </div>
-
-                        <a
-                          href="https://www.facebook.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-blue-400 hover:underline flex items-center gap-1"
-                        >
-                          <span>Ouvrir Facebook</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-
-                      <div className="relative flex-1">
-                        <textarea
-                          value={generatedCaptions.facebook}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setCustomCaptions((prev) => ({ ...prev, facebook: val }));
-                            setIsCustomCaptionEdited((prev) => ({ ...prev, facebook: true }));
-                          }}
-                          rows={6}
-                          className="w-full h-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono resize-none focus:outline-none focus:border-blue-500"
-                          placeholder="Personnalisez ou modifiez votre texte..."
-                        />
-                      </div>
-
-                      {isCustomCaptionEdited.facebook && (
-                        <div className="flex items-center justify-between text-[10px] text-amber-400 px-1">
-                          <span>✏️ Texte modifié manuellement</span>
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomCaptionEdited((prev) => ({ ...prev, facebook: false }))}
-                            className="hover:underline text-rose-400 font-bold"
-                          >
-                            🔄 Réinitialiser la proposition
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-[11px] text-slate-400">
-                          Format idéal : <strong>Portrait (4:5)</strong> ou <strong>Carré (1:1)</strong>
-                        </span>
-
-                        <button
-                          onClick={() => handleCopyText(generatedCaptions.facebook, 'fb')}
-                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
-                        >
-                          {copiedKey === 'fb' ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-300" />
-                              <span>Post Facebook Copié !</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copier le Post</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* WEBHOOK / AUTOMATION PANEL */}
                   {selectedSocialTab === 'webhook' && (
@@ -2754,16 +3015,29 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {exportError && (
                       <span className="text-amber-400 text-xs font-semibold flex items-center gap-1 bg-amber-950/60 px-2 py-1 rounded-lg border border-amber-800/60">
                         <AlertCircle className="w-3.5 h-3.5" />
                         <span>{exportError}</span>
                       </span>
                     )}
+
+                    {totalPages > 1 && (
+                      <button
+                        onClick={handleDownloadAllPages}
+                        disabled={isExporting || isExportingAll}
+                        className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-600 hover:to-rose-600 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-md shadow-red-700/20 disabled:opacity-50"
+                        title={`Télécharger les ${totalPages} affiches de cette publication`}
+                      >
+                        <Layers className="w-4 h-4 text-white" />
+                        <span>{isExportingAll ? (exportProgress || 'Génération...') : `Télécharger les ${totalPages} affiches`}</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={handleDownloadImage}
-                      disabled={isExporting}
+                      disabled={isExporting || isExportingAll}
                       className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 shadow-md shadow-red-600/20"
                       id="btn-download-social-image"
                     >
@@ -2775,7 +3049,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       ) : (
                         <>
                           <Download className="w-4 h-4 text-white" />
-                          <span>{isExporting ? 'Génération...' : `Télécharger l'Affiche (${aspectRatio})`}</span>
+                          <span>{isExporting ? 'Génération...' : totalPages > 1 ? `Télécharger l'affiche ${currentPage}/${totalPages}` : `Télécharger l'Affiche (${aspectRatio})`}</span>
                         </>
                       )}
                     </button>

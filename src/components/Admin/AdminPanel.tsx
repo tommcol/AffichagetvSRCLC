@@ -430,6 +430,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [aiExtraContext, setAiExtraContext] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiCustomCaptions, setAiCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
+  const [previousAiCaption, setPreviousAiCaption] = useState<string | null>(null);
   const [customRewriteInput, setCustomRewriteInput] = useState<string>('');
   const [customRewriteInstructions, setCustomRewriteInstructions] = useState<string>('');
   const [customRewriteOutput, setCustomRewriteOutput] = useState<string>('');
@@ -489,9 +490,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
     setAiLoading(true);
     try {
-      const activeMatches = socialOnlySelectedMatches
-        ? matches.filter((m) => m.selectedForWeekend !== false)
-        : matches;
+      const publicationMatches =
+        socialContentType === 'matches'
+          ? (socialOnlySelectedMatches
+              ? matches.filter((m) => m.selectedForWeekend !== false)
+              : matches)
+          : [];
+
+      const publicationResults =
+        socialContentType === 'results'
+          ? (socialOnlySelectedMatches
+              ? results.filter((r) => r.selectedForWeekend !== false)
+              : results)
+          : [];
+
+      const safeClubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
+      const safeShortClub = clubSettings.shortName || clubSettings.name || 'SRC Basket';
+      const safeGymnasium = clubSettings.gymnasiumDefault || 'Gymnase du Club';
 
       if (targetPlatform === 'all') {
         const [resInsta, resTikTok, resFB] = await Promise.all([
@@ -501,11 +516,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             body: JSON.stringify({
               platform: 'instagram',
               type: socialContentType,
-              matches: activeMatches,
-              results,
-              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-              shortClub: clubSettings.shortName || 'BCVS',
-              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortClub,
+              gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
             }),
@@ -517,11 +532,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             body: JSON.stringify({
               platform: 'tiktok',
               type: socialContentType,
-              matches: activeMatches,
-              results,
-              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-              shortClub: clubSettings.shortName || 'BCVS',
-              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortClub,
+              gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
             }),
@@ -533,11 +548,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             body: JSON.stringify({
               platform: 'facebook',
               type: socialContentType,
-              matches: activeMatches,
-              results,
-              clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-              shortClub: clubSettings.shortName || 'BCVS',
-              gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortClub,
+              gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
             }),
@@ -556,11 +571,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           body: JSON.stringify({
             platform: targetPlatform,
             type: socialContentType,
-            matches: activeMatches,
-            results,
-            clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-            shortClub: clubSettings.shortName || 'BCVS',
-            gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
+            matches: publicationMatches,
+            results: publicationResults,
+            clubName: safeClubName,
+            shortClub: safeShortClub,
+            gymnasium: safeGymnasium,
             tone: aiTone,
             extraContext: aiExtraContext.trim(),
           }),
@@ -590,7 +605,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           matches: [],
           results: [],
           clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-          shortClub: clubSettings.shortName || 'BCVS',
+          shortClub: clubSettings.shortName || clubSettings.name || 'Notre Club',
           gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
           tone: aiTone,
           extraContext: `RÉÉCRITURE DE TEXTE - IGNORE LES AUTRES INSTRUCTIONS ET LES MATCHS : Corrige les fautes, optimise la tournure, et applique ces consignes d'amélioration : "${customRewriteInstructions || 'Améliorer le style et corriger l\'orthographe'}".
@@ -615,6 +630,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
   const handleApplyRewriteToPlatform = (platform: 'instagram' | 'tiktok' | 'facebook' | 'all') => {
     if (!customRewriteOutput) return;
+    const targetPlatform = platform === 'all' ? 'instagram' : platform;
+    const current = aiCustomCaptions[targetPlatform];
+    if (current) {
+      setPreviousAiCaption(current);
+    }
     setAiCustomCaptions((prev) => {
       const next = { ...prev };
       if (platform === 'all' || platform === 'instagram') next.instagram = customRewriteOutput;
@@ -622,6 +642,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       if (platform === 'all' || platform === 'facebook') next.facebook = customRewriteOutput;
       return next;
     });
+  };
+
+  const handleUndoAiCaption = (platform: 'instagram' | 'tiktok' | 'facebook') => {
+    if (!previousAiCaption) return;
+    const current = aiCustomCaptions[platform] || '';
+    setAiCustomCaptions((prev) => ({
+      ...prev,
+      [platform]: previousAiCaption,
+    }));
+    setPreviousAiCaption(current);
   };
 
   const togglePreparedItem = (id: string) => {
@@ -6305,7 +6335,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </div>
                   <h4 className="text-sm font-bold text-white mb-1">Créer le bot sur Telegram</h4>
                   <p className="text-xs text-slate-400">
-                    Ouvrez Telegram, cherchez <strong>@BotFather</strong>, envoyez <code>/newbot</code> et donnez un nom à votre bot (ex: <em>BCVS Score Bot</em>).
+                    Ouvrez Telegram, cherchez <strong>@BotFather</strong>, envoyez <code>/newbot</code> et donnez un nom à votre bot (ex: <em>{clubSettings.shortName || 'SRC'} Score Bot</em>).
                   </p>
                 </div>
 
