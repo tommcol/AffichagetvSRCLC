@@ -51,21 +51,50 @@ import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586
 const TRANSPARENT_IMAGE_FALLBACK =
   'data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
 
+export type PosterAspectRatio = '4:5' | '9:16' | '1:1' | '16:9';
+
+/**
+ * Dimensions logiques fixes natives pour chaque format d'affiche (haute définition 1080p).
+ * Ces dimensions constituent la référence universelle unique sur PC, Android, iPhone et tablette.
+ */
+export const POSTER_DIMENSIONS: Record<PosterAspectRatio, { width: number; height: number }> = {
+  '4:5':  { width: 1080, height: 1350 },
+  '1:1':  { width: 1080, height: 1080 },
+  '9:16': { width: 1080, height: 1920 },
+  '16:9': { width: 1920, height: 1080 },
+};
+
 /**
  * Bulletproof multi-stage exporter for HTML DOM elements to high-resolution data URLs.
  * Handles mobile browsers, webview sandboxes, and bypasses CORS/font issues gracefully.
+ * Renders at exact logical document dimensions (1080p) without preview scale distortion.
  */
 async function safeExportPosterToDataUrl(
   node: HTMLElement,
+  aspectRatio: PosterAspectRatio = '4:5',
   targetQuality = 0.98,
-  targetRatio = 2.2
+  targetRatio = 1
 ): Promise<string> {
+  const dims = POSTER_DIMENSIONS[aspectRatio] || { width: 1080, height: 1350 };
+  const targetWidth = dims.width;
+  const targetHeight = dims.height;
+
   const baseOptions = {
     cacheBust: false,
     skipFonts: true,
+    width: targetWidth,
+    height: targetHeight,
     pixelRatio: targetRatio,
     quality: targetQuality,
     imagePlaceholder: TRANSPARENT_IMAGE_FALLBACK,
+    style: {
+      transform: 'none',
+      transformOrigin: 'top left',
+      position: 'static',
+      left: '0px',
+      top: '0px',
+      margin: '0px',
+    },
     fetchRequestInit: {
       mode: 'cors' as RequestMode,
       cache: 'force-cache' as RequestCache,
@@ -83,7 +112,6 @@ async function safeExportPosterToDataUrl(
   try {
     return await toPng(node, {
       ...baseOptions,
-      pixelRatio: 1.8,
       quality: 0.95,
     });
   } catch (err2) {
@@ -92,10 +120,7 @@ async function safeExportPosterToDataUrl(
 
   // Stage 3: toCanvas
   try {
-    const canvas = await toCanvas(node, {
-      ...baseOptions,
-      pixelRatio: 1.5,
-    });
+    const canvas = await toCanvas(node, baseOptions);
     return canvas.toDataURL('image/png');
   } catch (err3) {
     console.warn('Tentative 3 export toCanvas échouée, tentative 4 avec toJpeg...', err3);
@@ -105,7 +130,6 @@ async function safeExportPosterToDataUrl(
   try {
     return await toJpeg(node, {
       ...baseOptions,
-      pixelRatio: 1.5,
       quality: 0.92,
     });
   } catch (err4) {
@@ -129,7 +153,6 @@ interface VisualExporterModalProps {
 
 type PosterFilterType = 'home' | 'away' | 'exempt' | 'all';
 type PosterThemeType = 'poster-red' | 'brick' | 'modern';
-type PosterAspectRatio = '4:5' | '9:16' | '1:1' | '16:9';
 
 /**
  * Formats date and time into French poster style:
@@ -223,10 +246,10 @@ const AutoFitTeamName: React.FC<{
 
   if (isExempt || originalName.toLowerCase() === 'exempt') {
     return (
-      <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
+      <div className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
         <span
           className={`font-montserrat font-black text-white uppercase tracking-wider drop-shadow-sm ${
-            count >= 6 || aspectRatio === '16:9' ? 'text-[12px]' : count >= 5 ? 'text-[13px]' : 'text-[15px]'
+            count >= 6 || aspectRatio === '16:9' ? 'text-[28px]' : count >= 5 ? 'text-[32px]' : 'text-[36px]'
           }`}
           style={{ lineHeight: 1.1 }}
         >
@@ -236,71 +259,71 @@ const AutoFitTeamName: React.FC<{
     );
   }
 
-  // Dynamic font sizing optimized for high legibility in pastilles
+  // Dynamic font sizing optimized for high legibility in 1080p pastilles
   const compactMode = isCompact || count >= 6 || (aspectRatio === '16:9' && count >= 3);
-  let fontSize = '14px';
+  let fontSize = '36px';
   let lineHeight = '1.05';
-  let maxHeight = '36px';
+  let maxHeight = '90px';
 
   if (compactMode) {
     if (len <= 10) {
-      fontSize = '13.5px';
+      fontSize = '34px';
       lineHeight = '1.1';
     } else if (len <= 16) {
-      fontSize = '12px';
+      fontSize = '30px';
       lineHeight = '1.05';
     } else if (len <= 22) {
-      fontSize = '11px';
+      fontSize = '27px';
       lineHeight = '1.0';
     } else if (len <= 28) {
-      fontSize = '10.5px';
+      fontSize = '25px';
       lineHeight = '0.98';
     } else {
-      fontSize = '10px';
+      fontSize = '23px';
       lineHeight = '0.95';
     }
-    maxHeight = '30px';
+    maxHeight = '78px';
   } else if (count === 5) {
     if (len <= 10) {
-      fontSize = '14.5px';
+      fontSize = '37px';
       lineHeight = '1.12';
     } else if (len <= 16) {
-      fontSize = '13px';
+      fontSize = '33px';
       lineHeight = '1.08';
     } else if (len <= 22) {
-      fontSize = '12px';
+      fontSize = '29px';
       lineHeight = '1.02';
     } else if (len <= 28) {
-      fontSize = '11px';
+      fontSize = '27px';
       lineHeight = '0.98';
     } else {
-      fontSize = '10.5px';
+      fontSize = '24px';
       lineHeight = '0.95';
     }
-    maxHeight = '34px';
+    maxHeight = '84px';
   } else {
     // 1 to 4 matches
     if (len <= 10) {
-      fontSize = '16px';
+      fontSize = '42px';
       lineHeight = '1.15';
     } else if (len <= 16) {
-      fontSize = '14px';
+      fontSize = '36px';
       lineHeight = '1.1';
     } else if (len <= 22) {
-      fontSize = '12.5px';
+      fontSize = '32px';
       lineHeight = '1.05';
     } else if (len <= 28) {
-      fontSize = '11.5px';
+      fontSize = '28px';
       lineHeight = '1.0';
     } else {
-      fontSize = '10.5px';
+      fontSize = '25px';
       lineHeight = '0.95';
     }
-    maxHeight = '40px';
+    maxHeight = '96px';
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center text-center px-1.5 pointer-events-none select-none">
+    <div className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
       <span
         className={`${getFontFamilyClass(fontHeader)} font-black text-center uppercase tracking-tight block max-w-full drop-shadow-sm`}
         style={{
@@ -408,6 +431,47 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Logical document dimensions source of truth for the current aspect ratio
+  const targetDims = POSTER_DIMENSIONS[aspectRatio] || POSTER_DIMENSIONS['4:5'];
+
+  // Zoom de prévisualisation adaptatif calculé dynamiquement
+  // La composition reste 100% rigide et native (1080p), seule la vue d'aperçu zoome
+  const [previewScale, setPreviewScale] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth > 0) {
+      const defaultAvail = Math.min(window.innerWidth - 32, 460);
+      return Math.max(0.12, defaultAvail / 1080);
+    }
+    return 0.35;
+  });
+
+  useEffect(() => {
+    const updateScale = () => {
+      if (!previewWrapperRef.current) return;
+      const containerWidth = previewWrapperRef.current.clientWidth;
+      if (containerWidth > 0) {
+        const viewportMaxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.65 : 600;
+        const scaleByWidth = (containerWidth - 8) / targetDims.width;
+        const scaleByHeight = viewportMaxHeight / targetDims.height;
+        const computedScale = Math.max(0.12, Math.min(scaleByWidth, scaleByHeight, 480 / targetDims.width));
+        setPreviewScale(computedScale);
+      }
+    };
+
+    updateScale();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && previewWrapperRef.current) {
+      ro = new ResizeObserver(updateScale);
+      ro.observe(previewWrapperRef.current);
+    }
+    window.addEventListener('resize', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      if (ro) ro.disconnect();
+    };
+  }, [aspectRatio, targetDims.width, targetDims.height]);
 
   // Active matches selection
   const weekendMatches = useMemo(() => {
@@ -1052,13 +1116,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setPreviousAiCaption(current);
   };
 
-  // High-Resolution Image Export (Retina -> yields clean 1080x1350 for 4:5 ratio)
+  // High-Resolution Image Export (Native 1080p exact dimensions on all platforms)
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
     try {
       setIsExporting(true);
       setExportError(null);
-      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.98, 2.2);
+      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, aspectRatio, 0.98, 1);
 
       const link = document.createElement('a');
       const filterLabel = contentType === 'matches' ? posterFilter : contentType;
@@ -1094,7 +1158,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         setExportProgress(`Affiche ${p}/${totalPages}...`);
         await new Promise((resolve) => setTimeout(resolve, 400));
         if (cardRef.current) {
-          const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.98, 2.2);
+          const dataUrl = await safeExportPosterToDataUrl(cardRef.current, aspectRatio, 0.98, 1);
           const link = document.createElement('a');
           const filterLabel = contentType === 'matches' ? posterFilter : contentType;
           const ratioLabel = aspectRatio.replace(':', '_');
@@ -1122,7 +1186,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     try {
       setIsSharing(true);
       setExportError(null);
-      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, 0.95, 1.8);
+      const dataUrl = await safeExportPosterToDataUrl(cardRef.current, aspectRatio, 0.95, 1);
 
       const res = await fetch(dataUrl);
       const blob = await res.blob();
@@ -1831,478 +1895,497 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </div>
 
             {/* ========================================================================= */}
-            {/* CARD CONTAINER WITH SELECTED ASPECT RATIO & RENDERED VISUAL */}
+            {/* CARD PREVIEW CONTAINER WITH DYNAMIC ZOOM & FIXED LOGICAL DIMENSIONS        */}
             {/* ========================================================================= */}
-            <div
-              ref={cardRef}
-              className={`w-full relative overflow-hidden text-white flex flex-col justify-between select-none shadow-2xl transition-all ${
-                aspectRatio === '4:5'
-                  ? 'w-[92vw] sm:w-full max-w-[420px] aspect-[4/5] p-4 sm:p-6 rounded-3xl'
-                  : aspectRatio === '9:16'
-                  ? 'w-[88vw] sm:w-full max-w-[340px] aspect-[9/16] p-4 sm:p-6 rounded-3xl'
-                  : aspectRatio === '1:1'
-                  ? 'w-[90vw] sm:w-full max-w-[400px] aspect-square p-4 sm:p-5 rounded-3xl'
-                  : 'w-full max-w-[620px] aspect-[16/9] p-3.5 sm:p-4 rounded-3xl'
-              }`}
-              style={{
-                backgroundColor: '#111111',
-              }}
-            >
-              {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
-              {visualTheme === 'poster-red' && (
-                <>
-                  {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <img
-                      src={effectiveBgUrl}
-                      alt="Fond affiche basket"
-                      className="w-full h-full object-cover pointer-events-none transition-all duration-75"
-                      style={{
-                        filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
-                        transform: `scale(${layer1Scale})`,
-                      }}
-                    />
-                  </div>
-
-                  {/* Radial vignette overlay for maximum readability & high contrast */}
-                  <div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background: 'radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%)',
-                    }}
-                  />
-
-                  {/* Subtle sports lighting accent */}
-                  <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-64 h-32 bg-red-600/20 blur-3xl pointer-events-none" />
-
-                  {/* STUDIO LAYER 3: MASCOTTE / DÉCOR GRAPHISME */}
-                  {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
-                    <div
-                      className={`absolute pointer-events-none z-10 transition-all ${
-                        studioLayer3Pos === 'bottom-right'
-                          ? 'bottom-3 right-3'
-                          : studioLayer3Pos === 'bottom-left'
-                          ? 'bottom-3 left-3'
-                          : studioLayer3Pos === 'top-right'
-                          ? 'top-14 right-3'
-                          : 'bottom-8 left-1/2 -translate-x-1/2'
-                      }`}
-                      style={{
-                        opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
-                        transform: `scale(${studioLayer3Scale}) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
-                        transformOrigin: studioLayer3Pos === 'bottom-right' ? 'bottom right' : studioLayer3Pos === 'bottom-left' ? 'bottom left' : 'center center',
-                        maxHeight: '38%',
-                        maxWidth: '38%',
-                      }}
-                    >
-                      <img
-                        src={effectiveLayer3Url}
-                        alt="Calque 3"
-                        className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]"
-                      />
-                    </div>
-                  )}
-
-                  {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
-                  {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
-                    <div
-                      className={`absolute pointer-events-none z-10 transition-all ${
-                        studioLayer4Pos === 'top-right'
-                          ? 'top-3 right-3'
-                          : studioLayer4Pos === 'bottom-left'
-                          ? 'bottom-3 left-3'
-                          : studioLayer4Pos === 'bottom-right'
-                          ? 'bottom-3 right-3'
-                          : 'top-3 left-3'
-                      }`}
-                      style={{
-                        opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
-                        transform: `scale(${studioLayer4Scale})`,
-                        transformOrigin: studioLayer4Pos.includes('right') ? 'top right' : 'top left',
-                        maxHeight: '24%',
-                        maxWidth: '30%',
-                      }}
-                    >
-                      <img
-                        src={effectiveLayer4Url}
-                        alt="Calque 4"
-                        className="max-h-full max-w-full object-contain filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
-                      />
-                    </div>
-                  )}
-
-                  {/* 3 Zebra White Stripes in Bottom Right (Positioned at background layer z-10, behind pastilles and content) */}
-                  <div
-                    className={`absolute pointer-events-none z-10 flex flex-col -rotate-45 ${
-                      aspectRatio === '16:9'
-                        ? '-bottom-4 -right-4 gap-1.5'
-                        : '-bottom-3 -right-3 gap-2.5'
-                    }`}
-                  >
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
-                    <div className={`${aspectRatio === '16:9' ? 'w-18 h-2' : 'w-28 h-3'} bg-white shadow-md`} />
-                  </div>
-
-                  {/* CONTENT WRAPPER */}
-                  <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
-                    
-                    {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
-                    <div className="w-full flex flex-col items-center">
-                      
-                      {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
-                      <div className={`flex gap-1.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-1' : 'mb-1.5'} z-10`}>
-                        {[...Array(6)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`${aspectRatio === '16:9' ? 'w-1.5 h-2.5' : 'w-2 h-4'} rounded-[1px] shadow-[0_2px_4px_rgba(0,0,0,0.6)]`}
-                            style={{ backgroundColor: layer2PrimaryColor }}
-                          />
-                        ))}
+            <div ref={previewWrapperRef} className="w-full flex items-center justify-center overflow-hidden py-1">
+              <div
+                style={{
+                  width: `${Math.round(targetDims.width * previewScale)}px`,
+                  height: `${Math.round(targetDims.height * previewScale)}px`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                className="shrink-0 shadow-2xl rounded-2xl sm:rounded-3xl border border-slate-800"
+              >
+                <div
+                  ref={cardRef}
+                  style={{
+                    width: `${targetDims.width}px`,
+                    height: `${targetDims.height}px`,
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: 'top left',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    backgroundColor: '#111111',
+                  }}
+                  className={`overflow-hidden text-white flex flex-col justify-between select-none ${
+                    aspectRatio === '4:5'
+                      ? 'p-14'
+                      : aspectRatio === '9:16'
+                      ? 'p-14'
+                      : aspectRatio === '1:1'
+                      ? 'p-12'
+                      : 'p-10'
+                  }`}
+                >
+                  {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
+                  {visualTheme === 'poster-red' && (
+                    <>
+                      {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        <img
+                          src={effectiveBgUrl}
+                          alt="Fond affiche basket"
+                          className="w-full h-full object-cover pointer-events-none transition-all duration-75"
+                          style={{
+                            filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
+                            transform: `scale(${layer1Scale})`,
+                          }}
+                        />
                       </div>
 
-                      {/* Header Badge: DOMICILE / EXTÉRIEUR / EXEMPT / RÉSULTATS */}
+                      {/* Radial vignette overlay for maximum readability & high contrast */}
                       <div
-                        className={`font-black uppercase tracking-wider text-center border-t border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
+                        className="absolute inset-0 pointer-events-none"
                         style={{
-                          background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                          color: layer2BadgeTextColor,
-                          fontSize: aspectRatio === '16:9' ? '17px' : (aspectRatio === '1:1' ? '20px' : (displayedMatches.length >= 6 ? '22px' : '25px')),
-                          padding: aspectRatio === '16:9' ? '3px 22px' : (displayedMatches.length >= 6 ? '4px 28px' : '6px 34px'),
-                          borderRadius: '12px',
-                          boxShadow: '0 6px 16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
-                          marginBottom: aspectRatio === '16:9' ? '5px' : (displayedMatches.length >= 6 ? '8px' : (aspectRatio === '1:1' ? '10px' : '14px')),
-                          lineHeight: '1.2',
+                          background: 'radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%)',
                         }}
-                      >
-                        {badgeTitle}
-                      </div>
-                    </div>
+                      />
 
-                    {/* MATCHES LIST BODY */}
-                    {contentType === 'matches' && (
+                      {/* Subtle sports lighting accent */}
+                      <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-[600px] h-[300px] bg-red-600/20 blur-3xl pointer-events-none" />
+
+                      {/* STUDIO LAYER 3: MASCOTTE / DÉCOR GRAPHISME */}
+                      {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
+                        <div
+                          className={`absolute pointer-events-none z-10 transition-all ${
+                            studioLayer3Pos === 'bottom-right'
+                              ? 'bottom-8 right-8'
+                              : studioLayer3Pos === 'bottom-left'
+                              ? 'bottom-8 left-8'
+                              : studioLayer3Pos === 'top-right'
+                              ? 'top-32 right-8'
+                              : 'bottom-16 left-1/2 -translate-x-1/2'
+                          }`}
+                          style={{
+                            opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
+                            transform: `scale(${studioLayer3Scale}) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
+                            transformOrigin: studioLayer3Pos === 'bottom-right' ? 'bottom right' : studioLayer3Pos === 'bottom-left' ? 'bottom left' : 'center center',
+                            maxHeight: '38%',
+                            maxWidth: '38%',
+                          }}
+                        >
+                          <img
+                            src={effectiveLayer3Url}
+                            alt="Calque 3"
+                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_8px_24px_rgba(0,0,0,0.85)]"
+                          />
+                        </div>
+                      )}
+
+                      {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
+                      {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
+                        <div
+                          className={`absolute pointer-events-none z-10 transition-all ${
+                            studioLayer4Pos === 'top-right'
+                              ? 'top-8 right-8'
+                              : studioLayer4Pos === 'bottom-left'
+                              ? 'bottom-8 left-8'
+                              : studioLayer4Pos === 'bottom-right'
+                              ? 'bottom-8 right-8'
+                              : 'top-8 left-8'
+                          }`}
+                          style={{
+                            opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
+                            transform: `scale(${studioLayer4Scale})`,
+                            transformOrigin: studioLayer4Pos.includes('right') ? 'top right' : 'top left',
+                            maxHeight: '22%',
+                            maxWidth: '28%',
+                          }}
+                        >
+                          <img
+                            src={effectiveLayer4Url}
+                            alt="Calque 4"
+                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.75)]"
+                          />
+                        </div>
+                      )}
+
+                      {/* 3 Zebra White Stripes in Bottom Right (Positioned at background layer z-10, behind pastilles and content) */}
                       <div
-                        className={`w-full flex-1 ${
-                          aspectRatio === '16:9' && displayedMatches.length >= 4
-                            ? 'grid grid-cols-2 gap-x-4 gap-y-1.5 items-center my-auto px-1'
-                            : `flex flex-col justify-center my-0.5 ${
-                                aspectRatio === '16:9'
-                                  ? 'max-w-[88%] mx-auto pr-8 gap-1.5'
-                                  : displayedMatches.length >= 6
-                                  ? 'gap-1'
-                                  : displayedMatches.length === 5
-                                  ? 'gap-1.5'
-                                  : displayedMatches.length === 4
-                                  ? 'gap-2'
-                                  : 'gap-3'
-                              }`
+                        className={`absolute pointer-events-none z-10 flex flex-col -rotate-45 ${
+                          aspectRatio === '16:9'
+                            ? '-bottom-8 -right-8 gap-4'
+                            : '-bottom-10 -right-10 gap-6'
                         }`}
                       >
-                        {displayedMatches.map((m) => {
-                          const isExempt = posterFilter === 'exempt' || isExemptItem(m);
-                          const isHome = Boolean(m.isHomeMatch);
+                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
+                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
+                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
+                      </div>
 
-                          const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
-                          const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
-                          const count = displayedMatches.length;
-
-                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');
-                          const headerFontSize = aspectRatio === '16:9' ? '10.5px' : (count >= 6 ? '11px' : count === 5 ? '12px' : count === 4 ? '12.5px' : (aspectRatio === '1:1' ? '12px' : '13.5px'));
-                          const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
-                          const vsBadgeSize = aspectRatio === '16:9' ? 'w-6 h-6 text-[9.5px]' : (count >= 6 ? 'w-6 h-6 text-[10px]' : count === 5 ? 'w-6 h-6 text-[10.5px]' : 'w-7 h-7 text-[11px]');
-
-                          const isLive = isMatchLive(m);
-                          const isFinished = isMatchFinished(m);
-                          const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
-
-                          return (
-                            <div key={m.id} className="w-full flex flex-col items-center">
-                              {/* Match Date Header: Samedi 19 septembre | 13h30 + Statut DIRECT */}
+                      {/* CONTENT WRAPPER */}
+                      <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
+                        
+                        {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
+                        <div className="w-full flex flex-col items-center">
+                          
+                          {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
+                          <div className={`flex gap-3.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-2' : 'mb-3.5'} z-10`}>
+                            {[...Array(6)].map((_, i) => (
                               <div
-                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center justify-center gap-1.5`}
-                                style={{
-                                  fontSize: headerFontSize,
-                                  color: layer2TextColor,
-                                  letterSpacing: '0.4px',
-                                }}
-                              >
-                                <span>{formatPosterMatchDate(m.date, m.time)}</span>
-                                {isLive && (
-                                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] uppercase tracking-wider animate-pulse shadow-sm flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                                    EN COURS
-                                  </span>
-                                )}
-                              </div>
+                                key={i}
+                                className={`${aspectRatio === '16:9' ? 'w-4 h-7' : 'w-5 h-10'} rounded-[2px] shadow-[0_4px_8px_rgba(0,0,0,0.6)]`}
+                                style={{ backgroundColor: layer2PrimaryColor }}
+                              />
+                            ))}
+                          </div>
 
-                              {/* Match Row: [Team Left Pill] (vs) [Team Right Pill] */}
-                              <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2">
-                                
-                                {/* Home / Category Pill with Auto-adaptive font */}
-                                <div
-                                  className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
-                                  style={{
-                                    height: pillHeight,
-                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
-                                  }}
-                                >
-                                  <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                </div>
+                          {/* Header Badge: DOMICILE / EXTÉRIEUR / EXEMPT / RÉSULTATS */}
+                          <div
+                            className={`font-black uppercase tracking-wider text-center border-t-2 border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
+                            style={{
+                              background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                              color: layer2BadgeTextColor,
+                              fontSize: aspectRatio === '16:9' ? '44px' : (aspectRatio === '1:1' ? '50px' : (displayedMatches.length >= 6 ? '54px' : '62px')),
+                              padding: aspectRatio === '16:9' ? '8px 56px' : (displayedMatches.length >= 6 ? '10px 70px' : '14px 84px'),
+                              borderRadius: '26px',
+                              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.25)',
+                              marginBottom: aspectRatio === '16:9' ? '12px' : (displayedMatches.length >= 6 ? '20px' : (aspectRatio === '1:1' ? '24px' : '32px')),
+                              lineHeight: '1.2',
+                            }}
+                          >
+                            {badgeTitle}
+                          </div>
+                        </div>
 
-                                {/* Center Round VS Badge / Live / Score */}
-                                {isLive ? (
+                        {/* MATCHES LIST BODY */}
+                        {contentType === 'matches' && (
+                          <div
+                            className={`w-full flex-1 ${
+                              aspectRatio === '16:9' && displayedMatches.length >= 4
+                                ? 'grid grid-cols-2 gap-x-8 gap-y-3 items-center my-auto px-2'
+                                : `flex flex-col justify-center my-1 ${
+                                    aspectRatio === '16:9'
+                                      ? 'max-w-[88%] mx-auto pr-16 gap-3'
+                                      : displayedMatches.length >= 6
+                                      ? 'gap-2.5'
+                                      : displayedMatches.length === 5
+                                      ? 'gap-3.5'
+                                      : displayedMatches.length === 4
+                                      ? 'gap-5'
+                                      : 'gap-7'
+                                  }`
+                            }`}
+                          >
+                            {displayedMatches.map((m) => {
+                              const isExempt = posterFilter === 'exempt' || isExemptItem(m);
+                              const isHome = Boolean(m.isHomeMatch);
+
+                              const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
+                              const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
+                              const count = displayedMatches.length;
+
+                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '80px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
+                              const headerFontSize = aspectRatio === '16:9' ? '26px' : (count >= 6 ? '27px' : count === 5 ? '29px' : count === 4 ? '31px' : (aspectRatio === '1:1' ? '29px' : '33px'));
+                              const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
+                              const vsBadgeSize = aspectRatio === '16:9' ? 'w-14 h-14 text-lg' : (count >= 6 ? 'w-15 h-15 text-lg' : count === 5 ? 'w-16 h-16 text-xl' : 'w-18 h-18 text-2xl');
+
+                              const isLive = isMatchLive(m);
+                              const isFinished = isMatchFinished(m);
+                              const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
+
+                              return (
+                                <div key={m.id} className="w-full flex flex-col items-center">
+                                  {/* Match Date Header: Samedi 19 septembre | 13h30 + Statut DIRECT */}
                                   <div
-                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] select-none bg-red-600 text-white uppercase text-[8px] animate-pulse border border-red-300`}
-                                    title="Match en cours"
-                                  >
-                                    {hasScore ? `${m.homeScore}-${m.awayScore}` : 'en cours'}
-                                  </div>
-                                ) : isFinished && hasScore ? (
-                                  <div
-                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] select-none bg-white text-slate-900 border border-slate-300 text-[8.5px]`}
-                                  >
-                                    {m.homeScore}-{m.awayScore}
-                                  </div>
-                                ) : (
-                                  <div
-                                    className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_2px_6px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
+                                    className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] flex items-center justify-center gap-3`}
                                     style={{
-                                      backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                      color: layer2BadgeBgColor || '#111111',
+                                      fontSize: headerFontSize,
+                                      color: layer2TextColor,
+                                      letterSpacing: '0.8px',
                                     }}
                                   >
-                                    vs
+                                    <span>{formatPosterMatchDate(m.date, m.time)}</span>
+                                    {isLive && (
+                                      <span className="px-4 py-1 rounded-full bg-red-600 text-white font-black text-lg uppercase tracking-wider animate-pulse shadow-md flex items-center gap-2">
+                                        <span className="w-3 h-3 rounded-full bg-white animate-ping" />
+                                        EN COURS
+                                      </span>
+                                    )}
                                   </div>
-                                )}
 
-                                {/* Away / Opponent Pill with Auto-adaptive font */}
-                                <div
-                                  className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
-                                  style={{
-                                    height: pillHeight,
-                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
-                                  }}
-                                >
-                                  <AutoFitTeamName name={teamRight} isExempt={isExempt} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                  {/* Match Row: [Team Left Pill] (vs) [Team Right Pill] */}
+                                  <div className="w-full flex items-center justify-between gap-4">
+                                    
+                                    {/* Home / Category Pill with Auto-adaptive font */}
+                                    <div
+                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
+                                      style={{
+                                        height: pillHeight,
+                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
+                                      }}
+                                    >
+                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                    </div>
+
+                                    {/* Center Round VS Badge / Live / Score */}
+                                    {isLive ? (
+                                      <div
+                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] select-none bg-red-600 text-white uppercase text-sm animate-pulse border-2 border-red-300`}
+                                        title="Match en cours"
+                                      >
+                                        {hasScore ? `${m.homeScore}-${m.awayScore}` : 'en cours'}
+                                      </div>
+                                    ) : isFinished && hasScore ? (
+                                      <div
+                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] select-none bg-white text-slate-900 border-2 border-slate-300 text-base font-mono`}
+                                      >
+                                        {m.homeScore}-{m.awayScore}
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
+                                        style={{
+                                          backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
+                                          color: layer2BadgeBgColor || '#111111',
+                                        }}
+                                      >
+                                        vs
+                                      </div>
+                                    )}
+
+                                    {/* Away / Opponent Pill with Auto-adaptive font */}
+                                    <div
+                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
+                                      style={{
+                                        height: pillHeight,
+                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
+                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
+                                      }}
+                                    >
+                                      <AutoFitTeamName name={teamRight} isExempt={isExempt} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                    </div>
+                                  </div>
                                 </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* RESULTS LIST BODY */}
+                        {contentType === 'results' && (
+                          <div
+                            className={`w-full flex-1 ${
+                              aspectRatio === '16:9' && displayedResults.length >= 4
+                                ? 'grid grid-cols-2 gap-x-8 gap-y-3 items-center my-auto px-2'
+                                : `flex flex-col justify-center my-1 ${
+                                    aspectRatio === '16:9'
+                                      ? 'max-w-[88%] mx-auto pr-16 gap-3'
+                                      : displayedResults.length >= 6
+                                      ? 'gap-2.5'
+                                      : displayedResults.length === 5
+                                      ? 'gap-3.5'
+                                      : displayedResults.length === 4
+                                      ? 'gap-5'
+                                      : 'gap-7'
+                                  }`
+                            }`}
+                          >
+                            {displayedResults.map((r) => {
+                              const isWin = isMatchWin(r, safeClubName, safeShortName);
+                              const isHomeClub = isClubHomeMatch(r, safeClubName, safeShortName);
+                              const teamLeft = isHomeClub ? r.category : (r.teamHome || 'Notre Club');
+                              const teamRight = isHomeClub ? (r.teamAway || 'Adversaire') : r.category;
+                              const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
+
+                              const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
+                              const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
+                              const count = displayedResults.length;
+
+                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '80px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
+                              const headerFontSize = aspectRatio === '16:9' ? '26px' : (count >= 6 ? '27px' : count === 5 ? '29px' : count === 4 ? '31px' : (aspectRatio === '1:1' ? '29px' : '33px'));
+                              const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
+
+                              return (
+                                <div key={r.id} className="w-full flex flex-col items-center">
+                                  {/* Date / Category */}
+                                  <div
+                                    className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] flex items-center justify-center gap-3`}
+                                    style={{
+                                      fontSize: headerFontSize,
+                                      color: layer2TextColor,
+                                      letterSpacing: '0.8px',
+                                    }}
+                                  >
+                                    <span>{matchDateText || r.category}</span>
+                                    {resultDisplayMode !== 'score' && (
+                                      <>
+                                        <span>•</span>
+                                        <span className={isWin ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
+                                          {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Row */}
+                                  <div className="w-full flex items-center justify-between gap-4">
+                                    <div
+                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
+                                      style={{
+                                        height: pillHeight,
+                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
+                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
+                                      }}
+                                    >
+                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                    </div>
+
+                                    <div
+                                      className={`px-6 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
+                                        count >= 6 ? 'h-18 text-2xl' : 'h-20 text-3xl'
+                                      } ${resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider text-xl font-black' : 'font-mono font-black'}`}
+                                      style={{
+                                        backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
+                                        color: (resultDisplayMode === 'status' || !hasScore)
+                                          ? (isWin ? '#047857' : '#be123c')
+                                          : (layer2BadgeBgColor || '#111111'),
+                                      }}
+                                    >
+                                      {resultDisplayMode === 'status' || !hasScore
+                                        ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
+                                        : scoreDisplay}
+                                    </div>
+
+                                    <div
+                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
+                                      style={{
+                                        height: pillHeight,
+                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
+                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
+                                      }}
+                                    >
+                                      <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* NOTIFICATION BODY */}
+                        {contentType === 'notification' && specificNotification && (
+                          <div className="w-full flex-1 flex flex-col items-center justify-center text-center my-4">
+                            <div
+                              className={`w-28 h-28 rounded-3xl flex items-center justify-center mb-4 shadow-xl ${
+                                specificNotification.isWin ? 'bg-emerald-500' : 'bg-red-600'
+                              }`}
+                            >
+                              <Trophy className="w-16 h-16 text-white" />
+                            </div>
+                            <h4 className="font-montserrat font-black text-5xl tracking-wider text-white uppercase drop-shadow-md">
+                              {specificNotification.isWin ? 'VICTOIRE DU CLUB !' : 'COUP DE SIFFLET FINAL'}
+                            </h4>
+                            <div className="font-montserrat font-bold text-slate-300 text-2xl mt-2">
+                              {specificNotification.category || specificNotification.team}
+                            </div>
+
+                            <div className="w-full max-w-[920px] bg-black/60 rounded-3xl border-2 border-white/20 p-8 my-6 flex items-center justify-center gap-6 backdrop-blur-md">
+                              <div className="flex-1 font-montserrat font-extrabold text-2xl text-right truncate">
+                                {specificNotification.ourTeam || safeShortName}
+                              </div>
+                              <div className="px-8 py-2 bg-red-600 rounded-2xl text-6xl font-black font-teko text-white border-2 border-red-500 shadow-md">
+                                {specificNotification.ourScore} : {specificNotification.opponentScore}
+                              </div>
+                              <div className="flex-1 font-montserrat font-extrabold text-2xl text-left truncate text-slate-300">
+                                {specificNotification.opponent || 'Adversaire'}
                               </div>
                             </div>
-                          );
-                        })}
+                          </div>
+                        )}
+
                       </div>
-                    )}
+                    </>
+                  )}
 
-                    {/* RESULTS LIST BODY */}
-                    {contentType === 'results' && (
-                      <div
-                        className={`w-full flex-1 ${
-                          aspectRatio === '16:9' && displayedResults.length >= 4
-                            ? 'grid grid-cols-2 gap-x-4 gap-y-1.5 items-center my-auto px-1'
-                            : `flex flex-col justify-center my-0.5 ${
-                                aspectRatio === '16:9'
-                                  ? 'max-w-[88%] mx-auto pr-8 gap-1.5'
-                                  : displayedResults.length >= 6
-                                  ? 'gap-1'
-                                  : displayedResults.length === 5
-                                  ? 'gap-1.5'
-                                  : displayedResults.length === 4
-                                  ? 'gap-2'
-                                  : 'gap-3'
-                              }`
-                        }`}
-                      >
-                        {displayedResults.map((r) => {
-                          const isWin = isMatchWin(r, safeClubName, safeShortName);
-                          const isHomeClub = isClubHomeMatch(r, safeClubName, safeShortName);
-                          const teamLeft = isHomeClub ? r.category : (r.teamHome || 'Notre Club');
-                          const teamRight = isHomeClub ? (r.teamAway || 'Adversaire') : r.category;
-                          const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
+                  {/* THEME 2: BRICK WALL & MASCOT */}
+                  {visualTheme === 'brick' && (
+                    <>
+                      <svg className="absolute inset-0 w-full h-full opacity-35 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <pattern id="brick-pat-modal" width="100" height="50" patternUnits="userSpaceOnUse">
+                            <rect width="100" height="50" fill="#4a1610" />
+                            <path d="M 0 0 L 100 0 M 0 25 L 100 25 M 0 50 L 100 50 M 50 0 L 50 25 M 0 25 L 0 50 M 100 25 L 100 50" stroke="#1f0704" strokeWidth="4" fill="none" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#brick-pat-modal)" />
+                      </svg>
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
 
-                          const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
-                          const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
-                          const count = displayedResults.length;
-
-                          const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '28px' : '32px') : (count >= 6 ? '32px' : count === 5 ? '36px' : count === 4 ? '40px' : '44px');
-                          const headerFontSize = aspectRatio === '16:9' ? '10.5px' : (count >= 6 ? '11px' : count === 5 ? '12px' : count === 4 ? '12.5px' : (aspectRatio === '1:1' ? '12px' : '13.5px'));
-                          const headerMb = aspectRatio === '16:9' ? 'mb-0.5' : (count >= 5 ? 'mb-0.5' : 'mb-1');
-
-                          return (
-                            <div key={r.id} className="w-full flex flex-col items-center">
-                              {/* Date / Category */}
-                              <div
-                                className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] flex items-center justify-center gap-1.5`}
-                                style={{
-                                  fontSize: headerFontSize,
-                                  color: layer2TextColor,
-                                  letterSpacing: '0.4px',
-                                }}
-                              >
-                                <span>{matchDateText || r.category}</span>
-                                {resultDisplayMode !== 'score' && (
-                                  <>
-                                    <span>•</span>
-                                    <span className={isWin ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
-                                      {isWin ? 'VICTOIRE' : 'DÉFAITE'}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Row */}
-                              <div className="w-full flex items-center justify-between gap-1.5 sm:gap-2">
-                                <div
-                                  className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
-                                  style={{
-                                    height: pillHeight,
-                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
-                                  }}
-                                >
-                                  <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                </div>
-
-                                <div
-                                  className={`px-3 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
-                                    count >= 6 ? 'h-7 text-xs' : 'h-8 text-xs sm:text-sm'
-                                  } ${resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider text-[11px] font-black' : 'font-mono font-black'}`}
-                                  style={{
-                                    backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                    color: (resultDisplayMode === 'status' || !hasScore)
-                                      ? (isWin ? '#047857' : '#be123c')
-                                      : (layer2BadgeBgColor || '#111111'),
-                                  }}
-                                >
-                                  {resultDisplayMode === 'status' || !hasScore
-                                    ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
-                                    : scoreDisplay}
-                                </div>
-
-                                <div
-                                  className="flex-1 rounded-full flex items-center justify-center border-t border-white/25"
-                                  style={{
-                                    height: pillHeight,
-                                    background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
-                                  }}
-                                >
-                                  <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* NOTIFICATION BODY */}
-                    {contentType === 'notification' && specificNotification && (
-                      <div className="w-full flex-1 flex flex-col items-center justify-center text-center my-2">
-                        <div
-                          className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-2 shadow-xl ${
-                            specificNotification.isWin ? 'bg-emerald-500' : 'bg-red-600'
-                          }`}
-                        >
-                          <Trophy className="w-8 h-8 text-white" />
-                        </div>
-                        <h4 className="font-montserrat font-black text-2xl tracking-wider text-white uppercase drop-shadow-md">
-                          {specificNotification.isWin ? 'VICTOIRE DU CLUB !' : 'COUP DE SIFFLET FINAL'}
-                        </h4>
-                        <div className="font-montserrat font-bold text-slate-300 text-sm mt-1">
-                          {specificNotification.category || specificNotification.team}
-                        </div>
-
-                        <div className="w-full bg-black/60 rounded-2xl border border-white/20 p-4 my-3 flex items-center justify-center gap-3 backdrop-blur-md">
-                          <div className="flex-1 font-montserrat font-extrabold text-sm text-right truncate">
-                            {specificNotification.ourTeam || safeShortName}
-                          </div>
-                          <div className="px-3.5 py-1 bg-red-600 rounded-xl text-3xl font-black font-teko text-white border border-red-500 shadow-md">
-                            {specificNotification.ourScore} : {specificNotification.opponentScore}
-                          </div>
-                          <div className="flex-1 font-montserrat font-extrabold text-sm text-left truncate text-slate-300">
-                            {specificNotification.opponent || 'Adversaire'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-                </>
-              )}
-
-              {/* THEME 2: BRICK WALL & MASCOT */}
-              {visualTheme === 'brick' && (
-                <>
-                  <svg className="absolute inset-0 w-full h-full opacity-35 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <pattern id="brick-pat-modal" width="50" height="25" patternUnits="userSpaceOnUse">
-                        <rect width="50" height="25" fill="#4a1610" />
-                        <path d="M 0 0 L 50 0 M 0 12.5 L 50 12.5 M 0 25 L 50 25 M 25 0 L 25 12.5 M 0 12.5 L 0 25 M 50 12.5 L 50 25" stroke="#1f0704" strokeWidth="2" fill="none" />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#brick-pat-modal)" />
-                  </svg>
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
-
-                  <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                    <div className="flex items-center justify-between border-b border-white/20 pb-2">
-                      <div className="font-bebas text-lg font-black text-white">{clubSettings.name}</div>
-                      <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase font-bebas">
-                        {badgeTitle}
-                      </span>
-                    </div>
-
-                    <div className="my-auto space-y-2">
-                      {displayedMatches.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between gap-1.5 py-0.5">
-                          <div className="bg-white text-black font-black px-2 py-1 rounded-md text-xs uppercase truncate w-[42%] text-center shadow-md">
-                            <AutoFitTeamName name={m.category} />
-                          </div>
-                          <span className="bg-red-600 text-white font-black italic px-2 py-0.5 rounded text-[10px] transform -skew-x-12">
-                            VS
+                      <div className="relative z-10 w-full h-full flex flex-col justify-between">
+                        <div className="flex items-center justify-between border-b-2 border-white/20 pb-4">
+                          <div className="font-bebas text-4xl font-black text-white">{clubSettings.name}</div>
+                          <span className="px-6 py-1.5 rounded-full bg-red-600 text-white text-2xl font-black uppercase font-bebas">
+                            {badgeTitle}
                           </span>
-                          <div className="bg-white text-black font-black px-2 py-1 rounded-md text-xs uppercase truncate w-[42%] text-center shadow-md">
-                            <AutoFitTeamName name={m.isHomeMatch ? m.teamAway : m.teamHome} />
-                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
 
-              {/* THEME 3: DARK MODERN */}
-              {visualTheme === 'modern' && (
-                <>
-                  <div className="absolute top-0 right-0 w-48 h-48 bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
-                  <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <div className="font-bebas text-lg font-black text-amber-400">{clubSettings.name}</div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-white text-[10px] font-bold border border-slate-700">
-                        {badgeTitle}
-                      </span>
-                    </div>
-
-                    <div className="my-auto space-y-2">
-                      {displayedMatches.map((m) => (
-                        <div key={m.id} className="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-2 shadow-sm">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[9px] text-orange-400 font-bold uppercase">{m.category}</div>
-                            <div className="font-bebas text-sm font-black text-white truncate">
-                              {m.teamHome} <span className="text-slate-500 font-normal">vs</span> {m.teamAway}
+                        <div className="my-auto space-y-4">
+                          {displayedMatches.map((m) => (
+                            <div key={m.id} className="flex items-center justify-between gap-4 py-1">
+                              <div className="bg-white text-black font-black px-6 py-3 rounded-xl text-2xl uppercase truncate w-[42%] text-center shadow-md">
+                                <AutoFitTeamName name={m.category} />
+                              </div>
+                              <span className="bg-red-600 text-white font-black italic px-4 py-1.5 rounded text-xl transform -skew-x-12">
+                                VS
+                              </span>
+                              <div className="bg-white text-black font-black px-6 py-3 rounded-xl text-2xl uppercase truncate w-[42%] text-center shadow-md">
+                                <AutoFitTeamName name={m.isHomeMatch ? m.teamAway : m.teamHome} />
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-[10px] font-mono font-bold text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                            {m.time}
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* THEME 3: DARK MODERN */}
+                  {visualTheme === 'modern' && (
+                    <>
+                      <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-[450px] h-[450px] bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
+                      <div className="relative z-10 w-full h-full flex flex-col justify-between">
+                        <div className="flex items-center justify-between border-b-2 border-white/10 pb-4">
+                          <div className="font-bebas text-4xl font-black text-amber-400">{clubSettings.name}</div>
+                          <span className="px-6 py-1.5 rounded-full bg-slate-800 text-white text-2xl font-bold border border-slate-700">
+                            {badgeTitle}
+                          </span>
+                        </div>
+
+                        <div className="my-auto space-y-4">
+                          {displayedMatches.map((m) => (
+                            <div key={m.id} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-4 shadow-sm">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xl text-orange-400 font-bold uppercase">{m.category}</div>
+                                <div className="font-bebas text-3xl font-black text-white truncate">
+                                  {m.teamHome} <span className="text-slate-500 font-normal">vs</span> {m.teamAway}
+                                </div>
+                              </div>
+                              <div className="text-2xl font-mono font-bold text-amber-300 bg-slate-950 px-4 py-1.5 rounded-lg border border-slate-800">
+                                {m.time}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* ========================================================================= */}
