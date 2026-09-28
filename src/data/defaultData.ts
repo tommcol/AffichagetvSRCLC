@@ -76,6 +76,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     backgroundBlur: 0,
     showMascot: true,
     mascotPosition: 'bottom-right',
+    matchDisplayScope: 'split',
     layer3: {
       name: 'Élément 1',
       enabled: false,
@@ -120,6 +121,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     showMascot: true,
     mascotPosition: 'bottom-right',
     mascotOnlyOnVictory: false,
+    matchDisplayScope: 'split',
     layer3: {
       name: 'Élément 1',
       enabled: false,

@@ -50,7 +50,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   const [actualDuration, setActualDuration] = useState<number | null>(null);
 
   const isEnabled = Boolean(layer && layer.enabled && layer.mediaUrl);
-  const isVisibleForVictory = !layer?.onlyOnVictory || isVictoryContext;
+  const isVisibleForVictory = !layer?.onlyOnVictory || isVictoryContext || interactive;
   const shouldRender = isEnabled && isVisibleForVictory;
 
   const isVideo = Boolean(

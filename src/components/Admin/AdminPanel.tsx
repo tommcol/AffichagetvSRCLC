@@ -48,6 +48,7 @@ import {
   Home,
   Navigation,
   Search,
+  Film,
   Save,
   Loader2,
   Type,
@@ -93,6 +94,8 @@ import {
 } from '../../utils/excelBirthdayParser';
 import { MiniCalendarPicker, SingleDatePicker, formatDateToReadableFrench } from './MiniCalendarPicker';
 import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
+import { MediaBankManager } from './MediaBankManager';
+import { getConsolidatedMediaBank } from '../../utils/mediaBankUtils';
 import { VisualExporterModal } from '../VisualExporterModal';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../../utils/fontUtils';
 
@@ -329,7 +332,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'image_banks'
   >('matches');
 
-  const [imageBankSubTab, setImageBankSubTab] = useState<'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('photos');
+  const [imageBankSubTab, setImageBankSubTab] = useState<'media_bank' | 'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('media_bank');
+  const consolidatedMediaBank = useMemo(() => getConsolidatedMediaBank(visualTemplates), [visualTemplates]);
 
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events' | 'opponent_logos'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
@@ -4792,6 +4796,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 <div className="flex items-center gap-1.5 flex-wrap bg-slate-950 p-1.5 rounded-2xl border border-slate-800/90 shrink-0">
                   <button
                     type="button"
+                    onClick={() => setImageBankSubTab('media_bank')}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      imageBankSubTab === 'media_bank'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <Film className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Médias ({consolidatedMediaBank.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setImageBankSubTab('photos')}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
                       imageBankSubTab === 'photos'
@@ -4856,6 +4873,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </button>
                 </div>
               </div>
+
+              {/* Banque Médias Commune */}
+              {imageBankSubTab === 'media_bank' && (
+                <MediaBankManager
+                  visualTemplates={visualTemplates}
+                  onUpdateVisualTemplates={onUpdateVisualTemplates}
+                />
+              )}
 
               {/* Photos */}
               {imageBankSubTab === 'photos' && (

@@ -202,7 +202,22 @@ export default function App() {
       }
       if (d.events) setEvents(d.events);
       if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
-      if (d.visualTemplates) setVisualTemplates(d.visualTemplates);
+      if (d.visualTemplates) {
+        let vt = { ...d.visualTemplates };
+        if (vt.matchesSettings) {
+          const s = (vt.matchesSettings as any).matchDisplayScope;
+          if (s === 'home' || s === 'away') {
+            vt.matchesSettings = { ...vt.matchesSettings, matchDisplayScope: 'split' };
+          }
+        }
+        if (vt.resultsSettings) {
+          const s = (vt.resultsSettings as any).matchDisplayScope;
+          if (s === 'home' || s === 'away') {
+            vt.resultsSettings = { ...vt.resultsSettings, matchDisplayScope: 'split' };
+          }
+        }
+        setVisualTemplates(vt);
+      }
     };
 
     const loadFromOfflineCache = () => {
@@ -684,49 +699,51 @@ export default function App() {
           const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
 
           const customTitle = visualTemplates.matchesSettings?.customHeaderTitle?.trim();
-          const displayScope = visualTemplates.matchesSettings?.matchDisplayScope || 'split';
+          const rawDisplayScope = visualTemplates.matchesSettings?.matchDisplayScope;
+          // Seuls deux modes : "all" (Tout) ou "split" (Domicile & Extérieur séparés). Les anciennes valeurs "home"/"away" sont converties en "split".
+          const displayScope: 'split' | 'all' = rawDisplayScope === 'all' ? 'all' : 'split';
 
           const matchSlides: CarouselSlide[] = [];
 
           if (displayScope === 'all') {
-            // Mode TOUT REGROUPÉ sur 1 seule diapo
-            matchSlides.push({
-              id: 'cat-matches-all',
-              type: 'category' as const,
-              categoryId: 'matches' as const,
-              filterScope: 'all' as const,
-              customTitle: customTitle || 'LES RENCONTRES DU WEEK-END',
-              durationSeconds: cat.durationSeconds,
-              label: 'Tous les Matchs',
-            });
-          } else if (displayScope === 'home') {
-            // Mode DOMICILE UNIQUEMENT
-            if (homeList.length > 0) {
+            // MODE 1 — TOUT : Matchs à domicile et à l'extérieur ensemble
+            if (weekendMatches.length <= 10) {
               matchSlides.push({
-                id: 'cat-matches-home',
+                id: 'cat-matches-all',
                 type: 'category' as const,
                 categoryId: 'matches' as const,
-                filterScope: 'home' as const,
-                customTitle: customTitle || 'LES RENCONTRES À DOMICILE',
+                filterScope: 'all' as const,
+                customTitle: customTitle || 'LES RENCONTRES DU WEEK-END',
                 durationSeconds: cat.durationSeconds,
-                label: 'Matchs Domicile',
+                label: 'Tous les Matchs',
               });
-            }
-          } else if (displayScope === 'away') {
-            // Mode EXTÉRIEUR UNIQUEMENT
-            if (awayList.length > 0) {
-              matchSlides.push({
-                id: 'cat-matches-away',
-                type: 'category' as const,
-                categoryId: 'matches' as const,
-                filterScope: 'away' as const,
-                customTitle: customTitle || "LES RENCONTRES À L'EXTÉRIEUR",
-                durationSeconds: cat.durationSeconds,
-                label: 'Matchs Extérieur',
-              });
+            } else {
+              const totalPages = Math.ceil(weekendMatches.length / 10);
+              for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+                const pageMatches = weekendMatches.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                const pageHome = pageMatches.filter((m) => m.isHomeMatch);
+                const pageAway = pageMatches.filter((m) => !m.isHomeMatch);
+                matchSlides.push({
+                  id: `cat-matches-all-page-${pageIdx + 1}`,
+                  type: 'category' as const,
+                  categoryId: 'matches' as const,
+                  filterScope: 'all' as const,
+                  matchesPage: {
+                    homeMatches: pageHome,
+                    awayMatches: pageAway,
+                    pageNumber: pageIdx + 1,
+                    totalPages,
+                  },
+                  customTitle: customTitle
+                    ? (totalPages > 1 ? `${customTitle} (${pageIdx + 1}/${totalPages})` : customTitle)
+                    : (totalPages > 1 ? `LES RENCONTRES DU WEEK-END (${pageIdx + 1}/${totalPages})` : 'LES RENCONTRES DU WEEK-END'),
+                  durationSeconds: cat.durationSeconds,
+                  label: `Tous les Matchs (Page ${pageIdx + 1}/${totalPages})`,
+                });
+              }
             }
           } else {
-            // Mode SÉPARÉ (Domicile puis Extérieur)
+            // MODE 2 — DOMICILE & EXTÉRIEUR SÉPARÉS : Matchs Domicile puis Matchs Extérieur
             if (homeList.length > 0) {
               if (homeList.length <= 10) {
                 matchSlides.push({
@@ -819,12 +836,13 @@ export default function App() {
         const awayResults = resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
 
         const customTitle = visualTemplates.resultsSettings?.customHeaderTitle?.trim();
-        const displayScope = visualTemplates.resultsSettings?.matchDisplayScope || 'split';
+        const rawDisplayScope = visualTemplates.resultsSettings?.matchDisplayScope;
+        const displayScope: 'split' | 'all' = rawDisplayScope === 'all' ? 'all' : 'split';
 
         const resultSlides: CarouselSlide[] = [];
 
         if (displayScope === 'all') {
-          // Mode TOUT REGROUPÉ sur 1 seule diapo
+          // MODE 1 — TOUT : Tous les résultats ensemble
           if (resultsToUse.length > 0) {
             resultSlides.push({
               id: 'cat-results-all',
@@ -836,34 +854,8 @@ export default function App() {
               label: 'Tous les Résultats',
             });
           }
-        } else if (displayScope === 'home') {
-          // Mode DOMICILE UNIQUEMENT
-          if (homeResults.length > 0) {
-            resultSlides.push({
-              id: 'cat-results-home',
-              type: 'category' as const,
-              categoryId: 'results' as const,
-              filterScope: 'home' as const,
-              customTitle: customTitle || 'LES RÉSULTATS À DOMICILE',
-              durationSeconds: cat.durationSeconds,
-              label: 'Résultats Domicile',
-            });
-          }
-        } else if (displayScope === 'away') {
-          // Mode EXTÉRIEUR UNIQUEMENT
-          if (awayResults.length > 0) {
-            resultSlides.push({
-              id: 'cat-results-away',
-              type: 'category' as const,
-              categoryId: 'results' as const,
-              filterScope: 'away' as const,
-              customTitle: customTitle || "LES RÉSULTATS À L'EXTÉRIEUR",
-              durationSeconds: cat.durationSeconds,
-              label: 'Résultats Extérieur',
-            });
-          }
         } else {
-          // Mode SÉPARÉ (Domicile puis Extérieur)
+          // MODE 2 — DOMICILE & EXTÉRIEUR SÉPARÉS : Résultats Domicile puis Résultats Extérieur
           if (homeResults.length > 0) {
             resultSlides.push({
               id: 'cat-results-home',

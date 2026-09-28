@@ -450,6 +450,48 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             <span>{(clubSettings?.shortName || clubSettings?.name || 'SRC BASKET LA CLAYETTE').toUpperCase()}</span>
           </div>
         </div>
+
+        {/* ========================================================================= */}
+        {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (ÉLÉMENT GRAPHIQUE, LOGO, BADGE, ETC.)  */}
+        {/* ========================================================================= */}
+        {layer3 ? (
+          <FreeOverlayLayer
+            layer={layer3}
+            layerNumber={3}
+            isVictoryContext={hasVictory}
+            interactive={isInteractiveOverlay}
+            isSelected={selectedLayerNum === 3}
+            onSelect={() => onSelectLayer?.(3)}
+            onPositionChange={(x, y) => onLayerPositionChange?.(3, x, y)}
+            onVideoEnded={layer3HasControl ? onVideoEnded : undefined}
+            onVideoTimeUpdate={layer3HasControl ? onVideoTimeUpdate : undefined}
+          />
+        ) : (
+          <ChromaKeyMascot
+            mascot={mascot}
+            isVictoryContext={hasVictory}
+            slideType="results"
+            onVideoEnded={mascotHasControl ? onVideoEnded : undefined}
+            onVideoTimeUpdate={mascotHasControl ? onVideoTimeUpdate : undefined}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* CALQUE 4 : PREMIER PLAN - ÉLÉMENT LIBRE 2 (IDENTIQUE CALQUE 3)           */}
+        {/* ========================================================================= */}
+        {layer4 && (
+          <FreeOverlayLayer
+            layer={layer4}
+            layerNumber={4}
+            isVictoryContext={hasVictory}
+            interactive={isInteractiveOverlay}
+            isSelected={selectedLayerNum === 4}
+            onSelect={() => onSelectLayer?.(4)}
+            onPositionChange={(x, y) => onLayerPositionChange?.(4, x, y)}
+            onVideoEnded={layer4HasControl ? onVideoEnded : undefined}
+            onVideoTimeUpdate={layer4HasControl ? onVideoTimeUpdate : undefined}
+          />
+        )}
       </div>
     );
   }

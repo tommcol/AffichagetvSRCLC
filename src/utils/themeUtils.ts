@@ -241,7 +241,8 @@ export function getEffectiveCategoryConfig(
   const showClubLogoWatermark = specific.showClubLogoWatermark ?? globalTheme?.showClubLogoWatermark ?? false;
 
   const headerTitleAlignment = specific.headerTitleAlignment || globalTheme?.headerTitleAlignment || 'left';
-  const matchDisplayScope = specific.matchDisplayScope || globalTheme?.matchDisplayScope || 'split';
+  const rawScope = specific.matchDisplayScope || globalTheme?.matchDisplayScope || 'split';
+  const matchDisplayScope: 'split' | 'all' = rawScope === 'all' ? 'all' : 'split';
   const removeWhiteBgLogos = specific.removeWhiteBgLogos ?? globalTheme?.removeWhiteBgLogos ?? true;
 
   const theme: SlideDesignTheme = {

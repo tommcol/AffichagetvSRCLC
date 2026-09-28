@@ -27,6 +27,7 @@ import {
   Video,
   Home,
   Plane,
+  Film,
 } from 'lucide-react';
 import {
   VisualTemplatesConfig,
@@ -40,6 +41,8 @@ import { MatchesSlide } from '../slides/MatchesSlide';
 import { ResultsSlide } from '../slides/ResultsSlide';
 import { BirthdaysSlide } from '../slides/BirthdaysSlide';
 import { FixedCanvas169 } from '../common/FixedCanvas169';
+import { MediaBankSelectorModal } from './MediaBankSelectorModal';
+import { addMediaToBank } from '../../utils/mediaBankUtils';
 import { AVAILABLE_FONTS } from '../../utils/fontUtils';
 import { isVideoMedia, registerVideoBlob } from '../../utils/mediaUtils';
 import { saveMediaBlob, getMediaBlobUrl } from '../../utils/indexedDBStorage';
@@ -152,6 +155,8 @@ interface OverlayLayerEditorProps {
   onChange: (updated: OverlayLayerItem) => void;
   isSelected: boolean;
   onSelect: () => void;
+  onOpenMediaBank?: () => void;
+  onRegisterMediaInBank?: (media: { name: string; url: string; mediaType: 'image' | 'video'; size?: number }) => void;
 }
 
 const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
@@ -161,6 +166,8 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
   onChange,
   isSelected,
   onSelect,
+  onOpenMediaBank,
+  onRegisterMediaInBank,
 }) => {
   const accentColor = layerNumber === 3 ? 'emerald' : 'purple';
   const badgeColorClass =
@@ -187,6 +194,12 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
         if (res.ok) {
           const data = await res.json();
           if (data.url) {
+            onRegisterMediaInBank?.({
+              name: file.name,
+              url: data.url,
+              mediaType: isVideo ? 'video' : 'image',
+              size: file.size,
+            });
             onChange({
               ...layer,
               mediaUrl: data.url,
@@ -211,6 +224,12 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data.url) {
+          onRegisterMediaInBank?.({
+            name: file.name,
+            url: data.url,
+            mediaType: isVideo ? 'video' : 'image',
+            size: file.size,
+          });
           onChange({
             ...layer,
             mediaUrl: data.url,
@@ -312,9 +331,10 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
                 ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
                 : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border-purple-500/30'
             }`}
+            title="Importer un nouveau fichier depuis votre appareil"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Fichier</span>
+            <span>Importer</span>
             <input
               type="file"
               accept="image/*,video/mp4,video/webm"
@@ -322,6 +342,17 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
               onChange={handleFileUpload}
             />
           </label>
+          {onOpenMediaBank && (
+            <button
+              type="button"
+              onClick={onOpenMediaBank}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 transition-all shrink-0 cursor-pointer shadow-sm"
+              title="Choisir dans la Banque Médias commune"
+            >
+              <Film className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Banque Médias</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -728,8 +759,18 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenFillMode, setFullscreenFillMode] = useState<'fitted' | 'full'>('full');
   const [selectedLayerNum, setSelectedLayerNum] = useState<3 | 4 | null>(null);
-  const [studioScope, setStudioScope] = useState<'home' | 'away' | 'all'>('home');
+  const [studioScope, setStudioScope] = useState<'home' | 'away' | 'all'>('all');
   const [mobileStudioTab, setMobileStudioTab] = useState<'preview' | 'controls'>('preview');
+  const [mediaBankModal, setMediaBankModal] = useState<{
+    isOpen: boolean;
+    target: 'bg' | 'layer3' | 'layer4';
+    title?: string;
+  }>({ isOpen: false, target: 'bg' });
+
+  const handleRegisterMediaInBank = (media: { name: string; url: string; mediaType: 'image' | 'video'; size?: number }) => {
+    const updated = addMediaToBank(visualTemplates, media);
+    onUpdateVisualTemplates(updated);
+  };
 
   const matchesEffective = useMemo(
     () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
@@ -1194,9 +1235,9 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                     placeholder="URL image ou vidéo..."
                     className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
                   />
-                  <label className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 text-xs font-bold border border-orange-500/30 cursor-pointer transition-all shrink-0">
+                  <label className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 text-xs font-bold border border-orange-500/30 cursor-pointer transition-all shrink-0" title="Importer un fichier depuis votre appareil">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Fichier</span>
+                    <span>Importer</span>
                     <input
                       type="file"
                       accept="image/*,video/mp4,video/webm,video/*"
@@ -1220,6 +1261,12 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                             if (res.ok) {
                               const data = await res.json();
                               if (data.url) {
+                                handleRegisterMediaInBank({
+                                  name: file.name,
+                                  url: data.url,
+                                  mediaType: isVideo ? 'video' : 'image',
+                                  size: file.size,
+                                });
                                 updateCurrentCategoryTheme({
                                   backgroundUrl: data.url,
                                   backgroundMediaType: isVideo ? 'video' : 'image',
@@ -1242,6 +1289,12 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                           if (res.ok) {
                             const data = await res.json();
                             if (data.url) {
+                              handleRegisterMediaInBank({
+                                name: file.name,
+                                url: data.url,
+                                mediaType: isVideo ? 'video' : 'image',
+                                size: file.size,
+                              });
                               updateCurrentCategoryTheme({
                                 backgroundUrl: data.url,
                                 backgroundMediaType: isVideo ? 'video' : 'image',
@@ -1276,6 +1329,21 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                       }}
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMediaBankModal({
+                        isOpen: true,
+                        target: 'bg',
+                        title: `Choisir le Fond (${activeCategory})`,
+                      })
+                    }
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 transition-all shrink-0 cursor-pointer shadow-sm"
+                    title="Choisir dans la Banque Médias commune"
+                  >
+                    <Film className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Banque Médias</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
@@ -1465,32 +1533,34 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
                   <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5" />
-                    <span>Diffusion TV : Regroupement</span>
+                    <span>Diffusion TV : Présentation des matchs</span>
                   </span>
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
-                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'split' })}
-                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
-                        (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
-                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
-                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
-                      }`}
-                    >
-                      <span>🔄</span>
-                      <span>Séparés (2 diapos)</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'all' })}
-                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                      className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
                         currentEffective.categoryTheme.matchDisplayScope === 'all'
                           ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
                       }`}
+                      title="Afficher ensemble les matchs à domicile et à l'extérieur sur une même diapositive"
                     >
                       <span>🏀</span>
-                      <span>1 seule diapo</span>
+                      <span>Tout</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'split' })}
+                      className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                        (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                      }`}
+                      title="Créer une diapositive pour les Matchs Domicile puis une diapositive pour les Matchs Extérieur"
+                    >
+                      <span>🔄</span>
+                      <span>Domicile & Extérieur séparés</span>
                     </button>
                   </div>
                 </div>
@@ -1761,6 +1831,14 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               isSelected={selectedLayerNum === 3}
               onSelect={() => setSelectedLayerNum(3)}
               onChange={(updated) => updateCurrentCategoryTheme({ layer3: updated })}
+              onOpenMediaBank={() =>
+                setMediaBankModal({
+                  isOpen: true,
+                  target: 'layer3',
+                  title: `Choisir le Calque 3 (${activeCategory})`,
+                })
+              }
+              onRegisterMediaInBank={handleRegisterMediaInBank}
             />
           )}
 
@@ -1773,6 +1851,14 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               isSelected={selectedLayerNum === 4}
               onSelect={() => setSelectedLayerNum(4)}
               onChange={(updated) => updateCurrentCategoryTheme({ layer4: updated })}
+              onOpenMediaBank={() =>
+                setMediaBankModal({
+                  isOpen: true,
+                  target: 'layer4',
+                  title: `Choisir le Calque 4 (${activeCategory})`,
+                })
+              }
+              onRegisterMediaInBank={handleRegisterMediaInBank}
             />
           )}
 
@@ -1950,6 +2036,40 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
           </div>
         </div>
       )}
+
+      {/* Modale de sélection dans la Banque Médias Commune */}
+      <MediaBankSelectorModal
+        isOpen={mediaBankModal.isOpen}
+        title={mediaBankModal.title}
+        onClose={() => setMediaBankModal({ ...mediaBankModal, isOpen: false })}
+        visualTemplates={visualTemplates}
+        onSelect={(url, mediaType) => {
+          if (mediaBankModal.target === 'bg') {
+            updateCurrentCategoryTheme({
+              backgroundUrl: url,
+              backgroundMediaType: mediaType,
+            });
+          } else if (mediaBankModal.target === 'layer3') {
+            updateCurrentCategoryTheme({
+              layer3: {
+                ...currentEffective.layer3,
+                mediaUrl: url,
+                mediaType,
+                enabled: true,
+              },
+            });
+          } else if (mediaBankModal.target === 'layer4') {
+            updateCurrentCategoryTheme({
+              layer4: {
+                ...currentEffective.layer4,
+                mediaUrl: url,
+                mediaType,
+                enabled: true,
+              },
+            });
+          }
+        }}
+      />
     </div>
   );
 };
