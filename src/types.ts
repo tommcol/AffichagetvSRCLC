@@ -230,8 +230,9 @@ export interface VisualTemplatesConfig {
   alertShowScore?: boolean; // afficher le score si disponible (défaut true)
   alertShowSubtitle?: boolean; // afficher le message de félicitations/encouragements (défaut true)
   alertGlowEffect?: boolean; // effet néon / lueur sportive (défaut true)
-  alertCustomWinTitle?: string; // titre personnalisé victoire (défaut "VICTOIRE !")
-  alertCustomLossTitle?: string; // titre personnalisé défaite (défaut "DÉFAITE")
+  alertCustomWinTitle?: string; // titre personnalisé victoire (défaut "VICTOIRE DES {CATEGORIE}")
+  alertCustomLossTitle?: string; // titre personnalisé défaite (défaut "DÉFAITE DES {CATEGORIE}")
+  alertTextAlign?: 'left' | 'center' | 'right'; // alignement horizontal du titre (défaut 'center')
 }
 
 // Pre-made Win / Loss visuals per team in the club

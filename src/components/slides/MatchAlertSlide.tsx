@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Trophy, Frown, Sparkles, Clock, Flame, ShieldAlert, Swords } from 'lucide-react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { Move, Pencil, Check } from 'lucide-react';
 import { ActiveMatchAlert, TeamVisualItem, VisualTemplatesConfig, ClubSettings } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { getFontFamilyClass } from '../../utils/fontUtils';
+import { formatAlertTitle } from '../../utils/alertUtils';
 
 interface MatchAlertSlideProps {
   alert: ActiveMatchAlert;
@@ -11,64 +12,249 @@ interface MatchAlertSlideProps {
   clubSettings?: ClubSettings;
   onVideoEnded?: () => void;
   onVideoTimeUpdate?: (progressPercent: number) => void;
+  // Mode édition interactif pour l'aperçu dans l'administration
+  interactive?: boolean;
+  onUpdatePosition?: (x: number, y: number) => void;
+  onUpdateTemplate?: (template: string) => void;
 }
 
 export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   alert,
   teamVisual,
   visualTemplates,
-  clubSettings,
   onVideoEnded,
   onVideoTimeUpdate,
+  interactive = false,
+  onUpdatePosition,
+  onUpdateTemplate,
 }) => {
-  const [minutesRemaining, setMinutesRemaining] = useState<number>(() => {
-    const diff = alert.expiresAt - Date.now();
-    return Math.max(0, Math.ceil(diff / 60000));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(1920);
+  const [autoFitScale, setAutoFitScale] = useState<number>(1.0);
+
+  const [isSelected, setIsSelected] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number }>({
+    clientX: 0,
+    clientY: 0,
+    startX: 50,
+    startY: 82,
   });
 
+  // Détection dynamique et réactive de la taille du conteneur 16:9 (Admin ou TV)
   useEffect(() => {
-    const updateCountdown = () => {
-      const diff = alert.expiresAt - Date.now();
-      setMinutesRemaining(Math.max(0, Math.ceil(diff / 60000)));
-    };
-    const timer = setInterval(updateCountdown, 10000);
-    return () => clearInterval(timer);
-  }, [alert.expiresAt]);
+    const el = containerRef.current;
+    if (!el) return;
 
-  // Determine which visual to display
+    const updateContainerSize = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0) {
+        setContainerWidth(rect.width);
+      }
+    };
+
+    updateContainerSize();
+    const observer = new ResizeObserver(updateContainerSize);
+    observer.observe(el);
+    window.addEventListener('resize', updateContainerSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateContainerSize);
+    };
+  }, []);
+
+  // 1. Détermination du média de fond (Photo ou Vidéo)
   const visualImage =
     alert.customImageUrl ||
     (alert.isWin ? teamVisual?.winVisualUrl : teamVisual?.lossVisualUrl) ||
     (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
 
-  const hasScores = alert.ourScore !== undefined && alert.opponentScore !== undefined;
+  // 2. Modèle de titre dynamique
+  const titleTemplate = alert.isWin
+    ? (visualTemplates?.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}')
+    : (visualTemplates?.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}');
 
-  // Custom positioning & typography settings from visualTemplates
-  const layoutStyle = visualTemplates?.alertLayoutStyle || 'poster';
+  const titleText = formatAlertTitle(titleTemplate, alert.isWin, alert.team);
+  const lines = titleText.split('\n');
+
+  // 3. Réglages graphiques du titre
   const textX = visualTemplates?.alertTextX ?? 50;
-  const textY = visualTemplates?.alertTextY ?? 50;
-  const textColor = visualTemplates?.alertTextColor || '#ffffff';
-  const titleFont = visualTemplates?.alertTextFont || 'Bebas Neue';
-  const teamFont = visualTemplates?.alertTeamFont || 'Montserrat';
-  const scoreFont = visualTemplates?.alertScoreFont || 'Teko';
+  const textY = visualTemplates?.alertTextY ?? 82;
+  const textAlign = visualTemplates?.alertTextAlign || 'center';
   const textScale = visualTemplates?.alertTextScale ?? 1.0;
-  const bgOpacity = visualTemplates?.alertTextBgOpacity ?? 0.65;
-  const winColor = visualTemplates?.alertWinColor || '#10b981';
-  const lossColor = visualTemplates?.alertLossColor || '#ef4444';
-  const showIcon = visualTemplates?.alertShowIcon ?? true;
-  const showScore = visualTemplates?.alertShowScore ?? true;
-  const showSubtitle = visualTemplates?.alertShowSubtitle ?? true;
+  const titleFont = visualTemplates?.alertTextFont || 'Bebas Neue';
   const glowEffect = visualTemplates?.alertGlowEffect ?? true;
+  const bgOpacity = visualTemplates?.alertTextBgOpacity ?? 0;
 
-  const outcomeTitle = alert.isWin
-    ? visualTemplates?.alertCustomWinTitle || 'VICTOIRE !'
-    : visualTemplates?.alertCustomLossTitle || 'DÉFAITE';
+  // Taille de base strictement proportionnelle au conteneur 16:9
+  // (~111px sur TV 1920x1080, ~45px sur preview admin 768px, ~22px sur mobile 380px)
+  const baseFontSize = Math.max(14, containerWidth * 0.058);
 
-  const accentColor = alert.isWin ? winColor : lossColor;
+  // Mesure réelle et ajustement automatique de sécurité au rendu (sans altérer la valeur enregistrée)
+  useLayoutEffect(() => {
+    const measureEl = measureRef.current;
+    if (!measureEl || containerWidth <= 0) return;
+
+    const measureAndFit = () => {
+      const lineEls = measureEl.querySelectorAll('.alert-title-measure-line');
+      let maxLineWidth = 0;
+      lineEls.forEach((el) => {
+        const w = (el as HTMLElement).getBoundingClientRect().width;
+        if (w > maxLineWidth) maxLineWidth = w;
+      });
+
+      if (maxLineWidth <= 0) {
+        setAutoFitScale(1.0);
+        return;
+      }
+
+      // Zone de sécurité horizontale : 5% de marge à gauche et 5% à droite (max 90% du visuel)
+      const minMargin = 0.05;
+      const maxMargin = 0.95;
+      const maxOverallSafeWidth = containerWidth * (maxMargin - minMargin); // 90%
+
+      // Prise en compte du padding additionnel si le fond protecteur est activé
+      const bgPadding = bgOpacity > 0 ? containerWidth * 0.06 : 0;
+      const effectiveSafeWidth = Math.max(40, maxOverallSafeWidth - bgPadding);
+
+      // Calcul de la largeur admissible en fonction du point d'ancrage textX et de l'alignement
+      const posX = textX / 100;
+      let positionSafeWidth = effectiveSafeWidth;
+
+      if (textAlign === 'left') {
+        const availRight = Math.max(0.1, maxMargin - posX) * containerWidth - bgPadding;
+        positionSafeWidth = Math.min(effectiveSafeWidth, availRight);
+      } else if (textAlign === 'right') {
+        const availLeft = Math.max(0.1, posX - minMargin) * containerWidth - bgPadding;
+        positionSafeWidth = Math.min(effectiveSafeWidth, availLeft);
+      } else {
+        // center
+        const distToEdge = Math.min(posX - minMargin, maxMargin - posX);
+        const availCenter = Math.max(0.1, 2 * distToEdge) * containerWidth - bgPadding;
+        positionSafeWidth = Math.min(effectiveSafeWidth, availCenter);
+      }
+
+      const targetSafeWidth = Math.max(40, positionSafeWidth);
+
+      // Largeur voulue par l'utilisateur à son échelle choisie
+      const desiredWidth = maxLineWidth * textScale;
+
+      if (desiredWidth > targetSafeWidth) {
+        // Dépasse la zone de sécurité -> réduction automatique uniquement au rendu
+        const autoReduction = targetSafeWidth / desiredWidth;
+        setAutoFitScale(Math.min(1.0, Math.max(0.1, autoReduction)));
+      } else {
+        // Tient dans la zone de sécurité -> 100% de la taille voulue
+        setAutoFitScale(1.0);
+      }
+    };
+
+    measureAndFit();
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(measureAndFit);
+    }
+  }, [titleText, titleFont, textScale, textX, textAlign, containerWidth, bgOpacity]);
+
+  // Échelle finale au rendu
+  const effectiveScale = textScale * autoFitScale;
+
+  // Couleur du titre
+  const defaultAccentColor = alert.isWin ? '#10b981' : '#ef4444';
+  const titleColor = alert.isWin
+    ? (visualTemplates?.alertWinColor || visualTemplates?.alertTextColor || defaultAccentColor)
+    : (visualTemplates?.alertLossColor || visualTemplates?.alertTextColor || defaultAccentColor);
+
+  const translateX = textAlign === 'left' ? '0%' : textAlign === 'right' ? '-100%' : '-50%';
+
+  // Gestion du glisser-déplacer direct (Mouse et Touch tactile)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!interactive || isEditing) return;
+    e.stopPropagation();
+    setIsSelected(true);
+    setIsDragging(true);
+
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+
+    dragStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startX: textX,
+      startY: textY,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!interactive || !isDragging || !containerRef.current) return;
+    e.preventDefault(); // Empêche le défilement de page sur mobile
+
+    const rect = containerRef.current.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const deltaX = ((e.clientX - dragStartRef.current.clientX) / rect.width) * 100;
+    const deltaY = ((e.clientY - dragStartRef.current.clientY) / rect.height) * 100;
+
+    const newX = Math.round(Math.max(5, Math.min(95, dragStartRef.current.startX + deltaX)));
+    const newY = Math.round(Math.max(5, Math.min(95, dragStartRef.current.startY + deltaY)));
+
+    if (onUpdatePosition) {
+      onUpdatePosition(newX, newY);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!interactive || !isDragging) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+    setIsDragging(false);
+  };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-slate-950 select-none">
-      {/* Background visual (Team victory / defeat image or video) */}
+    <div
+      ref={containerRef}
+      onClick={() => {
+        if (interactive) {
+          setIsSelected(false);
+          setIsEditing(false);
+        }
+      }}
+      className="relative w-full h-full flex items-center justify-center overflow-hidden bg-slate-950 select-none"
+    >
+      {/* ========================================================================= */}
+      {/* 0. ÉLÉMENT INVISIBLE DE MESURE DU TEXTE AVEC POLICE RÉELLE                 */}
+      {/* ========================================================================= */}
+      <div
+        ref={measureRef}
+        aria-hidden="true"
+        className={`pointer-events-none select-none uppercase font-black tracking-wider leading-[1.08] ${getFontFamilyClass(
+          titleFont
+        )}`}
+        style={{
+          position: 'absolute',
+          visibility: 'hidden',
+          top: -99999,
+          left: -99999,
+          fontSize: `${baseFontSize}px`,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {lines.map((line, idx) => (
+          <div key={idx} className="alert-title-measure-line">
+            {line}
+          </div>
+        ))}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. MÉDIA DE FOND : PHOTO OU VIDÉO PLEIN ÉCRAN                              */}
+      {/* ========================================================================= */}
       {visualImage ? (
         <div className="absolute inset-0 z-0">
           {isVideoMedia(visualImage) ? (
@@ -100,11 +286,12 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
             <img
               src={visualImage}
               alt={`${alert.team} - ${alert.isWin ? 'Victoire' : 'Défaite'}`}
-              className="w-full h-full object-cover brightness-[0.85] contrast-105 scale-100 transition-transform duration-10000 ease-out animate-pulse-slow"
+              className="w-full h-full object-cover brightness-[0.88] contrast-105 scale-100"
             />
           )}
-          {/* Subtle gradient overlay to enhance legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/60 pointer-events-none" />
+
+          {/* Dégradé subtil assurant un contraste optimal pour le titre */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/40 pointer-events-none" />
         </div>
       ) : (
         <div
@@ -116,307 +303,144 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
         />
       )}
 
-      {/* Decorative Basketball Court Ambient Elements */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:32px_32px]" />
+      {/* ========================================================================= */}
+      {/* 2. TITRE DYNAMIQUE SUPERPOSÉ (POSITIONNABLE LIBREMENT & ÉDITABLE)         */}
+      {/* ========================================================================= */}
+      <div
+        className={`absolute z-10 transition-all ${
+          interactive ? 'pointer-events-auto cursor-move touch-none' : 'pointer-events-none'
+        }`}
+        style={{
+          left: `${textX}%`,
+          top: `${textY}%`,
+          transform: `translate(${translateX}, -50%) scale(${effectiveScale})`,
+          transformOrigin: `${textAlign} center`,
+          textAlign,
+          maxWidth: '90%',
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onDoubleClick={(e) => {
+          if (interactive) {
+            e.stopPropagation();
+            setIsEditing(true);
+          }
+        }}
+      >
+        {/* Barre d'outils discrète lors de la sélection dans l'aperçu */}
+        {interactive && isSelected && !isEditing && (
+          <div
+            className="absolute -top-11 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950/95 border border-orange-500/80 shadow-2xl text-[11px] font-bold text-white whitespace-nowrap z-30 pointer-events-auto backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="flex items-center gap-1 text-slate-300">
+              <Move className="w-3 h-3 text-orange-400" />
+              <span>Glisser pour déplacer</span>
+            </span>
+            <span className="text-slate-600">|</span>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-1 text-amber-300 hover:text-amber-200 transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-white/10"
+            >
+              <Pencil className="w-3 h-3 text-amber-400" />
+              <span>Modifier texte</span>
+            </button>
+            <span className="text-slate-600">|</span>
+            <span className="font-mono text-orange-400 text-[10px]">
+              X:{textX}% Y:{textY}%
+            </span>
+            {autoFitScale < 0.999 && (
+              <>
+                <span className="text-slate-600">|</span>
+                <span className="text-emerald-400 text-[10px] font-semibold">
+                  Ajusté auto ({Math.round(effectiveScale * 100)}%)
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
-      {/* Top Badges */}
-      <div className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/85 backdrop-blur-md border border-slate-700/60 text-xs md:text-sm text-slate-300 shadow-lg">
-          <Clock className="w-4 h-4 text-orange-400" />
-          <span>Dans la boucle TV • Encore <strong className="text-white">{minutesRemaining} min</strong></span>
-        </div>
-
+        {/* Boîte de rendu / conteneur de fond optionnel */}
         <div
-          className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg backdrop-blur-md ${
-            alert.triggeredBy === 'telegram'
-              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-              : 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+          className={`transition-all relative ${
+            bgOpacity > 0
+              ? 'px-8 py-4 rounded-3xl backdrop-blur-md border border-white/15 shadow-2xl'
+              : ''
+          } ${
+            interactive && isSelected
+              ? 'ring-2 ring-orange-500 ring-offset-2 ring-offset-black/70 rounded-2xl'
+              : ''
           }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>{alert.triggeredBy === 'telegram' ? 'Alerte Telegram' : 'Score FFBB Direct'}</span>
-        </div>
-      </div>
-
-      {/* Bottom Bar Info */}
-      <div className="absolute bottom-4 left-6 right-6 z-20 flex items-center justify-between pt-2 border-t border-white/10 text-xs md:text-sm text-slate-400 pointer-events-none">
-        <span>Visuel officiel du club • Affiché en boucle sur la TV pendant 60 minutes</span>
-        <span className="font-bold text-orange-400">#AllezLeClub</span>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* RENDERING ACCORDING TO SELECTED LAYOUT STYLE                              */}
-      {/* ========================================================================= */}
-
-      {/* 1. LAYOUT : POSTER SPORTIF PRO (High-impact typography) */}
-      {layoutStyle === 'poster' && (
-        <div
-          className="absolute z-10 flex flex-col items-center text-center transition-all duration-300"
           style={{
-            left: `${textX}%`,
-            top: `${textY}%`,
-            transform: `translate(-50%, -50%) scale(${textScale})`,
-            maxWidth: '92%',
+            backgroundColor: bgOpacity > 0 ? `rgba(0, 0, 0, ${bgOpacity})` : 'transparent',
           }}
         >
-          <div
-            className="p-6 md:p-10 rounded-3xl border shadow-2xl backdrop-blur-md flex flex-col items-center"
-            style={{
-              backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`,
-              borderColor: `${accentColor}40`,
-              boxShadow: glowEffect ? `0 20px 50px -10px ${accentColor}30` : undefined,
-            }}
-          >
-            {/* Outcome Icon Badge */}
-            {showIcon && (
-              <div
-                className="inline-flex items-center justify-center w-16 h-16 md:w-24 md:h-24 rounded-2xl mb-3 shadow-xl border-2 backdrop-blur-xl"
-                style={{
-                  backgroundColor: `${accentColor}25`,
-                  borderColor: accentColor,
-                  color: accentColor,
+          {isEditing ? (
+            /* Éditeur de texte in-place multi-lignes */
+            <div
+              className="flex flex-col items-center gap-2 pointer-events-auto min-w-[280px] max-w-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <textarea
+                rows={Math.max(2, (titleTemplate || '').split('\n').length)}
+                value={titleTemplate}
+                onChange={(e) => {
+                  if (onUpdateTemplate) {
+                    onUpdateTemplate(e.target.value);
+                  }
                 }}
-              >
-                {alert.isWin ? (
-                  <Trophy className="w-10 h-10 md:w-14 md:h-14 animate-bounce text-amber-300 drop-shadow" />
-                ) : (
-                  <Frown className="w-10 h-10 md:w-14 md:h-14 text-rose-300 drop-shadow" />
-                )}
+                autoFocus
+                placeholder={alert.isWin ? 'VICTOIRE DES {CATEGORIE}' : 'DÉFAITE DES {CATEGORIE}'}
+                className={`w-full bg-black/90 text-white border-2 border-orange-500 rounded-2xl p-3 shadow-2xl focus:outline-none resize-none uppercase font-black tracking-wider leading-[1.08] ${getFontFamilyClass(
+                  titleFont
+                )} text-2xl sm:text-3xl`}
+                style={{
+                  color: titleColor,
+                  textAlign,
+                }}
+              />
+              <div className="flex items-center justify-between w-full px-3 py-1.5 rounded-xl bg-slate-900/95 border border-slate-700 text-[10px] text-slate-300">
+                <span>💡 <strong>Entrée</strong> = saut de ligne • Conservez <strong>{'{CATEGORIE}'}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Terminé</span>
+                </button>
               </div>
-            )}
-
-            {/* Outcome Title : VICTOIRE ! ou DÉFAITE */}
+            </div>
+          ) : (
+            /* Rendu du titre avec respect strict des retours à la ligne */
             <h1
-              className={`text-6xl md:text-8xl lg:text-9xl font-black uppercase tracking-wider leading-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)] ${getFontFamilyClass(titleFont)}`}
+              className={`font-black uppercase tracking-wider leading-[1.08] drop-shadow-[0_8px_24px_rgba(0,0,0,0.95)] ${getFontFamilyClass(
+                titleFont
+              )}`}
               style={{
-                color: textColor,
-                textShadow: glowEffect ? `0 0 35px ${accentColor}80` : undefined,
+                color: titleColor,
+                fontSize: `${baseFontSize}px`,
+                textShadow: glowEffect
+                  ? `0 0 35px ${titleColor}99, 0 6px 20px rgba(0,0,0,0.95), 0 2px 4px rgba(0,0,0,0.95)`
+                  : '0 6px 20px rgba(0,0,0,0.95), 0 2px 4px rgba(0,0,0,0.95)',
               }}
             >
-              {outcomeTitle}
-            </h1>
-
-            {/* Category / Team Name in Athletic Tag */}
-            <div
-              className="mt-3 px-8 py-2.5 rounded-2xl backdrop-blur-md border shadow-lg flex items-center gap-3"
-              style={{
-                backgroundColor: `${accentColor}20`,
-                borderColor: `${accentColor}60`,
-              }}
-            >
-              <span className="w-2.5 h-2.5 rounded-full animate-ping" style={{ backgroundColor: accentColor }} />
-              <h2
-                className={`text-3xl md:text-5xl lg:text-6xl font-black tracking-wider uppercase ${getFontFamilyClass(teamFont)}`}
-                style={{ color: accentColor }}
-              >
-                {alert.team}
-              </h2>
-            </div>
-
-            {/* Score Display if available */}
-            {showScore && hasScores && (
-              <div className="mt-4 px-8 py-2.5 rounded-2xl bg-black/85 border border-white/30 flex items-center gap-4 shadow-xl">
-                {alert.opponent && (
-                  <span className="text-xs md:text-sm font-bold text-slate-400 uppercase max-w-[140px] truncate">
-                    {clubSettings?.shortName || clubSettings?.name || 'SRC'}
-                  </span>
-                )}
-                <div className={`text-3xl md:text-6xl font-black text-amber-400 tracking-widest ${getFontFamilyClass(scoreFont)}`}>
-                  {alert.ourScore} <span className="text-slate-500 font-light">:</span> {alert.opponentScore}
-                </div>
-                {alert.opponent && (
-                  <span className="text-xs md:text-sm font-bold text-slate-400 uppercase max-w-[140px] truncate">
-                    {alert.opponent}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Encouraging Subtitle */}
-            {showSubtitle && (
-              <p className="mt-4 text-sm md:text-lg font-semibold text-slate-200 drop-shadow max-w-xl">
-                {alert.isWin
-                  ? 'Félicitations à toute l’équipe pour cette belle performance ! 🏀🔥'
-                  : 'Bravo aux joueurs pour leur engagement et combativité ! 🏀💪'}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 2. LAYOUT : BANDEAU ATHLÉTIQUE (Horizontal Banner) */}
-      {layoutStyle === 'banner' && (
-        <div
-          className="absolute z-10 w-full px-6 transition-all duration-300"
-          style={{
-            top: `${textY}%`,
-            transform: `translateY(-50%) scale(${textScale})`,
-          }}
-        >
-          <div
-            className="w-full max-w-5xl mx-auto rounded-3xl border shadow-2xl backdrop-blur-md p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6"
-            style={{
-              backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`,
-              borderColor: `${accentColor}50`,
-            }}
-          >
-            {/* Left: Outcome + Icon */}
-            <div className="flex items-center gap-4">
-              {showIcon && (
-                <div
-                  className="w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center border-2 shadow-lg shrink-0"
-                  style={{ backgroundColor: `${accentColor}25`, borderColor: accentColor, color: accentColor }}
+              {lines.map((line, idx) => (
+                <span
+                  key={idx}
+                  className="block whitespace-nowrap"
+                  style={{ textAlign }}
                 >
-                  {alert.isWin ? <Trophy className="w-9 h-9 text-amber-300 animate-bounce" /> : <Frown className="w-9 h-9 text-rose-300" />}
-                </div>
-              )}
-              <div className="text-left">
-                <h1
-                  className={`text-4xl md:text-6xl font-black uppercase tracking-wider ${getFontFamilyClass(titleFont)}`}
-                  style={{ color: textColor }}
-                >
-                  {outcomeTitle}
-                </h1>
-                <div
-                  className={`text-2xl md:text-4xl font-black uppercase ${getFontFamilyClass(teamFont)}`}
-                  style={{ color: accentColor }}
-                >
-                  {alert.team}
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Score */}
-            {showScore && hasScores && (
-              <div className="px-6 py-2 rounded-2xl bg-black/80 border border-white/25 flex items-center gap-3">
-                <div className={`text-4xl md:text-6xl font-black text-amber-400 ${getFontFamilyClass(scoreFont)}`}>
-                  {alert.ourScore} - {alert.opponentScore}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 3. LAYOUT : CARTE GLASSMORPHISM */}
-      {layoutStyle === 'card' && (
-        <div
-          className="absolute z-10 flex flex-col items-center text-center transition-all duration-300"
-          style={{
-            left: `${textX}%`,
-            top: `${textY}%`,
-            transform: `translate(-50%, -50%) scale(${textScale})`,
-            maxWidth: '85%',
-          }}
-        >
-          <div
-            className="p-8 md:p-12 rounded-3xl border border-white/20 shadow-2xl backdrop-blur-xl flex flex-col items-center"
-            style={{
-              backgroundColor: `rgba(15, 23, 42, ${bgOpacity})`,
-            }}
-          >
-            {showIcon && (
-              <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center border mb-4"
-                style={{ backgroundColor: `${accentColor}20`, borderColor: accentColor }}
-              >
-                {alert.isWin ? <Trophy className="w-12 h-12 text-amber-300 animate-bounce" /> : <Frown className="w-12 h-12 text-rose-300" />}
-              </div>
-            )}
-            <h1
-              className={`text-5xl md:text-7xl font-black uppercase tracking-wider ${getFontFamilyClass(titleFont)}`}
-              style={{ color: textColor }}
-            >
-              {outcomeTitle}
+                  {line}
+                </span>
+              ))}
             </h1>
-            <div
-              className={`mt-2 text-3xl md:text-5xl font-black uppercase ${getFontFamilyClass(teamFont)}`}
-              style={{ color: accentColor }}
-            >
-              {alert.team}
-            </div>
-            {showScore && hasScores && (
-              <div className={`mt-3 text-3xl md:text-5xl font-mono font-black text-amber-400 px-6 py-1 rounded-xl bg-black/60 border border-white/20 ${getFontFamilyClass(scoreFont)}`}>
-                {alert.ourScore} : {alert.opponentScore}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
-
-      {/* 4. LAYOUT : BADGE & ÉCUSSON SPORT */}
-      {layoutStyle === 'badge' && (
-        <div
-          className="absolute z-10 flex flex-col items-center text-center transition-all duration-300"
-          style={{
-            left: `${textX}%`,
-            top: `${textY}%`,
-            transform: `translate(-50%, -50%) scale(${textScale})`,
-            maxWidth: '85%',
-          }}
-        >
-          <div
-            className="p-8 rounded-[40px] border-2 shadow-2xl backdrop-blur-lg flex flex-col items-center"
-            style={{
-              backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`,
-              borderColor: accentColor,
-            }}
-          >
-            {showIcon && (
-              <div className="mb-2">
-                {alert.isWin ? <Trophy className="w-14 h-14 text-amber-300 animate-bounce" /> : <Frown className="w-14 h-14 text-rose-300" />}
-              </div>
-            )}
-            <div className="px-6 py-1 rounded-full text-xs font-black uppercase tracking-widest text-white mb-2" style={{ backgroundColor: accentColor }}>
-              RÉSULTAT DU MATCH
-            </div>
-            <h1
-              className={`text-5xl md:text-8xl font-black uppercase ${getFontFamilyClass(titleFont)}`}
-              style={{ color: textColor }}
-            >
-              {outcomeTitle}
-            </h1>
-            <h2
-              className={`text-2xl md:text-4xl font-black uppercase mt-1 ${getFontFamilyClass(teamFont)}`}
-              style={{ color: accentColor }}
-            >
-              {alert.team}
-            </h2>
-            {showScore && hasScores && (
-              <div className={`mt-3 text-3xl md:text-5xl font-black text-amber-400 font-mono ${getFontFamilyClass(scoreFont)}`}>
-                {alert.ourScore} - {alert.opponentScore}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 5. LAYOUT : BANNIÈRE INFÉRIEURE ÉPURÉE */}
-      {layoutStyle === 'minimal' && (
-        <div className="absolute bottom-12 left-8 right-8 z-10">
-          <div
-            className="rounded-2xl border backdrop-blur-md p-4 md:p-6 flex items-center justify-between shadow-2xl"
-            style={{
-              backgroundColor: `rgba(0, 0, 0, ${bgOpacity})`,
-              borderColor: `${accentColor}50`,
-            }}
-          >
-            <div className="flex items-center gap-4">
-              <div className="px-4 py-2 rounded-xl text-xl md:text-3xl font-black uppercase text-white shadow" style={{ backgroundColor: accentColor }}>
-                {outcomeTitle}
-              </div>
-              <div className={`text-2xl md:text-4xl font-black uppercase ${getFontFamilyClass(teamFont)}`} style={{ color: textColor }}>
-                {alert.team}
-              </div>
-            </div>
-            {showScore && hasScores && (
-              <div className={`text-3xl md:text-5xl font-black text-amber-400 ${getFontFamilyClass(scoreFont)}`}>
-                {alert.ourScore} - {alert.opponentScore}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

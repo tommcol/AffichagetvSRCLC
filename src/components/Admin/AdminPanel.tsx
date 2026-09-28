@@ -50,6 +50,10 @@ import {
   Loader2,
   Type,
   Zap,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Move,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -5453,16 +5457,16 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   </div>
                 </div>
 
-                {/* ATELIER DE MONTAGE : POSITIONNEMENT DU TEXTE PAR RAPPORT À LA PHOTO OU VIDÉO */}
+                {/* ATELIER DE MONTAGE : TITRE DYNAMIQUE & POSITIONNEMENT */}
                 <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
                     <div>
                       <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
                         <Sliders className="w-4 h-4" />
-                        <span>Style Visuel, Typographie & Montage (Victoire & Défaite)</span>
+                        <span>Composition Visuelle & Titre (Victoire & Défaite)</span>
                       </h4>
                       <p className="text-[11px] text-slate-400">
-                        Personnalisez le style d'écriture de « DÉFAITE » et « VICTOIRE », la police de la catégorie d'équipe (ex: U11F) et la disposition.
+                        Personnalisez les modèles de titre dynamique et le positionnement du texte sur vos photos et vidéos d'alerte.
                       </p>
                     </div>
 
@@ -5471,76 +5475,97 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       onClick={() =>
                         onUpdateVisualTemplates({
                           ...visualTemplates,
-                          alertLayoutStyle: 'poster',
+                          alertCustomWinTitle: 'VICTOIRE DES {CATEGORIE}',
+                          alertCustomLossTitle: 'DÉFAITE DES {CATEGORIE}',
                           alertTextX: 50,
-                          alertTextY: 50,
+                          alertTextY: 82,
+                          alertTextAlign: 'center',
                           alertTextScale: 1.0,
-                          alertTextColor: '#ffffff',
                           alertTextFont: 'Bebas Neue',
-                          alertTeamFont: 'Montserrat',
-                          alertScoreFont: 'Teko',
-                          alertTextBgOpacity: 0.65,
                           alertWinColor: '#10b981',
                           alertLossColor: '#ef4444',
-                          alertShowIcon: true,
-                          alertShowScore: true,
-                          alertShowSubtitle: true,
+                          alertTextColor: '#ffffff',
                           alertGlowEffect: true,
+                          alertTextBgOpacity: 0,
                         })
                       }
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3 text-orange-400" />
-                      <span>Réinitialiser aux réglages sportifs optimaux</span>
+                      <span>Réinitialiser aux réglages optimaux</span>
                     </button>
                   </div>
 
-                  {/* 1. SÉLECTION DU STYLE DE DISPOSITION (LAYOUT PRESET) */}
-                  <div className="space-y-2">
+                  {/* 1. MODÈLES DE TITRES DYNAMIQUES (VICTOIRE & DÉFAITE) */}
+                  <div className="space-y-3">
                     <label className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-orange-400" />
-                      <span>Style de disposition graphique de l'alerte</span>
+                      <Type className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Modèles de Titre Dynamique</span>
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                      {[
-                        { id: 'poster', label: '🏀 Affiche Pro (Recommandé)', desc: 'Titre géant, badge athlétique, score dynamique' },
-                        { id: 'banner', label: '⚡ Bandeau Athlétique', desc: 'Ligne horizontale split score & équipe' },
-                        { id: 'card', label: '🎴 Carte Glassmorphism', desc: 'Encadré translucide givré centré' },
-                        { id: 'badge', label: '🛡️ Badge & Écusson', desc: 'Format compact style blason de club' },
-                        { id: 'minimal', label: '📌 Bannière Basse', desc: 'Bandeau inférieur dégageant toute la photo' },
-                      ].map((style) => (
-                        <button
-                          key={style.id}
-                          type="button"
-                          onClick={() =>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Titre Victoire */}
+                      <div className="bg-slate-900/60 p-4 rounded-xl border border-emerald-500/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-emerald-400 uppercase flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Titre Victoire</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">Modèle configurable</span>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}'}
+                          onChange={(e) =>
                             onUpdateVisualTemplates({
                               ...visualTemplates,
-                              alertLayoutStyle: style.id as any,
+                              alertCustomWinTitle: e.target.value,
                             })
                           }
-                          className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                            (visualTemplates.alertLayoutStyle || 'poster') === style.id
-                              ? 'bg-orange-600/20 border-orange-500 text-white ring-2 ring-orange-500/50 shadow-lg'
-                              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                          }`}
-                        >
-                          <span className="text-xs font-black block text-white">{style.label}</span>
-                          <span className="text-[10px] text-slate-400 mt-1 leading-tight">{style.desc}</span>
-                        </button>
-                      ))}
+                          placeholder="Ex: VICTOIRE DES&#10;{CATEGORIE}"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-none resize-none"
+                        />
+                        <p className="text-[11px] text-slate-400">
+                          La balise <span className="font-mono text-emerald-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne volontaire.
+                        </p>
+                      </div>
+
+                      {/* Titre Défaite */}
+                      <div className="bg-slate-900/60 p-4 rounded-xl border border-rose-500/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-rose-400 uppercase flex items-center gap-1.5">
+                            <Frown className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Titre Défaite</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">Modèle configurable</span>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'}
+                          onChange={(e) =>
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertCustomLossTitle: e.target.value,
+                            })
+                          }
+                          placeholder="Ex: DÉFAITE DES&#10;{CATEGORIE}"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-rose-500 focus:outline-none resize-none"
+                        />
+                        <p className="text-[11px] text-slate-400">
+                          La balise <span className="font-mono text-rose-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne volontaire.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* 2. TYPOGRAPHIES DÉDIÉES (TITRE, ÉQUIPE, SCORE) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                    {/* Police Titre Victoire / Défaite */}
+                  {/* 2. TYPOGRAPHIE, ALIGNEMENT & COULEURS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                    {/* Police du Titre */}
                     <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
-                          <Type className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Police TITRE (Victoire / Défaite)</span>
-                        </label>
-                      </div>
+                      <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Police du Titre</span>
+                      </label>
                       <select
                         value={visualTemplates.alertTextFont || 'Bebas Neue'}
                         onChange={(e) =>
@@ -5557,96 +5582,51 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </option>
                         ))}
                       </select>
-                      <div className={`text-xl font-black uppercase text-amber-400 tracking-wider text-center py-1 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}>
-                        DÉFAITE • VICTOIRE
+                      <div className={`text-base font-black uppercase text-amber-300 tracking-wider text-center py-1 bg-black/40 rounded-lg truncate ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}>
+                        DÉFAITE DES U11 F
                       </div>
                     </div>
 
-                    {/* Police Catégorie d'équipe (ex: U11F) */}
+                    {/* Alignement du Titre */}
                     <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
-                          <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Police ÉQUIPE (ex: U11F, Seniors)</span>
-                        </label>
-                      </div>
-                      <select
-                        value={visualTemplates.alertTeamFont || 'Montserrat'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTeamFont: e.target.value as any,
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
-                      >
-                        {AVAILABLE_FONTS.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name} ({f.category})
-                          </option>
-                        ))}
-                      </select>
-                      <div className={`text-lg font-black uppercase text-emerald-400 tracking-wider text-center py-1 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertTeamFont || 'Montserrat')}`}>
-                        U11 FILLES (U11F)
+                      <span className="text-xs font-bold text-slate-300 block">Alignement Horizontal</span>
+                      <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                        {[
+                          { id: 'left', label: 'Gauche', icon: AlignLeft },
+                          { id: 'center', label: 'Centré', icon: AlignCenter },
+                          { id: 'right', label: 'Droite', icon: AlignRight },
+                        ].map((align) => {
+                          const Icon = align.icon;
+                          const isSel = (visualTemplates.alertTextAlign || 'center') === align.id;
+                          return (
+                            <button
+                              key={align.id}
+                              type="button"
+                              onClick={() =>
+                                onUpdateVisualTemplates({
+                                  ...visualTemplates,
+                                  alertTextAlign: align.id as any,
+                                })
+                              }
+                              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 ${
+                                isSel
+                                  ? 'bg-orange-600 text-white shadow'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              <span className="text-[10px]">{align.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
-                    {/* Police Score (Chiffres) */}
-                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
-                          <Zap className="w-3.5 h-3.5 text-blue-400" />
-                          <span>Police SCORE (Chiffres)</span>
-                        </label>
-                      </div>
-                      <select
-                        value={visualTemplates.alertScoreFont || 'Teko'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertScoreFont: e.target.value as any,
-                          })
-                        }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
-                      >
-                        {AVAILABLE_FONTS.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name} ({f.category})
-                          </option>
-                        ))}
-                      </select>
-                      <div className={`text-2xl font-black text-amber-300 tracking-widest text-center py-0.5 bg-black/40 rounded-lg ${getFontFamilyClass(visualTemplates.alertScoreFont || 'Teko')}`}>
-                        42 : 58
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. COULEURS & PERSONNALISATION DE L'ÉCRITURE */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Couleur Défaite */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                    {/* Couleur Titre Victoire */}
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Accent Défaite</span>
-                        <span className="text-[10px] text-red-400">Couleur titre & badge défaite</span>
-                      </div>
-                      <input
-                        type="color"
-                        value={visualTemplates.alertLossColor || '#ef4444'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertLossColor: e.target.value,
-                          })
-                        }
-                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
-                      />
-                    </div>
-
-                    {/* Couleur Victoire */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-slate-200 block">Accent Victoire</span>
-                        <span className="text-[10px] text-emerald-400">Couleur titre & badge victoire</span>
+                        <span className="text-xs font-bold text-slate-200 block">Couleur Victoire</span>
+                        <span className="text-[10px] text-emerald-400">Couleur du titre victoire</span>
                       </div>
                       <input
                         type="color"
@@ -5661,63 +5641,27 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       />
                     </div>
 
-                    {/* Couleur du texte principal */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                    {/* Couleur Titre Défaite */}
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">Couleur Texte</span>
-                        <span className="text-[10px] text-slate-400">Lettres du titre</span>
+                        <span className="text-xs font-bold text-slate-200 block">Couleur Défaite</span>
+                        <span className="text-[10px] text-rose-400">Couleur du titre défaite</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="color"
-                          value={visualTemplates.alertTextColor || '#ffffff'}
-                          onChange={(e) =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertTextColor: e.target.value,
-                            })
-                          }
-                          className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertTextColor: '#ffffff',
-                            })
-                          }
-                          className="px-2 py-1 rounded bg-slate-800 text-[10px] text-white font-bold"
-                        >
-                          Blanc
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Effet Néon / Glow */}
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-slate-200 block">Effet Glow / Lueur</span>
-                        <span className="text-[10px] text-slate-400">Ombre portée 3D sportive</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={visualTemplates.alertGlowEffect ?? true}
-                          onChange={(e) =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertGlowEffect: e.target.checked,
-                            })
-                          }
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-600" />
-                      </label>
+                      <input
+                        type="color"
+                        value={visualTemplates.alertLossColor || '#ef4444'}
+                        onChange={(e) =>
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertLossColor: e.target.value,
+                          })
+                        }
+                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                      />
                     </div>
                   </div>
 
-                  {/* 4. CURSEURS DE POSITIONNEMENT & ÉCHELLE */}
+                  {/* 3. CURSEURS DE POSITIONNEMENT & TAILLE */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Position Horizontale X */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
@@ -5727,8 +5671,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                       <input
                         type="range"
-                        min="10"
-                        max="90"
+                        min="5"
+                        max="95"
                         step="1"
                         value={visualTemplates.alertTextX ?? 50}
                         onChange={(e) =>
@@ -5740,9 +5684,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         className="w-full accent-orange-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>Gauche (10%)</span>
+                        <span>Gauche (5%)</span>
                         <span>Centre (50%)</span>
-                        <span>Droite (90%)</span>
+                        <span>Droite (95%)</span>
                       </div>
                     </div>
 
@@ -5750,14 +5694,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Position Verticale (Axe Y)</span>
-                        <span className="font-mono text-orange-400">{visualTemplates.alertTextY ?? 50}%</span>
+                        <span className="font-mono text-orange-400">{visualTemplates.alertTextY ?? 82}%</span>
                       </div>
                       <input
                         type="range"
-                        min="15"
-                        max="85"
+                        min="5"
+                        max="95"
                         step="1"
-                        value={visualTemplates.alertTextY ?? 50}
+                        value={visualTemplates.alertTextY ?? 82}
                         onChange={(e) =>
                           onUpdateVisualTemplates({
                             ...visualTemplates,
@@ -5767,24 +5711,24 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         className="w-full accent-orange-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>Haut (15%)</span>
+                        <span>Haut (5%)</span>
                         <span>Milieu (50%)</span>
-                        <span>Bas (85%)</span>
+                        <span>Bas (85-90%)</span>
                       </div>
                     </div>
 
-                    {/* Échelle / Taille du texte */}
+                    {/* Échelle / Taille du titre */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                        <span>Taille du texte (Échelle)</span>
+                        <span>Taille du Titre</span>
                         <span className="font-mono text-amber-400">
                           {Math.round((visualTemplates.alertTextScale ?? 1.0) * 100)}%
                         </span>
                       </div>
                       <input
                         type="range"
-                        min="0.6"
-                        max="1.4"
+                        min="0.2"
+                        max="1.6"
                         step="0.05"
                         value={visualTemplates.alertTextScale ?? 1.0}
                         onChange={(e) =>
@@ -5796,26 +5740,26 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         className="w-full accent-amber-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>Compact (60%)</span>
+                        <span>Mini (20%)</span>
                         <span>Standard (100%)</span>
-                        <span>Grand (140%)</span>
+                        <span>Grand (160%)</span>
                       </div>
                     </div>
 
-                    {/* Opacité du fond noir protecteur */}
+                    {/* Fond protecteur optionnel */}
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                        <span>Opacité du fond protecteur</span>
+                        <span>Fond Sous le Titre</span>
                         <span className="font-mono text-emerald-400">
-                          {Math.round((visualTemplates.alertTextBgOpacity ?? 0.65) * 100)}%
+                          {(visualTemplates.alertTextBgOpacity ?? 0) === 0 ? 'Aucun (Pur texte)' : `${Math.round((visualTemplates.alertTextBgOpacity ?? 0) * 100)}%`}
                         </span>
                       </div>
                       <input
                         type="range"
                         min="0"
-                        max="1"
+                        max="0.9"
                         step="0.05"
-                        value={visualTemplates.alertTextBgOpacity ?? 0.65}
+                        value={visualTemplates.alertTextBgOpacity ?? 0}
                         onChange={(e) =>
                           onUpdateVisualTemplates({
                             ...visualTemplates,
@@ -5825,14 +5769,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         className="w-full accent-emerald-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
-                        <span>Transparent (0%)</span>
-                        <span>Équilibré (65%)</span>
-                        <span>Opaque (100%)</span>
+                        <span>0% (Pur texte)</span>
+                        <span>Léger (30%)</span>
+                        <span>Foncé (90%)</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* 5. APERÇU INTERACTIF EN DIRECT DU MONTAGE 16:9 */}
+                  {/* 4. APERÇU INTERACTIF EN DIRECT DU MONTAGE 16:9 */}
                   <div className="pt-2 border-t border-slate-800 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
@@ -5890,206 +5834,53 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
 
-                    {/* Cadre de rendu 16:9 réel */}
+                    {/* Cadre de rendu 16:9 réel avec interaction directe */}
                     <div className="relative w-full aspect-video max-w-3xl mx-auto rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-slate-950 select-none">
                       <MatchAlertSlide
                         alert={{
                           id: 'preview-alert',
                           team: alertPreviewTeam,
                           isWin: alertPreviewType === 'win',
-                          ourScore: alertPreviewType === 'win' ? 68 : 42,
-                          opponentScore: alertPreviewType === 'win' ? 54 : 58,
-                          opponent: 'CHARNAY BASKET',
                           triggeredBy: 'manual',
                           timestamp: Date.now(),
                           expiresAt: Date.now() + 3600000,
                         }}
                         visualTemplates={visualTemplates}
                         clubSettings={clubSettings}
+                        interactive={true}
+                        onUpdatePosition={(x, y) => {
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertTextX: x,
+                            alertTextY: y,
+                          });
+                        }}
+                        onUpdateTemplate={(newTemplate) => {
+                          if (alertPreviewType === 'win') {
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertCustomWinTitle: newTemplate,
+                            });
+                          } else {
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              alertCustomLossTitle: newTemplate,
+                            });
+                          }
+                        }}
                       />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <p className="text-xs font-semibold text-slate-300 flex items-center justify-center gap-1.5">
+                        <Move className="w-3.5 h-3.5 text-orange-400" />
+                        <span><strong>Glissez directement le titre</strong> dans l'image pour ajuster sa position X/Y.</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Double-cliquez sur le titre ou cliquez sur <em>Modifier texte</em> pour éditer la formulation et les retours à la ligne.
+                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* SECTION 2 : VISUELS INDIVIDUELS PAR ÉQUIPE (OPTIONNEL - MASQUÉ PAR DÉFAUT) */}
-              <div className="pt-2 border-t border-slate-800 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
-                  <div>
-                    <h4 className="text-base font-black text-slate-300 font-bebas tracking-wide flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-emerald-400" />
-                      <span>VISUELS INDIVIDUELS PAR ÉQUIPE ({teamVisuals.length})</span>
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      Optionnel : la banque commune ci-dessus gère automatiquement toutes vos équipes sans avoir à téléverser 30 visuels.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPerTeamVisuals(!showPerTeamVisuals)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-                  >
-                    <span>{showPerTeamVisuals ? 'Masquer la section par équipe' : 'Afficher la section par équipe (avancé)'}</span>
-                  </button>
-                </div>
-
-                {showPerTeamVisuals && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-                    {teamVisuals.map((team) => (
-                      <div
-                        key={team.id}
-                        className="rounded-3xl border border-slate-800 bg-slate-950 p-5 flex flex-col justify-between"
-                      >
-                        {/* Header */}
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
-                          <div>
-                            <h4 className="text-xl font-black text-white font-bebas">{team.teamName}</h4>
-                            <span className="text-xs text-slate-400">Catégorie : {team.category}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            {team.shortAliases.map((a, i) => (
-                              <span key={i} className="px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-slate-300">
-                                {a}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Both visuals side by side */}
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                          {/* Win visual */}
-                          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-2.5 flex flex-col">
-                            <div className="flex items-center justify-between mb-1.5 text-emerald-400 text-xs font-bold">
-                              <span className="flex items-center gap-1">
-                                <Trophy className="w-3.5 h-3.5" /> Victoire
-                              </span>
-                              <span className="text-[10px] opacity-70">16:9</span>
-                            </div>
-                            <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
-                              {isVideoMedia(team.winVisualUrl) ? (
-                                <video
-                                  src={team.winVisualUrl}
-                                  autoPlay
-                                  loop
-                                  muted
-                                  playsInline
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <img
-                                  src={team.winVisualUrl}
-                                  alt="Victoire"
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              )}
-                              {isVideoMedia(team.winVisualUrl) && (
-                                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-emerald-300 text-[9px] font-bold flex items-center gap-0.5">
-                                  <Video className="w-2.5 h-2.5" /> Vidéo
-                                </div>
-                              )}
-                            </div>
-                            <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white cursor-pointer transition-colors mt-auto">
-                              Changer visuel (Img / Vidéo)
-                              <input
-                                type="file"
-                                accept="image/*,video/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    handleImageFileChange(file, (dataUrl) => {
-                                      const updated = teamVisuals.map((t) =>
-                                        t.id === team.id ? { ...t, winVisualUrl: dataUrl } : t
-                                      );
-                                      onUpdateTeamVisuals(updated);
-                                    });
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-
-                          {/* Loss visual */}
-                          <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-2.5 flex flex-col">
-                            <div className="flex items-center justify-between mb-1.5 text-rose-400 text-xs font-bold">
-                              <span className="flex items-center gap-1">
-                                <Frown className="w-3.5 h-3.5" /> Défaite
-                              </span>
-                              <span className="text-[10px] opacity-70">16:9</span>
-                            </div>
-                            <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
-                              {isVideoMedia(team.lossVisualUrl) ? (
-                                <video
-                                  src={team.lossVisualUrl}
-                                  autoPlay
-                                  loop
-                                  muted
-                                  playsInline
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <img
-                                  src={team.lossVisualUrl}
-                                  alt="Défaite"
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              )}
-                              {isVideoMedia(team.lossVisualUrl) && (
-                                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-rose-300 text-[9px] font-bold flex items-center gap-0.5">
-                                  <Video className="w-2.5 h-2.5" /> Vidéo
-                                </div>
-                              )}
-                            </div>
-                            <label className="text-[11px] text-center font-bold py-1 px-2 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white cursor-pointer transition-colors mt-auto">
-                              Changer visuel (Img / Vidéo)
-                              <input
-                                type="file"
-                                accept="image/*,video/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    handleImageFileChange(file, (dataUrl) => {
-                                      const updated = teamVisuals.map((t) =>
-                                        t.id === team.id ? { ...t, lossVisualUrl: dataUrl } : t
-                                      );
-                                      onUpdateTeamVisuals(updated);
-                                    });
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-
-                        {/* Quick Simulation Buttons */}
-                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleTriggerMatchOutcome(team, true, 84, 76)}
-                              className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
-                              title="Injecter le visuel Victoire pendant 1 heure dans la boucle TV"
-                            >
-                              <Trophy className="w-3 h-3 text-emerald-500" />
-                              <span>Injecter Victoire (1h)</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleTriggerMatchOutcome(team, false, 68, 74)}
-                              className="flex-1 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-300 font-semibold text-[11px] transition-colors flex items-center justify-center gap-1"
-                              title="Injecter le visuel Défaite pendant 1 heure dans la boucle TV"
-                            >
-                              <Frown className="w-3 h-3 text-rose-500" />
-                              <span>Injecter Défaite (1h)</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           )}
