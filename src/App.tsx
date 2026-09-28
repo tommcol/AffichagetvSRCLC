@@ -116,7 +116,14 @@ export default function App() {
   useEffect(() => {
     const applyLoadedData = (d: any) => {
       if (!d) return;
-      if (d.clubSettings) setClubSettings(d.clubSettings);
+      if (d.clubSettings) {
+        setClubSettings({
+          ...d.clubSettings,
+          victoryPhotoDurationSeconds: typeof d.clubSettings.victoryPhotoDurationSeconds === 'number'
+            ? d.clubSettings.victoryPhotoDurationSeconds
+            : 10,
+        });
+      }
       if (d.categories) {
         const clampedCats = d.categories.map((c: CategoryConfig) => ({
           ...c,
@@ -462,7 +469,7 @@ export default function App() {
         id: `alert-${alert.id}`,
         type: 'alert' as const,
         alert,
-        durationSeconds: 18,
+        durationSeconds: clubSettings.victoryPhotoDurationSeconds ?? 10,
         label: `${alert.team} • ${alert.isWin ? 'VICTOIRE' : 'DÉFAITE'}`,
       }));
     }
@@ -847,10 +854,12 @@ export default function App() {
   const activeSlideIndex = currentSlideIndex % carouselPlaylist.length;
   const currentSlide = carouselPlaylist[activeSlideIndex] || carouselPlaylist[0];
 
-  // Dynamically resolve duration based on category settings (clamped 3 to 10 seconds)
+  // Dynamically resolve duration based on category settings
   const currentDuration = useMemo(() => {
     if (!currentSlide) return 6;
-    if (currentSlide.type === 'alert') return 18;
+    if (currentSlide.type === 'alert') {
+      return clubSettings.victoryPhotoDurationSeconds ?? 10;
+    }
     if (currentSlide.categoryId) {
       const cat = categories.find((c) => c.id === currentSlide.categoryId);
       if (cat?.durationSeconds) {
@@ -858,7 +867,7 @@ export default function App() {
       }
     }
     return Math.min(10, Math.max(3, currentSlide.durationSeconds || 6));
-  }, [currentSlide, categories]);
+  }, [currentSlide, categories, clubSettings.victoryPhotoDurationSeconds]);
 
   // Effective slide themes per category
   const matchesEffective = useMemo(
@@ -877,6 +886,20 @@ export default function App() {
   const isCurrentSlideVideo = useMemo(() => {
     if (!currentSlide) return false;
     
+    if (currentSlide.type === 'alert' && currentSlide.alert) {
+      const alert = currentSlide.alert;
+      const matchingTeamVisual = teamVisuals.find((tv) =>
+        tv.category === alert.team || tv.teamName === alert.team ||
+        tv.teamName.toLowerCase().includes(alert.team.toLowerCase()) ||
+        tv.shortAliases.some((alias) => alert.team.toLowerCase().includes(alias.toLowerCase()))
+      );
+      const visualImage =
+        alert.customImageUrl ||
+        (alert.isWin ? matchingTeamVisual?.winVisualUrl : matchingTeamVisual?.lossVisualUrl) ||
+        (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
+      return !!(visualImage && isVideoMedia(visualImage));
+    }
+
     if (currentSlide.type === 'category') {
       if (currentSlide.categoryId === 'photos' && currentSlide.photo) {
         const ph = currentSlide.photo;
@@ -913,7 +936,7 @@ export default function App() {
       }
     }
     return false;
-  }, [currentSlide, birthdaysEffective, matchesEffective, resultsEffective]);
+  }, [currentSlide, birthdaysEffective, matchesEffective, resultsEffective, teamVisuals, visualTemplates]);
 
   // Slide navigation
   const nextSlide = useCallback(() => {

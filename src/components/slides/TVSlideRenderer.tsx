@@ -85,6 +85,8 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
         teamVisual={matchingTeamVisual}
         visualTemplates={visualTemplates}
         clubSettings={clubSettings}
+        onVideoEnded={onVideoEnded}
+        onVideoTimeUpdate={onVideoTimeUpdate}
       />
     );
   }

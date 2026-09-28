@@ -505,7 +505,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           : [];
 
       const safeClubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
-      const safeShortClub = clubSettings.shortName || clubSettings.name || 'SRC Basket';
+      const safeShortClub = clubSettings.shortName || clubSettings.name || 'Notre Club';
       const safeGymnasium = clubSettings.gymnasiumDefault || 'Gymnase du Club';
 
       if (targetPlatform === 'all') {
@@ -723,7 +723,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       isHomeMatch: newMatchIsHome,
       ourClubName: club,
       gymnasium: newMatchGymnasium.trim() || clubSettings.gymnasiumDefault,
-      city: clubSettings.city || 'La Clayette',
+      city: clubSettings.city || '',
       status: 'upcoming',
     };
     onUpdateMatches([newMatch, ...matches]);
@@ -1488,7 +1488,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   ) => {
     const isHome = isClubHomeMatch(match, clubSettings.name, clubSettings.shortName);
     const cleanOpponent = isHome ? match.teamAway : match.teamHome;
-    const club = clubSettings.shortName || clubSettings.name || 'SRC Basket';
+    const club = clubSettings.shortName || clubSettings.name || 'Notre Club';
     const cat = match.category || 'Seniors';
 
     let homeScore = match.homeScore;
@@ -1545,16 +1545,23 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     const updatedCache = { ...opponentLogosCache };
     let newLogosCount = 0;
 
+    const clubNameLower = (clubSettings.name || '').toLowerCase().trim();
+    const clubShortLower = (clubSettings.shortName || '').toLowerCase().trim();
+    const clubCityLower = (clubSettings.city || '').toLowerCase().trim();
+
     const allOpponents = Array.from(
       new Set(
         [...targetMatches, ...targetResults]
           .map((m) => (m.isHomeMatch ? m.teamAway : m.teamHome))
           .filter(
-            (name) =>
-              name &&
-              name.trim().length > 1 &&
-              !name.toLowerCase().includes('clayette') &&
-              !name.toLowerCase().includes('src basket')
+            (name) => {
+              if (!name || name.trim().length <= 1) return false;
+              const nLower = name.toLowerCase();
+              if (clubNameLower && nLower.includes(clubNameLower)) return false;
+              if (clubShortLower && nLower.includes(clubShortLower)) return false;
+              if (clubCityLower && clubCityLower.length > 2 && nLower.includes(clubCityLower)) return false;
+              return true;
+            }
           )
       )
     );
@@ -1944,11 +1951,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
 
     const clubName = String(clubSettings?.name || clubSettings?.shortName || 'Notre Club').trim();
-    const shortClub = String(clubSettings?.shortName || clubSettings?.name || 'SRC Basket').trim();
+    const shortClub = String(clubSettings?.shortName || clubSettings?.name || 'Notre Club').trim();
     const gym = String(clubSettings?.gymnasiumDefault || 'Gymnase').trim();
-    const insta = socialForm.instagramHandle || clubSettings?.instagramHandle || '@src_basket';
-    const fb = socialForm.facebookPage || clubSettings?.facebookPage || 'SRC Basket';
-    const tiktok = socialForm.tiktokHandle || clubSettings?.tiktokHandle || '@src_basket';
+    const insta = socialForm.instagramHandle || clubSettings?.instagramHandle || '@votre_club';
+    const fb = socialForm.facebookPage || clubSettings?.facebookPage || 'Nom du club';
+    const tiktok = socialForm.tiktokHandle || clubSettings?.tiktokHandle || '@votre_club';
 
     const targetMatches = socialOnlySelectedMatches
       ? matches.filter((m) => m.selectedForWeekend !== false)
@@ -2687,7 +2694,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 <span className="text-[11px] text-slate-400 hidden sm:inline-block pr-2 font-medium">
-                  {matchesSubTab === 'list' ? 'Saisie & Import FFBB des rencontres' : 'Fond, mascottes & visuels 16:9 de cette diapositive'}
+                  {matchesSubTab === 'list' ? 'Saisie & Import FFBB des rencontres' : 'Fond, éléments libres & visuels 16:9 de cette diapositive'}
                 </span>
               </div>
 
@@ -3580,7 +3587,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 <span className="text-[11px] text-slate-400 hidden sm:inline-block pr-2 font-medium">
-                  {resultsSubTab === 'list' ? 'Saisie des scores du week-end' : 'Fond, mascottes de victoire & visuels 16:9'}
+                  {resultsSubTab === 'list' ? 'Saisie des scores du week-end' : 'Fond, visuels Victoire / Défaite & visuels 16:9'}
                 </span>
               </div>
 
@@ -6595,6 +6602,41 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </div>
                   </div>
                 ))}
+
+                {/* Réglage spécifique : Durée photo Victoire / Défaite */}
+                <div className="rounded-2xl p-4 border transition-all bg-slate-950 border-slate-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="text-base font-black text-white font-bebas">Durée photo Victoire / Défaite</h4>
+                      <p className="text-xs text-slate-400">Temps d'affichage des photos de victoire ou défaite dans la boucle (les vidéos jouent jusqu'à la fin)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white">
+                        Photos
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="3"
+                      max="15"
+                      step="1"
+                      value={Math.min(15, Math.max(3, clubSettings.victoryPhotoDurationSeconds ?? 10))}
+                      onChange={(e) =>
+                        onUpdateClubSettings({
+                          ...clubSettings,
+                          victoryPhotoDurationSeconds: parseInt(e.target.value, 10),
+                        })
+                      }
+                      className="flex-1 accent-orange-500 cursor-pointer"
+                    />
+                    <span className="w-16 text-right font-mono font-bold text-sm text-orange-400">
+                      {Math.min(15, Math.max(3, clubSettings.victoryPhotoDurationSeconds ?? 10))} sec
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -7128,12 +7170,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-lg bg-orange-600/20 flex items-center justify-center text-orange-400 font-bold text-xs">
-                      {(clubSettings.shortName || 'SRC').slice(0, 3)}
+                      {(clubSettings.shortName || 'BC').slice(0, 3)}
                     </div>
                   )}
                   <div className="text-left">
-                    <div className="text-xs font-bold text-white">{clubSettings.shortName || 'SRC Basket'}</div>
-                    <div className="text-[10px] text-slate-400">{clubSettings.city || 'La Clayette'}</div>
+                    <div className="text-xs font-bold text-white">{clubSettings.shortName || clubSettings.name || 'Nom du club'}</div>
+                    <div className="text-[10px] text-slate-400">{clubSettings.city || 'Ville'}</div>
                   </div>
                 </div>
               </div>
@@ -7158,7 +7200,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           type="text"
                           value={clubSettings.name}
                           onChange={(e) => onUpdateClubSettings({ ...clubSettings, name: e.target.value })}
-                          placeholder="Ex: Sports Réunis Clayettois"
+                          placeholder="Ex: Basket Club Val de Loire"
                           className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
                         />
                         <p className="text-[11px] text-slate-500 mt-1">
@@ -7175,7 +7217,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             type="text"
                             value={clubSettings.shortName}
                             onChange={(e) => onUpdateClubSettings({ ...clubSettings, shortName: e.target.value })}
-                            placeholder="Ex: SRC Basket"
+                            placeholder="Ex: BCVL"
                             className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none font-bold text-orange-400"
                           />
                           <p className="text-[11px] text-slate-500 mt-1">
@@ -7191,7 +7233,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             type="text"
                             value={clubSettings.city}
                             onChange={(e) => onUpdateClubSettings({ ...clubSettings, city: e.target.value })}
-                            placeholder="Ex: La Clayette"
+                            placeholder="Ex: Ma Ville"
                             className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
                           />
                           <p className="text-[11px] text-slate-500 mt-1">
@@ -7257,7 +7299,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         </button>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Code officiel attribué par la fédération (SRC Basket : BFC0071024).
+                        Code officiel attribué par la fédération (ex: BFC0071024).
                       </p>
                     </div>
 
@@ -7448,10 +7490,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         onUpdateClubSettings({ ...clubSettings, facebookPage: val });
                         setSocialForm((prev) => ({ ...prev, facebookPage: val }));
                       }}
-                      placeholder="SRC Basket"
+                      placeholder="Nom du club"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:border-blue-500 focus:outline-none"
                     />
-                    <p className="text-[10px] text-slate-500">Exemple : SRC Basket ou facebook.com/srcbasket</p>
+                    <p className="text-[10px] text-slate-500">Exemple : Nom du club ou facebook.com/votreclub</p>
                   </div>
 
                   {/* TikTok */}

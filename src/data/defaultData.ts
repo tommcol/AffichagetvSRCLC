@@ -22,6 +22,7 @@ export const DEFAULT_CLUB_SETTINGS: ClubSettings = {
   city: 'La Clayette',
   gymnasiumDefault: 'Gymnase intercommunal',
   victoryNotificationMinutes: 60,
+  victoryPhotoDurationSeconds: 10,
   tickerText: '🏀 Bienvenue au Gymnase intercommunal de La Clayette ! Merci à l\'ensemble de nos partenaires et bénévoles !',
   showClock: false,
   autoPlayCarousel: true,
@@ -63,7 +64,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     showMascot: true,
     mascotPosition: 'bottom-right',
     layer3: {
-      name: 'Mascotte / Élément 1',
+      name: 'Élément 1',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',
@@ -78,7 +79,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
       animationStyle: 'float',
     },
     layer4: {
-      name: 'Badge / Logo 2',
+      name: 'Élément 2',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',
@@ -107,7 +108,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     mascotPosition: 'bottom-right',
     mascotOnlyOnVictory: false,
     layer3: {
-      name: 'Mascotte / Élément 1',
+      name: 'Élément 1',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',
@@ -123,7 +124,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
       onlyOnVictory: false,
     },
     layer4: {
-      name: 'Badge / Logo 2',
+      name: 'Élément 2',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',
@@ -150,7 +151,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     showMascot: true,
     mascotPosition: 'bottom-right',
     layer3: {
-      name: 'Mascotte Fête',
+      name: 'Élément 1',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',
@@ -165,7 +166,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
       animationStyle: 'float',
     },
     layer4: {
-      name: 'Badge Confettis',
+      name: 'Élément 2',
       enabled: false,
       mediaUrl: '',
       mediaType: 'image',

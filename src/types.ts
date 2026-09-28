@@ -129,10 +129,10 @@ export interface SlideDesignTheme {
   removeWhiteBgLogos?: boolean;
 }
 
-// Élément superposé libre (Calque 3 et Calque 4 : mascotte, logo, badge derby, sponsor, sticker...)
+// Élément superposé libre (Calque 3 et Calque 4 : élément libre, logo, badge derby, sponsor, sticker...)
 export interface OverlayLayerItem {
   id?: string;
-  name?: string; // ex: "Mascotte", "Logo Officiel", "Badge Choc", "Partenaire"
+  name?: string; // ex: "Élément libre", "Logo Officiel", "Badge Choc", "Partenaire"
   enabled: boolean;
   mediaUrl: string; // Image PNG / WebP / GIF ou Vidéo MP4 / WebM
   mediaType: 'image' | 'video';
@@ -148,7 +148,7 @@ export interface OverlayLayerItem {
   fullScreen?: boolean; // Si activé, s'étend sur toute la page / plein écran 100%
   objectFit?: 'contain' | 'cover'; // Mode d'affichage quand agrandi ('cover' par défaut pour 16:9)
   onlyOnVictory?: boolean; // spécifique Résultats
-  // Trajectoire animée / Traversée d'écran (ex: mascotte marchant sur place avec traversée de droite à gauche)
+  // Trajectoire animée / Traversée d'écran (ex: élément traversant l'écran de droite à gauche)
   motionTrajectory?: 'none' | 'right-to-left' | 'left-to-right';
   motionDuration?: number; // Durée de la traversée en secondes (défaut 12)
   flipHorizontal?: boolean; // Effet miroir horizontal pour ajuster l'orientation
@@ -178,7 +178,7 @@ export interface CategorySlideTheme {
   badgeBgColor?: string; // Couleur personnalisée des pastilles / badges (ex: U13M, DOMICILE)
   badgeTextColor?: string; // Couleur du texte à l'intérieur des pastilles / badges
 
-  // Calque 3 : Élément superposé 1 (libre : mascotte, logo, badge, etc.)
+  // Calque 3 : Élément superposé 1 (libre : image, vidéo, logo, badge, etc.)
   layer3?: OverlayLayerItem;
 
   // Calque 4 : Élément superposé 2 (libre : identique au calque 3)
@@ -325,12 +325,13 @@ export interface ClubSettings {
   city: string;
   gymnasiumDefault: string;
   victoryNotificationMinutes: number; // default 60 (1 heure)
+  victoryPhotoDurationSeconds?: number; // default 10 (durée d'affichage photo Victoire / Défaite)
   tickerText: string;
   showClock: boolean; // default false (selon demande utilisateur)
   autoPlayCarousel: boolean;
-  instagramHandle?: string; // ex: "@src_basket"
-  facebookPage?: string; // ex: "SRC Basket"
-  tiktokHandle?: string; // ex: "@src_basket"
+  instagramHandle?: string; // ex: "@votre_club"
+  facebookPage?: string; // ex: "Nom du club"
+  tiktokHandle?: string; // ex: "@votre_club"
   socialWebhookUrl?: string; // Webhook Zapier / Make / Meta Business / Discord
   purePhotoSlidesOnly?: boolean; // Mode 100% photo/image pur sans aucun texte superposé
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos

@@ -43,6 +43,7 @@ import { FixedCanvas169 } from '../common/FixedCanvas169';
 import { AVAILABLE_FONTS } from '../../utils/fontUtils';
 import { isVideoMedia, registerVideoBlob } from '../../utils/mediaUtils';
 import { saveMediaBlob, getMediaBlobUrl } from '../../utils/indexedDBStorage';
+import { normalizeLayerName } from '../../utils/themeUtils';
 import { isClubHomeMatch } from '../../utils/matchStatus';
 import {
   getEffectiveCategoryConfig,
@@ -266,10 +267,10 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
           </span>
           <input
             type="text"
-            value={layer.name || (layerNumber === 3 ? 'Élément 1' : 'Élément 2')}
+            value={normalizeLayerName(layer.name, layerNumber)}
             onChange={(e) => onChange({ ...layer, name: e.target.value })}
             className="bg-transparent border-0 text-sm font-bold text-white hover:bg-slate-900/60 px-2 py-1 rounded-lg focus:ring-1 focus:ring-slate-700 flex-1 min-w-0"
-            placeholder={layerNumber === 3 ? 'Ex: Mascotte' : 'Ex: Logo Sponsor'}
+            placeholder={layerNumber === 3 ? 'Élément 1' : 'Élément 2'}
           />
         </div>
 
@@ -859,7 +860,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
           </h2>
           <p className="text-xs md:text-sm text-slate-300 max-w-3xl mt-1">
             {hideCategorySelector
-              ? `Réglez les 4 calques de cette diapositive : Fond (Calque 1), Cartes & Données (Calque 2), et mascottes/overlays libres (Calques 3 & 4).`
+              ? `Réglez les 4 calques de cette diapositive : Fond (Calque 1), Cartes & Données (Calque 2), et éléments libres (Calques 3 & 4).`
               : `Réglez chaque catégorie sur 4 calques superposés : Fond (Calque 1), Cartes et typographies (Calque 2), et deux éléments libres (Calques 3 & 4).`}
           </p>
         </div>

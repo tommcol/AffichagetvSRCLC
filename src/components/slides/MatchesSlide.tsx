@@ -520,7 +520,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
           {/* Bas de page / Signature Club */}
           <div className={`w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 uppercase tracking-widest pt-1 shrink-0 ${getFontFamilyClass(bodyFont)}`}>
-            <span>SRC BASKET LA CLAYETTE</span>
+            <span>{(clubSettings?.shortName || clubSettings?.name || 'SRC BASKET LA CLAYETTE').toUpperCase()}</span>
           </div>
         </div>
       </div>
@@ -975,7 +975,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 </div>
 
       {/* ========================================================================= */}
-      {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (MASCOTTE, LOGO, BADGE, ETC.)  */}
+      {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (ÉLÉMENT GRAPHIQUE, LOGO, BADGE, ETC.)  */}
       {/* ========================================================================= */}
       {layer3 ? (
         <FreeOverlayLayer

@@ -9,7 +9,7 @@ import {
 import { isVideoMedia } from './mediaUtils';
 
 export const DEFAULT_OVERLAY_LAYER_3: OverlayLayerItem = {
-  name: 'Mascotte / Élément 1',
+  name: 'Élément 1',
   enabled: false,
   mediaUrl: '',
   mediaType: 'image',
@@ -30,7 +30,7 @@ export const DEFAULT_OVERLAY_LAYER_3: OverlayLayerItem = {
 };
 
 export const DEFAULT_OVERLAY_LAYER_4: OverlayLayerItem = {
-  name: 'Logo / Badge 2',
+  name: 'Élément 2',
   enabled: false,
   mediaUrl: '',
   mediaType: 'image',
@@ -50,6 +50,22 @@ export const DEFAULT_OVERLAY_LAYER_4: OverlayLayerItem = {
   flipHorizontal: false,
 };
 
+export const normalizeLayerName = (name: string | undefined, layerNumber: 3 | 4): string => {
+  if (!name) return layerNumber === 3 ? 'Élément 1' : 'Élément 2';
+  const norm = name.trim().toLowerCase();
+  const legacy3 = [
+    'mascotte', 'mascotte fête', 'mascotte matchs', 'mascotte victoire',
+    'élément libre 1', 'élément libre fête', 'élément libre matchs', 'élément libre victoire', 'élément libre'
+  ];
+  const legacy4 = [
+    'badge confetti', 'badge confettis', 'badge derby / sponsor', 'badge mvp / sponsor',
+    'badge / logo 2', 'logo / badge 2', 'élément libre 2'
+  ];
+  if (layerNumber === 3 && legacy3.includes(norm)) return 'Élément 1';
+  if (layerNumber === 4 && legacy4.includes(norm)) return 'Élément 2';
+  return name;
+};
+
 export const DEFAULT_MATCHES_THEME: CategorySlideTheme = {
   primaryColor: '#ea580c',
   cardBgColor: '#020617',
@@ -60,8 +76,8 @@ export const DEFAULT_MATCHES_THEME: CategorySlideTheme = {
   backgroundBlur: 0,
   showMascot: true,
   mascotPosition: 'bottom-right',
-  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Mascotte Matchs' },
-  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Badge Derby / Sponsor' },
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1' },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
 };
 
 export const DEFAULT_RESULTS_THEME: CategorySlideTheme = {
@@ -76,8 +92,8 @@ export const DEFAULT_RESULTS_THEME: CategorySlideTheme = {
   showMascot: true,
   mascotPosition: 'bottom-right',
   mascotOnlyOnVictory: false,
-  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Mascotte Victoire', onlyOnVictory: false },
-  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Badge MVP / Sponsor' },
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1', onlyOnVictory: false },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
 };
 
 export const DEFAULT_BIRTHDAYS_THEME: CategorySlideTheme = {
@@ -90,8 +106,8 @@ export const DEFAULT_BIRTHDAYS_THEME: CategorySlideTheme = {
   backgroundBlur: 0,
   showMascot: true,
   mascotPosition: 'bottom-right',
-  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Mascotte Fête' },
-  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Badge Confettis' },
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1' },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
 };
 
 /**
@@ -187,8 +203,8 @@ export function getEffectiveCategoryConfig(
       ? specific.mascotOnlyOnVictory ?? globalMascot.onlyOnVictory ?? false
       : false;
 
-  // Calcul Calque 3 (Élément libre 1)
-  const resolvedLayer3: OverlayLayerItem = specific.layer3 || {
+  // Calcul Calque 3 (Élément 1)
+  const rawLayer3 = specific.layer3 || {
     ...DEFAULT_OVERLAY_LAYER_3,
     enabled: globalMascot.enabled && showMascot,
     mediaUrl: globalMascot.mediaUrl,
@@ -205,11 +221,19 @@ export function getEffectiveCategoryConfig(
     onlyOnVictory,
     name: 'Élément 1',
   };
+  const resolvedLayer3: OverlayLayerItem = {
+    ...rawLayer3,
+    name: normalizeLayerName(rawLayer3.name, 3),
+  };
 
-  // Calcul Calque 4 (Élément libre 2)
-  const resolvedLayer4: OverlayLayerItem = specific.layer4 || {
+  // Calcul Calque 4 (Élément 2)
+  const rawLayer4 = specific.layer4 || {
     ...DEFAULT_OVERLAY_LAYER_4,
     name: 'Élément 2',
+  };
+  const resolvedLayer4: OverlayLayerItem = {
+    ...rawLayer4,
+    name: normalizeLayerName(rawLayer4.name, 4),
   };
 
   const backgroundMediaType = specific.backgroundMediaType || (isVideoMedia(backgroundUrl) ? 'video' : 'image');

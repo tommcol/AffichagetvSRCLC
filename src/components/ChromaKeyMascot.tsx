@@ -206,7 +206,7 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
         {mascot.mediaType === 'image' ? (
           <img
             src={mascot.mediaUrl}
-            alt="Mascotte 1er Plan"
+            alt="Élément 1er Plan"
             className="w-48 sm:w-60 md:w-80 lg:w-96 max-h-[46vh] object-contain"
             referrerPolicy="no-referrer"
           />

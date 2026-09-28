@@ -358,7 +358,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   onUpdateVisualTemplates,
   embeddedInTab = false,
 }) => {
-  const safeShortName = (clubSettings?.shortName || clubSettings?.name || 'SRC Basket').trim();
+  const safeShortName = (clubSettings?.shortName || clubSettings?.name || 'Nom du club').trim();
   const safeClubName = (clubSettings?.name || safeShortName).trim();
   const safeGymnasium = (clubSettings?.gymnasiumDefault || 'Gymnase').trim();
 
@@ -677,7 +677,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   }, [effectiveCategoryConfig]);
 
-  // Calque 3 (Mascotte / Décor Studio) controls
+  // Calque 3 (Élément libre 1) controls
   const [customLayer3Image, setCustomLayer3Image] = useState<string | null>(null);
   const [showStudioLayer3, setShowStudioLayer3] = useState<boolean>(true);
   const [studioLayer3Pos, setStudioLayer3Pos] = useState<'bottom-right' | 'bottom-left' | 'top-right' | 'center'>('bottom-right');
@@ -1560,7 +1560,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     ? 'bg-orange-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
-                title="Visuels Briques & Mascotte SRC Basket"
+                title="Visuels Briques & Éléments Graphiques"
               >
                 <span>🧱 Briques</span>
               </button>
@@ -1956,7 +1956,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       {/* Subtle sports lighting accent */}
                       <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-[600px] h-[300px] bg-red-600/20 blur-3xl pointer-events-none" />
 
-                      {/* STUDIO LAYER 3: MASCOTTE / DÉCOR GRAPHISME */}
+                      {/* STUDIO LAYER 3: ÉLÉMENT LIBRE / DÉCOR GRAPHISME */}
                       {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
                         <div
                           className={`absolute pointer-events-none z-10 transition-all ${
@@ -3474,7 +3474,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </div>
                   </div>
 
-                  {/* CALQUE 3 : MASCOTTE / ÉLÉMENT GRAPHIQUE */}
+                  {/* CALQUE 3 : ÉLÉMENT 1 */}
                   <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
                     <input
                       type="file"
@@ -3487,7 +3487,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                         <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Calque 3 (Mascotte / Décor)</span>
+                        <span>Calque 3 (Élément 1)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="flex items-center gap-1.5 cursor-pointer">
@@ -3516,7 +3516,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className="text-[11px] font-bold text-white truncate block">
-                                {customLayer3Image ? 'Image personnalisée' : effectiveCategoryConfig.layer3?.name || 'Image Studio'}
+                                {customLayer3Image ? 'Élément personnalisé' : effectiveCategoryConfig.layer3?.name || 'Élément 1'}
                               </span>
                               <span className="text-[10px] text-emerald-400 font-mono">
                                 Prêt pour l'affiche
@@ -3619,7 +3619,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     )}
                   </div>
 
-                  {/* CALQUE 4 : SPONSOR / LOGO */}
+                  {/* CALQUE 4 : ÉLÉMENT 2 */}
                   <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
                     <input
                       type="file"
@@ -3632,7 +3632,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                         <Layers className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Calque 4 (Sponsor / Logo)</span>
+                        <span>Calque 4 (Élément 2)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="flex items-center gap-1.5 cursor-pointer">
@@ -3661,7 +3661,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className="text-[11px] font-bold text-white truncate block">
-                                {customLayer4Image ? 'Logo personnalisé' : effectiveCategoryConfig.layer4?.name || 'Sponsor Studio'}
+                                {customLayer4Image ? 'Élément personnalisé' : effectiveCategoryConfig.layer4?.name || 'Élément 2'}
                               </span>
                               <span className="text-[10px] text-blue-400 font-mono">
                                 Prêt pour l'affiche

@@ -9,6 +9,8 @@ interface MatchAlertSlideProps {
   teamVisual?: TeamVisualItem;
   visualTemplates?: VisualTemplatesConfig;
   clubSettings?: ClubSettings;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (progressPercent: number) => void;
 }
 
 export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
@@ -16,6 +18,8 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   teamVisual,
   visualTemplates,
   clubSettings,
+  onVideoEnded,
+  onVideoTimeUpdate,
 }) => {
   const [minutesRemaining, setMinutesRemaining] = useState<number>(() => {
     const diff = alert.expiresAt - Date.now();
@@ -69,11 +73,27 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
         <div className="absolute inset-0 z-0">
           {isVideoMedia(visualImage) ? (
             <video
+              key={`alert-vid-${alert.id}-${visualImage}`}
               src={visualImage}
               autoPlay
-              loop
+              loop={!onVideoEnded}
               muted
               playsInline
+              preload="auto"
+              onCanPlay={(e) => {
+                e.currentTarget.play().catch(() => {});
+              }}
+              onTimeUpdate={(e) => {
+                const vid = e.currentTarget;
+                if (onVideoTimeUpdate && vid.duration) {
+                  onVideoTimeUpdate((vid.currentTime / vid.duration) * 100);
+                }
+              }}
+              onEnded={onVideoEnded}
+              onError={() => {
+                console.warn('Erreur lecture vidéo alerte victoire/défaite, passage au suivant');
+                if (onVideoEnded) onVideoEnded();
+              }}
               className="w-full h-full object-cover brightness-[0.88] contrast-105"
             />
           ) : (

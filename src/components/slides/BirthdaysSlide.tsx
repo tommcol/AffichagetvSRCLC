@@ -249,7 +249,7 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (MASCOTTE, LOGO, BADGE, ETC.)  */}
+      {/* CALQUE 3 : PREMIER PLAN - ÉLÉMENT LIBRE 1 (ÉLÉMENT GRAPHIQUE, LOGO, BADGE, ETC.)  */}
       {/* ========================================================================= */}
       {layer3 ? (
         <FreeOverlayLayer
