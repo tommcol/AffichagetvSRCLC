@@ -8,10 +8,13 @@ import {
   DEFAULT_CLUB_LOGOS,
   DEFAULT_PHOTOS,
   DEFAULT_BIRTHDAYS,
+  DEFAULT_CLUB_MEMBERS,
+  getAnchorDemoMembers,
   DEFAULT_EVENTS,
   DEFAULT_TEAM_VISUALS,
   DEFAULT_VISUAL_TEMPLATES,
 } from './data/defaultData';
+import { filterAndSortBirthdaysForWeek, getWeekBounds, getWeekKey } from './utils/excelBirthdayParser';
 import {
   CategoryConfig,
   ClubSettings,
@@ -67,7 +70,57 @@ export default function App() {
   const [sponsors, setSponsors] = useState<SponsorItem[]>(DEFAULT_SPONSORS);
   const [logos, setLogos] = useState<ClubLogoItem[]>(DEFAULT_CLUB_LOGOS);
   const [photos, setPhotos] = useState<ClubPhotoItem[]>(DEFAULT_PHOTOS);
-  const [birthdays, setBirthdays] = useState<BirthdayItem[]>(DEFAULT_BIRTHDAYS);
+  // Pool permanent des adhérents du club (conservé et persistant en base)
+  const [allMembers, setAllMembers] = useState<BirthdayItem[]>(() => {
+    try {
+      const localPool = localStorage.getItem('club_all_members_pool');
+      if (localPool) {
+        const parsed = JSON.parse(localPool);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+
+    try {
+      const saved = localStorage.getItem('src_app_data_offline_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.allMembers) && parsed.allMembers.length > 0) return parsed.allMembers;
+      }
+    } catch (e) {}
+
+    return getAnchorDemoMembers(new Date());
+  });
+
+  // Date simulée optionnelle (pour le banc d'essai et la vérification dimanche 23:59 -> lundi 00:00)
+  const [simulatedDate, setSimulatedDate] = useState<Date | null>(null);
+
+  // Clé de semaine de référence (bascule au lundi 00:00:00)
+  const [currentWeekKey, setCurrentWeekKey] = useState<string>(() => getWeekKey(new Date()));
+
+  // Anniversaires actifs de la semaine courante (calcul dynamique immédiat au démarrage)
+  const [birthdays, setBirthdays] = useState<BirthdayItem[]>(() => {
+    const initialPool = (() => {
+      try {
+        const localPool = localStorage.getItem('club_all_members_pool');
+        if (localPool) {
+          const parsed = JSON.parse(localPool);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+      try {
+        const saved = localStorage.getItem('src_app_data_offline_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.allMembers) && parsed.allMembers.length > 0) return parsed.allMembers;
+        }
+      } catch (e) {}
+      return getAnchorDemoMembers(new Date());
+    })();
+
+    const calculated = filterAndSortBirthdaysForWeek(initialPool, new Date(), 0);
+    return calculated.length > 0 ? calculated : DEFAULT_BIRTHDAYS;
+  });
+
   const [events, setEvents] = useState<ClubEventItem[]>(DEFAULT_EVENTS);
   const [teamVisuals, setTeamVisuals] = useState<TeamVisualItem[]>(DEFAULT_TEAM_VISUALS);
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
@@ -136,7 +189,17 @@ export default function App() {
       if (d.sponsors) setSponsors(d.sponsors);
       if (d.logos) setLogos(d.logos);
       if (d.photos) setPhotos(d.photos);
-      if (d.birthdays) setBirthdays(d.birthdays);
+      if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
+        setAllMembers(d.allMembers);
+        try {
+          localStorage.setItem('club_all_members_pool', JSON.stringify(d.allMembers));
+        } catch (e) {}
+        const ref = simulatedDate || new Date();
+        const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
+        setBirthdays(calculatedWeekBirthdays.length > 0 ? calculatedWeekBirthdays : (d.birthdays || []));
+      } else if (d.birthdays) {
+        setBirthdays(d.birthdays);
+      }
       if (d.events) setEvents(d.events);
       if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
       if (d.visualTemplates) setVisualTemplates(d.visualTemplates);
@@ -247,6 +310,7 @@ export default function App() {
           logos,
           photos,
           birthdays,
+          allMembers,
           events,
           teamVisuals,
           visualTemplates,
@@ -256,6 +320,9 @@ export default function App() {
       // Sauvegarde immédiate dans le cache hors-ligne local
       try {
         localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+        if (allMembers && allMembers.length > 0) {
+          localStorage.setItem('club_all_members_pool', JSON.stringify(allMembers));
+        }
       } catch (e) {}
 
       const tenter = (estNouvelleTentative: boolean) => {
@@ -308,6 +375,7 @@ export default function App() {
     logos,
     photos,
     birthdays,
+    allMembers,
     events,
     teamVisuals,
     visualTemplates,
@@ -326,6 +394,7 @@ export default function App() {
         logos,
         photos,
         birthdays,
+        allMembers,
         events,
         teamVisuals,
         visualTemplates,
@@ -334,6 +403,9 @@ export default function App() {
 
     try {
       localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+      if (allMembers && allMembers.length > 0) {
+        localStorage.setItem('club_all_members_pool', JSON.stringify(allMembers));
+      }
     } catch (e) {}
 
     fetch('/api/save-app-data', {
@@ -367,10 +439,80 @@ export default function App() {
     logos,
     photos,
     birthdays,
+    allMembers,
     events,
     teamVisuals,
     visualTemplates,
   ]);
+
+  // Mise à jour du pool permanent d'adhérents (Excel ou ajouts manuels)
+  const handleUpdateAllMembers = useCallback(
+    (newMembers: BirthdayItem[]) => {
+      setAllMembers(newMembers);
+      try {
+        localStorage.setItem('club_all_members_pool', JSON.stringify(newMembers));
+      } catch (e) {}
+      const ref = simulatedDate || new Date();
+      const updatedWeekBirthdays = filterAndSortBirthdaysForWeek(newMembers, ref, 0);
+      setBirthdays(updatedWeekBirthdays);
+    },
+    [simulatedDate]
+  );
+
+  // Modification de la date simulée (banc de test dimanche 23:59 -> lundi 00:00)
+  const handleSetSimulatedDate = useCallback(
+    (date: Date | null) => {
+      setSimulatedDate(date);
+      const ref = date || new Date();
+      const newKey = getWeekKey(ref);
+      setCurrentWeekKey(newKey);
+      if (allMembers && allMembers.length > 0) {
+        const updated = filterAndSortBirthdaysForWeek(allMembers, ref, 0);
+        setBirthdays(updated);
+      }
+    },
+    [allMembers]
+  );
+
+  // =========================================================================
+  // SURVEILLANCE AUTOMATIQUE PERMANENTE DU CHANGEMENT DE SEMAINE DES ANNIVERSAIRES
+  // La semaine commence Lundi 00:00:00 et finit Dimanche 23:59:59.
+  // Au passage à Lundi 00:00, recalcul dynamique immédiat sans recharger la page.
+  // =========================================================================
+  useEffect(() => {
+    const checkWeekTransition = () => {
+      const now = simulatedDate || new Date();
+      const newKey = getWeekKey(now);
+      if (newKey !== currentWeekKey) {
+        console.log(`[Anniversaires] Bascule de semaine automatique détectée : ${currentWeekKey} ➔ ${newKey}`);
+        setCurrentWeekKey(newKey);
+        if (allMembers && allMembers.length > 0) {
+          const newBirthdays = filterAndSortBirthdaysForWeek(allMembers, now, 0);
+          console.log(`[Anniversaires] Nouveau calcul hebdomadaire (${newBirthdays.length} retenu(s))`);
+          setBirthdays(newBirthdays);
+        }
+      }
+    };
+
+    // 1. Ticker périodique de contrôle léger (toutes les 2 secondes pour être réactif aux secondes simulées et au temps réel)
+    const interval = setInterval(checkWeekTransition, 2000);
+
+    // 2. Minuteur ultra-précis ciblant exactement la milliseconde de Lundi 00:00:00 local
+    const now = simulatedDate || new Date();
+    const { monday } = getWeekBounds(now, 1);
+    const msUntilNextMonday = monday.getTime() - now.getTime();
+    let exactTimer: any = null;
+    if (msUntilNextMonday > 0 && msUntilNextMonday < 2147483647) {
+      exactTimer = setTimeout(() => {
+        checkWeekTransition();
+      }, msUntilNextMonday + 50);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (exactTimer) clearTimeout(exactTimer);
+    };
+  }, [allMembers, currentWeekKey, simulatedDate]);
 
   // Vérification périodique des alertes victoire/défaite actives
   useEffect(() => {
@@ -1108,6 +1250,10 @@ export default function App() {
           onUpdateEvents={setEvents}
           birthdays={birthdays}
           onUpdateBirthdays={setBirthdays}
+          allMembers={allMembers}
+          onUpdateAllMembers={handleUpdateAllMembers}
+          simulatedDate={simulatedDate}
+          onSetSimulatedDate={handleSetSimulatedDate}
           teamVisuals={teamVisuals}
           onUpdateTeamVisuals={setTeamVisuals}
           visualTemplates={visualTemplates}

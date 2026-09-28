@@ -660,6 +660,245 @@ export const DEFAULT_BIRTHDAYS: BirthdayItem[] = [
   },
 ];
 
+/**
+ * Pool permanent d'adhérents de démonstration (couvre la Semaine A, la Semaine B et la semaine en cours)
+ */
+export const DEFAULT_CLUB_MEMBERS: BirthdayItem[] = [
+  ...DEFAULT_BIRTHDAYS,
+  // Adhérents de la Semaine B repère (22 au 28 Septembre)
+  {
+    id: 'bd-b1',
+    fullName: 'Thomas',
+    firstName: 'Thomas',
+    birthDate: '2015-09-22',
+    birthDayFormatted: 'Lundi 22 Septembre',
+    age: 11,
+    teamCategory: 'U11M',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b2',
+    fullName: 'Camille',
+    firstName: 'Camille',
+    birthDate: '2013-09-23',
+    birthDayFormatted: 'Mardi 23 Septembre',
+    age: 13,
+    teamCategory: 'U13F',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b3',
+    fullName: 'Maxime',
+    firstName: 'Maxime',
+    birthDate: '2011-09-24',
+    birthDayFormatted: 'Mercredi 24 Septembre',
+    age: 15,
+    teamCategory: 'U15M',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b4',
+    fullName: 'Julie',
+    firstName: 'Julie',
+    birthDate: '2008-09-25',
+    birthDayFormatted: 'Jeudi 25 Septembre',
+    age: 18,
+    teamCategory: 'U18F',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b5',
+    fullName: 'Alexandre',
+    firstName: 'Alexandre',
+    birthDate: '2000-09-26',
+    birthDayFormatted: 'Vendredi 26 Septembre',
+    age: 26,
+    teamCategory: 'Seniors M',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b6',
+    fullName: 'Clara',
+    firstName: 'Clara',
+    birthDate: '2017-09-27',
+    birthDayFormatted: 'Samedi 27 Septembre',
+    age: 9,
+    teamCategory: 'U9F',
+    isThisWeek: false,
+  },
+  {
+    id: 'bd-b7',
+    fullName: 'Antoine',
+    firstName: 'Antoine',
+    birthDate: '1988-09-28',
+    birthDayFormatted: 'Dimanche 28 Septembre',
+    age: 38,
+    teamCategory: 'Coach SG',
+    isThisWeek: false,
+  },
+];
+
+/**
+ * Génère des adhérents de démonstration calés sur la semaine courante et la semaine suivante
+ * pour que l'application affiche toujours des données réalistes même sans fichier Excel importé.
+ */
+export function getAnchorDemoMembers(refDate: Date = new Date()): BirthdayItem[] {
+  // Calcul du lundi de la semaine courante
+  const d = new Date(refDate);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const currentMonday = new Date(d);
+  currentMonday.setDate(d.getDate() + diffToMonday);
+
+  const formatDateYMD = (date: Date, birthYear: number) => {
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const dayOfMonth = String(date.getDate()).padStart(2, '0');
+    return `${birthYear}-${m}-${dayOfMonth}`;
+  };
+
+  const addDays = (base: Date, days: number) => {
+    const res = new Date(base);
+    res.setDate(base.getDate() + days);
+    return res;
+  };
+
+  const currentWeekMembers: BirthdayItem[] = [
+    {
+      id: 'demo-cw-1',
+      fullName: 'Hugo',
+      firstName: 'Hugo',
+      birthDate: formatDateYMD(currentMonday, 2017),
+      birthDayFormatted: 'Lundi',
+      teamCategory: 'U9M',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-2',
+      fullName: 'Inès',
+      firstName: 'Inès',
+      birthDate: formatDateYMD(addDays(currentMonday, 1), 2015),
+      birthDayFormatted: 'Mardi',
+      teamCategory: 'U11F',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-3',
+      fullName: 'Gabriel',
+      firstName: 'Gabriel',
+      birthDate: formatDateYMD(addDays(currentMonday, 2), 2013),
+      birthDayFormatted: 'Mercredi',
+      teamCategory: 'U13M',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-4',
+      fullName: 'Jade',
+      firstName: 'Jade',
+      birthDate: formatDateYMD(addDays(currentMonday, 3), 2011),
+      birthDayFormatted: 'Jeudi',
+      teamCategory: 'U15F',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-5',
+      fullName: 'Nathan',
+      firstName: 'Nathan',
+      birthDate: formatDateYMD(addDays(currentMonday, 4), 2009),
+      birthDayFormatted: 'Vendredi',
+      teamCategory: 'U17M',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-6',
+      fullName: 'Manon',
+      firstName: 'Manon',
+      birthDate: formatDateYMD(addDays(currentMonday, 5), 2002),
+      birthDayFormatted: 'Samedi',
+      teamCategory: 'Seniors F',
+      isThisWeek: true,
+    },
+    {
+      id: 'demo-cw-7',
+      fullName: 'Pierre',
+      firstName: 'Pierre',
+      birthDate: formatDateYMD(addDays(currentMonday, 6), 1984),
+      birthDayFormatted: 'Dimanche',
+      teamCategory: 'Coach U13',
+      isThisWeek: true,
+    },
+  ];
+
+  // Adhérents calés sur la semaine suivante (+7 jours)
+  const nextMonday = addDays(currentMonday, 7);
+  const nextWeekMembers: BirthdayItem[] = [
+    {
+      id: 'demo-nw-1',
+      fullName: 'Louise',
+      firstName: 'Louise',
+      birthDate: formatDateYMD(nextMonday, 2019),
+      birthDayFormatted: 'Lundi',
+      teamCategory: 'U7F',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-2',
+      fullName: 'Arthur',
+      firstName: 'Arthur',
+      birthDate: formatDateYMD(addDays(nextMonday, 1), 2015),
+      birthDayFormatted: 'Mardi',
+      teamCategory: 'U11M',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-3',
+      fullName: 'Agathe',
+      firstName: 'Agathe',
+      birthDate: formatDateYMD(addDays(nextMonday, 2), 2013),
+      birthDayFormatted: 'Mercredi',
+      teamCategory: 'U13F',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-4',
+      fullName: 'Romain',
+      firstName: 'Romain',
+      birthDate: formatDateYMD(addDays(nextMonday, 3), 2011),
+      birthDayFormatted: 'Jeudi',
+      teamCategory: 'U15M',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-5',
+      fullName: 'Mathilde',
+      firstName: 'Mathilde',
+      birthDate: formatDateYMD(addDays(nextMonday, 4), 2008),
+      birthDayFormatted: 'Vendredi',
+      teamCategory: 'U18F',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-6',
+      fullName: 'Lucas',
+      firstName: 'Lucas',
+      birthDate: formatDateYMD(addDays(nextMonday, 5), 2000),
+      birthDayFormatted: 'Samedi',
+      teamCategory: 'Seniors M',
+      isThisWeek: false,
+    },
+    {
+      id: 'demo-nw-7',
+      fullName: 'Michel',
+      firstName: 'Michel',
+      birthDate: formatDateYMD(addDays(nextMonday, 6), 1974),
+      birthDayFormatted: 'Dimanche',
+      teamCategory: 'Bureau',
+      isThisWeek: false,
+    },
+  ];
+
+  return [...DEFAULT_CLUB_MEMBERS, ...currentWeekMembers, ...nextWeekMembers];
+}
+
 export const DEFAULT_EVENTS: ClubEventItem[] = [
   {
     id: 'ev-1',

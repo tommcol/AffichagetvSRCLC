@@ -31,6 +31,7 @@ import {
   Send,
   ExternalLink,
   Shield,
+  ShieldCheck,
   Frown,
   Share2,
   Instagram,
@@ -74,6 +75,7 @@ import {
   FFBBTeamItem,
 } from '../../types';
 import { MatchAlertSlide, getEffectiveTitleConfig } from '../slides/MatchAlertSlide';
+import { formatAlertTitle } from '../../utils/alertUtils';
 import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { compressImageFile } from '../../utils/imageCompressor';
@@ -250,6 +252,10 @@ interface AdminPanelProps {
   onUpdateEvents: (newEvents: ClubEventItem[]) => void;
   birthdays: BirthdayItem[];
   onUpdateBirthdays: (newBirthdays: BirthdayItem[]) => void;
+  allMembers?: BirthdayItem[];
+  onUpdateAllMembers?: (newMembers: BirthdayItem[]) => void;
+  simulatedDate?: Date | null;
+  onSetSimulatedDate?: (date: Date | null) => void;
   teamVisuals: TeamVisualItem[];
   onUpdateTeamVisuals: (newVisuals: TeamVisualItem[]) => void;
   visualTemplates: VisualTemplatesConfig;
@@ -286,6 +292,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateEvents,
   birthdays,
   onUpdateBirthdays,
+  allMembers,
+  onUpdateAllMembers,
+  simulatedDate,
+  onSetSimulatedDate,
   teamVisuals,
   onUpdateTeamVisuals,
   visualTemplates,
@@ -331,7 +341,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // État de simulation et d'aperçu d'alerte Victoire / Défaite
   const [alertPreviewType, setAlertPreviewType] = useState<'win' | 'loss'>('loss');
-  const [alertPreviewTeam, setAlertPreviewTeam] = useState<string>('U11 Filles');
+  const [alertPreviewTeam, setAlertPreviewTeam] = useState<string>('__widest__');
   const [selectedAlertVisualUrl, setSelectedAlertVisualUrl] = useState<string | null>(null);
   const [selectedAlertVisualType, setSelectedAlertVisualType] = useState<'win' | 'loss'>('loss');
 
@@ -861,6 +871,126 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
     return list;
   }, [ffbbTeams, matches]);
+
+  // Liste unifiée de toutes les catégories / équipes du club pour le test de largeur
+  const allCandidateTeams = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+
+    const add = (name?: string) => {
+      if (!name) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        list.push(trimmed);
+      }
+    };
+
+    // 1. Équipes des visuels configurés
+    if (Array.isArray(teamVisuals) && teamVisuals.length > 0) {
+      teamVisuals.forEach((tv) => {
+        add(tv.teamName);
+      });
+    }
+
+    // 2. Équipes synchronisées FFBB et catégories des matchs
+    if (Array.isArray(availableFfbbTeams) && availableFfbbTeams.length > 0) {
+      availableFfbbTeams.forEach((t) => {
+        add(t.name);
+      });
+    }
+
+    // 3. Catégories des matchs existants
+    if (Array.isArray(matches) && matches.length > 0) {
+      matches.forEach((m) => {
+        add(m.category);
+      });
+    }
+
+    // 4. Équipes réelles du SRC Basket par défaut
+    DEFAULT_REAL_FFBB_TEAMS.forEach((t) => {
+      add(t.name);
+    });
+
+    return list;
+  }, [teamVisuals, availableFfbbTeams, matches]);
+
+  const currentPreviewIsWin = selectedAlertVisualUrl ? selectedAlertVisualType === 'win' : alertPreviewType === 'win';
+  const currentPreviewTitleTemplate = activeEditingConfig.customTitle || (currentPreviewIsWin ? (visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}') : (visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'));
+  const currentPreviewFont = activeEditingConfig.font || visualTemplates.alertTextFont || 'Bebas Neue';
+  const currentPreviewScale = activeEditingConfig.scale ?? visualTemplates.alertTextScale ?? 1.0;
+
+  // Référence DOM cachée pour mesurer la largeur réelle de chaque équipe avec la police et le modèle actuels
+  const teamsMeasureRef = useRef<HTMLDivElement>(null);
+  const [widestTeamInfo, setWidestTeamInfo] = useState<{
+    team: string;
+    widthPx: number;
+    widestLine: string;
+  }>(() => ({
+    team: 'Seniors Garçons 1',
+    widthPx: 0,
+    widestLine: 'Seniors Garçons 1',
+  }));
+
+  // Mesure réelle au pixel de chaque équipe en tenant compte de la police, de la taille et des retours à la ligne
+  useEffect(() => {
+    const container = teamsMeasureRef.current;
+    if (!container || allCandidateTeams.length === 0) return;
+
+    const measureWidest = () => {
+      const blocks = container.querySelectorAll<HTMLElement>('.team-width-block');
+      let maxW = 0;
+      let widestName = allCandidateTeams[0] || 'Seniors Garçons 1';
+      let widestLineStr = '';
+
+      blocks.forEach((block) => {
+        const team = block.getAttribute('data-team') || '';
+        const lineEls = block.querySelectorAll<HTMLElement>('.team-width-line');
+        let teamMaxLine = 0;
+        let localWidestLine = '';
+        lineEls.forEach((el) => {
+          const w = el.getBoundingClientRect().width;
+          if (w > teamMaxLine) {
+            teamMaxLine = w;
+            localWidestLine = el.textContent || '';
+          }
+        });
+
+        if (teamMaxLine > maxW) {
+          maxW = teamMaxLine;
+          widestName = team;
+          widestLineStr = localWidestLine;
+        }
+      });
+
+      if (widestName) {
+        setWidestTeamInfo({
+          team: widestName,
+          widthPx: Math.round(maxW),
+          widestLine: widestLineStr,
+        });
+      }
+    };
+
+    measureWidest();
+
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(measureWidest);
+    }
+  }, [
+    allCandidateTeams,
+    currentPreviewTitleTemplate,
+    currentPreviewIsWin,
+    currentPreviewFont,
+    currentPreviewScale,
+  ]);
+
+  const effectivePreviewTeam =
+    alertPreviewTeam === '__widest__'
+      ? (widestTeamInfo.team || allCandidateTeams[0] || 'Seniors Garçons 1')
+      : alertPreviewTeam;
 
   // Handler for selecting an existing scheduled match from FFBB
   const handleSelectScheduledMatch = (matchId: string) => {
@@ -6174,23 +6304,110 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </div>
                         )}
 
-                        {/* Choix de l'équipe de test */}
-                        <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800 text-xs">
-                          <span className="text-slate-400">Équipe :</span>
-                          <select
-                            value={alertPreviewTeam}
-                            onChange={(e) => setAlertPreviewTeam(e.target.value)}
-                            className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
+                        {/* Choix et mode de l'équipe de test */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Bouton direct "La plus large" */}
+                          <button
+                            type="button"
+                            onClick={() => setAlertPreviewTeam('__widest__')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                              alertPreviewTeam === '__widest__'
+                                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black ring-2 ring-amber-400/40'
+                                : 'bg-slate-900 text-slate-300 hover:text-white border-slate-700 hover:border-slate-600'
+                            }`}
+                            title="Calibrer automatiquement le titre sur l'équipe produisant la plus grande largeur graphique"
                           >
-                            <option value="U11 Filles" className="bg-slate-900">U11 Filles (U11F)</option>
-                            <option value="U13 Garçons" className="bg-slate-900">U13 Garçons (U13M)</option>
-                            <option value="U15 Filles" className="bg-slate-900">U15 Filles</option>
-                            <option value="U18 Garçons" className="bg-slate-900">U18 Garçons</option>
-                            <option value="Seniors Garçons 1" className="bg-slate-900">Seniors Garçons 1</option>
-                            <option value="Seniors Filles 1" className="bg-slate-900">Seniors Filles 1</option>
-                          </select>
+                            <ShieldCheck className={`w-3.5 h-3.5 ${alertPreviewTeam === '__widest__' ? 'text-slate-950' : 'text-amber-400'}`} />
+                            <span>La plus large</span>
+                            {alertPreviewTeam === '__widest__' && widestTeamInfo.team && (
+                              <span className="ml-0.5 px-1.5 py-0.5 rounded bg-slate-950/20 text-slate-950 text-[10px] font-black uppercase">
+                                {widestTeamInfo.team}
+                              </span>
+                            )}
+                          </button>
+
+                          {/* Sélecteur déroulant complet avec indication de l'équipe réellement testée */}
+                          <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs">
+                            <span className="text-slate-400 font-medium">Équipe test :</span>
+                            <select
+                              value={alertPreviewTeam}
+                              onChange={(e) => setAlertPreviewTeam(e.target.value)}
+                              className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer max-w-[240px] truncate"
+                            >
+                              <option value="__widest__" className="bg-slate-900 text-amber-400 font-bold">
+                                🛡️ La plus large — {widestTeamInfo.team}
+                              </option>
+                              <optgroup label="Tester une équipe spécifique" className="bg-slate-900 text-slate-400">
+                                {allCandidateTeams.map((teamName) => (
+                                  <option key={teamName} value={teamName} className="bg-slate-900 text-white font-normal">
+                                    {teamName}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                          </div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* ÉLÉMENT INVISIBLE DE MESURE DE LARGEUR RÉELLE DE TOUTES LES ÉQUIPES DU CLUB */}
+                    <div
+                      ref={teamsMeasureRef}
+                      aria-hidden="true"
+                      className={`pointer-events-none select-none uppercase font-black tracking-wider leading-[1.08] ${getFontFamilyClass(
+                        currentPreviewFont
+                      )}`}
+                      style={{
+                        position: 'absolute',
+                        visibility: 'hidden',
+                        top: -99999,
+                        left: -99999,
+                        fontSize: `${Math.round(60 * currentPreviewScale)}px`,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {allCandidateTeams.map((teamName) => {
+                        const formatted = formatAlertTitle(currentPreviewTitleTemplate, currentPreviewIsWin, teamName);
+                        const lines = formatted.split('\n');
+                        return (
+                          <div key={teamName} data-team={teamName} className="team-width-block">
+                            {lines.map((line, lIdx) => (
+                              <div key={lIdx} className="team-width-line">
+                                {line}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bandeau d'information de l'équipe testée */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                      {alertPreviewTeam === '__widest__' ? (
+                        <div className="inline-flex items-center gap-1.5 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full font-medium">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>
+                            Équipe test : <strong>La plus large — {widestTeamInfo.team}</strong>. Si le titre tient avec cette équipe, il tiendra pour l'ensemble du club.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-300 bg-slate-900/80 border border-slate-800 px-3 py-1 rounded-full">
+                          <span>
+                            Équipe test : <strong>{alertPreviewTeam}</strong>.{' '}
+                            <button
+                              type="button"
+                              onClick={() => setAlertPreviewTeam('__widest__')}
+                              className="text-amber-400 hover:text-amber-300 underline font-bold cursor-pointer ml-1"
+                            >
+                              Revenir à la plus large ({widestTeamInfo.team})
+                            </button>
+                          </span>
+                        </div>
+                      )}
+
+                      <span className="text-[10px] text-slate-500 font-mono hidden sm:inline-block">
+                        {allCandidateTeams.length} équipes testées au pixel près
+                      </span>
                     </div>
 
                     {/* Cadre de rendu 16:9 réel avec interaction directe */}
@@ -6198,7 +6415,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       <MatchAlertSlide
                         alert={{
                           id: 'preview-alert',
-                          team: alertPreviewTeam,
+                          team: effectivePreviewTeam,
                           isWin: selectedAlertVisualUrl ? selectedAlertVisualType === 'win' : alertPreviewType === 'win',
                           triggeredBy: 'manual',
                           timestamp: Date.now(),

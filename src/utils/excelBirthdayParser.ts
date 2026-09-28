@@ -249,6 +249,19 @@ export function getWeekBounds(referenceDate: Date = new Date(), weekOffset: numb
 }
 
 /**
+ * Returns a unique key representing the calendar week (e.g. "2026-W39-2026-09-28")
+ * derived strictly from the Monday 00:00:00.000 timestamp of the week containing the reference date.
+ * Changing from Sunday 23:59:59 to Monday 00:00:00 produces an immediate, new key.
+ */
+export function getWeekKey(referenceDate: Date = new Date(), weekOffset: number = 0): string {
+  const { monday, weekNumber } = getWeekBounds(referenceDate, weekOffset);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const d = String(monday.getDate()).padStart(2, '0');
+  return `${y}-W${weekNumber}-${y}-${m}-${d}`;
+}
+
+/**
  * Checks if a given month and day falls in the specified calendar week
  */
 export function isDateInSpecifiedWeek(
@@ -450,8 +463,9 @@ export function filterAndSortBirthdaysForWeek(
     if (!b.birthDate) return;
     let d: Date | null = null;
 
-    // Parse "YYYY-MM-DD" or "DD/MM/YYYY" without timezone shifts
-    const parts = String(b.birthDate).trim().split(/[-/.]/);
+    // Handle string dates, ISO dates with 'T', and split
+    const cleanDateStr = String(b.birthDate).trim().split('T')[0];
+    const parts = cleanDateStr.split(/[-/.]/);
     if (parts.length === 3) {
       const p0 = parseInt(parts[0], 10);
       const p1 = parseInt(parts[1], 10);
@@ -462,8 +476,20 @@ export function filterAndSortBirthdaysForWeek(
       } else if (p2 > 1000) {
         // DD-MM-YYYY
         d = new Date(p2, p1 - 1, p0, 12, 0, 0);
+      } else if (p2 < 100 && p2 >= 0) {
+        // 2-digit year
+        const fullYear = p2 < 50 ? 2000 + p2 : 1900 + p2;
+        d = new Date(fullYear, p1 - 1, p0, 12, 0, 0);
+      }
+    } else if (parts.length === 2) {
+      // DD/MM or MM/DD
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      if (p0 <= 31 && p1 <= 12) {
+        d = new Date(referenceDate.getFullYear(), p1 - 1, p0, 12, 0, 0);
       }
     }
+
     if (!d || isNaN(d.getTime())) {
       d = new Date(b.birthDate);
     }
@@ -471,8 +497,15 @@ export function filterAndSortBirthdaysForWeek(
 
     const check = isDateInSpecifiedWeek(d, referenceDate, weekOffset);
     if (check.inWeek) {
+      let age = b.age;
+      const birthYear = d.getFullYear();
+      if (birthYear > 1900 && birthYear <= check.targetDate.getFullYear()) {
+        age = check.targetDate.getFullYear() - birthYear;
+      }
+
       filtered.push({
         ...b,
+        age,
         birthDayFormatted: formatFrenchBirthday(check.targetDate),
         isThisWeek: weekOffset === 0,
       });
