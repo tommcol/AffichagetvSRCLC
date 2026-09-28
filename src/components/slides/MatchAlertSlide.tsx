@@ -1,15 +1,68 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Move, Pencil, Check } from 'lucide-react';
-import { ActiveMatchAlert, TeamVisualItem, VisualTemplatesConfig, ClubSettings } from '../../types';
+import { ActiveMatchAlert, TeamVisualItem, VisualTemplatesConfig, ClubSettings, VisualTitleConfig } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { getFontFamilyClass } from '../../utils/fontUtils';
 import { formatAlertTitle } from '../../utils/alertUtils';
+
+/**
+ * Résout la configuration graphique effective du titre pour un média donné.
+ * Si le média possède une configuration individuelle (isCustomized: true), elle est appliquée.
+ * Sinon, elle retombe proprement sur la configuration globale par défaut du club.
+ */
+export function getEffectiveTitleConfig(
+  visualUrl: string | undefined,
+  isWin: boolean,
+  visualTemplates?: VisualTemplatesConfig,
+  alertTitleConfig?: VisualTitleConfig
+): VisualTitleConfig & { isCustomized: boolean } {
+  const directConfig = visualUrl && visualTemplates?.visualTitleConfigs?.[visualUrl];
+  const candidate = directConfig || alertTitleConfig;
+
+  const defaultTitle = isWin
+    ? (visualTemplates?.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}')
+    : (visualTemplates?.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}');
+  const defaultColor = isWin
+    ? (visualTemplates?.alertWinColor || visualTemplates?.alertTextColor || '#10b981')
+    : (visualTemplates?.alertLossColor || visualTemplates?.alertTextColor || '#ef4444');
+
+  if (candidate && candidate.isCustomized) {
+    return {
+      customTitle: candidate.customTitle ?? defaultTitle,
+      font: candidate.font ?? visualTemplates?.alertTextFont ?? 'Bebas Neue',
+      color: candidate.color ?? defaultColor,
+      scale: candidate.scale ?? visualTemplates?.alertTextScale ?? 1.0,
+      x: candidate.x ?? visualTemplates?.alertTextX ?? 50,
+      y: candidate.y ?? visualTemplates?.alertTextY ?? 82,
+      align: candidate.align ?? visualTemplates?.alertTextAlign ?? 'center',
+      bgOpacity: candidate.bgOpacity ?? visualTemplates?.alertTextBgOpacity ?? 0,
+      glowEffect: candidate.glowEffect ?? visualTemplates?.alertGlowEffect ?? true,
+      isCustomized: true,
+    };
+  }
+
+  // Fallback vers les réglages globaux par défaut
+  return {
+    customTitle: candidate?.customTitle ?? defaultTitle,
+    font: candidate?.font ?? visualTemplates?.alertTextFont ?? 'Bebas Neue',
+    color: candidate?.color ?? defaultColor,
+    scale: candidate?.scale ?? visualTemplates?.alertTextScale ?? 1.0,
+    x: candidate?.x ?? visualTemplates?.alertTextX ?? 50,
+    y: candidate?.y ?? visualTemplates?.alertTextY ?? 82,
+    align: candidate?.align ?? visualTemplates?.alertTextAlign ?? 'center',
+    bgOpacity: candidate?.bgOpacity ?? visualTemplates?.alertTextBgOpacity ?? 0,
+    glowEffect: candidate?.glowEffect ?? visualTemplates?.alertGlowEffect ?? true,
+    isCustomized: false,
+  };
+}
 
 interface MatchAlertSlideProps {
   alert: ActiveMatchAlert;
   teamVisual?: TeamVisualItem;
   visualTemplates?: VisualTemplatesConfig;
   clubSettings?: ClubSettings;
+  overrideImageUrl?: string; // Média forcé (ex: sélection directe dans l'atelier d'administration)
+  overrideTitleConfig?: VisualTitleConfig; // Configuration directe forcée en cours d'édition
   onVideoEnded?: () => void;
   onVideoTimeUpdate?: (progressPercent: number) => void;
   // Mode édition interactif pour l'aperçu dans l'administration
@@ -22,6 +75,8 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   alert,
   teamVisual,
   visualTemplates,
+  overrideImageUrl,
+  overrideTitleConfig,
   onVideoEnded,
   onVideoTimeUpdate,
   interactive = false,
@@ -37,11 +92,26 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
+  // 1. Détermination du média de fond (Photo ou Vidéo)
+  const visualImage =
+    overrideImageUrl ||
+    alert.customImageUrl ||
+    (alert.isWin ? teamVisual?.winVisualUrl : teamVisual?.lossVisualUrl) ||
+    (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
+
+  // 2. Configuration graphique effective (attachée au visuel ou globale)
+  const effectiveConfig = overrideTitleConfig || getEffectiveTitleConfig(
+    visualImage,
+    alert.isWin,
+    visualTemplates,
+    alert.titleConfig
+  );
+
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number }>({
     clientX: 0,
     clientY: 0,
-    startX: 50,
-    startY: 82,
+    startX: effectiveConfig.x ?? 50,
+    startY: effectiveConfig.y ?? 82,
   });
 
   // Détection dynamique et réactive de la taille du conteneur 16:9 (Admin ou TV)
@@ -67,28 +137,20 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
     };
   }, []);
 
-  // 1. Détermination du média de fond (Photo ou Vidéo)
-  const visualImage =
-    alert.customImageUrl ||
-    (alert.isWin ? teamVisual?.winVisualUrl : teamVisual?.lossVisualUrl) ||
-    (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
-
-  // 2. Modèle de titre dynamique
-  const titleTemplate = alert.isWin
-    ? (visualTemplates?.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}')
-    : (visualTemplates?.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}');
-
+  // 3. Modèle de titre dynamique
+  const titleTemplate = effectiveConfig.customTitle || (alert.isWin ? 'VICTOIRE DES {CATEGORIE}' : 'DÉFAITE DES {CATEGORIE}');
   const titleText = formatAlertTitle(titleTemplate, alert.isWin, alert.team);
   const lines = titleText.split('\n');
 
-  // 3. Réglages graphiques du titre
-  const textX = visualTemplates?.alertTextX ?? 50;
-  const textY = visualTemplates?.alertTextY ?? 82;
-  const textAlign = visualTemplates?.alertTextAlign || 'center';
-  const textScale = visualTemplates?.alertTextScale ?? 1.0;
-  const titleFont = visualTemplates?.alertTextFont || 'Bebas Neue';
-  const glowEffect = visualTemplates?.alertGlowEffect ?? true;
-  const bgOpacity = visualTemplates?.alertTextBgOpacity ?? 0;
+  // 4. Réglages graphiques résolus
+  const textX = effectiveConfig.x ?? 50;
+  const textY = effectiveConfig.y ?? 82;
+  const textAlign = effectiveConfig.align || 'center';
+  const textScale = effectiveConfig.scale ?? 1.0;
+  const titleFont = effectiveConfig.font || 'Bebas Neue';
+  const glowEffect = effectiveConfig.glowEffect ?? true;
+  const bgOpacity = effectiveConfig.bgOpacity ?? 0;
+  const titleColor = effectiveConfig.color || (alert.isWin ? '#10b981' : '#ef4444');
 
   // Taille de base strictement proportionnelle au conteneur 16:9
   // (~111px sur TV 1920x1080, ~45px sur preview admin 768px, ~22px sur mobile 380px)
@@ -162,12 +224,6 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
 
   // Échelle finale au rendu
   const effectiveScale = textScale * autoFitScale;
-
-  // Couleur du titre
-  const defaultAccentColor = alert.isWin ? '#10b981' : '#ef4444';
-  const titleColor = alert.isWin
-    ? (visualTemplates?.alertWinColor || visualTemplates?.alertTextColor || defaultAccentColor)
-    : (visualTemplates?.alertLossColor || visualTemplates?.alertTextColor || defaultAccentColor);
 
   const translateX = textAlign === 'left' ? '0%' : textAlign === 'right' ? '-100%' : '-50%';
 

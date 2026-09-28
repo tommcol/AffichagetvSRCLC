@@ -63,6 +63,7 @@ export interface ActiveMatchAlert {
   opponentScore?: number;
   opponent?: string;
   customImageUrl?: string; // Visuel spécifique sélectionné
+  titleConfig?: VisualTitleConfig; // Configuration graphique spécifique attachée au visuel
   triggeredBy: 'telegram' | 'ffbb' | 'manual';
   timestamp: number; // Date de fin du match
   expiresAt: number; // Date d'expiration (+1h / 60 minutes)
@@ -233,6 +234,22 @@ export interface VisualTemplatesConfig {
   alertCustomWinTitle?: string; // titre personnalisé victoire (défaut "VICTOIRE DES {CATEGORIE}")
   alertCustomLossTitle?: string; // titre personnalisé défaite (défaut "DÉFAITE DES {CATEGORIE}")
   alertTextAlign?: 'left' | 'center' | 'right'; // alignement horizontal du titre (défaut 'center')
+  // Configurations graphiques indépendantes par visuel (clé = URL du média)
+  visualTitleConfigs?: Record<string, VisualTitleConfig>;
+}
+
+// Configuration graphique du titre attachée à un visuel spécifique
+export interface VisualTitleConfig {
+  customTitle?: string; // Modèle de titre personnalisé (ex: "VICTOIRE DES {CATEGORIE}" ou retours à la ligne)
+  font?: FontFamilyOption; // Police du titre
+  color?: string; // Couleur personnalisée du titre
+  scale?: number; // Échelle de taille (0.2 à 1.6, défaut 1.0)
+  x?: number; // Position horizontale (5% à 95%, défaut 50)
+  y?: number; // Position verticale (5% à 95%, défaut 82)
+  align?: 'left' | 'center' | 'right'; // Alignement horizontal
+  bgOpacity?: number; // Fond translucide sous le titre (0 à 0.9, défaut 0)
+  glowEffect?: boolean; // Effet lueur néon sportive (défaut true)
+  isCustomized?: boolean; // Indique si le visuel a sa propre configuration indépendante
 }
 
 // Pre-made Win / Loss visuals per team in the club

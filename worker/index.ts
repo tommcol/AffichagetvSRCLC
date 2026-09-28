@@ -411,6 +411,7 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
   const durationMs = (durationMinutes || 60) * 60 * 1000;
 
   let finalCustomImageUrl = customImageUrl;
+  let customTitleConfig = undefined;
   if (!finalCustomImageUrl) {
     try {
       const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
@@ -429,6 +430,9 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
             finalCustomImageUrl = isWin ? tv.winVisualUrl : tv.lossVisualUrl;
           }
         }
+        if (finalCustomImageUrl && vt?.visualTitleConfigs?.[finalCustomImageUrl]) {
+          customTitleConfig = vt.visualTitleConfigs[finalCustomImageUrl];
+        }
       }
     } catch (e) {
       console.warn('Erreur lors de la sélection du visuel dans la banque commune:', e);
@@ -445,6 +449,7 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
     opponentScore: (opponentScore !== undefined && opponentScore !== null && opponentScore !== '') ? Number(opponentScore) : undefined,
     opponent: opponent || undefined,
     customImageUrl: finalCustomImageUrl,
+    titleConfig: customTitleConfig,
     triggeredBy,
     timestamp: inputTimestamp || now,
     expiresAt: inputExpiresAt || (now + durationMs),
@@ -526,6 +531,9 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
             customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
           }
         }
+        if (customImg && vt?.visualTitleConfigs?.[customImg]) {
+          customTitleConfig = vt.visualTitleConfigs[customImg];
+        }
       }
     } catch (e) {}
 
@@ -538,6 +546,7 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
       opponentScore: parsed.opponentScore,
       opponent: parsed.opponent,
       customImageUrl: customImg,
+      titleConfig: customTitleConfig,
       triggeredBy: 'telegram',
       timestamp: now,
       expiresAt: now + durationMs,
@@ -594,6 +603,7 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
 
   const parsed = parseTelegramMatchMessage(messageText);
   let customImg: string | undefined = undefined;
+  let customTitleConfig = undefined;
   try {
     const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
     if (appDataRaw) {
@@ -611,6 +621,9 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
           customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
         }
       }
+      if (customImg && vt?.visualTitleConfigs?.[customImg]) {
+        customTitleConfig = vt.visualTitleConfigs[customImg];
+      }
     }
   } catch (e) {}
 
@@ -623,6 +636,7 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
     opponentScore: parsed.opponentScore,
     opponent: parsed.opponent,
     customImageUrl: customImg,
+    titleConfig: customTitleConfig,
     triggeredBy: 'telegram',
     timestamp: now,
     expiresAt: now + 60 * 60 * 1000,

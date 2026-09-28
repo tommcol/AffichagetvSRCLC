@@ -53,6 +53,7 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
   alertTextColor: '#ffffff',
   alertGlowEffect: true,
   alertTextBgOpacity: 0,
+  visualTitleConfigs: {},
   theme: {
     primaryColor: '#ea580c',
     secondaryColor: '#0f172a',

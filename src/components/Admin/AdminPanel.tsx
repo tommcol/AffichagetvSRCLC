@@ -11,6 +11,7 @@ import {
   Trash2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Clock,
   Sparkles,
   Download,
@@ -69,9 +70,10 @@ import {
   ActiveMatchAlert,
   TeamVisualItem,
   VisualTemplatesConfig,
+  VisualTitleConfig,
   FFBBTeamItem,
 } from '../../types';
-import { MatchAlertSlide } from '../slides/MatchAlertSlide';
+import { MatchAlertSlide, getEffectiveTitleConfig } from '../slides/MatchAlertSlide';
 import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores } from '../../utils/matchStatus';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { compressImageFile } from '../../utils/imageCompressor';
@@ -330,6 +332,82 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // État de simulation et d'aperçu d'alerte Victoire / Défaite
   const [alertPreviewType, setAlertPreviewType] = useState<'win' | 'loss'>('loss');
   const [alertPreviewTeam, setAlertPreviewTeam] = useState<string>('U11 Filles');
+  const [selectedAlertVisualUrl, setSelectedAlertVisualUrl] = useState<string | null>(null);
+  const [selectedAlertVisualType, setSelectedAlertVisualType] = useState<'win' | 'loss'>('loss');
+
+  // Configuration graphique actuellement en cours d'édition (spécifique au visuel sélectionné ou défaut global)
+  const activeEditingConfig = useMemo(() => {
+    if (selectedAlertVisualUrl) {
+      return getEffectiveTitleConfig(
+        selectedAlertVisualUrl,
+        selectedAlertVisualType === 'win',
+        visualTemplates
+      );
+    }
+    return {
+      customTitle: alertPreviewType === 'win'
+        ? (visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}')
+        : (visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'),
+      font: visualTemplates.alertTextFont ?? 'Bebas Neue',
+      color: alertPreviewType === 'win'
+        ? (visualTemplates.alertWinColor || visualTemplates.alertTextColor || '#10b981')
+        : (visualTemplates.alertLossColor || visualTemplates.alertTextColor || '#ef4444'),
+      scale: visualTemplates.alertTextScale ?? 1.0,
+      x: visualTemplates.alertTextX ?? 50,
+      y: visualTemplates.alertTextY ?? 82,
+      align: visualTemplates.alertTextAlign ?? 'center',
+      bgOpacity: visualTemplates.alertTextBgOpacity ?? 0,
+      glowEffect: visualTemplates.alertGlowEffect ?? true,
+      isCustomized: false,
+    };
+  }, [selectedAlertVisualUrl, selectedAlertVisualType, visualTemplates, alertPreviewType]);
+
+  // Met à jour la configuration graphique du visuel sélectionné (ou les réglages par défaut généraux)
+  const updateActiveConfig = (partial: Partial<VisualTitleConfig>) => {
+    if (selectedAlertVisualUrl) {
+      const existing = visualTemplates.visualTitleConfigs?.[selectedAlertVisualUrl] || {};
+      const base = getEffectiveTitleConfig(
+        selectedAlertVisualUrl,
+        selectedAlertVisualType === 'win',
+        visualTemplates
+      );
+      const updatedMediaConfig: VisualTitleConfig = {
+        ...base,
+        ...existing,
+        ...partial,
+        isCustomized: true, // Marque ce visuel comme personnalisé de façon indépendante
+      };
+
+      onUpdateVisualTemplates({
+        ...visualTemplates,
+        visualTitleConfigs: {
+          ...(visualTemplates.visualTitleConfigs || {}),
+          [selectedAlertVisualUrl]: updatedMediaConfig,
+        },
+      });
+    } else {
+      // Met à jour les valeurs par défaut globales
+      const isWin = alertPreviewType === 'win';
+      const nextVT = { ...visualTemplates };
+      if (partial.customTitle !== undefined) {
+        if (isWin) nextVT.alertCustomWinTitle = partial.customTitle;
+        else nextVT.alertCustomLossTitle = partial.customTitle;
+      }
+      if (partial.font !== undefined) nextVT.alertTextFont = partial.font;
+      if (partial.color !== undefined) {
+        if (isWin) nextVT.alertWinColor = partial.color;
+        else nextVT.alertLossColor = partial.color;
+      }
+      if (partial.scale !== undefined) nextVT.alertTextScale = partial.scale;
+      if (partial.x !== undefined) nextVT.alertTextX = partial.x;
+      if (partial.y !== undefined) nextVT.alertTextY = partial.y;
+      if (partial.align !== undefined) nextVT.alertTextAlign = partial.align;
+      if (partial.bgOpacity !== undefined) nextVT.alertTextBgOpacity = partial.bgOpacity;
+      if (partial.glowEffect !== undefined) nextVT.alertGlowEffect = partial.glowEffect;
+
+      onUpdateVisualTemplates(nextVT);
+    }
+  };
 
 
 
@@ -1343,6 +1421,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       customImg = commonBank[randomIndex];
     }
 
+    const resolvedTitleConfig = customImg
+      ? getEffectiveTitleConfig(customImg, isWin, visualTemplates)
+      : undefined;
+
     const alert: ActiveMatchAlert = {
       id: 'alert-' + Date.now(),
       team: team.teamName,
@@ -1351,6 +1433,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       opponentScore: isWin ? Math.min(ourScore, oppScore) : Math.max(ourScore, oppScore),
       opponent: 'Adversaire',
       customImageUrl: customImg,
+      titleConfig: resolvedTitleConfig,
       triggeredBy: 'manual',
       timestamp: Date.now(),
       expiresAt: Date.now() + 60 * 60 * 1000, // 1 heure
@@ -1385,6 +1468,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           data.alert.customImageUrl = commonBank[randomIndex];
         } else if (teamMatch) {
           data.alert.customImageUrl = data.alert.isWin ? teamMatch.winVisualUrl : teamMatch.lossVisualUrl;
+        }
+
+        if (data.alert.customImageUrl) {
+          data.alert.titleConfig = getEffectiveTitleConfig(
+            data.alert.customImageUrl,
+            data.alert.isWin,
+            visualTemplates
+          );
         }
 
         onAddAlert(data.alert);
@@ -5294,10 +5385,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               const results = await uploadMultipleFiles(e.target.files);
                               const newUrls = results.map((r) => r.url);
                               const existing = visualTemplates.commonVictoryVisuals || [];
+                              const newConfigs = { ...(visualTemplates.visualTitleConfigs || {}) };
+                              for (const u of newUrls) {
+                                newConfigs[u] = {
+                                  customTitle: visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}',
+                                  font: visualTemplates.alertTextFont ?? 'Bebas Neue',
+                                  color: visualTemplates.alertWinColor || visualTemplates.alertTextColor || '#10b981',
+                                  scale: visualTemplates.alertTextScale ?? 1.0,
+                                  x: visualTemplates.alertTextX ?? 50,
+                                  y: visualTemplates.alertTextY ?? 82,
+                                  align: visualTemplates.alertTextAlign ?? 'center',
+                                  bgOpacity: visualTemplates.alertTextBgOpacity ?? 0,
+                                  glowEffect: visualTemplates.alertGlowEffect ?? true,
+                                  isCustomized: true, // Devient immédiatement indépendant
+                                };
+                              }
                               onUpdateVisualTemplates({
                                 ...visualTemplates,
                                 commonVictoryVisuals: [...existing, ...newUrls],
+                                visualTitleConfigs: newConfigs,
                               });
+                              if (newUrls.length > 0) {
+                                setSelectedAlertVisualUrl(newUrls[0]);
+                                setSelectedAlertVisualType('win');
+                                setAlertPreviewType('win');
+                              }
                             }
                           }}
                         />
@@ -5311,51 +5423,100 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <p className="text-[11px]">Ajoutez 2 à 4 visuels/vidéos pour apporter de la variété automatique !</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
-                        {(visualTemplates.commonVictoryVisuals || []).map((url, idx) => (
-                          <div
-                            key={idx}
-                            className="group relative rounded-xl overflow-hidden border border-emerald-500/40 bg-black aspect-video flex items-center justify-center shadow-md"
-                          >
-                            {isVideoMedia(url) ? (
-                              <video
-                                src={url}
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <img
-                                src={url}
-                                alt={`Victoire ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            )}
-                            {isVideoMedia(url) && (
-                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-emerald-300 text-[9px] font-bold">
-                                Vidéo
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const existing = visualTemplates.commonVictoryVisuals || [];
-                                const updated = existing.filter((_, i) => i !== idx);
-                                onUpdateVisualTemplates({
-                                  ...visualTemplates,
-                                  commonVictoryVisuals: updated,
-                                });
-                              }}
-                              className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                              title="Supprimer ce visuel"
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                        {(visualTemplates.commonVictoryVisuals || []).map((url, idx) => {
+                          const isSelected = selectedAlertVisualUrl === url;
+                          const hasCustom = !!visualTemplates.visualTitleConfigs?.[url]?.isCustomized;
+                          return (
+                            <div
+                              key={idx}
+                              className={`group relative rounded-xl overflow-hidden border bg-black shadow-md flex flex-col transition-all ${
+                                isSelected
+                                  ? 'border-amber-400 ring-2 ring-amber-400/80 shadow-amber-500/20'
+                                  : 'border-emerald-500/40 hover:border-emerald-400'
+                              }`}
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
+                              <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
+                                {isVideoMedia(url) ? (
+                                  <video
+                                    src={url}
+                                    autoPlay
+                                    loop
+                                    muted
+                                    playsInline
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <img
+                                    src={url}
+                                    alt={`Victoire ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                )}
+                                {isVideoMedia(url) && (
+                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-emerald-300 text-[9px] font-bold">
+                                    Vidéo
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    const existing = visualTemplates.commonVictoryVisuals || [];
+                                    const updated = existing.filter((_, i) => i !== idx);
+                                    const nextConfigs = { ...(visualTemplates.visualTitleConfigs || {}) };
+                                    delete nextConfigs[url];
+                                    if (selectedAlertVisualUrl === url) setSelectedAlertVisualUrl(null);
+                                    onUpdateVisualTemplates({
+                                      ...visualTemplates,
+                                      commonVictoryVisuals: updated,
+                                      visualTitleConfigs: nextConfigs,
+                                    });
+                                  }}
+                                  className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg cursor-pointer"
+                                  title="Supprimer ce visuel"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <div className="p-2 bg-slate-950/95 border-t border-slate-800 space-y-1.5">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[11px] font-black text-white truncate">
+                                    Visuel Victoire #{idx + 1}
+                                  </span>
+                                  {hasCustom ? (
+                                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-0.5 shrink-0">
+                                      <Check className="w-3 h-3" /> Titre personnalisé
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 shrink-0">
+                                      Titre par défaut
+                                    </span>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAlertVisualUrl(url);
+                                    setSelectedAlertVisualType('win');
+                                    setAlertPreviewType('win');
+                                  }}
+                                  className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                                      : 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30'
+                                  }`}
+                                >
+                                  <Sliders className="w-3 h-3" />
+                                  <span>{isSelected ? 'Visuel en cours d\'édition' : 'Configurer le titre'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -5390,10 +5551,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               const results = await uploadMultipleFiles(e.target.files);
                               const newUrls = results.map((r) => r.url);
                               const existing = visualTemplates.commonDefeatVisuals || [];
+                              const newConfigs = { ...(visualTemplates.visualTitleConfigs || {}) };
+                              for (const u of newUrls) {
+                                newConfigs[u] = {
+                                  customTitle: visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}',
+                                  font: visualTemplates.alertTextFont ?? 'Bebas Neue',
+                                  color: visualTemplates.alertLossColor || visualTemplates.alertTextColor || '#ef4444',
+                                  scale: visualTemplates.alertTextScale ?? 1.0,
+                                  x: visualTemplates.alertTextX ?? 50,
+                                  y: visualTemplates.alertTextY ?? 82,
+                                  align: visualTemplates.alertTextAlign ?? 'center',
+                                  bgOpacity: visualTemplates.alertTextBgOpacity ?? 0,
+                                  glowEffect: visualTemplates.alertGlowEffect ?? true,
+                                  isCustomized: true, // Devient immédiatement indépendant
+                                };
+                              }
                               onUpdateVisualTemplates({
                                 ...visualTemplates,
                                 commonDefeatVisuals: [...existing, ...newUrls],
+                                visualTitleConfigs: newConfigs,
                               });
+                              if (newUrls.length > 0) {
+                                setSelectedAlertVisualUrl(newUrls[0]);
+                                setSelectedAlertVisualType('loss');
+                                setAlertPreviewType('loss');
+                              }
                             }
                           }}
                         />
@@ -5407,51 +5589,100 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <p className="text-[11px]">Ajoutez 1 à 3 visuels/vidéos de soutien et combativité !</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-1">
-                        {(visualTemplates.commonDefeatVisuals || []).map((url, idx) => (
-                          <div
-                            key={idx}
-                            className="group relative rounded-xl overflow-hidden border border-rose-500/40 bg-black aspect-video flex items-center justify-center shadow-md"
-                          >
-                            {isVideoMedia(url) ? (
-                              <video
-                                src={url}
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <img
-                                src={url}
-                                alt={`Défaite ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            )}
-                            {isVideoMedia(url) && (
-                              <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-rose-300 text-[9px] font-bold">
-                                Vidéo
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const existing = visualTemplates.commonDefeatVisuals || [];
-                                const updated = existing.filter((_, i) => i !== idx);
-                                onUpdateVisualTemplates({
-                                  ...visualTemplates,
-                                  commonDefeatVisuals: updated,
-                                });
-                              }}
-                              className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                              title="Supprimer ce visuel"
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                        {(visualTemplates.commonDefeatVisuals || []).map((url, idx) => {
+                          const isSelected = selectedAlertVisualUrl === url;
+                          const hasCustom = !!visualTemplates.visualTitleConfigs?.[url]?.isCustomized;
+                          return (
+                            <div
+                              key={idx}
+                              className={`group relative rounded-xl overflow-hidden border bg-black shadow-md flex flex-col transition-all ${
+                                isSelected
+                                  ? 'border-amber-400 ring-2 ring-amber-400/80 shadow-amber-500/20'
+                                  : 'border-rose-500/40 hover:border-rose-400'
+                              }`}
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
+                              <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
+                                {isVideoMedia(url) ? (
+                                  <video
+                                    src={url}
+                                    autoPlay
+                                    loop
+                                    muted
+                                    playsInline
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <img
+                                    src={url}
+                                    alt={`Défaite ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                )}
+                                {isVideoMedia(url) && (
+                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-rose-300 text-[9px] font-bold">
+                                    Vidéo
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    const existing = visualTemplates.commonDefeatVisuals || [];
+                                    const updated = existing.filter((_, i) => i !== idx);
+                                    const nextConfigs = { ...(visualTemplates.visualTitleConfigs || {}) };
+                                    delete nextConfigs[url];
+                                    if (selectedAlertVisualUrl === url) setSelectedAlertVisualUrl(null);
+                                    onUpdateVisualTemplates({
+                                      ...visualTemplates,
+                                      commonDefeatVisuals: updated,
+                                      visualTitleConfigs: nextConfigs,
+                                    });
+                                  }}
+                                  className="absolute top-1 right-1 p-1 rounded-lg bg-rose-600/90 hover:bg-rose-500 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg cursor-pointer"
+                                  title="Supprimer ce visuel"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <div className="p-2 bg-slate-950/95 border-t border-slate-800 space-y-1.5">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[11px] font-black text-white truncate">
+                                    Visuel Défaite #{idx + 1}
+                                  </span>
+                                  {hasCustom ? (
+                                    <span className="text-[10px] font-bold text-rose-400 flex items-center gap-0.5 shrink-0">
+                                      <Check className="w-3 h-3" /> Titre personnalisé
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 shrink-0">
+                                      Titre par défaut
+                                    </span>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAlertVisualUrl(url);
+                                    setSelectedAlertVisualType('loss');
+                                    setAlertPreviewType('loss');
+                                  }}
+                                  className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                                      : 'bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30'
+                                  }`}
+                                >
+                                  <Sliders className="w-3 h-3" />
+                                  <span>{isSelected ? 'Visuel en cours d\'édition' : 'Configurer le titre'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -5463,32 +5694,54 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div>
                       <h4 className="text-sm font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
                         <Sliders className="w-4 h-4" />
-                        <span>Composition Visuelle & Titre (Victoire & Défaite)</span>
+                        <span>
+                          {selectedAlertVisualUrl
+                            ? `Configuration du Titre : Visuel ${selectedAlertVisualType === 'win' ? 'Victoire' : 'Défaite'} Sélectionné`
+                            : 'Composition Visuelle & Titre (Modèle Par Défaut)'}
+                        </span>
                       </h4>
                       <p className="text-[11px] text-slate-400">
-                        Personnalisez les modèles de titre dynamique et le positionnement du texte sur vos photos et vidéos d'alerte.
+                        {selectedAlertVisualUrl
+                          ? 'Ajustez le texte, la position X/Y et la taille spécifiquement pour ce média sans impacter les autres.'
+                          : 'Modèle général utilisé pour les nouveaux visuels et en repli pour les médias non personnalisés.'}
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        onUpdateVisualTemplates({
-                          ...visualTemplates,
-                          alertCustomWinTitle: 'VICTOIRE DES {CATEGORIE}',
-                          alertCustomLossTitle: 'DÉFAITE DES {CATEGORIE}',
-                          alertTextX: 50,
-                          alertTextY: 82,
-                          alertTextAlign: 'center',
-                          alertTextScale: 1.0,
-                          alertTextFont: 'Bebas Neue',
-                          alertWinColor: '#10b981',
-                          alertLossColor: '#ef4444',
-                          alertTextColor: '#ffffff',
-                          alertGlowEffect: true,
-                          alertTextBgOpacity: 0,
-                        })
-                      }
+                      onClick={() => {
+                        if (selectedAlertVisualUrl) {
+                          const isWin = selectedAlertVisualType === 'win';
+                          updateActiveConfig({
+                            customTitle: isWin ? 'VICTOIRE DES {CATEGORIE}' : 'DÉFAITE DES {CATEGORIE}',
+                            font: 'Bebas Neue',
+                            color: isWin ? '#10b981' : '#ef4444',
+                            scale: 1.0,
+                            x: 50,
+                            y: 82,
+                            align: 'center',
+                            bgOpacity: 0,
+                            glowEffect: true,
+                            isCustomized: true,
+                          });
+                        } else {
+                          onUpdateVisualTemplates({
+                            ...visualTemplates,
+                            alertCustomWinTitle: 'VICTOIRE DES {CATEGORIE}',
+                            alertCustomLossTitle: 'DÉFAITE DES {CATEGORIE}',
+                            alertTextX: 50,
+                            alertTextY: 82,
+                            alertTextAlign: 'center',
+                            alertTextScale: 1.0,
+                            alertTextFont: 'Bebas Neue',
+                            alertWinColor: '#10b981',
+                            alertLossColor: '#ef4444',
+                            alertTextColor: '#ffffff',
+                            alertGlowEffect: true,
+                            alertTextBgOpacity: 0,
+                          });
+                        }
+                      }}
                       className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <RefreshCw className="w-3 h-3 text-orange-400" />
@@ -5496,66 +5749,178 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </button>
                   </div>
 
-                  {/* 1. MODÈLES DE TITRES DYNAMIQUES (VICTOIRE & DÉFAITE) */}
+                  {/* BANDEAU D'ÉTAT DU VISUEL EN COURS */}
+                  {selectedAlertVisualUrl ? (
+                    <div className="bg-amber-500/10 border border-amber-500/40 p-3.5 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-9 rounded-lg overflow-hidden border border-amber-400/60 bg-black shrink-0 relative">
+                          {isVideoMedia(selectedAlertVisualUrl) ? (
+                            <video src={selectedAlertVisualUrl} muted className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={selectedAlertVisualUrl} alt="Sélection" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black uppercase text-amber-300">
+                              Visuel {selectedAlertVisualType === 'win' ? 'Victoire' : 'Défaite'} actif
+                            </span>
+                            {activeEditingConfig.isCustomized ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Titre personnalisé
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold border border-slate-700">
+                                Titre par défaut (non encore modifié)
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-300">
+                            Vos ajustements ci-dessous sont enregistrés <strong>exclusivement pour ce média</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const isWin = selectedAlertVisualType === 'win';
+                            const nextConfigs = { ...(visualTemplates.visualTitleConfigs || {}) };
+                            delete nextConfigs[selectedAlertVisualUrl];
+                            onUpdateVisualTemplates({
+                              ...visualTemplates,
+                              visualTitleConfigs: nextConfigs,
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+                          title="Rétablir les réglages par défaut du club pour ce visuel"
+                        >
+                          <RotateCcw className="w-3 h-3 text-slate-400" />
+                          <span>Rétablir titre par défaut</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAlertVisualUrl(null)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Fermer sélection</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-900/50 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <span className="text-xs font-black uppercase text-slate-300 block">
+                          Configuration globale par défaut (club)
+                        </span>
+                        <p className="text-[11px] text-slate-400">
+                          Cliquez sur <strong>« Configurer le titre »</strong> sur l'un des visuels ci-dessus pour adapter son titre à sa composition propre.
+                        </p>
+                      </div>
+                      <span className="text-xs text-amber-400 font-bold">
+                        💡 Chaque média peut avoir sa position et sa taille dédiées
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 1. MODÈLES DE TITRES DYNAMIQUES */}
                   <div className="space-y-3">
                     <label className="text-xs font-black text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                       <Type className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Modèles de Titre Dynamique</span>
+                      <span>
+                        {selectedAlertVisualUrl
+                          ? `Modèle de Titre pour ce visuel (${selectedAlertVisualType === 'win' ? 'Victoire' : 'Défaite'})`
+                          : 'Modèles de Titre Dynamique par Défaut'}
+                      </span>
                     </label>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Titre Victoire */}
-                      <div className="bg-slate-900/60 p-4 rounded-xl border border-emerald-500/30 space-y-2">
+                    {selectedAlertVisualUrl ? (
+                      /* Mode Visuel Sélectionné : un seul champ ciblé */
+                      <div className={`p-4 rounded-xl border space-y-2 ${
+                        selectedAlertVisualType === 'win'
+                          ? 'bg-slate-900/60 border-emerald-500/40'
+                          : 'bg-slate-900/60 border-rose-500/40'
+                      }`}>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-emerald-400 uppercase flex items-center gap-1.5">
-                            <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Titre Victoire</span>
+                          <span className={`text-xs font-black uppercase flex items-center gap-1.5 ${
+                            selectedAlertVisualType === 'win' ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            {selectedAlertVisualType === 'win' ? <Trophy className="w-3.5 h-3.5" /> : <Frown className="w-3.5 h-3.5" />}
+                            <span>Titre de ce visuel</span>
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Modèle configurable</span>
+                          <span className="text-[10px] text-amber-400 font-mono font-bold">Configuration individuelle</span>
                         </div>
                         <textarea
                           rows={2}
-                          value={visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}'}
-                          onChange={(e) =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertCustomWinTitle: e.target.value,
-                            })
-                          }
-                          placeholder="Ex: VICTOIRE DES&#10;{CATEGORIE}"
-                          className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-none resize-none"
+                          value={activeEditingConfig.customTitle ?? (selectedAlertVisualType === 'win' ? 'VICTOIRE DES {CATEGORIE}' : 'DÉFAITE DES {CATEGORIE}')}
+                          onChange={(e) => updateActiveConfig({ customTitle: e.target.value })}
+                          placeholder={selectedAlertVisualType === 'win' ? "Ex: VICTOIRE DES\n{CATEGORIE}" : "Ex: DÉFAITE DES\n{CATEGORIE}"}
+                          className={`w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:outline-none resize-none ${
+                            selectedAlertVisualType === 'win' ? 'focus:border-emerald-500' : 'focus:border-rose-500'
+                          }`}
                         />
                         <p className="text-[11px] text-slate-400">
-                          La balise <span className="font-mono text-emerald-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne volontaire.
+                          La balise <span className="font-mono text-amber-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne volontaire.
                         </p>
                       </div>
+                    ) : (
+                      /* Mode Défaut Global : Titre Victoire & Titre Défaite */
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Titre Victoire */}
+                        <div className="bg-slate-900/60 p-4 rounded-xl border border-emerald-500/30 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-emerald-400 uppercase flex items-center gap-1.5">
+                              <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Titre Victoire (Défaut)</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">Modèle global</span>
+                          </div>
+                          <textarea
+                            rows={2}
+                            value={visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}'}
+                            onChange={(e) =>
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                alertCustomWinTitle: e.target.value,
+                              })
+                            }
+                            placeholder="Ex: VICTOIRE DES&#10;{CATEGORIE}"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-emerald-500 focus:outline-none resize-none"
+                          />
+                          <p className="text-[11px] text-slate-400">
+                            La balise <span className="font-mono text-emerald-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne.
+                          </p>
+                        </div>
 
-                      {/* Titre Défaite */}
-                      <div className="bg-slate-900/60 p-4 rounded-xl border border-rose-500/30 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-rose-400 uppercase flex items-center gap-1.5">
-                            <Frown className="w-3.5 h-3.5 text-rose-400" />
-                            <span>Titre Défaite</span>
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Modèle configurable</span>
+                        {/* Titre Défaite */}
+                        <div className="bg-slate-900/60 p-4 rounded-xl border border-rose-500/30 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-rose-400 uppercase flex items-center gap-1.5">
+                              <Frown className="w-3.5 h-3.5 text-rose-400" />
+                              <span>Titre Défaite (Défaut)</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">Modèle global</span>
+                          </div>
+                          <textarea
+                            rows={2}
+                            value={visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'}
+                            onChange={(e) =>
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                alertCustomLossTitle: e.target.value,
+                              })
+                            }
+                            placeholder="Ex: DÉFAITE DES&#10;{CATEGORIE}"
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-rose-500 focus:outline-none resize-none"
+                          />
+                          <p className="text-[11px] text-slate-400">
+                            La balise <span className="font-mono text-rose-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne.
+                          </p>
                         </div>
-                        <textarea
-                          rows={2}
-                          value={visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'}
-                          onChange={(e) =>
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertCustomLossTitle: e.target.value,
-                            })
-                          }
-                          placeholder="Ex: DÉFAITE DES&#10;{CATEGORIE}"
-                          className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold focus:border-rose-500 focus:outline-none resize-none"
-                        />
-                        <p className="text-[11px] text-slate-400">
-                          La balise <span className="font-mono text-rose-300 font-bold">{'{CATEGORIE}'}</span> est remplacée automatiquement par l'équipe. <strong className="text-slate-300">Touche Entrée</strong> pour insérer un retour à la ligne volontaire.
-                        </p>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* 2. TYPOGRAPHIE, ALIGNEMENT & COULEURS */}
@@ -5567,13 +5932,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <span>Police du Titre</span>
                       </label>
                       <select
-                        value={visualTemplates.alertTextFont || 'Bebas Neue'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextFont: e.target.value as any,
-                          })
-                        }
+                        value={activeEditingConfig.font || 'Bebas Neue'}
+                        onChange={(e) => updateActiveConfig({ font: e.target.value as any })}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl text-white px-3 py-2 text-xs font-bold"
                       >
                         {AVAILABLE_FONTS.map((f) => (
@@ -5582,7 +5942,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </option>
                         ))}
                       </select>
-                      <div className={`text-base font-black uppercase text-amber-300 tracking-wider text-center py-1 bg-black/40 rounded-lg truncate ${getFontFamilyClass(visualTemplates.alertTextFont || 'Bebas Neue')}`}>
+                      <div className={`text-base font-black uppercase text-amber-300 tracking-wider text-center py-1 bg-black/40 rounded-lg truncate ${getFontFamilyClass(activeEditingConfig.font || 'Bebas Neue')}`}>
                         DÉFAITE DES U11 F
                       </div>
                     </div>
@@ -5597,18 +5957,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           { id: 'right', label: 'Droite', icon: AlignRight },
                         ].map((align) => {
                           const Icon = align.icon;
-                          const isSel = (visualTemplates.alertTextAlign || 'center') === align.id;
+                          const isSel = (activeEditingConfig.align || 'center') === align.id;
                           return (
                             <button
                               key={align.id}
                               type="button"
-                              onClick={() =>
-                                onUpdateVisualTemplates({
-                                  ...visualTemplates,
-                                  alertTextAlign: align.id as any,
-                                })
-                              }
-                              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 ${
+                              onClick={() => updateActiveConfig({ align: align.id as any })}
+                              className={`py-2 px-1 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                                 isSel
                                   ? 'bg-orange-600 text-white shadow'
                                   : 'text-slate-400 hover:text-white'
@@ -5622,43 +5977,63 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
 
-                    {/* Couleur Titre Victoire */}
-                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-slate-200 block">Couleur Victoire</span>
-                        <span className="text-[10px] text-emerald-400">Couleur du titre victoire</span>
+                    {/* Couleur Titre */}
+                    {selectedAlertVisualUrl ? (
+                      <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3 col-span-1 sm:col-span-2">
+                        <div>
+                          <span className="text-xs font-bold text-slate-200 block">
+                            Couleur du Titre ({selectedAlertVisualType === 'win' ? 'Victoire' : 'Défaite'})
+                          </span>
+                          <span className="text-[10px] text-amber-400">Couleur appliquée à ce visuel</span>
+                        </div>
+                        <input
+                          type="color"
+                          value={activeEditingConfig.color || (selectedAlertVisualType === 'win' ? '#10b981' : '#ef4444')}
+                          onChange={(e) => updateActiveConfig({ color: e.target.value })}
+                          className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                        />
                       </div>
-                      <input
-                        type="color"
-                        value={visualTemplates.alertWinColor || '#10b981'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertWinColor: e.target.value,
-                          })
-                        }
-                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
-                      />
-                    </div>
+                    ) : (
+                      <>
+                        {/* Couleur Titre Victoire Défaut */}
+                        <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                          <div>
+                            <span className="text-xs font-bold text-slate-200 block">Couleur Victoire</span>
+                            <span className="text-[10px] text-emerald-400">Défaut global victoire</span>
+                          </div>
+                          <input
+                            type="color"
+                            value={visualTemplates.alertWinColor || '#10b981'}
+                            onChange={(e) =>
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                alertWinColor: e.target.value,
+                              })
+                            }
+                            className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                          />
+                        </div>
 
-                    {/* Couleur Titre Défaite */}
-                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="text-xs font-bold text-slate-200 block">Couleur Défaite</span>
-                        <span className="text-[10px] text-rose-400">Couleur du titre défaite</span>
-                      </div>
-                      <input
-                        type="color"
-                        value={visualTemplates.alertLossColor || '#ef4444'}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertLossColor: e.target.value,
-                          })
-                        }
-                        className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
-                      />
-                    </div>
+                        {/* Couleur Titre Défaite Défaut */}
+                        <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                          <div>
+                            <span className="text-xs font-bold text-slate-200 block">Couleur Défaite</span>
+                            <span className="text-[10px] text-rose-400">Défaut global défaite</span>
+                          </div>
+                          <input
+                            type="color"
+                            value={visualTemplates.alertLossColor || '#ef4444'}
+                            onChange={(e) =>
+                              onUpdateVisualTemplates({
+                                ...visualTemplates,
+                                alertLossColor: e.target.value,
+                              })
+                            }
+                            className="w-8 h-8 rounded-xl cursor-pointer bg-transparent border-0"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* 3. CURSEURS DE POSITIONNEMENT & TAILLE */}
@@ -5667,20 +6042,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Position Horizontale (Axe X)</span>
-                        <span className="font-mono text-orange-400">{visualTemplates.alertTextX ?? 50}%</span>
+                        <span className="font-mono text-orange-400">{activeEditingConfig.x ?? 50}%</span>
                       </div>
                       <input
                         type="range"
                         min="5"
                         max="95"
                         step="1"
-                        value={visualTemplates.alertTextX ?? 50}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextX: parseInt(e.target.value, 10),
-                          })
-                        }
+                        value={activeEditingConfig.x ?? 50}
+                        onChange={(e) => updateActiveConfig({ x: parseInt(e.target.value, 10) })}
                         className="w-full accent-orange-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
@@ -5694,20 +6064,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-1.5">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Position Verticale (Axe Y)</span>
-                        <span className="font-mono text-orange-400">{visualTemplates.alertTextY ?? 82}%</span>
+                        <span className="font-mono text-orange-400">{activeEditingConfig.y ?? 82}%</span>
                       </div>
                       <input
                         type="range"
                         min="5"
                         max="95"
                         step="1"
-                        value={visualTemplates.alertTextY ?? 82}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextY: parseInt(e.target.value, 10),
-                          })
-                        }
+                        value={activeEditingConfig.y ?? 82}
+                        onChange={(e) => updateActiveConfig({ y: parseInt(e.target.value, 10) })}
                         className="w-full accent-orange-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
@@ -5722,7 +6087,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Taille du Titre</span>
                         <span className="font-mono text-amber-400">
-                          {Math.round((visualTemplates.alertTextScale ?? 1.0) * 100)}%
+                          {Math.round((activeEditingConfig.scale ?? 1.0) * 100)}%
                         </span>
                       </div>
                       <input
@@ -5730,13 +6095,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         min="0.2"
                         max="1.6"
                         step="0.05"
-                        value={visualTemplates.alertTextScale ?? 1.0}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextScale: parseFloat(e.target.value),
-                          })
-                        }
+                        value={activeEditingConfig.scale ?? 1.0}
+                        onChange={(e) => updateActiveConfig({ scale: parseFloat(e.target.value) })}
                         className="w-full accent-amber-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
@@ -5751,7 +6111,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                         <span>Fond Sous le Titre</span>
                         <span className="font-mono text-emerald-400">
-                          {(visualTemplates.alertTextBgOpacity ?? 0) === 0 ? 'Aucun (Pur texte)' : `${Math.round((visualTemplates.alertTextBgOpacity ?? 0) * 100)}%`}
+                          {(activeEditingConfig.bgOpacity ?? 0) === 0 ? 'Aucun (Pur texte)' : `${Math.round((activeEditingConfig.bgOpacity ?? 0) * 100)}%`}
                         </span>
                       </div>
                       <input
@@ -5759,13 +6119,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         min="0"
                         max="0.9"
                         step="0.05"
-                        value={visualTemplates.alertTextBgOpacity ?? 0}
-                        onChange={(e) =>
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextBgOpacity: parseFloat(e.target.value),
-                          })
-                        }
+                        value={activeEditingConfig.bgOpacity ?? 0}
+                        onChange={(e) => updateActiveConfig({ bgOpacity: parseFloat(e.target.value) })}
                         className="w-full accent-emerald-500 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500">
@@ -5782,38 +6137,42 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       <div className="flex items-center gap-2">
                         <Eye className="w-4 h-4 text-orange-400" />
                         <span className="text-xs font-black text-white uppercase tracking-wider">
-                          Aperçu en direct (Simulation TV 16:9)
+                          {selectedAlertVisualUrl
+                            ? `Aperçu en direct : ${selectedAlertVisualType === 'win' ? 'Visuel Victoire' : 'Visuel Défaite'} (Simulation TV 16:9)`
+                            : 'Aperçu en direct (Simulation TV 16:9)'}
                         </span>
                       </div>
 
                       {/* Sélecteur de test Défaite / Victoire et Équipe */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
-                          <button
-                            type="button"
-                            onClick={() => setAlertPreviewType('loss')}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                              alertPreviewType === 'loss'
-                                ? 'bg-red-600 text-white shadow'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Frown className="w-3.5 h-3.5" />
-                            <span>Tester DÉFAITE</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAlertPreviewType('win')}
-                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                              alertPreviewType === 'win'
-                                ? 'bg-emerald-600 text-white shadow'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Trophy className="w-3.5 h-3.5" />
-                            <span>Tester VICTOIRE</span>
-                          </button>
-                        </div>
+                        {!selectedAlertVisualUrl && (
+                          <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setAlertPreviewType('loss')}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                alertPreviewType === 'loss'
+                                  ? 'bg-red-600 text-white shadow'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Frown className="w-3.5 h-3.5" />
+                              <span>Tester DÉFAITE</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAlertPreviewType('win')}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                alertPreviewType === 'win'
+                                  ? 'bg-emerald-600 text-white shadow'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Trophy className="w-3.5 h-3.5" />
+                              <span>Tester VICTOIRE</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* Choix de l'équipe de test */}
                         <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800 text-xs">
@@ -5840,34 +6199,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         alert={{
                           id: 'preview-alert',
                           team: alertPreviewTeam,
-                          isWin: alertPreviewType === 'win',
+                          isWin: selectedAlertVisualUrl ? selectedAlertVisualType === 'win' : alertPreviewType === 'win',
                           triggeredBy: 'manual',
                           timestamp: Date.now(),
                           expiresAt: Date.now() + 3600000,
                         }}
+                        overrideImageUrl={selectedAlertVisualUrl || undefined}
+                        overrideTitleConfig={activeEditingConfig}
                         visualTemplates={visualTemplates}
                         clubSettings={clubSettings}
                         interactive={true}
-                        onUpdatePosition={(x, y) => {
-                          onUpdateVisualTemplates({
-                            ...visualTemplates,
-                            alertTextX: x,
-                            alertTextY: y,
-                          });
-                        }}
-                        onUpdateTemplate={(newTemplate) => {
-                          if (alertPreviewType === 'win') {
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertCustomWinTitle: newTemplate,
-                            });
-                          } else {
-                            onUpdateVisualTemplates({
-                              ...visualTemplates,
-                              alertCustomLossTitle: newTemplate,
-                            });
-                          }
-                        }}
+                        onUpdatePosition={(x, y) => updateActiveConfig({ x, y })}
+                        onUpdateTemplate={(newTemplate) => updateActiveConfig({ customTitle: newTemplate })}
                       />
                     </div>
                     <div className="text-center space-y-1">
