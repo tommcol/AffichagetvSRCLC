@@ -36,6 +36,13 @@ export interface MatchItem {
   poule?: string;
   pouleId?: string;
   selectedForWeekend?: boolean;
+  // Provenance et indicateurs de modifications manuelles (pour la fusion FFBB)
+  isManualMatch?: boolean;
+  isDateManual?: boolean;
+  isTimeManual?: boolean;
+  isScoreManual?: boolean;
+  isGymnasiumManual?: boolean;
+  isOpponentLogoManual?: boolean;
 }
 
 export interface FFBBTeamItem {

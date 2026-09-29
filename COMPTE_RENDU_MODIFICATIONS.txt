@@ -25,7 +25,7 @@ Vérifications effectuées :
 2. SÉLECTION DES RÉSULTATS : GESTION DES RÉSULTATS COCHÉS / NON COCHÉS
 --------------------------------------------------------------------------------
 Comportement Avant :
-- Si aucun résultat n'était coché pour la TV (ou tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats dans la boucle TV et la prévisualisation.
+- Si aucun résultat n'était coché pour la TV (or tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats dans la boucle TV et la prévisualisation.
 
 Comportement Après :
 - Si aucun résultat n'est coché pour la TV, la diapositive des résultats est masquée et aucun résultat n'est affiché.
@@ -36,23 +36,28 @@ Vérifications effectuées :
 - Vérification que la liste diffusée reste rigoureusement synchrone avec les cases à cocher de l'administration.
 
 
-3. SYNCHRONISATION FFBB : PRESERVATION DES DONNÉES LOCALES & IDENTIFIANTS STABLES
+3. SYNCHRONISATION FFBB : PRÉSERVATION RIGOUREUSE ET FUSION INTELLIGENTE
 --------------------------------------------------------------------------------
 Comportement Avant :
-- Lors d'une synchronisation FFBB, les données reçues écrasaient totalement les tableaux locaux de matchs et résultats, effaçant les rencontres saisies à la main, les scores personnalisés, les logos attribués et les choix de sélection TV.
+- 1. Une mise à jour officielle de date ou d'horaire venant de la FFBB n'était pas appliquée en raison d'une vérification fallback conservant systématiquement l'ancienne valeur.
+- 2. Un score ou résultat corrigé manuellement était écrasé dès que la FFBB renvoyait un score officiel ou périmé.
+- 3. La présence d'une période dans le calendrier forçait le changement automatique de `selectedForWeekend` sur toutes les rencontres lors d'une simple actualisation.
+- 4. Risque de fusion erronée de rencontres distinctes ayant des catégories/dates similaires.
 
 Comportement Après :
-- La fonction `handleSyncFFBB` utilise désormais une méthode de fusion intelligente basée sur des clés uniques et stables (`ffbbMatchNumber`, `id`, ou signature `catégorie + date + adversaire`).
-- Les informations officielles venant de la FFBB sont mises à jour sans écraser :
-  • Les choix de diffusion TV (`selectedForWeekend`) définis par l'utilisateur.
-  • Les scores et résultats saisis ou ajustés manuellement.
-  • Les rencontres locales/amicales hors calendrier FFBB.
-  • Les logos d'adversaires et gymnases personnalisés.
-- Le sélecteur de période du calendrier permet toujours de sélectionner / filtrer rapidement le week-end voulu.
+- **Identification stricte par identifiant FFBB** : La fusion associe uniquement les rencontres partageant un identifiant officiel FFBB identique (`ffbbMatchNumber` ou `id` commençant par `ffbb-`). Les matchs amicaux/locaux (`isManualMatch` ou `id` local) ne sont jamais fusionnés par erreur avec un match FFBB.
+- **Mise à jour automatique des dates & horaires officiels** : Les modifications de date, heure, gymnase ou compétition publiées par la FFBB mettent à jour la rencontre localement, sauf si l'utilisateur a explicitement modifié le champ concerné (indicateurs `isDateManual`, `isTimeManual`, `isGymnasiumManual`).
+- **Protection des scores et résultats manuels** : Les scores saisis ou corrigés dans l'application reçoivent l'indicateur `isScoreManual: true`. En cas de re-synchronisation, les scores locaux manuels et les scores locaux en conflit sont intégralement préservés.
+- **Conservation des choix individuels `selectedForWeekend`** : Une simple actualisation FFBB ne modifie JAMAIS les coches individuelles `selectedForWeekend`. Seul l'appui explicite sur le bouton « Cocher cette période pour la TV » modifie globalement ces sélections.
+- **Gestion des nouveaux matchs et anti-doublons** : Les nouvelles rencontres FFBB sont ajoutées sans supprimer les anciennes rencontres locales. Deux synchronisations successives ne créent aucun doublon.
+- **Logique identique appliquée** : Fonctionnement homogène sur les tableaux des matchs et des résultats.
 
-Vérifications effectuées :
-- Test de fusion avec données existantes modifiées localement et nouvelles données FFBB.
-- Vérification du maintien des matchs amicaux/locaux et de la sélection des week-ends.
+Vérifications réellement effectuées (Script de test exécuté via `npx tsx scripts/test_ffbb_merge.ts`) :
+- **Test 1 (Horaire/Date FFBB déplacé)** : Match déplacé du samedi 03/10 18h au dimanche 04/10 15h30 -> Date et heure correctement mises à jour à 2026-10-04 15:30 (Succès ✅).
+- **Test 2 (Score corrigé manuellement)** : Match avec score manuel local 78-75 vs PV FFBB 70-75 -> Score local 78-75 et statut Victoire conservés (Succès ✅).
+- **Test 3 (Match amical local)** : Preservaion d'un match amical `match-m-999` lors de l'arrivée de nouveaux matchs FFBB -> Le match amical reste intact (Succès ✅).
+- **Test 4 (Sélection TV individuelle)** : Match décoché individuellement (`selectedForWeekend: false`) synchronisé à nouveau -> `selectedForWeekend: false` préservé (Succès ✅).
+- **Test 5 & 6 (Nouvelle rencontre & 2 synchros successives)** : Ajout d'un nouveau match FFBB puis seconde synchro immédiate -> Exactement 1 match présent, aucun doublon (Succès ✅).
 
 
 4. SAUVEGARDE : SÉCURISATION CONTRE LES CONCURRENCES ET RETENTATIVES
