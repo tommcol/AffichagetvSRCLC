@@ -81,6 +81,15 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
     return calculateCarouselSchedule(playlist, clubSettings, visualTemplates);
   }, [playlist, clubSettings, visualTemplates]);
 
+  React.useEffect(() => {
+    if (!isOpen) {
+      setExportResult(null);
+      setErrorMessage(null);
+      setProgress(null);
+      setIsExporting(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleStartExport = async () => {
@@ -143,6 +152,16 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
     setProgress(null);
   };
 
+  const handleCloseModal = () => {
+    if (isExporting) {
+      handleCancelExport();
+    }
+    setExportResult(null);
+    setErrorMessage(null);
+    setProgress(null);
+    onClose();
+  };
+
   const handleDownloadAgain = () => {
     if (!exportResult) return;
     const url = URL.createObjectURL(exportResult.blob);
@@ -181,7 +200,7 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
 
           <button
             type="button"
-            onClick={isExporting ? handleCancelExport : onClose}
+            onClick={isExporting ? handleCancelExport : handleCloseModal}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
             title="Fermer"
           >
@@ -329,14 +348,24 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadAgain}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Télécharger à nouveau</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadAgain}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-2 transition-all border border-slate-700 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" />
+                    <span>Télécharger à nouveau</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartExport}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Générer une nouvelle vidéo</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -515,7 +544,7 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
         <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between shrink-0">
           <button
             type="button"
-            onClick={isExporting ? handleCancelExport : onClose}
+            onClick={isExporting ? handleCancelExport : handleCloseModal}
             className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs transition-colors border border-slate-800 cursor-pointer"
           >
             {isExporting ? 'Annuler l’export' : 'Fermer'}
@@ -545,14 +574,24 @@ export const TvUsbExportModal: React.FC<TvUsbExportModalProps> = ({
               )}
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleDownloadAgain}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-105 cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>Télécharger à nouveau</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadAgain}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs md:text-sm flex items-center gap-2 border border-slate-700 transition-all cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Télécharger à nouveau</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleStartExport}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all hover:scale-105 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Générer une nouvelle vidéo</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

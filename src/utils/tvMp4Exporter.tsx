@@ -508,8 +508,58 @@ export async function seekVideoElement(
 }
 
 /**
- * Format helper for seconds to mm:ss or "1 min 45 s"
+ * Contrôle visuel d'une trame compositée 1920x1080 (détection écran noir/vide)
  */
+function inspectFrameVisuals(canvas: HTMLCanvasElement, slideTitle: string): void {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+
+  // Échantillonnage de 121 points répartis sur toute la surface 1920x1080
+  const samplePoints: Array<[number, number]> = [];
+  for (let x = 160; x < 1920; x += 160) {
+    for (let y = 100; y < 1080; y += 100) {
+      samplePoints.push([x, y]);
+    }
+  }
+
+  let nonBlackPixels = 0;
+  for (const [sx, sy] of samplePoints) {
+    const pixel = ctx.getImageData(sx, sy, 1, 1).data;
+    // Vérification : Alpha opaque (>50) et composante couleur R, G ou B > 10
+    if (pixel[3] > 50 && (pixel[0] > 10 || pixel[1] > 10 || pixel[2] > 10)) {
+      nonBlackPixels++;
+    }
+  }
+
+  // Si moins de 5% des points d'échantillonnage contiennent de la couleur/luminance
+  if (nonBlackPixels < 5) {
+    throw new Error(
+      `Rendu visuel vide ou noir détecté sur la diapositive "${slideTitle}". L'exportation a été interrompue pour éviter un MP4 incomplet.`
+    );
+  }
+}
+
+/**
+ * Attente du chargement complet de toutes les images HTML contenues dans la scène
+ */
+async function waitForImagesInContainer(container: HTMLElement): Promise<void> {
+  const imgs = Array.from(container.querySelectorAll<HTMLImageElement>('img'));
+  await Promise.all(
+    imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const onFinish = () => {
+          img.removeEventListener('load', onFinish);
+          img.removeEventListener('error', onFinish);
+          resolve();
+        };
+        img.addEventListener('load', onFinish);
+        img.addEventListener('error', onFinish);
+        setTimeout(resolve, 1500);
+      });
+    })
+  );
+}
 export function formatDurationToFrench(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const remSecs = Math.round(seconds % 60);
@@ -771,17 +821,19 @@ export async function exportCarouselToMp4(
     framerate: fps,
   });
 
-  // 4. Création de la scène de rendu DOM 1920x1080 hors-écran
+  // 4. Création de la scène de rendu DOM 1920x1080 placée sous la modale (z-index 1)
   const stageContainer = document.createElement('div');
   stageContainer.id = 'tv-mp4-export-stage';
   stageContainer.style.position = 'fixed';
-  stageContainer.style.left = '-9999px';
+  stageContainer.style.left = '0';
   stageContainer.style.top = '0';
   stageContainer.style.width = '1920px';
   stageContainer.style.height = '1080px';
   stageContainer.style.overflow = 'hidden';
-  stageContainer.style.zIndex = '-9999';
-  stageContainer.style.backgroundColor = 'transparent';
+  stageContainer.style.zIndex = '1';
+  stageContainer.style.pointerEvents = 'none';
+  stageContainer.style.backgroundColor = '#020617';
+  stageContainer.style.opacity = '1';
   document.body.appendChild(stageContainer);
 
   const stageRoot: Root = createRoot(stageContainer);
@@ -852,25 +904,17 @@ export async function exportCarouselToMp4(
             />
           </div>
         );
-        setTimeout(resolve, 80);
+        setTimeout(resolve, 120);
       });
 
       if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
 
-      // Rendre transparents les fonds opaques des conteneurs pour préserver les vidéos en dessous
-      const rootDivs = Array.from(stageContainer.querySelectorAll<HTMLDivElement>('div'));
-      for (const d of rootDivs) {
-        const bg = window.getComputedStyle(d).backgroundColor;
-        if (
-          bg.includes('rgb(17, 17, 17)') ||
-          bg.includes('rgb(2, 6, 23)') ||
-          bg.includes('rgb(15, 23, 42)')
-        ) {
-          d.style.backgroundColor = 'transparent';
-        }
-      }
+      await waitForImagesInContainer(stageContainer);
+
+      const targetNode =
+        (stageContainer.querySelector('#tv-slide-root-wrapper') as HTMLElement) || stageContainer;
 
       const videos = Array.from(stageContainer.querySelectorAll<HTMLVideoElement>('video'));
       const canvases = Array.from(stageContainer.querySelectorAll<HTMLCanvasElement>('canvas'));
@@ -893,18 +937,37 @@ export async function exportCarouselToMp4(
       const hasSlideVideo = videos.length > 0 || item.hasVideo;
       if (hasSlideVideo) hasAnyVideoInCarousel = true;
 
+      const captureStyleOptions = {
+        position: 'static' as const,
+        transform: 'none',
+        left: '0',
+        top: '0',
+        width: '1920px',
+        height: '1080px',
+        margin: '0',
+        padding: '0',
+        opacity: '1',
+        visibility: 'visible',
+      };
+
       if (!hasSlideVideo) {
         // CAS 1 : Diapositive statique
-        const staticCanvas = await htmlToImage.toCanvas(stageContainer, {
+        const staticCanvas = await htmlToImage.toCanvas(targetNode, {
           width: 1920,
           height: 1080,
           pixelRatio: 1,
           backgroundColor: '#020617',
-          cacheBust: true,
+          cacheBust: false,
+          skipFonts: true,
+          fontEmbedCSS: '',
+          style: captureStyleOptions,
         });
 
         masterCtx.clearRect(0, 0, 1920, 1080);
         masterCtx.drawImage(staticCanvas, 0, 0, 1920, 1080);
+
+        // Contrôle visuel préalable : s'assurer que la diapositive n'est ni vide ni noire
+        inspectFrameVisuals(masterCanvas, item.title);
 
         for (let f = 0; f < slideFrames; f++) {
           if (signal?.aborted) throw new Error('Exportation annulée par l’utilisateur.');
@@ -929,11 +992,15 @@ export async function exportCarouselToMp4(
       } else {
         // CAS 2 : Diapositive contenant une ou plusieurs vidéos
         // Capture du calque UI textuel (cartes, titres, logos) avec fond TRANSPARENT
-        const uiCanvas = await htmlToImage.toCanvas(stageContainer, {
+        const uiCanvas = await htmlToImage.toCanvas(targetNode, {
           width: 1920,
           height: 1080,
           pixelRatio: 1,
           backgroundColor: 'transparent',
+          cacheBust: false,
+          skipFonts: true,
+          fontEmbedCSS: '',
+          style: captureStyleOptions,
           filter: (node) => {
             if (node instanceof HTMLVideoElement) return false;
             return true;
@@ -999,6 +1066,11 @@ export async function exportCarouselToMp4(
                 masterCtx.drawImage(c, relX, relY, relW, relH);
               }
             }
+          }
+
+          // Contrôle visuel de la première trame compositée de la diapositive vidéo
+          if (f === 0) {
+            inspectFrameVisuals(masterCanvas, item.title);
           }
 
           // 4. Envoi de la trame à l'encodeur H.264
