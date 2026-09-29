@@ -420,12 +420,12 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
             {/* Pastille Pilule de Titre Rouge */}
             <div className={`px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || theme?.customHeaderTitle || (
+              {customHeaderTitle || (
                 sortedResults.length > 0 && sortedResults.every((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? 'LES RÉSULTATS À DOMICILE'
+                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RÉSULTATS À DOMICILE'
                   : sortedResults.length > 0 && sortedResults.every((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? "LES RÉSULTATS À L'EXTÉRIEUR"
-                  : 'RÉSULTATS DU WEEK-END'
+                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RÉSULTATS À L'EXTÉRIEUR"
+                  : theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END'
               )}
             </div>
           </div>
@@ -569,12 +569,12 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
         }`}>
           <div className={titleAlign === 'center' ? 'w-full text-center' : titleAlign === 'right' ? 'w-full text-right' : ''}>
             <h2 className={`text-4xl md:text-5xl lg:text-6xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || theme?.customHeaderTitle || (
+              {customHeaderTitle || (
                 sortedResults.length > 0 && sortedResults.every((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? 'LES RÉSULTATS À DOMICILE'
+                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RÉSULTATS À DOMICILE'
                   : sortedResults.length > 0 && sortedResults.every((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? "LES RÉSULTATS À L'EXTÉRIEUR"
-                  : 'RÉSULTATS DU WEEK-END'
+                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RÉSULTATS À L'EXTÉRIEUR"
+                  : theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END'
               )}
             </h2>
           </div>

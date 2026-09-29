@@ -859,6 +859,58 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     return activeResults;
   }, [results, studioScope, clubSettings]);
 
+  const previewMatchesTitle = useMemo(() => {
+    const isSplit = (matchesEffective.categoryTheme?.matchDisplayScope || 'split') === 'split';
+    if (isSplit) {
+      if (studioScope === 'away') {
+        const titleAway = matchesEffective.categoryTheme?.customHeaderTitleAway;
+        return titleAway !== undefined && titleAway !== null && titleAway.trim() !== ''
+          ? titleAway
+          : "LES RENCONTRES À L'EXTÉRIEUR";
+      }
+      if (studioScope === 'home') {
+        const titleHome = matchesEffective.categoryTheme?.customHeaderTitleHome;
+        return titleHome !== undefined && titleHome !== null && titleHome.trim() !== ''
+          ? titleHome
+          : 'LES RENCONTRES À DOMICILE';
+      }
+      const titleAll = matchesEffective.categoryTheme?.customHeaderTitle;
+      return titleAll !== undefined && titleAll !== null && titleAll.trim() !== ''
+        ? titleAll
+        : 'LES RENCONTRES DU WEEK-END';
+    }
+    const titleAll = matchesEffective.categoryTheme?.customHeaderTitle;
+    return titleAll !== undefined && titleAll !== null && titleAll.trim() !== ''
+      ? titleAll
+      : 'LES RENCONTRES DU WEEK-END';
+  }, [matchesEffective.categoryTheme, studioScope]);
+
+  const previewResultsTitle = useMemo(() => {
+    const isSplit = (resultsEffective.categoryTheme?.matchDisplayScope || 'split') === 'split';
+    if (isSplit) {
+      if (studioScope === 'away') {
+        const titleAway = resultsEffective.categoryTheme?.customHeaderTitleAway;
+        return titleAway !== undefined && titleAway !== null && titleAway.trim() !== ''
+          ? titleAway
+          : "LES RÉSULTATS À L'EXTÉRIEUR";
+      }
+      if (studioScope === 'home') {
+        const titleHome = resultsEffective.categoryTheme?.customHeaderTitleHome;
+        return titleHome !== undefined && titleHome !== null && titleHome.trim() !== ''
+          ? titleHome
+          : 'LES RÉSULTATS À DOMICILE';
+      }
+      const titleAll = resultsEffective.categoryTheme?.customHeaderTitle;
+      return titleAll !== undefined && titleAll !== null && titleAll.trim() !== ''
+        ? titleAll
+        : 'RÉSULTATS DU WEEK-END';
+    }
+    const titleAll = resultsEffective.categoryTheme?.customHeaderTitle;
+    return titleAll !== undefined && titleAll !== null && titleAll.trim() !== ''
+      ? titleAll
+      : 'RÉSULTATS DU WEEK-END';
+  }, [resultsEffective.categoryTheme, studioScope]);
+
   const handleSelectCategory = (cat: 'matches' | 'results' | 'birthdays') => {
     setActiveCategory(cat);
     setPreviewMode(cat);
@@ -1088,7 +1140,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={matchesEffective.mascot}
                   layer3={matchesEffective.layer3}
                   layer4={matchesEffective.layer4}
-                  customHeaderTitle={matchesEffective.categoryTheme?.customHeaderTitle}
+                  customHeaderTitle={previewMatchesTitle}
                   isInteractiveOverlay={true}
                   selectedLayerNum={selectedLayerNum}
                   onSelectLayer={(num) => {
@@ -1108,7 +1160,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={resultsEffective.mascot}
                   layer3={resultsEffective.layer3}
                   layer4={resultsEffective.layer4}
-                  customHeaderTitle={resultsEffective.categoryTheme?.customHeaderTitle}
+                  customHeaderTitle={previewResultsTitle}
                   isInteractiveOverlay={true}
                   selectedLayerNum={selectedLayerNum}
                   onSelectLayer={(num) => {
@@ -1503,112 +1555,324 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 </p>
               </div>
 
-              {/* Titre / Entête personnalisée */}
-              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 text-amber-400">
-                    <Type className="w-3.5 h-3.5" />
-                    <span>Titre / Entête Personnalisée</span>
-                  </span>
-                  {currentEffective.categoryTheme.customHeaderTitle && (
-                    <button
-                      type="button"
-                      onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: '' })}
-                      className="text-[10px] text-rose-400 hover:underline cursor-pointer"
-                    >
-                      Réinitialiser
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={currentEffective.categoryTheme.customHeaderTitle || ''}
-                  onChange={(e) => updateCurrentCategoryTheme({ customHeaderTitle: e.target.value })}
-                  placeholder={
-                    activeCategory === 'matches'
-                      ? 'LES RENCONTRES DU WEEK-END'
-                      : activeCategory === 'results'
-                      ? 'RÉSULTATS DU WEEK-END'
-                      : 'BON ANNIVERSAIRE'
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-amber-500"
-                />
-
-                {/* Alignement du titre (Segmented Control) */}
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-800">
-                  <span className="text-[11px] font-bold text-slate-300">Alignement :</span>
-                  <div className="flex gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'left' })}
-                      className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                        (currentEffective.categoryTheme.headerTitleAlignment || 'left') === 'left'
-                          ? 'bg-amber-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      ⬅ Gauche
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'center' })}
-                      className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                        currentEffective.categoryTheme.headerTitleAlignment === 'center'
-                          ? 'bg-amber-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      ⏺ Centré
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'right' })}
-                      className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
-                        currentEffective.categoryTheme.headerTitleAlignment === 'right'
-                          ? 'bg-amber-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      ➡ Droite
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mode de regroupement TV */}
+              {/* Mode de regroupement TV : Tous ou Domicile / Extérieur */}
               {(activeCategory === 'matches' || activeCategory === 'results') && (
-                <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
-                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>Diffusion TV : Présentation des matchs</span>
-                  </span>
-                  <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>
+                        Diffusion TV : Présentation des {activeCategory === 'matches' ? 'matchs' : 'résultats'}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {(currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
+                        ? 'Mode 2 calques'
+                        : 'Mode 1 calque'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'all' })}
-                      className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                      onClick={() => {
+                        updateCurrentCategoryTheme({ matchDisplayScope: 'all' });
+                        setStudioScope('all');
+                      }}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
                         currentEffective.categoryTheme.matchDisplayScope === 'all'
-                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
                       }`}
                       title="Afficher ensemble les matchs à domicile et à l'extérieur sur une même diapositive"
                     >
-                      <span>🏀</span>
-                      <span>Tout</span>
+                      <div className="flex items-center gap-1.5 font-black">
+                        <span>🏀</span>
+                        <span>Tous</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        1 seule diapositive (titre unique)
+                      </span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => updateCurrentCategoryTheme({ matchDisplayScope: 'split' })}
-                      className={`px-2.5 py-2 rounded-xl text-[11px] font-bold border transition-all text-left flex items-center gap-1.5 ${
+                      onClick={() => {
+                        updateCurrentCategoryTheme({ matchDisplayScope: 'split' });
+                        if (studioScope === 'all') setStudioScope('home');
+                      }}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
                         (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
-                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
                           : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
                       }`}
-                      title="Créer une diapositive pour les Matchs Domicile puis une diapositive pour les Matchs Extérieur"
+                      title="Créer une diapositive pour les Matchs Domicile puis une diapositive pour les Matchs Extérieur avec des titres indépendants"
                     >
-                      <span>🔄</span>
-                      <span>Domicile & Extérieur séparés</span>
+                      <div className="flex items-center gap-1.5 font-black">
+                        <span>🔄</span>
+                        <span>Domicile / Extérieur</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        2 diapositives (titres indépendants)
+                      </span>
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Titres / Entêtes personnalisées */}
+              {(activeCategory === 'matches' || activeCategory === 'results') &&
+              (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split' ? (
+                /* MODE DOMICILE / EXTÉRIEUR : 2 champs de titre indépendants */
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 text-amber-400">
+                      <Type className="w-3.5 h-3.5" />
+                      <span>Titres des calques (Domicile / Extérieur)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      2 titres indépendants
+                    </span>
+                  </div>
+
+                  {/* Champ 1 : Titre Calque Domicile */}
+                  <div
+                    className={`p-3 rounded-xl border transition-all ${
+                      studioScope === 'home'
+                        ? 'bg-emerald-950/20 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                        : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Home className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-300">
+                          Titre du calque Domicile
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setStudioScope('home')}
+                          className={`text-[10px] px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                            studioScope === 'home'
+                              ? 'bg-emerald-600 text-white'
+                              : 'text-slate-400 hover:text-white bg-slate-800/60'
+                          }`}
+                          title="Prévisualiser la diapositive Domicile dans l'aperçu"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Aperçu</span>
+                        </button>
+                        {currentEffective.categoryTheme.customHeaderTitleHome && (
+                          <button
+                            type="button"
+                            onClick={() => updateCurrentCategoryTheme({ customHeaderTitleHome: '' })}
+                            className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                            title="Effacer le titre personnalisé Domicile"
+                          >
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={currentEffective.categoryTheme.customHeaderTitleHome ?? ''}
+                      onChange={(e) => updateCurrentCategoryTheme({ customHeaderTitleHome: e.target.value })}
+                      onFocus={() => setStudioScope('home')}
+                      placeholder={
+                        activeCategory === 'matches'
+                          ? 'LES RENCONTRES À DOMICILE'
+                          : 'LES RÉSULTATS À DOMICILE'
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-emerald-500"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Titre affiché sur la diapositive des rencontres à domicile.
+                    </p>
+                  </div>
+
+                  {/* Champ 2 : Titre Calque Extérieur */}
+                  <div
+                    className={`p-3 rounded-xl border transition-all ${
+                      studioScope === 'away'
+                        ? 'bg-sky-950/20 border-sky-500/40 ring-1 ring-sky-500/20'
+                        : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Plane className="w-3.5 h-3.5 text-sky-400 -rotate-45" />
+                        <span className="text-xs font-bold text-sky-300">
+                          Titre du calque Extérieur
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setStudioScope('away')}
+                          className={`text-[10px] px-2 py-0.5 rounded font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                            studioScope === 'away'
+                              ? 'bg-sky-600 text-white'
+                              : 'text-slate-400 hover:text-white bg-slate-800/60'
+                          }`}
+                          title="Prévisualiser la diapositive Extérieur dans l'aperçu"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Aperçu</span>
+                        </button>
+                        {currentEffective.categoryTheme.customHeaderTitleAway && (
+                          <button
+                            type="button"
+                            onClick={() => updateCurrentCategoryTheme({ customHeaderTitleAway: '' })}
+                            className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                            title="Effacer le titre personnalisé Extérieur"
+                          >
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={currentEffective.categoryTheme.customHeaderTitleAway ?? ''}
+                      onChange={(e) => updateCurrentCategoryTheme({ customHeaderTitleAway: e.target.value })}
+                      onFocus={() => setStudioScope('away')}
+                      placeholder={
+                        activeCategory === 'matches'
+                          ? "LES RENCONTRES À L'EXTÉRIEUR"
+                          : "LES RÉSULTATS À L'EXTÉRIEUR"
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-sky-500"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Titre affiché sur la diapositive des rencontres à l'extérieur.
+                    </p>
+                  </div>
+
+                  {/* Alignement du titre (Segmented Control) */}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-800">
+                    <span className="text-[11px] font-bold text-slate-300">Alignement :</span>
+                    <div className="flex gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'left' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          (currentEffective.categoryTheme.headerTitleAlignment || 'left') === 'left'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ⬅ Gauche
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'center' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currentEffective.categoryTheme.headerTitleAlignment === 'center'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ⏺ Centré
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'right' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currentEffective.categoryTheme.headerTitleAlignment === 'right'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ➡ Droite
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* MODE TOUS (ou Anniversaires) : 1 champ de titre unique */
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5 text-amber-400">
+                      <Type className="w-3.5 h-3.5" />
+                      <span>
+                        {activeCategory === 'birthdays'
+                          ? 'Titre / Entête Personnalisée'
+                          : 'Titre du calque (Mode Tous)'}
+                      </span>
+                    </span>
+                    {currentEffective.categoryTheme.customHeaderTitle && (
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ customHeaderTitle: '' })}
+                        className="text-[10px] text-rose-400 hover:underline cursor-pointer"
+                      >
+                        Réinitialiser
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={currentEffective.categoryTheme.customHeaderTitle || ''}
+                    onChange={(e) => updateCurrentCategoryTheme({ customHeaderTitle: e.target.value })}
+                    onFocus={() => {
+                      if (activeCategory === 'matches' || activeCategory === 'results') {
+                        setStudioScope('all');
+                      }
+                    }}
+                    placeholder={
+                      activeCategory === 'matches'
+                        ? 'LES RENCONTRES DU WEEK-END'
+                        : activeCategory === 'results'
+                        ? 'RÉSULTATS DU WEEK-END'
+                        : 'BON ANNIVERSAIRE'
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold uppercase focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    {activeCategory === 'birthdays'
+                      ? 'Titre affiché au-dessus de la liste des anniversaires de la semaine.'
+                      : "Titre affiché sur la diapositive regroupant l'ensemble des rencontres."}
+                  </p>
+
+                  {/* Alignement du titre (Segmented Control) */}
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-800">
+                    <span className="text-[11px] font-bold text-slate-300">Alignement :</span>
+                    <div className="flex gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'left' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          (currentEffective.categoryTheme.headerTitleAlignment || 'left') === 'left'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ⬅ Gauche
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'center' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currentEffective.categoryTheme.headerTitleAlignment === 'center'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ⏺ Centré
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateCurrentCategoryTheme({ headerTitleAlignment: 'right' })}
+                        className={`text-xs px-2.5 py-1 rounded-md font-bold transition-all ${
+                          currentEffective.categoryTheme.headerTitleAlignment === 'right'
+                            ? 'bg-amber-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ➡ Droite
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2053,7 +2317,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={matchesEffective.mascot}
                   layer3={matchesEffective.layer3}
                   layer4={matchesEffective.layer4}
-                  customHeaderTitle={matchesEffective.categoryTheme?.customHeaderTitle}
+                  customHeaderTitle={previewMatchesTitle}
                 />
               ) : previewMode === 'results' ? (
                 <ResultsSlide
@@ -2066,7 +2330,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   mascot={resultsEffective.mascot}
                   layer3={resultsEffective.layer3}
                   layer4={resultsEffective.layer4}
-                  customHeaderTitle={resultsEffective.categoryTheme?.customHeaderTitle}
+                  customHeaderTitle={previewResultsTitle}
                 />
               ) : (
                 <BirthdaysSlide

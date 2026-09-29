@@ -740,6 +740,8 @@ export default function App() {
           const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
 
           const customTitle = visualTemplates.matchesSettings?.customHeaderTitle?.trim();
+          const customTitleHome = visualTemplates.matchesSettings?.customHeaderTitleHome?.trim();
+          const customTitleAway = visualTemplates.matchesSettings?.customHeaderTitleAway?.trim();
           const rawDisplayScope = visualTemplates.matchesSettings?.matchDisplayScope;
           // Seuls deux modes : "all" (Tout) ou "split" (Domicile & Extérieur séparés). Les anciennes valeurs "home"/"away" sont converties en "split".
           const displayScope: 'split' | 'all' = rawDisplayScope === 'all' ? 'all' : 'split';
@@ -748,13 +750,14 @@ export default function App() {
 
           if (displayScope === 'all') {
             // MODE 1 — TOUT : Matchs à domicile et à l'extérieur ensemble
+            const effectiveTitle = customTitle || 'LES RENCONTRES DU WEEK-END';
             if (weekendMatches.length <= 10) {
               matchSlides.push({
                 id: 'cat-matches-all',
                 type: 'category' as const,
                 categoryId: 'matches' as const,
                 filterScope: 'all' as const,
-                customTitle: customTitle || 'LES RENCONTRES DU WEEK-END',
+                customTitle: effectiveTitle,
                 durationSeconds: cat.durationSeconds,
                 label: 'Tous les Matchs',
               });
@@ -775,9 +778,7 @@ export default function App() {
                     pageNumber: pageIdx + 1,
                     totalPages,
                   },
-                  customTitle: customTitle
-                    ? (totalPages > 1 ? `${customTitle} (${pageIdx + 1}/${totalPages})` : customTitle)
-                    : (totalPages > 1 ? `LES RENCONTRES DU WEEK-END (${pageIdx + 1}/${totalPages})` : 'LES RENCONTRES DU WEEK-END'),
+                  customTitle: totalPages > 1 ? `${effectiveTitle} (${pageIdx + 1}/${totalPages})` : effectiveTitle,
                   durationSeconds: cat.durationSeconds,
                   label: `Tous les Matchs (Page ${pageIdx + 1}/${totalPages})`,
                 });
@@ -785,6 +786,8 @@ export default function App() {
             }
           } else {
             // MODE 2 — DOMICILE & EXTÉRIEUR SÉPARÉS : Matchs Domicile puis Matchs Extérieur
+            const effectiveTitleHome = customTitleHome || 'LES RENCONTRES À DOMICILE';
+            const effectiveTitleAway = customTitleAway || "LES RENCONTRES À L'EXTÉRIEUR";
             if (homeList.length > 0) {
               if (homeList.length <= 10) {
                 matchSlides.push({
@@ -792,7 +795,7 @@ export default function App() {
                   type: 'category' as const,
                   categoryId: 'matches' as const,
                   filterScope: 'home' as const,
-                  customTitle: customTitle || 'LES RENCONTRES À DOMICILE',
+                  customTitle: effectiveTitleHome,
                   durationSeconds: cat.durationSeconds,
                   label: 'Matchs Domicile',
                 });
@@ -811,9 +814,7 @@ export default function App() {
                       pageNumber: pageIdx + 1,
                       totalPages,
                     },
-                    customTitle: customTitle
-                      ? (totalPages > 1 ? `${customTitle} (${pageIdx + 1}/${totalPages})` : customTitle)
-                      : (totalPages > 1 ? `LES RENCONTRES À DOMICILE (${pageIdx + 1}/${totalPages})` : 'LES RENCONTRES À DOMICILE'),
+                    customTitle: totalPages > 1 ? `${effectiveTitleHome} (${pageIdx + 1}/${totalPages})` : effectiveTitleHome,
                     durationSeconds: cat.durationSeconds,
                     label: `Matchs Domicile (Page ${pageIdx + 1}/${totalPages})`,
                   });
@@ -828,7 +829,7 @@ export default function App() {
                   type: 'category' as const,
                   categoryId: 'matches' as const,
                   filterScope: 'away' as const,
-                  customTitle: customTitle || "LES RENCONTRES À L'EXTÉRIEUR",
+                  customTitle: effectiveTitleAway,
                   durationSeconds: cat.durationSeconds,
                   label: 'Matchs Extérieur',
                 });
@@ -847,9 +848,7 @@ export default function App() {
                       pageNumber: pageIdx + 1,
                       totalPages,
                     },
-                    customTitle: customTitle
-                      ? (totalPages > 1 ? `${customTitle} (${pageIdx + 1}/${totalPages})` : customTitle)
-                      : (totalPages > 1 ? `LES RENCONTRES À L'EXTÉRIEUR (${pageIdx + 1}/${totalPages})` : "LES RENCONTRES À L'EXTÉRIEUR"),
+                    customTitle: totalPages > 1 ? `${effectiveTitleAway} (${pageIdx + 1}/${totalPages})` : effectiveTitleAway,
                     durationSeconds: cat.durationSeconds,
                     label: `Matchs Extérieur (Page ${pageIdx + 1}/${totalPages})`,
                   });
@@ -877,6 +876,8 @@ export default function App() {
         const awayResults = resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
 
         const customTitle = visualTemplates.resultsSettings?.customHeaderTitle?.trim();
+        const customTitleHome = visualTemplates.resultsSettings?.customHeaderTitleHome?.trim();
+        const customTitleAway = visualTemplates.resultsSettings?.customHeaderTitleAway?.trim();
         const rawDisplayScope = visualTemplates.resultsSettings?.matchDisplayScope;
         const displayScope: 'split' | 'all' = rawDisplayScope === 'all' ? 'all' : 'split';
 
@@ -903,7 +904,7 @@ export default function App() {
               type: 'category' as const,
               categoryId: 'results' as const,
               filterScope: 'home' as const,
-              customTitle: customTitle || 'LES RÉSULTATS À DOMICILE',
+              customTitle: customTitleHome || 'LES RÉSULTATS À DOMICILE',
               durationSeconds: cat.durationSeconds,
               label: 'Résultats Domicile',
             });
@@ -915,7 +916,7 @@ export default function App() {
               type: 'category' as const,
               categoryId: 'results' as const,
               filterScope: 'away' as const,
-              customTitle: customTitle || "LES RÉSULTATS À L'EXTÉRIEUR",
+              customTitle: customTitleAway || "LES RÉSULTATS À L'EXTÉRIEUR",
               durationSeconds: cat.durationSeconds,
               label: 'Résultats Extérieur',
             });

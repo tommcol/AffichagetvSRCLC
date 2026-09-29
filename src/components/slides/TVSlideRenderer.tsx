@@ -156,7 +156,14 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
           mascot={matchesEffective.mascot}
           layer3={matchesEffective.layer3}
           layer4={matchesEffective.layer4}
-          customHeaderTitle={slide.customTitle || matchesEffective.categoryTheme?.customHeaderTitle}
+          customHeaderTitle={
+            slide.customTitle ||
+            (slide.filterScope === 'home'
+              ? matchesEffective.categoryTheme?.customHeaderTitleHome
+              : slide.filterScope === 'away'
+              ? matchesEffective.categoryTheme?.customHeaderTitleAway
+              : matchesEffective.categoryTheme?.customHeaderTitle)
+          }
           onVideoEnded={onVideoEnded}
           onVideoTimeUpdate={onVideoTimeUpdate}
         />
@@ -183,7 +190,14 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
           mascot={resultsEffective.mascot}
           layer3={resultsEffective.layer3}
           layer4={resultsEffective.layer4}
-          customHeaderTitle={slide.customTitle || resultsEffective.categoryTheme?.customHeaderTitle}
+          customHeaderTitle={
+            slide.customTitle ||
+            (slide.filterScope === 'home'
+              ? resultsEffective.categoryTheme?.customHeaderTitleHome
+              : slide.filterScope === 'away'
+              ? resultsEffective.categoryTheme?.customHeaderTitleAway
+              : resultsEffective.categoryTheme?.customHeaderTitle)
+          }
           onVideoEnded={onVideoEnded}
           onVideoTimeUpdate={onVideoTimeUpdate}
         />

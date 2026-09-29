@@ -77,6 +77,9 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     showMascot: true,
     mascotPosition: 'bottom-right',
     matchDisplayScope: 'split',
+    customHeaderTitle: 'LES RENCONTRES DU WEEK-END',
+    customHeaderTitleHome: 'LES RENCONTRES À DOMICILE',
+    customHeaderTitleAway: "LES RENCONTRES À L'EXTÉRIEUR",
     layer3: {
       name: 'Élément 1',
       enabled: false,
@@ -122,6 +125,9 @@ export const DEFAULT_VISUAL_TEMPLATES: VisualTemplatesConfig = {
     mascotPosition: 'bottom-right',
     mascotOnlyOnVictory: false,
     matchDisplayScope: 'split',
+    customHeaderTitle: 'RÉSULTATS DU WEEK-END',
+    customHeaderTitleHome: 'LES RÉSULTATS À DOMICILE',
+    customHeaderTitleAway: "LES RÉSULTATS À L'EXTÉRIEUR",
     layer3: {
       name: 'Élément 1',
       enabled: false,

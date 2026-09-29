@@ -130,6 +130,8 @@ export interface SlideDesignTheme {
   backgroundBlur: number; // 0 à 20px (défaut 0)
   backgroundMediaType?: 'image' | 'video';
   customHeaderTitle?: string;
+  customHeaderTitleHome?: string;
+  customHeaderTitleAway?: string;
   matchDisplayScope?: 'split' | 'all';
   visualStyle?: 'poster-red' | 'cards';
   showClubLogoWatermark?: boolean; // Filigrane central du logo du club
@@ -172,7 +174,9 @@ export interface CategorySlideTheme {
   showClubLogoWatermark?: boolean; // Filigrane central du logo du club
 
   // Calque 2 : Cartes & Données
-  customHeaderTitle?: string; // Titre / Entête personnalisée (ex: "LES MATCHS DU WEEK-END", "RÉSULTATS J-5")
+  customHeaderTitle?: string; // Titre / Entête personnalisée (mode "Tous")
+  customHeaderTitleHome?: string; // Titre personnalisé pour le calque Domicile (mode "Domicile / Extérieur")
+  customHeaderTitleAway?: string; // Titre personnalisé pour le calque Extérieur (mode "Domicile / Extérieur")
   matchDisplayScope?: 'split' | 'all'; // Mode de regroupement des matchs/résultats ('split' Domicile & Extérieur séparés, 'all' Tout)
   visualStyle?: 'poster-red' | 'cards'; // Style visuel ('poster-red' Affiche Officielle Pill Badges ou 'cards' Cartes)
   primaryColor?: string; // Couleur d'accentuation spécifique

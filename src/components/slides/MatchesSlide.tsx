@@ -493,12 +493,12 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
             {/* Pastille Pilule de Titre Rouge */}
             <div className={`px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || theme?.customHeaderTitle || (
+              {customHeaderTitle || (
                 sortedMatches.length > 0 && sortedMatches.every((m) => m.isHomeMatch)
-                  ? 'LES RENCONTRES À DOMICILE'
+                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RENCONTRES À DOMICILE'
                   : sortedMatches.length > 0 && sortedMatches.every((m) => !m.isHomeMatch)
-                  ? "LES RENCONTRES À L'EXTÉRIEUR"
-                  : 'LES RENCONTRES DU WEEK-END'
+                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RENCONTRES À L'EXTÉRIEUR"
+                  : theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'
               )}
             </div>
           </div>
@@ -639,12 +639,12 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         }`}>
           <div className={`flex items-center gap-3 ${titleAlign === 'center' ? 'w-full justify-center text-center' : titleAlign === 'right' ? 'w-full justify-end text-right' : ''}`}>
             <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || theme?.customHeaderTitle || (
+              {customHeaderTitle || (
                 weekendMatches.length > 0 && weekendMatches.every((m) => m.isHomeMatch)
-                  ? 'LES RENCONTRES À DOMICILE'
+                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RENCONTRES À DOMICILE'
                   : weekendMatches.length > 0 && weekendMatches.every((m) => !m.isHomeMatch)
-                  ? "LES RENCONTRES À L'EXTÉRIEUR"
-                  : 'LES RENCONTRES DU WEEK-END'
+                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RENCONTRES À L'EXTÉRIEUR"
+                  : theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'
               )}
             </h2>
             {totalPages && totalPages > 1 && (

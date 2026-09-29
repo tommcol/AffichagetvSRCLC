@@ -129,4 +129,45 @@ Vérifications réellement effectuées :
   • Test 7 : Simulation d'un second navigateur (sans localStorage) restaurant l'intégralité des licenciés depuis la réponse serveur Cloudflare KV (PASSED ✅).
 - Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) validés avec 0 erreur (PASSED ✅).
 
+
+7. TITRES INDÉPENDANTS DOMICILE / EXTÉRIEUR ET MODE TOUS DANS LE CARROUSEL (MATCHS & RÉSULTATS)
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Pour les diapositives Matchs et Résultats, un seul champ de saisie (`customHeaderTitle`) était proposé dans le Studio Graphique.
+- En mode « Domicile & Extérieur séparés » (`matchDisplayScope: 'split'`), le titre affiché sur les diapositives du carrousel et dans l'aperçu utilisait soit ce titre unique global, soit un libellé figé par défaut, sans possibilité d'attribuer un titre personnalisé distinct au calque Domicile et au calque Extérieur.
+- Dans l'aperçu 16:9 (`StudioGraphiqueWorkbench.tsx`), la bascule entre l'onglet Domicile et l'onglet Extérieur affichait toujours `customHeaderTitle`, ignorant les spécificités de chaque calque.
+
+Comportement Après :
+- **Sélecteur de mode clair et accessible** :
+  • Choix intuitif entre « 🏀 Tous » (1 seule diapositive regroupant domicile et extérieur) et « 🔄 Domicile / Extérieur » (2 diapositives séparées avec calques distincts) pour les Matchs et les Résultats.
+- **Deux champs de titre strictement indépendants en mode « Domicile / Extérieur »** :
+  • **Titre du calque Domicile** (`customHeaderTitleHome`) : saisie libre avec bouton d'aperçu direct (`👁 Aperçu`) positionnant le canevas sur le calque Domicile, bouton de réinitialisation et texte d'aide.
+  • **Titre du calque Extérieur** (`customHeaderTitleAway`) : saisie libre avec bouton d'aperçu direct (`👁 Aperçu`) positionnant le canevas sur le calque Extérieur, bouton de réinitialisation et texte d'aide.
+  • **Indépendance garantie** : la modification du titre d'un calque ne modifie JAMAIS le titre de l'autre calque, ni le titre du mode « Tous ».
+- **Mode « Tous » préservé à l'identique** :
+  • Conserve le champ unique (`customHeaderTitle`), son alignement et la rétro-compatibilité totale avec les carrousels déjà enregistrés.
+  • Basculer entre « Tous » et « Domicile / Extérieur » conserve l'ensemble des titres saisis sans aucune perte de données.
+- **Aperçu 16:9 temps réel sur le bon calque** :
+  • `StudioGraphiqueWorkbench.tsx` calcule dynamiquement `previewMatchesTitle` et `previewResultsTitle` selon le calque affiché (`home`, `away` ou `all`).
+  • Taper dans le champ Domicile met instantanément à jour le titre visible sur la diapositive Domicile ; taper dans le champ Extérieur met à jour le titre visible sur la diapositive Extérieur.
+- **Diffusion TV (`App.tsx` & `TVSlideRenderer.tsx`)** :
+  • Le générateur d'ordonnancement du carrousel (`calculateCarouselSchedule`) attribue respectivement `customTitleHome` à la diapositive Domicile et `customTitleAway` à la diapositive Extérieur (avec gestion automatique des pages multiples si nécessaire).
+  • `TVSlideRenderer.tsx` assure le rendu conforme de chaque diapositive selon son `filterScope`.
+- **Persistance serveur & réouverture** :
+  • Les champs `customHeaderTitleHome` et `customHeaderTitleAway` font partie intégrante de `visualTemplates` (dans `matchesSettings` et `resultsSettings`).
+  • Ils sont sauvegardés lors du clic sur le bouton « Enregistrer » vers `/api/save-app-data` (Cloudflare KV) et dans le cache local hors-ligne.
+  • À la réouverture ou au rechargement de l'application, les deux titres et le mode choisi sont fidèlement restaurés.
+
+Vérifications réellement effectuées :
+- Exécution de la suite de tests automatisée (`npx tsx scripts/test_titles_split_all.ts` — Code de retour 0) :
+  • Test 1 : Vérification de la configuration par défaut en mode split (PASSED ✅).
+  • Test 2 : Modification indépendante du titre Domicile Matchs sans altération du titre Extérieur ni Tous (PASSED ✅).
+  • Test 3 : Modification indépendante du titre Extérieur Matchs sans altération du titre Domicile ni Tous (PASSED ✅).
+  • Test 4 : Modification indépendante des titres Résultats Domicile et Extérieur (PASSED ✅).
+  • Test 5 : Bascule vers le mode « Tous » puis retour vers « Domicile / Extérieur » sans écrasement (PASSED ✅).
+  • Test 6 : Génération des diapositives TV du carrousel avec les bons titres associés à chaque slide (PASSED ✅).
+  • Test 7 : Simulation de sauvegarde `/api/save-app-data` et restauration complète au rechargement (PASSED ✅).
+- Bancs de tests de régression FFBB (`test_ffbb_merge.ts`) et Anniversaires (`test_birthdays_persistence.ts`) passés à 100% (PASSED ✅).
+- Compilation TypeScript (`compile_applet`) et vérification du linter (`lint_applet` / `tsc --noEmit`) passées avec 0 erreur (PASSED ✅).
+
 ================================================================================

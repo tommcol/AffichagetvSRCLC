@@ -261,6 +261,8 @@ export function getEffectiveCategoryConfig(
     backgroundBlur,
     backgroundMediaType,
     customHeaderTitle: specific.customHeaderTitle,
+    customHeaderTitleHome: specific.customHeaderTitleHome,
+    customHeaderTitleAway: specific.customHeaderTitleAway,
     visualStyle: specific.visualStyle || 'poster-red',
     showClubLogoWatermark,
     resultDisplayMode: specific.resultDisplayMode || globalTheme?.resultDisplayMode || 'both',
@@ -280,6 +282,8 @@ export function getEffectiveCategoryConfig(
 
   const categoryTheme: CategorySlideTheme = {
     customHeaderTitle: specific.customHeaderTitle,
+    customHeaderTitleHome: specific.customHeaderTitleHome,
+    customHeaderTitleAway: specific.customHeaderTitleAway,
     matchDisplayScope,
     headerTitleAlignment,
     removeWhiteBgLogos,
