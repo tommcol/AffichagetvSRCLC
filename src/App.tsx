@@ -1261,6 +1261,7 @@ export default function App() {
             handleToggleFullscreen();
           }}
           onOpenVisualExporter={(type) => setVisualModalState({ isOpen: true, type })}
+          carouselPlaylist={carouselPlaylist}
         />
 
         {/* Social Media Visual Exporter Modal */}

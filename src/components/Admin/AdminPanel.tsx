@@ -74,6 +74,7 @@ import {
   VisualTemplatesConfig,
   VisualTitleConfig,
   FFBBTeamItem,
+  CarouselSlide,
 } from '../../types';
 import { MatchAlertSlide, getEffectiveTitleConfig } from '../slides/MatchAlertSlide';
 import { formatAlertTitle } from '../../utils/alertUtils';
@@ -97,6 +98,7 @@ import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
 import { MediaBankManager } from './MediaBankManager';
 import { getConsolidatedMediaBank } from '../../utils/mediaBankUtils';
 import { VisualExporterModal } from '../VisualExporterModal';
+import { TvUsbExportModal } from './TvUsbExportModal';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../../utils/fontUtils';
 
 
@@ -268,6 +270,7 @@ interface AdminPanelProps {
   onRemoveAlert: (alertId: string) => void;
   onSwitchToTvMode: () => void;
   onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat') => void;
+  carouselPlaylist?: CarouselSlide[];
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   saveErrorMessage?: string;
   onManualSave?: () => void;
@@ -308,6 +311,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRemoveAlert,
   onSwitchToTvMode,
   onOpenVisualExporter,
+  carouselPlaylist = [],
   saveStatus = 'idle',
   saveErrorMessage,
   onManualSave,
@@ -337,6 +341,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events' | 'opponent_logos'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
+  const [isTvUsbModalOpen, setIsTvUsbModalOpen] = useState(false);
 
   // Sous-onglets par catégorie pour intégrer directement le Studio Calques sur place
   const [matchesSubTab, setMatchesSubTab] = useState<'list' | 'calques'>('list');
@@ -2636,6 +2641,17 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   <span>Enregistrer</span>
                 </>
               )}
+            </button>
+
+            {/* Bouton Télécharger le carrousel pour clé USB */}
+            <button
+              onClick={() => setIsTvUsbModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 cursor-pointer"
+              title="Générer un fichier vidéo MP4 1080p complet pour clé USB et TV"
+              id="btn-export-usb-tv"
+            >
+              <Tv className="w-4 h-4 text-emerald-300" />
+              <span>Télécharger le carrousel pour clé USB</span>
             </button>
 
             {/* Direct Switch to TV Broadcast Mode Button */}
@@ -8249,7 +8265,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         </div>
       </div>
 
-
+      {/* Modal d'exportation de la boucle TV complète pour Clé USB */}
+      <TvUsbExportModal
+        isOpen={isTvUsbModalOpen}
+        onClose={() => setIsTvUsbModalOpen(false)}
+        playlist={carouselPlaylist}
+        clubSettings={clubSettings}
+        matches={matches}
+        results={results}
+        sponsors={sponsors}
+        logos={logos}
+        photos={photos}
+        birthdays={birthdays}
+        events={events}
+        teamVisuals={teamVisuals}
+        visualTemplates={visualTemplates}
+      />
     </div>
   );
 };
