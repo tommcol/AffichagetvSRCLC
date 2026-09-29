@@ -36,6 +36,7 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const hasFiredEndedRef = useRef(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [canvasError, setCanvasError] = useState(false);
 
@@ -53,6 +54,26 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
 
   const isVisibleForVictory = !mascot?.onlyOnVictory || isVictoryContext;
   const shouldRender = isEnabled && isVisibleForSlide && isVisibleForVictory;
+
+  useEffect(() => {
+    hasFiredEndedRef.current = false;
+    return () => {
+      hasFiredEndedRef.current = true;
+    };
+  }, [mascot?.mediaUrl]);
+
+  const handleEnded = () => {
+    if (hasFiredEndedRef.current) return;
+    hasFiredEndedRef.current = true;
+    if (onVideoEnded) onVideoEnded();
+  };
+
+  const handleError = () => {
+    setCanvasError(true);
+    if (hasFiredEndedRef.current) return;
+    hasFiredEndedRef.current = true;
+    if (onVideoEnded) onVideoEnded();
+  };
 
   // Real-time Canvas Chroma Key processing loop
   useEffect(() => {
@@ -222,19 +243,14 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
               playsInline
               {...(isHttpUrl ? { crossOrigin: 'anonymous' } : {})}
               onLoadedData={() => setVideoLoaded(true)}
-              onEnded={() => {
-                if (onVideoEnded) onVideoEnded();
-              }}
+              onEnded={handleEnded}
               onTimeUpdate={(e) => {
                 const v = e.currentTarget;
                 if (onVideoTimeUpdate && v.duration) {
                   onVideoTimeUpdate((v.currentTime / v.duration) * 100);
                 }
               }}
-              onError={() => {
-                setCanvasError(true);
-                if (onVideoEnded) onVideoEnded();
-              }}
+              onError={handleError}
               className="hidden"
             />
             {/* Real-time processed Canvas with green background stripped */}
@@ -252,18 +268,14 @@ export const ChromaKeyMascot: React.FC<ChromaKeyMascotProps> = ({
             loop={!onVideoEnded}
             muted
             playsInline
-            onEnded={() => {
-              if (onVideoEnded) onVideoEnded();
-            }}
+            onEnded={handleEnded}
             onTimeUpdate={(e) => {
               const v = e.currentTarget;
               if (onVideoTimeUpdate && v.duration) {
                 onVideoTimeUpdate((v.currentTime / v.duration) * 100);
               }
             }}
-            onError={() => {
-              if (onVideoEnded) onVideoEnded();
-            }}
+            onError={handleError}
             className="w-48 sm:w-60 md:w-80 lg:w-96 max-h-[46vh] object-contain"
           />
         )}

@@ -792,7 +792,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     title?: string;
   }>({ isOpen: false, target: 'bg' });
 
-  const handleRegisterMediaInBank = (media: { name: string; url: string; mediaType: 'image' | 'video'; size?: number }) => {
+  const handleRegisterMediaInBank = (media: { name?: string; url: string; mediaType?: 'image' | 'video'; size?: number }) => {
     const updated = addMediaToBank(visualTemplates, media);
     onUpdateVisualTemplates(updated);
   };

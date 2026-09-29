@@ -342,6 +342,18 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                 loop={!bgHasControl || !onVideoEnded}
                 muted
                 playsInline
+                onTimeUpdate={(e) => {
+                  const vid = e.currentTarget;
+                  if (bgHasControl && onVideoTimeUpdate && vid.duration) {
+                    onVideoTimeUpdate((vid.currentTime / vid.duration) * 100);
+                  }
+                }}
+                onEnded={() => {
+                  if (bgHasControl && onVideoEnded) onVideoEnded();
+                }}
+                onError={() => {
+                  if (bgHasControl && onVideoEnded) onVideoEnded();
+                }}
                 className="w-full h-full object-cover"
                 style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
               />

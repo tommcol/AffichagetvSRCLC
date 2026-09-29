@@ -44,6 +44,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const hasFiredEndedRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [videoError, setVideoError] = useState(false);
@@ -57,6 +58,15 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
     layer && (layer.mediaType === 'video' || isVideoMedia(layer.mediaUrl))
   );
 
+  // Reset completion guard when the media changes or on unmount
+  useEffect(() => {
+    hasFiredEndedRef.current = false;
+    return () => {
+      // Prevents any late event during unmount from advancing the next slide
+      hasFiredEndedRef.current = true;
+    };
+  }, [layer?.mediaUrl]);
+
   // Autoplay guarantee & video lifecycle
   useEffect(() => {
     if (!shouldRender || !isVideo) return;
@@ -69,42 +79,29 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
     video.playsInline = true;
     video.loop = !onVideoEnded;
 
-    if (onVideoEnded) {
-      video.onended = () => {
-        onVideoEnded();
-      };
-      video.onerror = () => {
-        console.warn('Erreur lecture vidéo FreeOverlayLayer, passage');
-        onVideoEnded();
-      };
-    } else {
-      video.onended = null;
-      video.onerror = null;
-    }
-
-    if (onVideoTimeUpdate) {
-      video.ontimeupdate = () => {
-        if (video.duration) {
-          onVideoTimeUpdate((video.currentTime / video.duration) * 100);
-        }
-      };
-    } else {
-      video.ontimeupdate = null;
-    }
+    let isCancelled = false;
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          setIsPlaying(true);
-          setVideoError(false);
+          if (!isCancelled) {
+            setIsPlaying(true);
+            setVideoError(false);
+          }
         })
         .catch((err) => {
-          console.warn('Autoplay waiting or blocked:', err);
-          setIsPlaying(false);
+          if (!isCancelled) {
+            console.warn('Autoplay waiting or blocked:', err);
+            setIsPlaying(false);
+          }
         });
     }
-  }, [shouldRender, isVideo, layer?.mediaUrl, onVideoEnded, onVideoTimeUpdate]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [shouldRender, isVideo, layer?.mediaUrl, onVideoEnded]);
 
   // Real-time Canvas Chroma Key for videos
   useEffect(() => {
@@ -218,6 +215,24 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
     } else {
       video.pause();
       setIsPlaying(false);
+    }
+  };
+
+  const handleEnded = () => {
+    if (hasFiredEndedRef.current) return;
+    hasFiredEndedRef.current = true;
+    if (onVideoEnded) {
+      onVideoEnded();
+    }
+  };
+
+  const handleError = () => {
+    setVideoError(true);
+    if (hasFiredEndedRef.current) return;
+    hasFiredEndedRef.current = true;
+    if (onVideoEnded) {
+      console.warn('Erreur lecture vidéo FreeOverlayLayer, passage');
+      onVideoEnded();
     }
   };
 
@@ -388,19 +403,14 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
                   setActualDuration(e.currentTarget.duration);
                 }
               }}
-              onEnded={() => {
-                if (onVideoEnded) onVideoEnded();
-              }}
+              onEnded={handleEnded}
               onTimeUpdate={(e) => {
                 const v = e.currentTarget;
                 if (onVideoTimeUpdate && v.duration) {
                   onVideoTimeUpdate((v.currentTime / v.duration) * 100);
                 }
               }}
-              onError={() => {
-                setVideoError(true);
-                if (onVideoEnded) onVideoEnded();
-              }}
+              onError={handleError}
               style={
                 isFullScreenMode
                   ? {
