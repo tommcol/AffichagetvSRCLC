@@ -258,7 +258,7 @@ interface AdminPanelProps {
   birthdays: BirthdayItem[];
   onUpdateBirthdays: (newBirthdays: BirthdayItem[]) => void;
   allMembers?: BirthdayItem[];
-  onUpdateAllMembers?: (newMembers: BirthdayItem[]) => void;
+  onUpdateAllMembers?: (newMembers: BirthdayItem[], weekBirthdays?: BirthdayItem[]) => void;
   simulatedDate?: Date | null;
   onSetSimulatedDate?: (date: Date | null) => void;
   teamVisuals: TeamVisualItem[];
@@ -499,6 +499,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [birthdayWeekOffset, setBirthdayWeekOffset] = useState<number>(0);
   const [allMembersPool, setAllMembersPool] = useState<BirthdayItem[]>(() => {
+    if (allMembers && allMembers.length > 0) return allMembers;
     try {
       const saved = localStorage.getItem('club_all_members_pool');
       if (saved) {
@@ -508,6 +509,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (e) {}
     return [];
   });
+
+  useEffect(() => {
+    if (allMembers && allMembers.length > 0) {
+      setAllMembersPool(allMembers);
+    }
+  }, [allMembers]);
+
+  // Synchronisation unifiée de la liste complète des adhérents (source de vérité unique)
+  const updateAllMembersEverywhere = (newPool: BirthdayItem[], newWeekBirthdays?: BirthdayItem[]) => {
+    setAllMembersPool(newPool);
+    onUpdateAllMembers?.(newPool, newWeekBirthdays);
+    if (newWeekBirthdays !== undefined) {
+      onUpdateBirthdays(newWeekBirthdays);
+    }
+    try {
+      localStorage.setItem('club_all_members_pool', JSON.stringify(newPool));
+    } catch (e) {}
+  };
   const [editingBirthdayId, setEditingBirthdayId] = useState<string | null>(null);
   const [editBdayFirstName, setEditBdayFirstName] = useState<string>('');
   const [editBdayCategory, setEditBdayCategory] = useState<string>('');
@@ -2047,17 +2066,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     try {
       const result = await parseExcelBirthdays(file, new Date(), birthdayWeekOffset);
       if (result.allMembers && result.allMembers.length > 0) {
-        setAllMembersPool(result.allMembers);
-        try {
-          localStorage.setItem('club_all_members_pool', JSON.stringify(result.allMembers));
-        } catch (e) {}
+        const sortedMembers = sortBirthdaysByHierarchy(result.allMembers);
+        const refDate = simulatedDate || new Date();
+        const filtered = filterAndSortBirthdaysForWeek(sortedMembers, refDate, birthdayWeekOffset);
+        updateAllMembersEverywhere(sortedMembers, filtered);
 
-        const filtered = filterAndSortBirthdaysForWeek(result.allMembers, new Date(), birthdayWeekOffset);
-        onUpdateBirthdays(filtered);
-
-        const bounds = getWeekBounds(new Date(), birthdayWeekOffset);
+        const bounds = getWeekBounds(refDate, birthdayWeekOffset);
         setExcelSuccessMsg(
-          `Fichier ${file.name} importé avec succès (${result.allMembers.length} licenciés trouvés). ${filtered.length} anniversaire(s) sélectionné(s) pour la ${bounds.shortLabel} !`
+          `Fichier ${file.name} importé avec succès (${sortedMembers.length} licenciés trouvés). ${filtered.length} anniversaire(s) sélectionné(s) pour la ${bounds.shortLabel} !`
         );
       } else if (result.errors && result.errors.length > 0) {
         setExcelErrors(result.errors);
@@ -2075,8 +2091,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
   const handleSelectWeekOffset = (offset: number) => {
     setBirthdayWeekOffset(offset);
-    if (allMembersPool.length > 0) {
-      const filtered = filterAndSortBirthdaysForWeek(allMembersPool, new Date(), offset);
+    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
+    if (pool.length > 0) {
+      const refDate = simulatedDate || new Date();
+      const filtered = filterAndSortBirthdaysForWeek(pool, refDate, offset);
       onUpdateBirthdays(filtered);
     }
   };
@@ -2115,15 +2133,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       });
 
     const updatedBirthdays = sortBirthdaysByHierarchy(updateList(birthdays));
-    onUpdateBirthdays(updatedBirthdays);
-
-    if (allMembersPool.length > 0) {
-      const updatedPool = sortBirthdaysByHierarchy(updateList(allMembersPool));
-      setAllMembersPool(updatedPool);
-      try {
-        localStorage.setItem('club_all_members_pool', JSON.stringify(updatedPool));
-      } catch (e) {}
-    }
+    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
+    const updatedPool = pool.length > 0 ? sortBirthdaysByHierarchy(updateList(pool)) : updatedBirthdays;
+    updateAllMembersEverywhere(updatedPool, updatedBirthdays);
 
     setEditingBirthdayId(null);
   };
@@ -2152,13 +2164,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     };
 
     const nextList = sortBirthdaysByHierarchy([newItem, ...birthdays]);
-    onUpdateBirthdays(nextList);
-
-    const nextPool = sortBirthdaysByHierarchy([newItem, ...allMembersPool]);
-    setAllMembersPool(nextPool);
-    try {
-      localStorage.setItem('club_all_members_pool', JSON.stringify(nextPool));
-    } catch (e) {}
+    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
+    const nextPool = sortBirthdaysByHierarchy([newItem, ...pool]);
+    updateAllMembersEverywhere(nextPool, nextList);
 
     setManualBdayFirstName('');
     setManualBdayCategory('U15');
@@ -2168,14 +2176,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
   const handleDeleteBirthday = (id: string) => {
     const nextList = birthdays.filter((b) => b.id !== id);
-    onUpdateBirthdays(nextList);
-    if (allMembersPool.length > 0) {
-      const nextPool = allMembersPool.filter((b) => b.id !== id);
-      setAllMembersPool(nextPool);
-      try {
-        localStorage.setItem('club_all_members_pool', JSON.stringify(nextPool));
-      } catch (e) {}
-    }
+    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
+    const nextPool = pool.length > 0 ? pool.filter((b) => b.id !== id) : [];
+    updateAllMembersEverywhere(nextPool, nextList);
   };
 
   // Social Caption Generator Helper
@@ -7297,12 +7300,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       {w.label}
                     </button>
                   ))}
-                  {allMembersPool.length > 0 && (
+                  {((allMembers && allMembers.length > 0) ? allMembers : allMembersPool).length > 0 && (
                     <button
-                      onClick={() => onUpdateBirthdays(allMembersPool)}
+                      onClick={() => onUpdateBirthdays((allMembers && allMembers.length > 0) ? allMembers : allMembersPool)}
                       className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 ml-auto"
                     >
-                      Afficher tous ({allMembersPool.length})
+                      Afficher tous ({((allMembers && allMembers.length > 0) ? allMembers : allMembersPool).length})
                     </button>
                   )}
                 </div>
@@ -7333,9 +7336,36 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               </div>
 
               {excelSuccessMsg && (
-                <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-sm flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                  <span>{excelSuccessMsg}</span>
+                <div className="p-4 rounded-2xl bg-slate-950 border border-emerald-500/40 text-sm space-y-2">
+                  <div className="flex items-center gap-2.5 text-emerald-300 font-semibold">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                    <span>{excelSuccessMsg}</span>
+                  </div>
+                  <div className="text-xs pl-7 flex items-center gap-2">
+                    {saveStatus === 'saving' && (
+                      <span className="text-amber-400 flex items-center gap-1.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Synchronisation en cours avec le serveur Cloudflare...
+                      </span>
+                    )}
+                    {saveStatus === 'saved' && (
+                      <span className="text-emerald-400 flex items-center gap-1.5 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Données sauvegardées en ligne sur le serveur.
+                      </span>
+                    )}
+                    {saveStatus === 'error' && (
+                      <span className="text-red-400 flex items-center gap-1.5 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Attention : Échec de la sauvegarde serveur ({saveErrorMessage || 'Erreur réseau'}). Cliquez sur « Enregistrer » en haut pour retenter.
+                      </span>
+                    )}
+                    {saveStatus === 'idle' && (
+                      <span className="text-slate-400">
+                        Pensez à vérifier que le bouton en haut indique « Enregistré » pour confirmer la persistance sur le serveur.
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 

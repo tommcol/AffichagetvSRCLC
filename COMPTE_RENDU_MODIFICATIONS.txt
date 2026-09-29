@@ -95,4 +95,38 @@ Vérifications effectuées :
 - Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) passés avec succès (0 erreur).
 - Ouverture du panneau d'administration et fonctionnement de la diffusion TV validés.
 
+
+6. PERSISTANCE DES ANNIVERSAIRES IMPORTÉS DEPUIS EXCEL & SOURCE DE VÉRITÉ UNIQUE
+--------------------------------------------------------------------------------
+Comportement Avant :
+- `handleExcelFileUpload` dans `AdminPanel.tsx` stockait la liste extraite `result.allMembers` dans un état local `allMembersPool` et dans `localStorage`, mais n'appelait jamais `onUpdateAllMembers`.
+- L'état principal `allMembers` de `App.tsx` (qui est transmis dans le payload `/api/save-app-data` vers Cloudflare KV) conservait donc l'ancienne liste de licenciés (ou les données de démonstration).
+- Le message « importé avec succès » pouvait s'afficher alors que la liste complète n'était pas persistée sur le serveur Cloudflare.
+- Sur un autre navigateur ou appareil sans `localStorage` local, la liste des adhérents importés disparaissait.
+- L'ajout, la modification ou la suppression manuelle d'un licencié ne mettaient pas non plus à jour l'état principal `allMembers`.
+
+Comportement Après :
+- **Source de vérité unique (`allMembers`)** :
+  • `AdminPanel.tsx` synchronise son état avec la prop `allMembers` dès que celle-ci est reçue ou actualisée depuis Cloudflare KV (`useEffect`).
+  • Création du helper centralisé `updateAllMembersEverywhere` assurant la transmission immédiate de la liste complète vers `onUpdateAllMembers` (état racine `App.tsx`), le recalcul TV via `onUpdateBirthdays`, et le stockage hors-ligne de secours.
+- **Cycle de vie complet pris en charge** :
+  • **Import Excel** (`handleExcelFileUpload`) : La totalité des licenciés extraits est envoyée à `onUpdateAllMembers` et sauvegardée sur Cloudflare KV.
+  • **Ajout manuel** (`handleAddManualBirthday`) : Le nouvel adhérent est ajouté à la liste complète `allMembers` et persisté sur le serveur.
+  • **Modification** (`handleSaveEditBirthday`) : Les modifications (nom, catégorie, date) sont répercutées dans `allMembers` et persistées.
+  • **Suppression** (`handleDeleteBirthday`) : La suppression est répercutée dans `allMembers` et persistée.
+  • **Changement de semaine** (`handleSelectWeekOffset`) : Calcule dynamiquement les anniversaires de la semaine voulue à partir de la source de vérité `allMembers`.
+- **Indicateur de statut serveur explicite** :
+  • Le bloc de confirmation d'import Excel affiche dynamiquement le statut de synchronisation Cloudflare (`saveStatus`) : en cours (`Loader2`), confirmé (`CheckCircle2`), ou erreur (`AlertCircle` avec message d'erreur et invitation à réenregistrer), évitant toute confusion entre l'analyse locale du fichier et la sauvegarde effective sur le serveur.
+
+Vérifications réellement effectuées :
+- Exécution du banc de tests automatisé (`npx tsx scripts/test_birthdays_persistence.ts` — Code de retour 0) :
+  • Test 1 : État principal `allMembers` contient les licenciés importés (PASSED ✅).
+  • Test 2 : Sélection de semaine (0 / +1) filtre exactement les bons anniversaires sans altérer la liste complète (PASSED ✅).
+  • Test 3 : Ajout manuel d'un licencié intégré à `allMembers` (PASSED ✅).
+  • Test 4 : Modification d'un licencié répercutée dans `allMembers` et sur la TV (PASSED ✅).
+  • Test 5 : Suppression d'un licencié répercutée dans `allMembers` (PASSED ✅).
+  • Test 6 : Validation du payload JSON envoyé à `/api/save-app-data` contenant la totalité des licenciés (PASSED ✅).
+  • Test 7 : Simulation d'un second navigateur (sans localStorage) restaurant l'intégralité des licenciés depuis la réponse serveur Cloudflare KV (PASSED ✅).
+- Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) validés avec 0 erreur (PASSED ✅).
+
 ================================================================================

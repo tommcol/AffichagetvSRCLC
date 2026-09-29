@@ -484,16 +484,16 @@ export default function App() {
 
   // Mise à jour du pool permanent d'adhérents (Excel ou ajouts manuels)
   const handleUpdateAllMembers = useCallback(
-    (newMembers: BirthdayItem[]) => {
+    (newMembers: BirthdayItem[], weekBirthdays?: BirthdayItem[]) => {
       setAllMembers(newMembers);
       try {
         localStorage.setItem('club_all_members_pool', JSON.stringify(newMembers));
       } catch (e) {}
-      const ref = simulatedDate || new Date();
-      const updatedWeekBirthdays = filterAndSortBirthdaysForWeek(newMembers, ref, 0);
-      setBirthdays(updatedWeekBirthdays);
+      if (weekBirthdays !== undefined) {
+        setBirthdays(weekBirthdays);
+      }
     },
-    [simulatedDate]
+    []
   );
 
   // Modification de la date simulée (banc de test dimanche 23:59 -> lundi 00:00)
