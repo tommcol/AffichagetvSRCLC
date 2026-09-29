@@ -28,6 +28,7 @@ import {
   Home,
   Plane,
   Film,
+  XCircle,
 } from 'lucide-react';
 import {
   VisualTemplatesConfig,
@@ -309,7 +310,7 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
             {layer.mediaType === 'video' ? 'Format : Vidéo' : 'Format : Image'}
           </span>
         </label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           <input
             type="text"
             value={layer.mediaUrl}
@@ -323,7 +324,7 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
               });
             }}
             placeholder="URL image ou vidéo..."
-            className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
+            className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
           />
           <label
             className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all shrink-0 ${
@@ -351,6 +352,30 @@ const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
             >
               <Film className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden sm:inline">Banque Médias</span>
+            </button>
+          )}
+          {Boolean(layer.mediaUrl && layer.mediaUrl.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (layer.mediaUrl) {
+                  onRegisterMediaInBank?.({
+                    name: layer.name,
+                    url: layer.mediaUrl,
+                    mediaType: layer.mediaType,
+                  });
+                }
+                onChange({
+                  ...layer,
+                  mediaUrl: '',
+                  enabled: false,
+                });
+              }}
+              className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900/90 hover:bg-slate-800 text-amber-300/90 hover:text-amber-200 border border-amber-500/30 transition-all shrink-0 cursor-pointer"
+              title="Retirer ce média du calque sans le supprimer de la Banque Médias"
+            >
+              <XCircle className="w-3.5 h-3.5 text-amber-400" />
+              <span>Retirer du calque</span>
             </button>
           )}
         </div>
@@ -1220,7 +1245,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 <label className="text-xs font-bold text-slate-300 block">
                   Image ou Vidéo de Fond
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                   <input
                     type="text"
                     value={currentEffective.categoryTheme.backgroundUrl || ''}
@@ -1233,7 +1258,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                       });
                     }}
                     placeholder="URL image ou vidéo..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs"
                   />
                   <label className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 text-xs font-bold border border-orange-500/30 cursor-pointer transition-all shrink-0" title="Importer un fichier depuis votre appareil">
                     <Upload className="w-3.5 h-3.5" />
@@ -1344,6 +1369,28 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                     <Film className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="hidden sm:inline">Banque Médias</span>
                   </button>
+                  {Boolean(currentEffective.categoryTheme.backgroundUrl && currentEffective.categoryTheme.backgroundUrl.trim()) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentBg = currentEffective.categoryTheme.backgroundUrl;
+                        if (currentBg) {
+                          handleRegisterMediaInBank({
+                            url: currentBg,
+                            mediaType: currentEffective.categoryTheme.backgroundMediaType || 'image',
+                          });
+                        }
+                        updateCurrentCategoryTheme({
+                          backgroundUrl: '',
+                        });
+                      }}
+                      className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-slate-900/90 hover:bg-slate-800 text-amber-300/90 hover:text-amber-200 border border-amber-500/30 transition-all shrink-0 cursor-pointer"
+                      title="Retirer le fond sans le supprimer de la Banque Médias"
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Retirer du calque</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-1">

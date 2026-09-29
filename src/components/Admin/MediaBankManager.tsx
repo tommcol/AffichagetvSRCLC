@@ -23,6 +23,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
   const [uploading, setUploading] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [usageBlockedModal, setUsageBlockedModal] = useState<{ media: MediaBankItem; usages: string[] } | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<MediaBankItem | null>(null);
   const [targetModalMedia, setTargetModalMedia] = useState<MediaBankItem | null>(null);
 
   const consolidatedList = getConsolidatedMediaBank(visualTemplates);
@@ -106,25 +107,31 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
     }
   };
 
-  // Suppression d'un média
+  // Demande de suppression d'un média
   const handleDeleteMedia = (media: MediaBankItem) => {
     const usages = getMediaUsages(media.url, visualTemplates);
 
     if (usages.length > 0) {
-      // Blocage strict de la suppression
+      // Blocage strict de la suppression si encore utilisé
       setUsageBlockedModal({ media, usages });
       return;
     }
 
-    if (window.confirm(`Voulez-vous vraiment supprimer "${media.name}" de la Banque Médias ?`)) {
-      const res = removeMediaFromBank(visualTemplates, media.id || media.url);
-      if (res.success) {
-        onUpdateVisualTemplates(res.visualTemplates);
-        showFeedback(`"${media.name}" a été supprimé de la Banque Médias.`, 'success');
-      } else {
-        showFeedback(res.error || 'Erreur lors de la suppression.', 'error');
-      }
+    // Média libre de toute utilisation : confirmation de suppression définitive
+    setDeleteConfirmModal(media);
+  };
+
+  const handleConfirmPermanentDelete = () => {
+    if (!deleteConfirmModal) return;
+    const media = deleteConfirmModal;
+    const res = removeMediaFromBank(visualTemplates, media.id || media.url);
+    if (res.success) {
+      onUpdateVisualTemplates(res.visualTemplates);
+      showFeedback(`"${media.name}" a été définitivement supprimé de la Banque Médias.`, 'success');
+    } else {
+      showFeedback(res.error || 'Erreur lors de la suppression.', 'error');
     }
+    setDeleteConfirmModal(null);
   };
 
   // Application du média à une cible
@@ -314,18 +321,19 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDeleteMedia(m)}
-                      className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                         isUsed
-                          ? 'bg-slate-900/60 text-slate-600 border-slate-800 hover:text-rose-400 hover:border-rose-500/30'
-                          : 'bg-rose-950/20 text-rose-400 border-rose-500/30 hover:bg-rose-900/40'
+                          ? 'bg-slate-900/60 text-slate-500 border-slate-800 hover:text-rose-400 hover:border-rose-500/30'
+                          : 'bg-rose-950/20 text-rose-400 border-rose-500/30 hover:bg-rose-900/40 hover:text-white'
                       }`}
                       title={
                         isUsed
-                          ? "Ce média est actuellement utilisé. Cliquez pour voir où l'enlever avant suppression."
-                          : 'Supprimer ce média de la banque'
+                          ? "Ce média est encore utilisé. Cliquez pour voir où le retirer."
+                          : 'Supprimer définitivement ce média'
                       }
                     >
                       <Trash2 className="w-3.5 h-3.5" />
+                      <span>Supprimer</span>
                     </button>
                   </div>
                 </div>
@@ -338,38 +346,38 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
       {/* MODAL 1 : BLOCAGE SUPPRESSION SI MÉDIA UTILISÉ */}
       {usageBlockedModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 text-white">
+          <div className="relative w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-5 shadow-2xl space-y-4 text-white">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
                 <AlertCircle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-lg font-black font-bebas tracking-wide text-rose-400">
-                  SUPPRESSION IMPOSSIBLE
+                <h4 className="text-lg font-black font-bebas tracking-wide text-amber-400">
+                  CE MÉDIA EST ENCORE UTILISÉ
                 </h4>
                 <p className="text-xs text-slate-400 font-medium">
-                  Ce média est actuellement référencé dans les calques
+                  {usageBlockedModal.media.name}
                 </p>
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
               <p className="text-xs font-bold text-slate-300">
-                Impossible de supprimer ce média.
+                Impossible de supprimer ce média car il est encore actif :
               </p>
-              <div className="text-xs text-rose-300 font-bold">
+              <div className="text-xs text-amber-300 font-bold">
                 <span>Utilisé dans :</span>
-                <ul className="mt-1 space-y-1 pl-1">
+                <ul className="mt-1.5 space-y-1 pl-1">
                   {usageBlockedModal.usages.map((u, idx) => (
                     <li key={idx} className="flex items-center gap-1.5 text-white font-medium">
-                      <span className="text-rose-400 font-bold">•</span>
+                      <span className="text-amber-400 font-bold">•</span>
                       <span>{u}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/80">
-                Retirez d'abord ce média des calques ci-dessus pour pouvoir le supprimer.
+              <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                Pour supprimer définitivement ce fichier, allez d'abord dans les calques concernés et cliquez sur <strong>[ Retirer du calque ]</strong>.
               </p>
             </div>
 
@@ -377,9 +385,63 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setUsageBlockedModal(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => setUsageBlockedModal(null)}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition-colors cursor-pointer"
               >
                 Compris
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2 : CONFIRMATION SUPPRESSION DÉFINITIVE SI MÉDIA INUTILISÉ */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 text-white">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-lg font-black font-bebas tracking-wide text-rose-400">
+                  SUPPRIMER DÉFINITIVEMENT CE MÉDIA
+                </h4>
+                <p className="text-xs text-slate-400 font-medium">
+                  {deleteConfirmModal.name}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <p className="text-xs text-slate-300">
+                Êtes-vous sûr de vouloir supprimer définitivement ce fichier de la Banque Médias ?
+              </p>
+              <p className="text-[11px] text-rose-400 font-semibold">
+                ⚠️ Cette action est irréversible et supprimera le média de la bibliothèque.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPermanentDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-colors cursor-pointer"
+              >
+                Confirmer la suppression
               </button>
             </div>
           </div>
