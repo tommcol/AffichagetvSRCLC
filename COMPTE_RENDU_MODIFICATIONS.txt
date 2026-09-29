@@ -75,29 +75,24 @@ Vérifications effectuées :
 - Simulation de clics rapides et validation du blocage des retentatives périmées.
 
 
-5. EXPORTATION MP4 POUR CLÉ USB : CORRECTION DE COMPOSITION ET D'INTERFACE
+5. SUPPRESSION DE LA FONCTIONNALITÉ D'EXPORTATION MP4 SUR CLÉ USB (À LA DEMANDE DE L'UTILISATEUR)
 --------------------------------------------------------------------------------
-Comportement Avant :
-- Les 8 premières diapositives ainsi que la 10e apparaissaient entièrement noires sur le MP4 généré.
-- Sur la 9e diapositive ("Anniversaires"), seul le petit composant vidéo avec Scowty apparaissait sur fond noir.
-- La cause provenait d'une capture par `html-to-image` avec des coordonnées décalées ou d'un conteneur hors écran à `left: -9999px`, projetant le canvas de capture en dehors de la surface 1920x1080.
-- Après un premier export réussi, fermer/rouvrir la modale d'exportation ou cliquer sur "Télécharger à nouveau" ne permettait pas de relancer un export sur les données modifiées du carrousel.
+Actions effectuées :
+- **Suppression du composant visuel** : Le bouton « Télécharger le carrousel pour clé USB » a été retiré de la barre d'outils de la console d'administration (`AdminPanel.tsx`).
+- **Suppression des fichiers et modules d'export** :
+  • Suppression du composant modale `src/components/Admin/TvUsbExportModal.tsx`.
+  • Suppression du moteur de rendu vidéo MP4 `src/utils/tvMp4Exporter.tsx`.
+- **Suppression des états et imports associés** : L'état `isTvUsbModalOpen` et les imports/références liés ont été retirés de `AdminPanel.tsx`.
+- **Nettoyage des dépendances** : La dépendance `mp4-muxer` ainsi que le paquet de types `@types/dom-webcodecs` ont été retirés de `package.json` (après vérification qu'aucune autre partie de l'application ne les utilisait).
 
-Comportement Après :
-- **Scène de rendu DOM repositionnée** : Le conteneur `stageContainer` est désormais positionné à `z-index: 1` dans le viewport `(1920x1080)` sous le fond opaque de la modale (`z-index: 50`). Ses coordonnées et styles pour `html-to-image` sont explicitement contraints à `position: 'static'`, `left: '0'`, `top: '0'`, `width: '1920px'`, `height: '1080px'`.
-- **Composition des calques vidéo et UI** :
-  1. Arrière-plan sombre de base `#020617`.
-  2. Flux vidéo (arrière-plans animés ou médias principaux) dessinés à leurs coordonnées exactes.
-  3. Calque UI textuel (`uiCanvas`) capturé en PNG transparent sur les cartes, badges et textes, dessiné par-dessus la vidéo.
-  4. Calques Canvas superposés (Chroma Key détouré / mascottes / Scowty).
-- **Contrôle visuel strict (`inspectFrameVisuals`)** : Analyse d'échantillonnage de 121 points sur chaque diapositive (alpha > 50 et composantes couleur > 10). Si une diapositive est vide ou noire, l'exportation s'interrompt immédiatement avec une erreur claire : `Rendu visuel vide ou noir détecté sur la diapositive...`.
-- **Réinitialisation de la modale & Deux actions distinctes** :
-  - Un `useEffect` réinitialise l'état d'export lors de l'ouverture / réouverture de la modale.
-  - « Télécharger à nouveau » : Récupère le fichier MP4 déjà généré.
-  - « Générer une nouvelle vidéo » : Relance un export complet sur les données actuelles du carrousel.
-  - Les exports annulés ou échoués peuvent être relancés immédiatement sans bloquer l'interface.
+Fonctionnalités conservées intactes :
+- Diffusion en direct du carrousel TV dans le navigateur (« Lancer la Diffusion TV »).
+- Tous les médias, arrière-plans animés, calques et mascottes de diapositives.
+- Tous les boutons d'exportation de visuels fixes pour les réseaux sociaux (`VisualExporterModal.tsx`).
+- L'intégralité des données sauvegardées (matchs, résultats, sponsors, photos, anniversaires, réglages).
 
 Vérifications effectuées :
 - Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) passés avec succès (0 erreur).
+- Ouverture du panneau d'administration et fonctionnement de la diffusion TV validés.
 
 ================================================================================
