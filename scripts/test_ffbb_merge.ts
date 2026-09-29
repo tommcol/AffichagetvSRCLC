@@ -1,118 +1,19 @@
 import { MatchItem } from '../src/types';
+import { mergeMatchItems, getFfbbKey, normalizeFfbbNumber } from '../src/utils/ffbbMergeUtils';
 
-// Reproduction pure et exacte de la fonction mergeMatchItems d'AdminPanel
-function mergeMatchItems(existingList: MatchItem[], incomingList: MatchItem[]): MatchItem[] {
-  const getFfbbKey = (m: MatchItem): string | null => {
-    if (m.ffbbMatchNumber) return `ffbb-${m.ffbbMatchNumber}`.toLowerCase().trim();
-    if (m.id && m.id.startsWith('ffbb-')) return m.id.toLowerCase().trim();
-    return null;
-  };
-
-  const incomingFfbbMap = new Map<string, MatchItem>();
-  incomingList.forEach((inc) => {
-    const key = getFfbbKey(inc);
-    if (key) {
-      incomingFfbbMap.set(key, inc);
-    }
-  });
-
-  const merged: MatchItem[] = [];
-  const processedFfbbKeys = new Set<string>();
-
-  existingList.forEach((existing) => {
-    const key = getFfbbKey(existing);
-
-    if (!key || !incomingFfbbMap.has(key)) {
-      merged.push(existing);
-      if (key) processedFfbbKeys.add(key);
-      return;
-    }
-
-    processedFfbbKeys.add(key);
-    const incoming = incomingFfbbMap.get(key)!;
-
-    const finalDate = existing.isDateManual ? existing.date : (incoming.date || existing.date);
-    const finalTime = existing.isTimeManual ? existing.time : (incoming.time || existing.time);
-
-    const finalGymnasium = existing.isGymnasiumManual
-      ? existing.gymnasium
-      : (incoming.gymnasium || existing.gymnasium);
-
-    const finalOpponentLogo = existing.isOpponentLogoManual || existing.opponentLogo
-      ? existing.opponentLogo
-      : incoming.opponentLogo;
-
-    let finalHomeScore = incoming.homeScore;
-    let finalAwayScore = incoming.awayScore;
-    let finalResult = incoming.result;
-    let finalStatus = incoming.status;
-    let finalIsScoreManual = existing.isScoreManual;
-
-    if (existing.isScoreManual) {
-      finalHomeScore = existing.homeScore;
-      finalAwayScore = existing.awayScore;
-      finalResult = existing.result;
-      finalStatus = existing.status || incoming.status;
-    } else if (existing.homeScore !== undefined) {
-      if (incoming.homeScore === undefined) {
-        finalHomeScore = existing.homeScore;
-        finalAwayScore = existing.awayScore;
-        finalResult = existing.result;
-      } else if (existing.homeScore !== incoming.homeScore || existing.awayScore !== incoming.awayScore) {
-        finalHomeScore = existing.homeScore;
-        finalAwayScore = existing.awayScore;
-        finalResult = existing.result;
-        finalIsScoreManual = true;
-      }
-    }
-
-    const finalSelectedForWeekend = existing.selectedForWeekend !== undefined
-      ? existing.selectedForWeekend
-      : (incoming.selectedForWeekend !== false);
-
-    merged.push({
-      ...incoming,
-      ...existing,
-      date: finalDate,
-      time: finalTime,
-      gymnasium: finalGymnasium,
-      homeScore: finalHomeScore,
-      awayScore: finalAwayScore,
-      result: finalResult,
-      status: finalStatus,
-      opponentLogo: finalOpponentLogo,
-      teamLogo: existing.teamLogo || incoming.teamLogo,
-      selectedForWeekend: finalSelectedForWeekend,
-      isDateManual: existing.isDateManual,
-      isTimeManual: existing.isTimeManual,
-      isScoreManual: finalIsScoreManual,
-      isGymnasiumManual: existing.isGymnasiumManual,
-      isOpponentLogoManual: existing.isOpponentLogoManual,
-      isManualMatch: existing.isManualMatch,
-    });
-  });
-
-  incomingList.forEach((inc) => {
-    const key = getFfbbKey(inc);
-    if (key && !processedFfbbKeys.has(key)) {
-      merged.push({
-        ...inc,
-        selectedForWeekend: inc.selectedForWeekend !== false,
-      });
-      processedFfbbKeys.add(key);
-    }
-  });
-
-  return merged;
+function assert(condition: boolean, message: string) {
+  if (!condition) {
+    console.error(`❌ ÉCHEC ASSERTION : ${message}`);
+    process.exit(1);
+  }
+  console.log(`  ✓ PASSED: ${message}`);
 }
 
-// -----------------------------------------------------------------------------
-// SCÉNARIOS DE TEST UNITAIRE
-// -----------------------------------------------------------------------------
+console.log('=== DÉBUT DES TESTS UNITAIRES DE FUSION FFBB ===\n');
 
-console.log('=== DÉBUT DES TESTS DE FUSION FFBB ===\n');
-
-// SCÉNARIO 1 : Horaire FFBB déplacé (officiel mis à jour par FFBB)
+// -----------------------------------------------------------------------------
+// TEST 1 : Horaire / Date FFBB déplacé
+// -----------------------------------------------------------------------------
 console.log('--- TEST 1 : Horaire / Date FFBB déplacé ---');
 const existing1: MatchItem[] = [{
   id: 'ffbb-101',
@@ -133,7 +34,7 @@ const existing1: MatchItem[] = [{
 const incoming1: MatchItem[] = [{
   id: 'ffbb-101',
   ffbbMatchNumber: '101',
-  date: '2026-10-04', // Date déplacée au dimanche
+  date: '2026-10-04', // Date déplacée au dimanche par la FFBB
   time: '15:30',      // Heure déplacée
   category: 'U15 M1',
   competition: 'D1',
@@ -146,16 +47,13 @@ const incoming1: MatchItem[] = [{
   status: 'upcoming',
 }];
 const res1 = mergeMatchItems(existing1, incoming1);
-console.log('Avant:', existing1[0].date, existing1[0].time);
-console.log('Reçu FFBB:', incoming1[0].date, incoming1[0].time);
-console.log('Après fusion:', res1[0].date, res1[0].time);
-if (res1[0].date === '2026-10-04' && res1[0].time === '15:30') {
-  console.log('✅ TEST 1 RÉUSSI : La nouvelle date et le nouvel horaire FFBB ont été appliqués !');
-} else {
-  console.error('❌ TEST 1 ÉCHOUÉ');
-}
+assert(res1.length === 1, '1 seul match présent après fusion');
+assert(res1[0].date === '2026-10-04', 'La date officielle FFBB a bien été mise à jour à 2026-10-04');
+assert(res1[0].time === '15:30', 'L\'heure officielle FFBB a bien été mise à jour à 15:30');
 
-// SCÉNARIO 2 : Score corrigé manuellement
+// -----------------------------------------------------------------------------
+// TEST 2 : Score corrigé manuellement
+// -----------------------------------------------------------------------------
 console.log('\n--- TEST 2 : Score corrigé manuellement ---');
 const existing2: MatchItem[] = [{
   id: 'ffbb-102',
@@ -174,7 +72,7 @@ const existing2: MatchItem[] = [{
   awayScore: 75,
   status: 'finished',
   result: 'win',
-  isScoreManual: true, // Score corrigé à la main par le secrétaire
+  isScoreManual: true, // Score corrigé à la main par le club
 }];
 const incoming2: MatchItem[] = [{
   id: 'ffbb-102',
@@ -189,22 +87,19 @@ const incoming2: MatchItem[] = [{
   ourClubName: 'SRC Basket',
   gymnasium: 'Gymnase la Clayette',
   city: 'La Clayette',
-  homeScore: 70, // Erreur dans le PV FFBB
+  homeScore: 70, // PV FFBB avec erreur de saisie
   awayScore: 75,
   status: 'finished',
   result: 'loss',
 }];
 const res2 = mergeMatchItems(existing2, incoming2);
-console.log('Score manuel local:', existing2[0].homeScore, '-', existing2[0].awayScore);
-console.log('Score reçu FFBB:', incoming2[0].homeScore, '-', incoming2[0].awayScore);
-console.log('Après fusion:', res2[0].homeScore, '-', res2[0].awayScore, 'Result:', res2[0].result);
-if (res2[0].homeScore === 78 && res2[0].awayScore === 75 && res2[0].result === 'win') {
-  console.log('✅ TEST 2 RÉUSSI : Le score corrigé manuellement a été conservé !');
-} else {
-  console.error('❌ TEST 2 ÉCHOUÉ');
-}
+assert(res2[0].homeScore === 78, 'Score domicile reste 78');
+assert(res2[0].awayScore === 75, 'Score extérieur reste 75');
+assert(res2[0].result === 'win', 'Statut Victoire préservé');
 
-// SCÉNARIO 3 : Match amical local (non-FFBB)
+// -----------------------------------------------------------------------------
+// TEST 3 : Match amical local
+// -----------------------------------------------------------------------------
 console.log('\n--- TEST 3 : Match amical local ---');
 const existing3: MatchItem[] = [{
   id: 'match-m-999',
@@ -237,15 +132,12 @@ const incoming3: MatchItem[] = [{
   status: 'upcoming',
 }];
 const res3 = mergeMatchItems(existing3, incoming3);
-console.log('Total matchs après fusion:', res3.length);
-const foundLocal = res3.find(m => m.id === 'match-m-999');
-if (res3.length === 2 && foundLocal) {
-  console.log('✅ TEST 3 RÉUSSI : Le match amical local n\'a pas été supprimé ni écrasé !');
-} else {
-  console.error('❌ TEST 3 ÉCHOUÉ');
-}
+assert(res3.length === 2, 'Les 2 matchs sont présents dans la liste');
+assert(Boolean(res3.find(m => m.id === 'match-m-999')), 'Le match amical local n\'a pas été effacé');
 
-// SCÉNARIO 4 : Sélection TV individuelle hors période
+// -----------------------------------------------------------------------------
+// TEST 4 : Sélection TV individuelle hors période
+// -----------------------------------------------------------------------------
 console.log('\n--- TEST 4 : Sélection TV individuelle hors période ---');
 const existing4: MatchItem[] = [{
   id: 'ffbb-104',
@@ -261,7 +153,7 @@ const existing4: MatchItem[] = [{
   gymnasium: 'Gymnase la Clayette',
   city: 'La Clayette',
   status: 'upcoming',
-  selectedForWeekend: false, // Décoché volontairement par l'admin
+  selectedForWeekend: false, // Décoché manuellement
 }];
 const incoming4: MatchItem[] = [{
   id: 'ffbb-104',
@@ -279,18 +171,14 @@ const incoming4: MatchItem[] = [{
   status: 'upcoming',
 }];
 const res4 = mergeMatchItems(existing4, incoming4);
-console.log('Sélection TV locale:', existing4[0].selectedForWeekend);
-console.log('Après synchro simple:', res4[0].selectedForWeekend);
-if (res4[0].selectedForWeekend === false) {
-  console.log('✅ TEST 4 RÉUSSI : La sélection TV individuelle a été préservée !');
-} else {
-  console.error('❌ TEST 4 ÉCHOUÉ');
-}
+assert(res4[0].selectedForWeekend === false, 'selectedForWeekend: false préservé lors d\'une synchro simple');
 
-// SCÉNARIO 5 : Nouvelle rencontre FFBB et deux synchronisations successives
-console.log('\n--- TEST 5 & 6 : Nouvelle rencontre et synchronisations successives ---');
+// -----------------------------------------------------------------------------
+// TEST 5 : Nouvelle rencontre et synchronisations successives (anti-doublon)
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 5 : Anti-doublons lors de synchros répétées ---');
 const existing5: MatchItem[] = [];
-const incoming5a: MatchItem[] = [{
+const incoming5: MatchItem[] = [{
   id: 'ffbb-105',
   ffbbMatchNumber: '105',
   date: '2026-10-18',
@@ -305,19 +193,139 @@ const incoming5a: MatchItem[] = [{
   city: 'La Clayette',
   status: 'upcoming',
 }];
+const res5a = mergeMatchItems(existing5, incoming5);
+assert(res5a.length === 1, 'Premier téléchargement : 1 match ajouté');
+const res5b = mergeMatchItems(res5a, incoming5);
+assert(res5b.length === 1, 'Second téléchargement : toujours 1 match, aucun doublon créé');
 
-// Synchro 1
-const res5a = mergeMatchItems(existing5, incoming5a);
-console.log('Après synchro 1 :', res5a.length, 'match');
+// -----------------------------------------------------------------------------
+// TEST 6 : Compatibilité anciens identifiants (id: "ffbb-123" vs ffbbMatchNumber: "FFBB-123")
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 6 : Compatibilité des anciens identifiants FFBB ---');
+const legacyExisting: MatchItem[] = [{
+  id: 'ffbb-123', // Ancien format sans champ ffbbMatchNumber explicite
+  date: '2026-10-01',
+  time: '18:00',
+  category: 'U17 M1',
+  competition: 'R1',
+  teamHome: 'SRC Basket',
+  teamAway: 'Élan Chalon',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+}];
+const newIncoming: MatchItem[] = [{
+  id: 'ffbb-123',
+  ffbbMatchNumber: 'FFBB-123', // Nouveau format avec préfixe FFBB-
+  date: '2026-10-01',
+  time: '18:00',
+  category: 'U17 M1',
+  competition: 'Régionale 1 M', // Nom officiel mis à jour
+  teamHome: 'SRC Basket',
+  teamAway: 'Élan Chalon',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+}];
+const res6 = mergeMatchItems(legacyExisting, newIncoming);
+assert(res6.length === 1, '1 seule rencontre résultante (anciens et nouveaux IDs FFBB reconnus comme identiques)');
+assert(res6[0].competition === 'Régionale 1 M', 'Nom de compétition mis à jour à Régionale 1 M');
 
-// Synchro 2 (immédiatement après avec la même liste)
-const res5b = mergeMatchItems(res5a, incoming5a);
-console.log('Après synchro 2 :', res5b.length, 'match');
+// -----------------------------------------------------------------------------
+// TEST 7 : Modification officielle de compétition (champ non modifié manuellement)
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 7 : Modification officielle de compétition ---');
+const existing7: MatchItem[] = [{
+  id: 'ffbb-201',
+  ffbbMatchNumber: '201',
+  date: '2026-10-15',
+  time: '20:30',
+  category: 'Seniors M1',
+  competition: 'Pré-Nationale M', // Ancien nom de poule/compétition
+  teamHome: 'SRC Basket',
+  teamAway: 'Curgy',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+}];
+const incoming7: MatchItem[] = [{
+  id: 'ffbb-201',
+  ffbbMatchNumber: '201',
+  date: '2026-10-15',
+  time: '20:30',
+  category: 'Seniors M1',
+  competition: 'Nationale 3 M', // Compétition mise à jour par la FFBB
+  poule: 'Poule G',
+  pouleId: '98765',
+  teamHome: 'SRC Basket',
+  teamAway: 'Curgy',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+}];
+const res7 = mergeMatchItems(existing7, incoming7);
+assert(res7[0].competition === 'Nationale 3 M', 'La compétition a été mise à jour vers Nationale 3 M');
+assert(res7[0].poule === 'Poule G', 'La poule a bien été ajoutée à la rencontre');
 
-if (res5a.length === 1 && res5b.length === 1) {
-  console.log('✅ TEST 5 & 6 RÉUSSI : Nouvelle rencontre ajoutée sans créer de doublon lors de la 2nde synchro !');
-} else {
-  console.error('❌ TEST 5 & 6 ÉCHOUÉ');
-}
+// -----------------------------------------------------------------------------
+// TEST 8 : Édition manuelle d'un match par l'utilisateur
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 8 : Édition manuelle d\'un match et drapeaux de protection ---');
+const origMatch: MatchItem = {
+  id: 'ffbb-301',
+  ffbbMatchNumber: '301',
+  date: '2026-10-25',
+  time: '15:00',
+  category: 'U15 F1',
+  competition: 'D1',
+  teamHome: 'SRC Basket',
+  teamAway: 'Sancé',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+};
 
-console.log('\n=== TOUS LES TESTS SONT TERMINÉS AVEC SUCCÈS ===');
+// Simulation d'une édition manuelle par l'utilisateur (changement du gymnase et de l'heure)
+const userEditedMatch: MatchItem = {
+  ...origMatch,
+  time: '16:00', // Modifié par l'utilisateur
+  gymnasium: 'Salle Annexe', // Modifié par l'utilisateur
+  isTimeManual: true,
+  isGymnasiumManual: true,
+};
+
+// Arrivée d'une synchro FFBB proposant d'autres valeurs
+const incomingSync: MatchItem[] = [{
+  id: 'ffbb-301',
+  ffbbMatchNumber: '301',
+  date: '2026-10-25',
+  time: '15:00', // FFBB a toujours 15:00
+  category: 'U15 F1',
+  competition: 'D1 Fille', // Compétition modifiée par FFBB
+  teamHome: 'SRC Basket',
+  teamAway: 'Sancé',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  gymnasium: 'Gymnase la Clayette',
+  city: 'La Clayette',
+  status: 'upcoming',
+}];
+
+const res8 = mergeMatchItems([userEditedMatch], incomingSync);
+assert(res8[0].time === '16:00', 'Heure modifiée manuellement (16:00) conservée');
+assert(res8[0].gymnasium === 'Salle Annexe', 'Gymnase modifié manuellement (Salle Annexe) conservé');
+assert(res8[0].competition === 'D1 Fille', 'Compétition officielle FFBB (D1 Fille) mise à jour car non éditée manuellement');
+
+console.log('\n=============================================================');
+console.log('🎉 TOUTES LES ASSERTIONS DE FUSION FFBB SONT VALIDÉES AVEC SUCCÈS !');
+console.log('=============================================================\n');

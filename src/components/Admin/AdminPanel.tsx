@@ -82,6 +82,7 @@ import { isMatchLive, isMatchWin, isClubHomeMatch, getMatchOurAndOpponentScores 
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { compressImageFile } from '../../utils/imageCompressor';
 import { FFBBService, isTeamCategoryIgnored, normalizeCategoryKey } from '../../services/ffbbService';
+import { mergeMatchItems } from '../../utils/ffbbMergeUtils';
 import {
   parseExcelBirthdays,
   generateClubBirthdayTemplate,
@@ -1889,125 +1890,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         allSeasonMatches = applyLogos(allSeasonMatches);
         allSeasonResults = applyLogos(allSeasonResults);
 
-        // Helper de fusion intelligent conservant les données et choix locaux
-        const mergeMatchItems = (existingList: MatchItem[], incomingList: MatchItem[]): MatchItem[] => {
-          // Extraire l'identifiant FFBB officiel unique et stable
-          const getFfbbKey = (m: MatchItem): string | null => {
-            if (m.ffbbMatchNumber) return `ffbb-${m.ffbbMatchNumber}`.toLowerCase().trim();
-            if (m.id && m.id.startsWith('ffbb-')) return m.id.toLowerCase().trim();
-            return null;
-          };
-
-          const incomingFfbbMap = new Map<string, MatchItem>();
-          incomingList.forEach((inc) => {
-            const key = getFfbbKey(inc);
-            if (key) {
-              incomingFfbbMap.set(key, inc);
-            }
-          });
-
-          const merged: MatchItem[] = [];
-          const processedFfbbKeys = new Set<string>();
-
-          // 1. Parcourir les rencontres existantes
-          existingList.forEach((existing) => {
-            const key = getFfbbKey(existing);
-
-            // Si c'est un match amical / local ou non présent dans cette réponse FFBB :
-            if (!key || !incomingFfbbMap.has(key)) {
-              merged.push(existing);
-              if (key) processedFfbbKeys.add(key);
-              return;
-            }
-
-            // Rencontre FFBB correspondante trouvée
-            processedFfbbKeys.add(key);
-            const incoming = incomingFfbbMap.get(key)!;
-
-            // Date & Heure : mettre à jour avec FFBB sauf si modifiés manuellement
-            const finalDate = existing.isDateManual ? existing.date : (incoming.date || existing.date);
-            const finalTime = existing.isTimeManual ? existing.time : (incoming.time || existing.time);
-
-            // Gymnase : mettre à jour avec FFBB sauf si modifié manuellement
-            const finalGymnasium = existing.isGymnasiumManual
-              ? existing.gymnasium
-              : (incoming.gymnasium || existing.gymnasium);
-
-            // Logo adverse : préserver le logo sélectionné manuellement ou existant
-            const finalOpponentLogo = existing.isOpponentLogoManual || existing.opponentLogo
-              ? existing.opponentLogo
-              : incoming.opponentLogo;
-
-            // Score : préserver le score si saisi/corrigé manuellement ou en conflit local
-            let finalHomeScore = incoming.homeScore;
-            let finalAwayScore = incoming.awayScore;
-            let finalResult = incoming.result;
-            let finalStatus = incoming.status;
-            let finalIsScoreManual = existing.isScoreManual;
-
-            if (existing.isScoreManual) {
-              // Score saisi/modifié manuellement -> conserver le score local
-              finalHomeScore = existing.homeScore;
-              finalAwayScore = existing.awayScore;
-              finalResult = existing.result;
-              finalStatus = existing.status || incoming.status;
-            } else if (existing.homeScore !== undefined) {
-              if (incoming.homeScore === undefined) {
-                // FFBB n'a pas encore de score, conserver le score local existant
-                finalHomeScore = existing.homeScore;
-                finalAwayScore = existing.awayScore;
-                finalResult = existing.result;
-              } else if (existing.homeScore !== incoming.homeScore || existing.awayScore !== incoming.awayScore) {
-                // Conflit entre score local enregistré et score FFBB -> préserver le score local et marquer comme manuel
-                finalHomeScore = existing.homeScore;
-                finalAwayScore = existing.awayScore;
-                finalResult = existing.result;
-                finalIsScoreManual = true;
-              }
-            }
-
-            // Choix individuel de diffusion TV (selectedForWeekend) : TOUJOURS conserver le choix utilisateur lors d'une synchro simple
-            const finalSelectedForWeekend = existing.selectedForWeekend !== undefined
-              ? existing.selectedForWeekend
-              : (incoming.selectedForWeekend !== false);
-
-            merged.push({
-              ...incoming,
-              ...existing,
-              date: finalDate,
-              time: finalTime,
-              gymnasium: finalGymnasium,
-              homeScore: finalHomeScore,
-              awayScore: finalAwayScore,
-              result: finalResult,
-              status: finalStatus,
-              opponentLogo: finalOpponentLogo,
-              teamLogo: existing.teamLogo || incoming.teamLogo,
-              selectedForWeekend: finalSelectedForWeekend,
-              isDateManual: existing.isDateManual,
-              isTimeManual: existing.isTimeManual,
-              isScoreManual: finalIsScoreManual,
-              isGymnasiumManual: existing.isGymnasiumManual,
-              isOpponentLogoManual: existing.isOpponentLogoManual,
-              isManualMatch: existing.isManualMatch,
-            });
-          });
-
-          // 2. Ajouter les nouvelles rencontres FFBB reçues
-          incomingList.forEach((inc) => {
-            const key = getFfbbKey(inc);
-            if (key && !processedFfbbKeys.has(key)) {
-              merged.push({
-                ...inc,
-                selectedForWeekend: inc.selectedForWeekend !== false,
-              });
-              processedFfbbKeys.add(key);
-            }
-          });
-
-          return merged;
-        };
-
         const finalMatches = mergeMatchItems(matches, allSeasonMatches);
         const finalResults = mergeMatchItems(results, allSeasonResults);
 
@@ -3677,7 +3559,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                           </button>
                           <button
                             onClick={() => {
-                              onUpdateMatches(matches.map((item) => (item.id === editingMatch.id ? editingMatch : item)));
+                              const orig = matches.find((item) => item.id === editingMatch.id);
+                              const updatedMatchItem: MatchItem = {
+                                ...editingMatch,
+                                isDateManual: orig ? (orig.isDateManual || editingMatch.date !== orig.date) : true,
+                                isTimeManual: orig ? (orig.isTimeManual || editingMatch.time !== orig.time) : true,
+                                isGymnasiumManual: orig ? (orig.isGymnasiumManual || editingMatch.gymnasium !== orig.gymnasium) : true,
+                                isScoreManual: orig ? (orig.isScoreManual || editingMatch.homeScore !== orig.homeScore || editingMatch.awayScore !== orig.awayScore || editingMatch.status !== orig.status || editingMatch.result !== orig.result) : true,
+                              };
+                              onUpdateMatches(matches.map((item) => (item.id === editingMatch.id ? updatedMatchItem : item)));
                               setEditingMatch(null);
                             }}
                             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"

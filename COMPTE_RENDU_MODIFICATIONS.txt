@@ -9,71 +9,69 @@ Comportement Avant :
 - Il était impossible de modifier le rang d'un sponsor déjà créé dans l'interface d'administration.
 
 Comportement Après :
-- La fréquence par rang est désormais strictement appliquée dans la boucle TV :
+- La fréquence par rang est désormais strictly appliquée dans la boucle TV :
   • Bronze / Partenaire = 1 passage par boucle.
   • Silver = 2 passages par boucle.
   • Gold = 3 passages par boucle.
 - Les passages sont répartis dans la boucle de manière intercalée (par vagues de passage) sans jamais réafficher le même sponsor deux fois de suite.
-- Un sélecteur de rang (Gold, Silver, Bronze, Partenaire) est maintenant disponible directement sur chaque carte de sponsor dans la Banque Médias / Sponsors pour modifier à tout moment le rang d'un sponsor existant.
+- Un sélecteur de rang (Gold, Silver, Bronze, Partenaire) est disponible directement sur chaque carte de sponsor dans la Banque Médias / Sponsors.
 
 Vérifications effectuées :
 - Tests de génération de la playlist `carouselPlaylist` avec plusieurs sponsors Gold, Silver et Bronze.
-- Vérification du bon espacement des passages et du respect des comptes de diffusion.
 - Validation de la modification dynamique du rang dans le panneau d'administration.
 
 
 2. SÉLECTION DES RÉSULTATS : GESTION DES RÉSULTATS COCHÉS / NON COCHÉS
 --------------------------------------------------------------------------------
 Comportement Avant :
-- Si aucun résultat n'était coché pour la TV (or tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats dans la boucle TV et la prévisualisation.
+- Si aucun résultat n'était coché pour la TV (ou tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats.
 
 Comportement Après :
 - Si aucun résultat n'est coché pour la TV, la diapositive des résultats est masquée et aucun résultat n'est affiché.
 - La diapositive affichée et l'export respectent fidèlement la liste des résultats cochés par l'utilisateur.
 
 Vérifications effectuées :
-- Suppression du fallback conditionnel (`activeResults.length > 0 ? activeResults : results`) dans `src/App.tsx` et `src/components/slides/TVSlideRenderer.tsx`.
-- Vérification que la liste diffusée reste rigoureusement synchrone avec les cases à cocher de l'administration.
+- Suppression du fallback conditionnel dans `src/App.tsx` et `src/components/slides/TVSlideRenderer.tsx`.
+- Vérification que la liste diffusée reste synchrone avec les cases à cocher de l'administration.
 
 
-3. SYNCHRONISATION FFBB : PRÉSERVATION RIGOUREUSE ET FUSION INTELLIGENTE
+3. SYNCHRONISATION FFBB : MODULE PARTAGÉ ET FUSION SANS PERTE
 --------------------------------------------------------------------------------
 Comportement Avant :
-- 1. Une mise à jour officielle de date ou d'horaire venant de la FFBB n'était pas appliquée en raison d'une vérification fallback conservant systématiquement l'ancienne valeur.
-- 2. Un score ou résultat corrigé manuellement était écrasé dès que la FFBB renvoyait un score officiel ou périmé.
-- 3. La présence d'une période dans le calendrier forçait le changement automatique de `selectedForWeekend` sur toutes les rencontres lors d'une simple actualisation.
-- 4. Risque de fusion erronée de rencontres distinctes ayant des catégories/dates similaires.
+- 1. L'utilisation de `{ ...incoming, ...existing }` conservait aveuglément tous les anciens champs de `existing`, empêchant les mises à jour officielles FFBB (ex: nom de compétition, poule, ville).
+- 2. Lors de l'édition d'un match dans l'administration, les champs modifiés n'étaient pas comparés à leurs valeurs d'origine pour enregistrer les drapeaux de protection.
+- 3. Incompatibilité potentielle d'identifiant entre un ancien match avec `id: "ffbb-123"` et un nouveau match avec `ffbbMatchNumber: "FFBB-123"`.
 
 Comportement Après :
-- **Identification stricte par identifiant FFBB** : La fusion associe uniquement les rencontres partageant un identifiant officiel FFBB identique (`ffbbMatchNumber` ou `id` commençant par `ffbb-`). Les matchs amicaux/locaux (`isManualMatch` ou `id` local) ne sont jamais fusionnés par erreur avec un match FFBB.
-- **Mise à jour automatique des dates & horaires officiels** : Les modifications de date, heure, gymnase ou compétition publiées par la FFBB mettent à jour la rencontre localement, sauf si l'utilisateur a explicitement modifié le champ concerné (indicateurs `isDateManual`, `isTimeManual`, `isGymnasiumManual`).
-- **Protection des scores et résultats manuels** : Les scores saisis ou corrigés dans l'application reçoivent l'indicateur `isScoreManual: true`. En cas de re-synchronisation, les scores locaux manuels et les scores locaux en conflit sont intégralement préservés.
-- **Conservation des choix individuels `selectedForWeekend`** : Une simple actualisation FFBB ne modifie JAMAIS les coches individuelles `selectedForWeekend`. Seul l'appui explicite sur le bouton « Cocher cette période pour la TV » modifie globalement ces sélections.
-- **Gestion des nouveaux matchs et anti-doublons** : Les nouvelles rencontres FFBB sont ajoutées sans supprimer les anciennes rencontres locales. Deux synchronisations successives ne créent aucun doublon.
-- **Logique identique appliquée** : Fonctionnement homogène sur les tableaux des matchs et des résultats.
+- **Module partagé `src/utils/ffbbMergeUtils.ts`** :
+  - La fonction de fusion `mergeMatchItems` et la normalisation d'identifiant `normalizeFfbbNumber` / `getFfbbKey` sont isolées dans ce module et directement importées par `AdminPanel.tsx` et `scripts/test_ffbb_merge.ts`.
+- **Normalisation d'identifiant FFBB** :
+  - Les identifiants sous forme `id: "ffbb-123"`, `ffbbMatchNumber: "123"` ou `ffbbMatchNumber: "FFBB-123"` sont normalisés vers la même clé stable `ffbb-123`. Aucun doublon n'est généré.
+- **Actualisation réelle des champs officiels non modifiés** :
+  - L'objet fusionné part de `...incoming` (données FFBB à jour pour la compétition, poule, ville, équipes) et applique uniquement les surcharges et protections manuelles locales.
+- **Comparaison fine lors de l'édition manuelle** :
+  - Lors de l'enregistrement de l'édition d'un match (`editingMatch`), chaque champ (`date`, `time`, `gymnasium`, `homeScore`/`awayScore`/`status`/`result`) est comparé à sa valeur initiale `orig`. S'il est modifié, le drapeau correspondant (`isDateManual`, `isTimeManual`, `isGymnasiumManual`, `isScoreManual`) est automatiquement activé à `true`.
 
-Vérifications réellement effectuées (Script de test exécuté via `npx tsx scripts/test_ffbb_merge.ts`) :
-- **Test 1 (Horaire/Date FFBB déplacé)** : Match déplacé du samedi 03/10 18h au dimanche 04/10 15h30 -> Date et heure correctement mises à jour à 2026-10-04 15:30 (Succès ✅).
-- **Test 2 (Score corrigé manuellement)** : Match avec score manuel local 78-75 vs PV FFBB 70-75 -> Score local 78-75 et statut Victoire conservés (Succès ✅).
-- **Test 3 (Match amical local)** : Preservaion d'un match amical `match-m-999` lors de l'arrivée de nouveaux matchs FFBB -> Le match amical reste intact (Succès ✅).
-- **Test 4 (Sélection TV individuelle)** : Match décoché individuellement (`selectedForWeekend: false`) synchronisé à nouveau -> `selectedForWeekend: false` préservé (Succès ✅).
-- **Test 5 & 6 (Nouvelle rencontre & 2 synchros successives)** : Ajout d'un nouveau match FFBB puis seconde synchro immédiate -> Exactement 1 match présent, aucun doublon (Succès ✅).
+Vérifications réellement effectuées (Script automatisé exécuté via `npx tsx scripts/test_ffbb_merge.ts` — Code de retour 0) :
+- **Test 1 (Horaire/Date FFBB déplacé)** : Match déplacé au 04/10 à 15:30 -> Mis à jour avec succès (PASSED ✅).
+- **Test 2 (Score corrigé manuellement)** : Score local manuel 78-75 vs PV FFBB 70-75 -> Score local 78-75 conservé (PASSED ✅).
+- **Test 3 (Match amical local)** : Conservation du match amical `match-m-999` lors de l'arrivée de matchs FFBB (PASSED ✅).
+- **Test 4 (Sélection TV individuelle)** : Match décoché (`selectedForWeekend: false`) synchronisé à nouveau -> Statut `false` préservé (PASSED ✅).
+- **Test 5 (Anti-doublons lors de synchros répétées)** : Synchros successives -> Toujours 1 seul match, 0 doublon (PASSED ✅).
+- **Test 6 (Compatibilité anciens identifiants)** : Ancien match `id: "ffbb-123"` et nouveau match `ffbbMatchNumber: "FFBB-123"` fusionnés en 1 seul élément et nom de compétition actualisé (PASSED ✅).
+- **Test 7 (Modification officielle de compétition)** : Changement de compétition de "Pré-Nationale M" vers "Nationale 3 M" pris en compte automatiquement (PASSED ✅).
+- **Test 8 (Édition manuelle & drapeaux de protection)** : Modification manuelle de l'heure à 16:00 et du gymnase à "Salle Annexe" -> Valeurs manuellement éditées conservées lors des synchros suivantes, pendant que la compétition officielle non éditée est actualisée (PASSED ✅).
 
 
 4. SAUVEGARDE : SÉCURISATION CONTRE LES CONCURRENCES ET RETENTATIVES
 --------------------------------------------------------------------------------
 Comportement Avant :
-- En cas de retentative d'une sauvegarde automatique réseau ou d'un appel différé, celle-ci pouvait s'exécuter après un clic sur le bouton "Enregistrer", écrasant la sauvegarde récente avec des données obsolètes.
-- L'indicateur "Enregistré" pouvait s'afficher suite à la réponse d'une requête antérieure obsolète.
+- Une retentative d'auto-sauvegardes pouvait s'exécuter après un clic sur "Enregistrer" et écraser des données récentes.
 
 Comportement Après :
-- Un système de séquenceur unique par tentative de sauvegarde (`saveSeqRef`) a été mis en place dans `src/App.tsx`.
-- Chaque nouvelle tentative d'enregistrement (automatique ou manuelle) incrémente ce numéro de séquence.
-- Toute réponse HTTP ou retentative programmée issue d'une sauvegarde obsolète est immédiatement ignorée.
-- Le statut "Enregistré" s'affiche uniquement lorsque la toute dernière version des données a été confirmée par le serveur.
+- Système de séquenceur unique (`saveSeqRef`) annulant toute réponse ou retentative réseau obsolète.
 
 Vérifications effectuées :
-- Simulation de clics rapides sur "Enregistrer" et enchaînements d'auto-sauvegardes debouncées.
-- Validation du blocage des retentatives périmées et de la cohérence du statut de sauvegarde.
+- Simulation de clics rapides et validation du blocage des retentatives périmées.
 
 ================================================================================
