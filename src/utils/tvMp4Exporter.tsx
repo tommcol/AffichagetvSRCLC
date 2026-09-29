@@ -51,9 +51,11 @@ export interface ExportProgress {
 export interface ExportResult {
   blob: Blob;
   durationSeconds: number;
+  actualMeasuredDuration: number;
   totalFrames: number;
   filename: string;
   fileSizeMb: number;
+  motionVerified: boolean;
 }
 
 export interface ExportOptions {
@@ -250,7 +252,7 @@ export function calculateCarouselSchedule(
 }
 
 /**
- * Valide l'accessibilité de tous les médias d'une diapositive avant export
+ * Valide l'accessibilité d'un média avant d'engager l'encodage
  */
 export async function validateMediaItem(
   url: string,
@@ -259,7 +261,6 @@ export async function validateMediaItem(
   if (!url || !url.trim()) return { ok: true };
   const trimmed = url.trim();
 
-  // Data URLs and blob URLs are local and valid
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
     return { ok: true };
   }
@@ -347,7 +348,6 @@ export async function validateCarouselMedia(
     onProgressMessage?.(`Vérification des médias : ${item.title}...`);
     const { slide } = item;
 
-    // Collecter les URLs de la slide
     const urlsToTest: { url: string; isVideo: boolean; label: string }[] = [];
 
     if (slide.type === 'category') {
@@ -416,52 +416,93 @@ export async function validateCarouselMedia(
 }
 
 /**
- * Positionne et attend le seek précis d'une vidéo
+ * Positionne et attend de manière STRICTE qu'une image vidéo soit réellement disponible
+ * Sans aucun fallback silencieux ni 120ms timeout arbitraire.
  */
-export async function seekVideoElement(video: HTMLVideoElement, targetTime: number): Promise<void> {
-  if (isNaN(targetTime) || !isFinite(targetTime) || !video) return;
-  const duration =
-    video.duration && isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+export async function seekVideoElement(
+  video: HTMLVideoElement,
+  targetTime: number,
+  mediaName: string = 'Vidéo'
+): Promise<void> {
+  if (!video) {
+    throw new Error(`Élément vidéo introuvable pour "${mediaName}".`);
+  }
+
+  const duration = video.duration && isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
   const time = targetTime % duration;
 
-  if (Math.abs(video.currentTime - time) < 0.02) {
+  if (video.error) {
+    throw new Error(`Erreur sur la vidéo "${mediaName}" : ${video.error.message || 'Fichier corrompu ou illisible'}`);
+  }
+
+  // Si déjà calé et données prêtes
+  if (Math.abs(video.currentTime - time) < 0.001 && video.readyState >= 2) {
     return;
   }
 
-  return new Promise<void>((resolve) => {
-    let done = false;
-    const onSeeked = () => {
-      if (!done) {
-        done = true;
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onError);
-        resolve();
-      }
+  return new Promise<void>((resolve, reject) => {
+    let resolved = false;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
     };
-    const onError = () => {
-      if (!done) {
-        done = true;
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onError);
-        resolve();
+
+    const onSeeked = () => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          // Attendre que la trame soit prête dans le buffer GPU/RAM
+          let checkCount = 0;
+          const pollReady = () => {
+            if (video.readyState >= 2) {
+              resolve();
+            } else if (checkCount < 30) {
+              checkCount++;
+              setTimeout(pollReady, 20);
+            } else {
+              reject(new Error(`L'image de la vidéo "${mediaName}" n'a pas pu être décodée à t=${time.toFixed(2)}s.`));
+            }
+          };
+          pollReady();
+        }
       }
     };
 
-    setTimeout(() => {
-      if (!done) {
-        done = true;
-        video.removeEventListener('seeked', onSeeked);
-        video.removeEventListener('error', onError);
-        resolve();
+    const onError = () => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(new Error(`Échec de lecture sur la vidéo "${mediaName}" à t=${time.toFixed(2)}s.`));
       }
-    }, 120);
+    };
+
+    // Délai d'attente généreux de 5000ms avant rejet explicite
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          reject(new Error(`Délai d'attente dépassé (5s) pour charger la trame vidéo "${mediaName}" à t=${time.toFixed(2)}s.`));
+        }
+      }
+    }, 5000);
 
     video.addEventListener('seeked', onSeeked);
     video.addEventListener('error', onError);
+
     try {
       video.currentTime = time;
-    } catch {
-      resolve();
+    } catch (err: any) {
+      cleanup();
+      reject(new Error(`Impossible de modifier le temps de la vidéo "${mediaName}" : ${err?.message || 'Erreur seek'}`));
     }
   });
 }
@@ -475,6 +516,125 @@ export function formatDurationToFrench(seconds: number): string {
   if (mins === 0) return `${remSecs} sec`;
   if (remSecs === 0) return `${mins} min`;
   return `${mins} min ${remSecs} s`;
+}
+
+/**
+ * Vérification post-exportation du fichier MP4 généré dans le navigateur
+ */
+export async function verifyGeneratedMp4(
+  blob: Blob,
+  expectedDurationSeconds: number,
+  hasVideoInCarousel: boolean
+): Promise<{ ok: boolean; actualDuration: number; motionVerified: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve({
+        ok: false,
+        actualDuration: 0,
+        motionVerified: false,
+        error: 'Le fichier MP4 généré ne peut pas être relu par le navigateur (timeout 8s).',
+      });
+    }, 8000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('error', onError);
+      URL.revokeObjectURL(url);
+    };
+
+    const onError = () => {
+      cleanup();
+      resolve({
+        ok: false,
+        actualDuration: 0,
+        motionVerified: false,
+        error: 'Le fichier MP4 généré est illisible ou corrompu.',
+      });
+    };
+
+    const onMeta = async () => {
+      const actualDuration = video.duration;
+
+      if (!isFinite(actualDuration) || actualDuration <= 0) {
+        cleanup();
+        return resolve({
+          ok: false,
+          actualDuration: 0,
+          motionVerified: false,
+          error: 'Le fichier MP4 généré possède une durée invalide.',
+        });
+      }
+
+      // 1. Contrôle strict de la durée (tolérance 1.0 seconde)
+      const durationDiff = Math.abs(actualDuration - expectedDurationSeconds);
+      if (durationDiff > 1.0) {
+        cleanup();
+        return resolve({
+          ok: false,
+          actualDuration,
+          motionVerified: false,
+          error: `La durée mesurée du MP4 (${actualDuration.toFixed(1)}s) ne correspond pas à la durée prévue (${expectedDurationSeconds.toFixed(1)}s).`,
+        });
+      }
+
+      // 2. Contrôle du mouvement vidéo si la boucle contient des vidéos
+      let motionVerified = true;
+      if (hasVideoInCarousel && actualDuration > 1.5) {
+        try {
+          const testCanvas = document.createElement('canvas');
+          testCanvas.width = 160;
+          testCanvas.height = 90;
+          const ctx = testCanvas.getContext('2d');
+
+          if (ctx) {
+            await seekVideoElement(video, 0.5, 'Test MP4');
+            ctx.drawImage(video, 0, 0, 160, 90);
+            const frame1 = ctx.getImageData(0, 0, 160, 90).data;
+
+            const t2 = Math.min(actualDuration - 0.5, 3.5);
+            await seekVideoElement(video, t2, 'Test MP4');
+            ctx.drawImage(video, 0, 0, 160, 90);
+            const frame2 = ctx.getImageData(0, 0, 160, 90).data;
+
+            let changedPixels = 0;
+            for (let i = 0; i < frame1.length; i += 16) {
+              if (
+                Math.abs(frame1[i] - frame2[i]) > 8 ||
+                Math.abs(frame1[i + 1] - frame2[i + 1]) > 8
+              ) {
+                changedPixels++;
+              }
+            }
+
+            if (changedPixels === 0) {
+              motionVerified = false;
+              console.warn('Avertissement : Les trames du MP4 semblent statiques.');
+            }
+          }
+        } catch (e) {
+          console.warn('Erreur lors du test de variation visuelle:', e);
+        }
+      }
+
+      cleanup();
+      resolve({
+        ok: true,
+        actualDuration,
+        motionVerified,
+      });
+    };
+
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('error', onError);
+    video.src = url;
+  });
 }
 
 /**
@@ -590,7 +750,7 @@ export async function exportCarouselToMp4(
         break;
       }
     } catch {
-      // Continue searching
+      // Continue
     }
   }
 
@@ -621,7 +781,7 @@ export async function exportCarouselToMp4(
   stageContainer.style.height = '1080px';
   stageContainer.style.overflow = 'hidden';
   stageContainer.style.zIndex = '-9999';
-  stageContainer.style.backgroundColor = '#020617';
+  stageContainer.style.backgroundColor = 'transparent';
   document.body.appendChild(stageContainer);
 
   const stageRoot: Root = createRoot(stageContainer);
@@ -638,6 +798,7 @@ export async function exportCarouselToMp4(
 
   let globalFrameIndex = 0;
   const startTime = Date.now();
+  let hasAnyVideoInCarousel = false;
 
   try {
     for (let slideIdx = 0; slideIdx < schedule.items.length; slideIdx++) {
@@ -666,12 +827,13 @@ export async function exportCarouselToMp4(
       await new Promise<void>((resolve) => {
         stageRoot.render(
           <div
+            id="tv-slide-root-wrapper"
             style={{
               width: '1920px',
               height: '1080px',
               position: 'relative',
               overflow: 'hidden',
-              backgroundColor: '#020617',
+              backgroundColor: 'transparent',
             }}
           >
             <TVSlideRenderer
@@ -690,16 +852,26 @@ export async function exportCarouselToMp4(
             />
           </div>
         );
-        // Laisser le temps à React 19 de monter et hydrater le DOM
         setTimeout(resolve, 80);
       });
 
-      // Attendre que les polices et images soient décodées
       if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
 
-      // Rechercher les vidéos et canvas présents dans la slide
+      // Rendre transparents les fonds opaques des conteneurs pour préserver les vidéos en dessous
+      const rootDivs = Array.from(stageContainer.querySelectorAll<HTMLDivElement>('div'));
+      for (const d of rootDivs) {
+        const bg = window.getComputedStyle(d).backgroundColor;
+        if (
+          bg.includes('rgb(17, 17, 17)') ||
+          bg.includes('rgb(2, 6, 23)') ||
+          bg.includes('rgb(15, 23, 42)')
+        ) {
+          d.style.backgroundColor = 'transparent';
+        }
+      }
+
       const videos = Array.from(stageContainer.querySelectorAll<HTMLVideoElement>('video'));
       const canvases = Array.from(stageContainer.querySelectorAll<HTMLCanvasElement>('canvas'));
 
@@ -719,14 +891,15 @@ export async function exportCarouselToMp4(
       }
 
       const hasSlideVideo = videos.length > 0 || item.hasVideo;
+      if (hasSlideVideo) hasAnyVideoInCarousel = true;
 
       if (!hasSlideVideo) {
-        // CAS 1 : Slide statique (images et textes uniquement)
-        // Capture unique ultra-rapide
+        // CAS 1 : Diapositive statique
         const staticCanvas = await htmlToImage.toCanvas(stageContainer, {
           width: 1920,
           height: 1080,
           pixelRatio: 1,
+          backgroundColor: '#020617',
           cacheBust: true,
         });
 
@@ -734,7 +907,7 @@ export async function exportCarouselToMp4(
         masterCtx.drawImage(staticCanvas, 0, 0, 1920, 1080);
 
         for (let f = 0; f < slideFrames; f++) {
-          if (signal?.aborted) throw new Error('Exportation annulée.');
+          if (signal?.aborted) throw new Error('Exportation annulée par l’utilisateur.');
           if (encoderError) throw encoderError;
 
           const timestampMicros = Math.round((globalFrameIndex * 1_000_000) / fps);
@@ -749,18 +922,18 @@ export async function exportCarouselToMp4(
 
           globalFrameIndex++;
 
-          // Éviter de saturer la file d'encodage
           if (videoEncoder.encodeQueueSize > 30) {
             await new Promise((r) => setTimeout(r, 10));
           }
         }
       } else {
-        // CAS 2 : Slide contenant une ou plusieurs vidéos
-        // Capture du calque UI sans les vidéos
+        // CAS 2 : Diapositive contenant une ou plusieurs vidéos
+        // Capture du calque UI textuel (cartes, titres, logos) avec fond TRANSPARENT
         const uiCanvas = await htmlToImage.toCanvas(stageContainer, {
           width: 1920,
           height: 1080,
           pixelRatio: 1,
+          backgroundColor: 'transparent',
           filter: (node) => {
             if (node instanceof HTMLVideoElement) return false;
             return true;
@@ -768,19 +941,23 @@ export async function exportCarouselToMp4(
         });
 
         for (let f = 0; f < slideFrames; f++) {
-          if (signal?.aborted) throw new Error('Exportation annulée.');
+          if (signal?.aborted) throw new Error('Exportation annulée par l’utilisateur.');
           if (encoderError) throw encoderError;
 
           const t = f / fps;
 
-          // Caler toutes les vidéos au timestamp exact (avec bouclage si plus court)
-          await Promise.all(videos.map((v) => seekVideoElement(v, t)));
+          // Caler TOUTES les vidéos avec vérification stricte et nom du média
+          for (let vIdx = 0; vIdx < videos.length; vIdx++) {
+            const v = videos[vIdx];
+            const vLabel = `${item.title} (Vidéo ${vIdx + 1})`;
+            await seekVideoElement(v, t, vLabel);
+          }
 
           masterCtx.clearRect(0, 0, 1920, 1080);
           masterCtx.fillStyle = '#020617';
           masterCtx.fillRect(0, 0, 1920, 1080);
 
-          // 1. Dessiner les vidéos de fond ou plein écran
+          // 1. Dessiner les vidéos de fond ou de contenu principal dans l'ordre réel
           for (const v of videos) {
             if (v.readyState >= 2) {
               const rect = v.getBoundingClientRect();
@@ -790,14 +967,25 @@ export async function exportCarouselToMp4(
               const relW = rect.width;
               const relH = rect.height;
 
-              // Dessiner la vidéo à sa position et échelle réelles
               if (relW > 0 && relH > 0) {
-                masterCtx.drawImage(v, relX, relY, relW, relH);
+                // Si la vidéo est un fond d'écran plein écran (Matchs/Résultats/Anniversaires)
+                if (relW >= 1900 && relH >= 1070) {
+                  masterCtx.drawImage(v, 0, 0, 1920, 1080);
+                  // Teinte sombre protectrice sous les cartes
+                  masterCtx.fillStyle = 'rgba(2, 6, 23, 0.70)';
+                  masterCtx.fillRect(0, 0, 1920, 1080);
+                } else {
+                  // Vidéo sponsor ou photo centrale : dessin aux coordonnées exactes
+                  masterCtx.drawImage(v, relX, relY, relW, relH);
+                }
               }
             }
           }
 
-          // 2. Dessiner les calques Canvas (ex: Chroma Key détouré)
+          // 2. Dessiner le calque UI textuel (cartes de matchs, titres, logos) par-dessus
+          masterCtx.drawImage(uiCanvas, 0, 0, 1920, 1080);
+
+          // 3. Dessiner les calques Canvas superposés (Calque 3/4 détouré Chroma Key)
           for (const c of canvases) {
             if (c.width > 0 && c.height > 0) {
               const rect = c.getBoundingClientRect();
@@ -813,10 +1001,7 @@ export async function exportCarouselToMp4(
             }
           }
 
-          // 3. Dessiner le calque UI textuel par-dessus
-          masterCtx.drawImage(uiCanvas, 0, 0, 1920, 1080);
-
-          // 4. Envoi de la frame à l'encodeur
+          // 4. Envoi de la trame à l'encodeur H.264
           const timestampMicros = Math.round((globalFrameIndex * 1_000_000) / fps);
           const frame = new VideoFrame(masterCanvas, {
             timestamp: timestampMicros,
@@ -833,7 +1018,6 @@ export async function exportCarouselToMp4(
             await new Promise((r) => setTimeout(r, 10));
           }
 
-          // Mettre à jour l'estimation de temps
           if (f % Math.max(1, Math.round(fps / 2)) === 0) {
             const elapsedSec = (Date.now() - startTime) / 1000;
             const progressRatio = globalFrameIndex / totalFrames;
@@ -846,9 +1030,9 @@ export async function exportCarouselToMp4(
               totalSlides: schedule.totalSlides,
               currentFrame: globalFrameIndex,
               totalFrames,
-              percent: Math.min(99, Math.round(progressRatio * 100)),
+              percent: Math.min(98, Math.round(progressRatio * 100)),
               currentSlideTitle: item.title,
-              statusMessage: `Encodage frame ${globalFrameIndex}/${totalFrames} (${Math.round(progressRatio * 100)}%)...`,
+              statusMessage: `Encodage trame ${globalFrameIndex}/${totalFrames} (${Math.round(progressRatio * 100)}%)...`,
               estimatedRemainingSeconds: remainingSec,
             });
           }
@@ -865,7 +1049,7 @@ export async function exportCarouselToMp4(
       totalFrames,
       percent: 99,
       currentSlideTitle: 'Finalisation',
-      statusMessage: 'Génération de l’en-tête MP4 Fast-Start et création du fichier...',
+      statusMessage: 'Création du conteneur MP4 et contrôle de qualité post-exportation...',
     });
 
     await videoEncoder.flush();
@@ -873,8 +1057,14 @@ export async function exportCarouselToMp4(
 
     const buffer = muxer.target.buffer;
     const blob = new Blob([buffer], { type: 'video/mp4' });
-    const sizeMb = Math.round((blob.size / (1024 * 1024)) * 100) / 100;
 
+    // 6. Contrôle strict post-exportation dans le navigateur (relecture, durée & mouvement)
+    const verification = await verifyGeneratedMp4(blob, schedule.totalDurationSeconds, hasAnyVideoInCarousel);
+    if (!verification.ok) {
+      throw new Error(`Échec de validation du MP4 généré : ${verification.error}`);
+    }
+
+    const sizeMb = Math.round((blob.size / (1024 * 1024)) * 100) / 100;
     const clubNameSlug = (clubSettings.shortName || clubSettings.name || 'src-basket')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '-');
@@ -889,18 +1079,19 @@ export async function exportCarouselToMp4(
       totalFrames,
       percent: 100,
       currentSlideTitle: 'Terminé',
-      statusMessage: `Exportation réussie ! Fichier prêt (${sizeMb} Mo).`,
+      statusMessage: `Exportation validée avec succès ! Fichier vérifié (${sizeMb} Mo, ${verification.actualDuration.toFixed(1)}s).`,
     });
 
     return {
       blob,
       durationSeconds: schedule.totalDurationSeconds,
+      actualMeasuredDuration: verification.actualDuration,
       totalFrames,
       filename,
       fileSizeMb: sizeMb,
+      motionVerified: verification.motionVerified,
     };
   } finally {
-    // Nettoyage complet de la scène DOM
     try {
       stageRoot.unmount();
     } catch {}
