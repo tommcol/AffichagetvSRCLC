@@ -1,0 +1,74 @@
+================================================================================
+COMPTE RENDU DES CORRECTIONS ET AMÉLIORATIONS — AFFICHAGE TV SRC BASKET
+================================================================================
+
+1. SPONSORS : FRÉQUENCE PAR RANG & MODIFICATION DU RANG EXISTANT
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Tous les sponsors étaient insérés une seule fois dans le carrousel TV, peu importe leur rang (Gold, Silver, Bronze, Partenaire).
+- Il était impossible de modifier le rang d'un sponsor déjà créé dans l'interface d'administration.
+
+Comportement Après :
+- La fréquence par rang est désormais strictement appliquée dans la boucle TV :
+  • Bronze / Partenaire = 1 passage par boucle.
+  • Silver = 2 passages par boucle.
+  • Gold = 3 passages par boucle.
+- Les passages sont répartis dans la boucle de manière intercalée (par vagues de passage) sans jamais réafficher le même sponsor deux fois de suite.
+- Un sélecteur de rang (Gold, Silver, Bronze, Partenaire) est maintenant disponible directement sur chaque carte de sponsor dans la Banque Médias / Sponsors pour modifier à tout moment le rang d'un sponsor existant.
+
+Vérifications effectuées :
+- Tests de génération de la playlist `carouselPlaylist` avec plusieurs sponsors Gold, Silver et Bronze.
+- Vérification du bon espacement des passages et du respect des comptes de diffusion.
+- Validation de la modification dynamique du rang dans le panneau d'administration.
+
+
+2. SÉLECTION DES RÉSULTATS : GESTION DES RÉSULTATS COCHÉS / NON COCHÉS
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Si aucun résultat n'était coché pour la TV (ou tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats dans la boucle TV et la prévisualisation.
+
+Comportement Après :
+- Si aucun résultat n'est coché pour la TV, la diapositive des résultats est masquée et aucun résultat n'est affiché.
+- La diapositive affichée et l'export respectent fidèlement la liste des résultats cochés par l'utilisateur.
+
+Vérifications effectuées :
+- Suppression du fallback conditionnel (`activeResults.length > 0 ? activeResults : results`) dans `src/App.tsx` et `src/components/slides/TVSlideRenderer.tsx`.
+- Vérification que la liste diffusée reste rigoureusement synchrone avec les cases à cocher de l'administration.
+
+
+3. SYNCHRONISATION FFBB : PRESERVATION DES DONNÉES LOCALES & IDENTIFIANTS STABLES
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Lors d'une synchronisation FFBB, les données reçues écrasaient totalement les tableaux locaux de matchs et résultats, effaçant les rencontres saisies à la main, les scores personnalisés, les logos attribués et les choix de sélection TV.
+
+Comportement Après :
+- La fonction `handleSyncFFBB` utilise désormais une méthode de fusion intelligente basée sur des clés uniques et stables (`ffbbMatchNumber`, `id`, ou signature `catégorie + date + adversaire`).
+- Les informations officielles venant de la FFBB sont mises à jour sans écraser :
+  • Les choix de diffusion TV (`selectedForWeekend`) définis par l'utilisateur.
+  • Les scores et résultats saisis ou ajustés manuellement.
+  • Les rencontres locales/amicales hors calendrier FFBB.
+  • Les logos d'adversaires et gymnases personnalisés.
+- Le sélecteur de période du calendrier permet toujours de sélectionner / filtrer rapidement le week-end voulu.
+
+Vérifications effectuées :
+- Test de fusion avec données existantes modifiées localement et nouvelles données FFBB.
+- Vérification du maintien des matchs amicaux/locaux et de la sélection des week-ends.
+
+
+4. SAUVEGARDE : SÉCURISATION CONTRE LES CONCURRENCES ET RETENTATIVES
+--------------------------------------------------------------------------------
+Comportement Avant :
+- En cas de retentative d'une sauvegarde automatique réseau ou d'un appel différé, celle-ci pouvait s'exécuter après un clic sur le bouton "Enregistrer", écrasant la sauvegarde récente avec des données obsolètes.
+- L'indicateur "Enregistré" pouvait s'afficher suite à la réponse d'une requête antérieure obsolète.
+
+Comportement Après :
+- Un système de séquenceur unique par tentative de sauvegarde (`saveSeqRef`) a été mis en place dans `src/App.tsx`.
+- Chaque nouvelle tentative d'enregistrement (automatique ou manuelle) incrémente ce numéro de séquence.
+- Toute réponse HTTP ou retentative programmée issue d'une sauvegarde obsolète est immédiatement ignorée.
+- Le statut "Enregistré" s'affiche uniquement lorsque la toute dernière version des données a été confirmée par le serveur.
+
+Vérifications effectuées :
+- Simulation de clics rapides sur "Enregistrer" et enchaînements d'auto-sauvegardes debouncées.
+- Validation du blocage des retentatives périmées et de la cohérence du statut de sauvegarde.
+
+================================================================================

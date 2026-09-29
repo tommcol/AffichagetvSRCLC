@@ -165,7 +165,7 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
 
     if (slide.categoryId === 'results') {
       const activeResults = results.filter((r) => r.selectedForWeekend !== false);
-      const resultsToUse = activeResults.length > 0 ? activeResults : results;
+      const resultsToUse = activeResults;
       const filteredResults = slide.filterScope === 'home'
         ? resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
         : slide.filterScope === 'away'

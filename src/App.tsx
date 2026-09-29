@@ -309,12 +309,15 @@ export default function App() {
 
   // Enregistrement automatique (avec anti-rebond de 800ms) dès qu'une donnée change
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveSeqRef = useRef<number>(0);
+
   useEffect(() => {
     if (!dataChargee) return;
 
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
       setSaveStatus('saving');
+      const currentSeq = ++saveSeqRef.current;
       const payload = {
         data: {
           clubSettings,
@@ -341,21 +344,30 @@ export default function App() {
       } catch (e) {}
 
       const tenter = (estNouvelleTentative: boolean) => {
+        if (currentSeq !== saveSeqRef.current) return;
+
         fetch('/api/save-app-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
           .then(async (res) => {
+            if (currentSeq !== saveSeqRef.current) return;
             if (res.ok) {
               setSaveStatus('saved');
               setSaveErrorMessage('');
-              setTimeout(() => setSaveStatus('idle'), 2000);
+              setTimeout(() => {
+                if (currentSeq === saveSeqRef.current) {
+                  setSaveStatus('idle');
+                }
+              }, 2000);
             } else {
               const errJson = await res.json().catch(() => null);
               const msg = errJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`);
               if (!estNouvelleTentative) {
-                setTimeout(() => tenter(true), 3000);
+                setTimeout(() => {
+                  if (currentSeq === saveSeqRef.current) tenter(true);
+                }, 3000);
               } else {
                 setSaveStatus('error');
                 setSaveErrorMessage(msg);
@@ -364,8 +376,11 @@ export default function App() {
             }
           })
           .catch((err) => {
+            if (currentSeq !== saveSeqRef.current) return;
             if (!estNouvelleTentative) {
-              setTimeout(() => tenter(true), 3000);
+              setTimeout(() => {
+                if (currentSeq === saveSeqRef.current) tenter(true);
+              }, 3000);
             } else {
               setSaveStatus('error');
               setSaveErrorMessage('Connexion réseau interrompue');
@@ -399,6 +414,7 @@ export default function App() {
   const handleManualSave = useCallback(() => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaveStatus('saving');
+    const currentSeq = ++saveSeqRef.current;
     const payload = {
       data: {
         clubSettings,
@@ -429,10 +445,15 @@ export default function App() {
       body: JSON.stringify(payload),
     })
       .then(async (res) => {
+        if (currentSeq !== saveSeqRef.current) return;
         if (res.ok) {
           setSaveStatus('saved');
           setSaveErrorMessage('');
-          setTimeout(() => setSaveStatus('idle'), 2500);
+          setTimeout(() => {
+            if (currentSeq === saveSeqRef.current) {
+              setSaveStatus('idle');
+            }
+          }, 2500);
         } else {
           const errJson = await res.json().catch(() => null);
           const msg = errJson?.error || `Erreur serveur (${res.status})`;
@@ -441,6 +462,7 @@ export default function App() {
         }
       })
       .catch((err) => {
+        if (currentSeq !== saveSeqRef.current) return;
         setSaveStatus('error');
         setSaveErrorMessage('Connexion réseau interrompue');
         console.error("Échec de l'enregistrement des données :", err);
@@ -635,16 +657,35 @@ export default function App() {
     enabledCategories.forEach((cat) => {
       if (cat.id === 'sponsors') {
         if (sponsors.length > 0) {
-          pools['sponsors'] = sponsors.map((sp, idx) => ({
-            id: `cat-sponsors-${sp.id}`,
-            type: 'category' as const,
-            categoryId: 'sponsors',
-            sponsor: sp,
-            itemIndex: idx,
-            totalItems: sponsors.length,
-            durationSeconds: cat.durationSeconds,
-            label: `Sponsor: ${sp.name}`,
-          }));
+          const getPassCount = (tier?: string): number => {
+            if (tier === 'gold') return 3;
+            if (tier === 'silver') return 2;
+            return 1; // bronze or partenaire = 1 passage
+          };
+
+          const sponsorPasses: CarouselSlide[] = [];
+          const maxPasses = Math.max(1, ...sponsors.map((s) => getPassCount(s.tier)));
+
+          for (let pass = 0; pass < maxPasses; pass++) {
+            sponsors.forEach((sp, idx) => {
+              if (getPassCount(sp.tier) > pass) {
+                sponsorPasses.push({
+                  id: `cat-sponsors-${sp.id}-pass-${pass + 1}`,
+                  type: 'category' as const,
+                  categoryId: 'sponsors',
+                  sponsor: sp,
+                  itemIndex: idx,
+                  totalItems: sponsors.length,
+                  durationSeconds: cat.durationSeconds,
+                  label: `Sponsor: ${sp.name} (${(sp.tier || 'partenaire').toUpperCase()} - Passage ${pass + 1})`,
+                });
+              }
+            });
+          }
+
+          if (sponsorPasses.length > 0) {
+            pools['sponsors'] = sponsorPasses;
+          }
         }
       } else if (cat.id === 'photos') {
         if (photos.length > 0) {
@@ -823,7 +864,7 @@ export default function App() {
         }
       } else if (cat.id === 'results') {
         const activeResults = results.filter((r) => r.selectedForWeekend !== false);
-        const resultsToUse = activeResults.length > 0 ? activeResults : results;
+        const resultsToUse = activeResults;
 
         const sortMatches = (a: MatchItem, b: MatchItem) => {
           const dateA = a.date || '';

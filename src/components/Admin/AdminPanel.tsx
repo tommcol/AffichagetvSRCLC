@@ -1891,12 +1891,76 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         allSeasonMatches = applyLogos(allSeasonMatches);
         allSeasonResults = applyLogos(allSeasonResults);
 
-        onUpdateMatches(allSeasonMatches);
-        onUpdateResults(allSeasonResults);
+        // Helper de fusion intelligent conservant les données et choix locaux
+        const mergeMatchItems = (existingList: MatchItem[], incomingList: MatchItem[], hasDateFilter: boolean): MatchItem[] => {
+          const getMatchKey = (m: MatchItem) => {
+            if (m.ffbbMatchNumber) return `ffbb-${m.ffbbMatchNumber}`;
+            if (m.id && m.id.startsWith('ffbb-')) return m.id;
+            const cat = normalizeCategoryKey(m.category);
+            const opp = (m.isHomeMatch ? m.teamAway : m.teamHome).toLowerCase().trim();
+            return `local-${cat}-${m.date}-${opp}`;
+          };
+
+          const incomingMap = new Map<string, MatchItem>();
+          incomingList.forEach((inc) => {
+            incomingMap.set(getMatchKey(inc), inc);
+          });
+
+          const merged: MatchItem[] = [];
+          const processedKeys = new Set<string>();
+
+          // 1. Traiter d'abord les rencontres existantes pour conserver les réglages/modifications locales
+          existingList.forEach((existing) => {
+            const key = getMatchKey(existing);
+            processedKeys.add(key);
+
+            const incoming = incomingMap.get(key);
+            if (!incoming) {
+              // Rencontre saisie manuellement ou non retournée dans cette requête -> conserver intacte
+              merged.push(existing);
+            } else {
+              // Fusion : mettre à jour les données officielles FFBB en préservant les modifications et choix locaux
+              merged.push({
+                ...incoming,
+                ...existing, // préserve les modifications locales (logos, ville, gymnase, etc.)
+                date: existing.date || incoming.date,
+                time: (existing.time && existing.time !== 'Horaire à fixer') ? existing.time : incoming.time,
+                // Scores : préserver le score saisi manuellement si FFBB n'en fournit pas
+                homeScore: incoming.homeScore !== undefined ? incoming.homeScore : existing.homeScore,
+                awayScore: incoming.awayScore !== undefined ? incoming.awayScore : existing.awayScore,
+                result: incoming.result ?? existing.result,
+                status: incoming.status || existing.status,
+                // Choix de diffusion TV : conserver le choix explicite de l'utilisateur sauf si un filtre calendrier explicite est actif
+                selectedForWeekend: hasDateFilter
+                  ? incoming.selectedForWeekend
+                  : (existing.selectedForWeekend !== undefined ? existing.selectedForWeekend : incoming.selectedForWeekend),
+                opponentLogo: existing.opponentLogo || incoming.opponentLogo,
+                teamLogo: existing.teamLogo || incoming.teamLogo,
+                gymnasium: existing.gymnasium || incoming.gymnasium,
+              });
+            }
+          });
+
+          // 2. Ajouter les nouvelles rencontres FFBB qui n'existaient pas encore dans la liste locale
+          incomingList.forEach((inc) => {
+            const key = getMatchKey(inc);
+            if (!processedKeys.has(key)) {
+              merged.push(inc);
+            }
+          });
+
+          return merged;
+        };
+
+        const finalMatches = mergeMatchItems(matches, allSeasonMatches, Boolean(syncStartDate || syncEndDate));
+        const finalResults = mergeMatchItems(results, allSeasonResults, Boolean(resultsStartDate || resultsEndDate));
+
+        onUpdateMatches(finalMatches);
+        onUpdateResults(finalResults);
 
         // Si l'option d'auto-récupération des logos adverses est cochée, lancer la recherche en arrière-plan
         if (autoFetchOpponentLogos) {
-          handleFetchOpponentLogos(allSeasonMatches, allSeasonResults);
+          handleFetchOpponentLogos(finalMatches, finalResults);
         }
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
@@ -5183,7 +5247,21 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         )}
                       </div>
                       <h4 className="text-xs font-bold text-white truncate w-full">{sp.name}</h4>
-                      <span className="text-[10px] text-amber-400 font-bold uppercase">{sp.tier}</span>
+                      <div className="mt-1.5 w-full flex items-center justify-center">
+                        <select
+                          value={sp.tier || 'partenaire'}
+                          onChange={(e) => {
+                            const newTier = e.target.value as 'gold' | 'silver' | 'bronze' | 'partenaire';
+                            onUpdateSponsors(sponsors.map((item) => item.id === sp.id ? { ...item, tier: newTier } : item));
+                          }}
+                          className="bg-slate-900 border border-slate-700 text-amber-400 text-[10px] font-bold rounded-lg px-2 py-0.5 focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="gold">GOLD (3 passages)</option>
+                          <option value="silver">SILVER (2 passages)</option>
+                          <option value="bronze">BRONZE (1 passage)</option>
+                          <option value="partenaire">PARTENAIRE (1 passage)</option>
+                        </select>
+                      </div>
                       <button
                         onClick={() => onUpdateSponsors(sponsors.filter((item) => item.id !== sp.id))}
                         className="absolute top-1.5 right-1.5 p-1 rounded bg-red-600/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
