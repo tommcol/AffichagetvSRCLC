@@ -23,6 +23,16 @@
 ## Identité du club
 Sports Réunis Clayettois (SRC Basket), La Clayette, code FFBB BFC0071024, numéro d'organisme FFBB 9422.
 
+## Telegram — point mis de côté et suite prévue
+- **Saisie du token dans l'application** : la saisie du token dans l'application est reportée. Ne pas créer de champ pour saisir le token dans l'application.
+- **Secret Cloudflare** : le token est déjà enregistré dans Cloudflare comme secret `TELEGRAM_BOT_TOKEN` (section "Exécution"). Ne JAMAIS inscrire sa valeur dans le code, l'application, les journaux ou ce fichier.
+- **Fonctionnement côté serveur & interface** :
+  - Ajouter/maintenir dans l'application un bouton pour connecter et vérifier le bot en utilisant ce secret côté serveur (`/api/telegram/connect` et `/api/telegram/status`).
+  - L'utilisateur ne doit pas avoir à ressaisir le token ni à retourner dans Cloudflare pour connecter le webhook.
+  - Le serveur configure le webhook auprès de Telegram avec signature secrète (`secret_token`) et rejette (403) les messages non signés via `X-Telegram-Bot-Api-Secret-Token`.
+  - L'action de connexion/déconnexion est protégée par `ADMIN_PASSWORD`.
+
 ## Important pour toute IA qui reprend ce projet
 - Toujours vérifier ce fichier en le comparant à la structure réelle du projet avant de s'y fier aveuglément.
 - Le mot de passe admin se configure dans la section "Exécution" des variables Cloudflare, pas "Build" — c'est une source d'erreur fréquente.
+- Le secret Telegram `TELEGRAM_BOT_TOKEN` est également dans la section "Exécution" de Cloudflare et ne doit jamais être exposé.

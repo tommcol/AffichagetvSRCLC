@@ -170,4 +170,43 @@ Vérifications réellement effectuées :
 - Bancs de tests de régression FFBB (`test_ffbb_merge.ts`) et Anniversaires (`test_birthdays_persistence.ts`) passés à 100% (PASSED ✅).
 - Compilation TypeScript (`compile_applet`) et vérification du linter (`lint_applet` / `tsc --noEmit`) passées avec 0 erreur (PASSED ✅).
 
-================================================================================
+
+8. BOT TELEGRAM : CONFIGURATION DU WEBHOOK CÔTÉ SERVEUR & SÉCURISATION DU SECRET
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Le token du bot pouvait être manipulé dans des formulaires ou renvoyé de façon masquée (`substring(...)`).
+- L'activation du webhook Telegram n'était pas entièrement automatisée côté serveur.
+- Aucune vérification stricte de signature cryptographique n'assurait que les requêtes reçues sur `/api/telegram-webhook` provenaient obligatoirement de Telegram.
+
+Comportement Après :
+- **Sécurisation absolue du secret (`TELEGRAM_BOT_TOKEN`)** :
+  • Le token est lu exclusivement depuis l'environnement serveur Cloudflare (`env.TELEGRAM_BOT_TOKEN`, configuré dans Settings > Variables et secrets > section "Exécution").
+  • Aucun champ de saisie de token n'existe dans l'interface utilisateur.
+  • Le token n'est JAMAIS renvoyé, ni affiché, ni masqué dans les réponses API ou dans les vues HTML/JSON.
+- **Bouton « Connecter le bot » & Indicateur de connexion dans l'interface** :
+  • Ajout d'une carte dédiée « Liaison Serveur du Bot Telegram » dans l'onglet Bot Telegram de l'administration.
+  • **Indicateur de connexion temps réel** : pastille lumineuse verte pulsante « Bot connecté et opérationnel » avec nom d'utilisateur du bot (`@BotUsername`), nom, URL webhook active, statut de la signature secrète et nombre de messages en attente. Si non connecté, badge ambre avec guidage pas à pas.
+  • **Bouton « Connecter le bot »** : déclenche la route sécurisée `/api/telegram/connect` pour associer automatiquement le webhook auprès des serveurs de Telegram.
+  • **Bouton « Déconnecter le bot » & « Actualiser »** : permet la révocation propre du webhook et le rafraîchissement d'état en direct.
+- **Protection de l'action (`ADMIN_PASSWORD`)** :
+  • Les actions `/api/telegram/connect` et `/api/telegram/disconnect` sont protégées par le mot de passe administrateur (`env.ADMIN_PASSWORD`). Si requis, l'interface affiche une invite sécurisée invitant à saisir le mot de passe avant d'exécuter la connexion.
+- **Vérification cryptographique de provenance des messages Telegram** :
+  • Lors du `setWebhook`, un jeton secret déterministe SHA-256 (`secret_token`) est transmis à l'API Telegram.
+  • À chaque message reçu sur `/api/telegram-webhook`, le serveur vérifie la présence et la stricte égalité du header HTTP `X-Telegram-Bot-Api-Secret-Token`.
+  • Toute requête non certifiée par ce jeton secret est immédiatement rejetée avec une réponse HTTP 403 Forbidden.
+- **Simulation et tests conservés** :
+  • Le simulateur de messages en direct et les 3 étapes d'aide sont enrichis pour guider l'administrateur sans aucune ambiguïté.
+
+Vérifications réellement effectuées :
+- Exécution du banc de tests automatisé (`npx tsx scripts/test_telegram_webhook.ts` — Code de retour 0) :
+  • Test 1 : Calcul déterministe du jeton secret SHA-256 conforme aux exigences Telegram (PASSED ✅).
+  • Test 2 : Rejet 403 des requêtes sans header valide ou avec fausse signature (PASSED ✅).
+  • Test 3 : Audit de `worker/index.ts` : secret lu depuis env, vérification `X-Telegram-Bot-Api-Secret-Token`, protection `ADMIN_PASSWORD`, aucune fuite de token (PASSED ✅).
+  • Test 4 : Audit de `server.ts` : cohérence exacte avec Cloudflare et non-exposition du secret (PASSED ✅).
+  • Test 5 : Audit de `AdminPanel.tsx` : présence du bouton « Connecter le bot », indicateur de statut, 0 champ de saisie de token (PASSED ✅).
+- Bancs de tests de régression FFBB (`test_ffbb_merge.ts`), Anniversaires (`test_birthdays_persistence.ts`) et Titres carrousel (`test_titles_split_all.ts`) validés à 100% (PASSED ✅).
+- Linter (`npm run lint` / `tsc --noEmit`) : 0 erreur (PASSED ✅).
+- Compilation finale (`npm run build`) : réussite totale (PASSED ✅).
+
+================================================================
+================

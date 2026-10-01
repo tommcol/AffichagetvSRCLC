@@ -31,7 +31,9 @@ export default {
       if (path === '/api/delete-alert' || path.startsWith('/api/alerts/')) return await deleteAlert(request, env);
       if (path === '/api/telegram-webhook') return await telegramWebhook(request, env);
       if (path === '/api/telegram/test') return await telegramTest(request, env);
-      if (path === '/api/telegram/config') return await telegramConfig(request, env);
+      if (path === '/api/telegram/config' || path === '/api/telegram/status') return await telegramConfig(request, env);
+      if (path === '/api/telegram/connect') return await telegramConnect(request, env);
+      if (path === '/api/telegram/disconnect') return await telegramDisconnect(request, env);
       if (path === '/api/ffbb/matches') return await ffbbMatches(request);
       if (path === '/api/ffbb/search') return await ffbbSearch(request);
       if (path === '/api/generate-caption') return await generateCaption(request, env);
@@ -497,7 +499,45 @@ async function deleteAlert(request: Request, env: Env): Promise<Response> {
   }
 }
 
+/**
+ * Calcule de façon déterministe un jeton secret de signature pour le webhook Telegram.
+ * Telegram envoie ce jeton dans le header HTTP 'X-Telegram-Bot-Api-Secret-Token' à chaque requête.
+ * Seules les requêtes présentant exactement ce jeton secret sont acceptées.
+ */
+async function getTelegramSecretToken(botToken: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(botToken.trim() + ':src-basket-telegram-secret');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function telegramWebhook(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Méthode non autorisée', { status: 405 });
+  }
+
+  const botToken = env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!botToken) {
+    return new Response(JSON.stringify({ error: 'TELEGRAM_BOT_TOKEN non configuré' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Vérification de sécurité : le message doit impérativement provenir de Telegram
+  // via le header X-Telegram-Bot-Api-Secret-Token convenu lors du setWebhook
+  const expectedSecret = await getTelegramSecretToken(botToken);
+  const incomingSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+
+  if (!incomingSecret || incomingSecret !== expectedSecret) {
+    console.warn('[TELEGRAM WEBHOOK] Rejet 403 : Requête non signée par Telegram ou jeton secret invalide');
+    return new Response(JSON.stringify({ error: 'Non autorisé: webhook non certifié par Telegram' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const update = (await request.json().catch(() => null)) as any;
     const message = update?.message || update?.channel_post;
@@ -514,6 +554,7 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const durationMs = 60 * 60 * 1000; // 1 heure
 
     let customImg: string | undefined = undefined;
+    let customTitleConfig = undefined;
     try {
       const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
       if (appDataRaw) {
@@ -560,8 +601,7 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
 
     // Reply back on Telegram if token is set
-    const botToken = env.TELEGRAM_BOT_TOKEN;
-    if (botToken && chatId) {
+    if (chatId) {
       const outcomeText = newAlert.isWin ? '🏆 VICTOIRE' : '🏀 DÉFAITE';
       const scoreText = newAlert.ourScore !== undefined && newAlert.opponentScore !== undefined
         ? ` (${newAlert.ourScore} - ${newAlert.opponentScore})`
@@ -662,22 +702,217 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
   );
 }
 
-async function telegramConfig(request: Request, env: Env): Promise<Response> {
-  const hasEnvToken = Boolean(env.TELEGRAM_BOT_TOKEN);
-  if (request.method === 'POST') {
-    return new Response(JSON.stringify({ success: true, configured: hasEnvToken }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+/**
+ * Configure le webhook Telegram côté serveur avec le secret TELEGRAM_BOT_TOKEN
+ * Protégé contre les requêtes non autorisées, ne renvoie JAMAIS la valeur du token.
+ */
+async function telegramConnect(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Méthode non autorisée', { status: 405 });
   }
+
+  // Protection de l'action : vérification du mot de passe admin si configuré dans env
+  const authHeader = request.headers.get('x-admin-password') || request.headers.get('authorization')?.replace('Bearer ', '');
+  if (env.ADMIN_PASSWORD && authHeader !== env.ADMIN_PASSWORD) {
+    const body = (await request.clone().json().catch(() => null)) as any;
+    if (body?.adminPassword !== env.ADMIN_PASSWORD) {
+      return new Response(JSON.stringify({ error: 'Action protégée : mot de passe administrateur requis ou invalide' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  const botToken = env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!botToken) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Le secret TELEGRAM_BOT_TOKEN n'est pas configuré dans Cloudflare (Settings > Variables et secrets > Exécution).",
+      }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    const url = new URL(request.url);
+    const body = (await request.json().catch(() => null)) as any;
+
+    let webhookUrl = `https://${url.host}/api/telegram-webhook`;
+    if (body?.customDomain) {
+      const cleanDomain = String(body.customDomain).trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (cleanDomain) webhookUrl = `https://${cleanDomain}/api/telegram-webhook`;
+    }
+
+    const secretToken = await getTelegramSecretToken(botToken);
+
+    // 1. Enregistrement du webhook auprès de Telegram avec le jeton secret
+    const tgWebhookRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        secret_token: secretToken,
+        allowed_updates: ['message', 'channel_post'],
+        drop_pending_updates: false,
+      }),
+    });
+
+    const tgWebhookData = (await tgWebhookRes.json().catch(() => null)) as any;
+
+    if (!tgWebhookData || !tgWebhookData.ok) {
+      const errDescription = tgWebhookData?.description || `Erreur Telegram HTTP ${tgWebhookRes.status}`;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Échec de l'enregistrement auprès de Telegram : ${errDescription}`,
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Récupération des informations sur le bot (getMe)
+    const getMeRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).catch(() => null);
+    const getMeData = (await getMeRes?.json().catch(() => null)) as any;
+    const botUsername = getMeData?.result?.username || null;
+    const botName = getMeData?.result?.first_name || null;
+
+    try {
+      await env.AFFICHAGE_KV.put(
+        'telegram-bot-info',
+        JSON.stringify({
+          connected: true,
+          webhookUrl,
+          botUsername,
+          botName,
+          connectedAt: Date.now(),
+        })
+      );
+    } catch (e) {}
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        connected: true,
+        webhookUrl,
+        botUsername,
+        botName,
+        message: 'Bot Telegram connecté avec succès ! Webhook sécurisé par signature secrète.',
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Erreur interne lors de la connexion : ${err.message}`,
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+/**
+ * Déconnecte le webhook Telegram côté serveur
+ */
+async function telegramDisconnect(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Méthode non autorisée', { status: 405 });
+  }
+
+  // Protection de l'action
+  const authHeader = request.headers.get('x-admin-password') || request.headers.get('authorization')?.replace('Bearer ', '');
+  if (env.ADMIN_PASSWORD && authHeader !== env.ADMIN_PASSWORD) {
+    const body = (await request.clone().json().catch(() => null)) as any;
+    if (body?.adminPassword !== env.ADMIN_PASSWORD) {
+      return new Response(JSON.stringify({ error: 'Action protégée : mot de passe administrateur requis ou invalide' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
+  const botToken = env.TELEGRAM_BOT_TOKEN?.trim();
+  if (botToken) {
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook`);
+    } catch (e) {}
+  }
+
+  try {
+    await env.AFFICHAGE_KV.delete('telegram-bot-info');
+  } catch (e) {}
+
   return new Response(
     JSON.stringify({
-      configured: hasEnvToken,
-      hasBotToken: hasEnvToken,
-      botTokenMasked: hasEnvToken ? 'Configuré via variables Cloudflare' : '',
+      success: true,
+      connected: false,
+      message: 'Webhook Telegram déconnecté avec succès.',
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
+}
+
+/**
+ * Renvoie l'état de connexion du bot sans JAMAIS exposer le secret TELEGRAM_BOT_TOKEN.
+ */
+async function telegramConfig(request: Request, env: Env): Promise<Response> {
+  if (request.method === 'POST') {
+    return await telegramConnect(request, env);
+  }
+
+  const hasEnvToken = Boolean(env.TELEGRAM_BOT_TOKEN?.trim());
+  if (!hasEnvToken) {
+    return new Response(
+      JSON.stringify({
+        hasSecretToken: false,
+        connected: false,
+        message: "Secret TELEGRAM_BOT_TOKEN non configuré dans Cloudflare",
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const botToken = env.TELEGRAM_BOT_TOKEN!.trim();
+
+  try {
+    const [webhookRes, getMeRes] = await Promise.all([
+      fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`).catch(() => null),
+      fetch(`https://api.telegram.org/bot${botToken}/getMe`).catch(() => null),
+    ]);
+
+    const webhookData = (await webhookRes?.json().catch(() => null)) as any;
+    const meData = (await getMeRes?.json().catch(() => null)) as any;
+
+    const isConnected = Boolean(webhookData?.ok && webhookData?.result?.url && webhookData.result.url.length > 0);
+    const webhookUrl = webhookData?.result?.url || null;
+    const botUsername = meData?.result?.username || null;
+    const botName = meData?.result?.first_name || null;
+    const lastError = webhookData?.result?.last_error_message || null;
+    const pendingUpdateCount = webhookData?.result?.pending_update_count || 0;
+
+    return new Response(
+      JSON.stringify({
+        hasSecretToken: true,
+        connected: isConnected,
+        webhookUrl,
+        botUsername,
+        botName,
+        lastError,
+        pendingUpdateCount,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({
+        hasSecretToken: true,
+        connected: false,
+        error: "Impossible d'interroger les serveurs Telegram",
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 }
 
 // ============================================================

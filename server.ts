@@ -61,10 +61,21 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 
 // In-memory active alerts (injected into the TV loop for 1 hour)
 let activeAlerts: ActiveMatchAlert[] = [];
-let telegramConfig = {
-  botToken: process.env.TELEGRAM_BOT_TOKEN || "",
-  allowedChatIds: [] as string[],
-};
+let localTelegramBotInfo: {
+  connected: boolean;
+  webhookUrl?: string;
+  botUsername?: string;
+  botName?: string;
+  connectedAt?: number;
+} | null = null;
+
+async function getTelegramSecretToken(botToken: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(botToken.trim() + ':src-basket-telegram-secret');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // Periodic cleanup of expired alerts (> 1 hour)
 function cleanExpiredAlerts() {
@@ -350,6 +361,19 @@ app.all(["/api/alerts/:id", "/api/delete-alert", "/.netlify/functions/delete-ale
 // 5. Telegram Webhook (Receives messages from Telegram Bot)
 app.post("/api/telegram-webhook", async (req, res) => {
   try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    if (!botToken) {
+      return res.status(500).json({ error: "TELEGRAM_BOT_TOKEN non configuré" });
+    }
+
+    // Sécurité : le message doit impérativement provenir de Telegram via le header secret
+    const expectedSecret = await getTelegramSecretToken(botToken);
+    const incomingSecret = (req.headers["x-telegram-bot-api-secret-token"] as string | undefined) || "";
+    if (!incomingSecret || incomingSecret !== expectedSecret) {
+      console.warn("[TELEGRAM WEBHOOK] Rejet 403 : Requête non signée par Telegram ou jeton secret invalide");
+      return res.status(403).json({ error: "Non autorisé: webhook non certifié par Telegram" });
+    }
+
     const update = req.body;
     const message = update?.message || update?.channel_post;
 
@@ -382,7 +406,6 @@ app.post("/api/telegram-webhook", async (req, res) => {
     cleanExpiredAlerts();
 
     // Reply back on Telegram if token is set
-    const botToken = telegramConfig.botToken || process.env.TELEGRAM_BOT_TOKEN;
     if (botToken && chatId) {
       const outcomeText = newAlert.isWin ? "🏆 VICTOIRE" : "🏀 DÉFAITE";
       const scoreText = newAlert.ourScore !== undefined && newAlert.opponentScore !== undefined
@@ -445,24 +468,151 @@ app.post("/api/telegram/test", (req, res) => {
   });
 });
 
-// 7. Telegram Bot Config
-app.get("/api/telegram/config", (req, res) => {
-  const hasEnvToken = Boolean(process.env.TELEGRAM_BOT_TOKEN);
-  res.json({
-    configured: Boolean(telegramConfig.botToken || hasEnvToken),
-    hasBotToken: Boolean(telegramConfig.botToken || hasEnvToken),
-    botTokenMasked: telegramConfig.botToken
-      ? telegramConfig.botToken.substring(0, 5) + "..." + telegramConfig.botToken.slice(-4)
-      : hasEnvToken ? "Configuré via .env" : "",
-  });
+// 7. Telegram Bot Status / Config (Never exposes token)
+const handleTelegramStatus = async (req: express.Request, res: express.Response) => {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!botToken) {
+    return res.json({
+      hasSecretToken: false,
+      connected: false,
+      message: "Secret TELEGRAM_BOT_TOKEN non configuré sur le serveur",
+    });
+  }
+
+  try {
+    const [webhookRes, getMeRes] = await Promise.all([
+      fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`).catch(() => null),
+      fetch(`https://api.telegram.org/bot${botToken}/getMe`).catch(() => null),
+    ]);
+
+    const webhookData = (await webhookRes?.json().catch(() => null)) as any;
+    const meData = (await getMeRes?.json().catch(() => null)) as any;
+
+    const isConnected = Boolean(webhookData?.ok && webhookData?.result?.url && webhookData.result.url.length > 0);
+    const webhookUrl = webhookData?.result?.url || localTelegramBotInfo?.webhookUrl || null;
+    const botUsername = meData?.result?.username || localTelegramBotInfo?.botUsername || null;
+    const botName = meData?.result?.first_name || localTelegramBotInfo?.botName || null;
+    const lastError = webhookData?.result?.last_error_message || null;
+    const pendingUpdateCount = webhookData?.result?.pending_update_count || 0;
+
+    return res.json({
+      hasSecretToken: true,
+      connected: isConnected,
+      webhookUrl,
+      botUsername,
+      botName,
+      lastError,
+      pendingUpdateCount,
+    });
+  } catch (e: any) {
+    return res.json({
+      hasSecretToken: true,
+      connected: localTelegramBotInfo?.connected || false,
+      webhookUrl: localTelegramBotInfo?.webhookUrl || null,
+      botUsername: localTelegramBotInfo?.botUsername || null,
+      botName: localTelegramBotInfo?.botName || null,
+    });
+  }
+};
+
+app.get("/api/telegram/status", handleTelegramStatus);
+app.get("/api/telegram/config", handleTelegramStatus);
+
+// 8. Connect Telegram Bot (Protected action, sets webhook with secret_token)
+app.post("/api/telegram/connect", async (req, res) => {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const authHeader = (req.headers["x-admin-password"] as string | undefined) || req.headers["authorization"]?.replace("Bearer ", "");
+  if (adminPassword && authHeader !== adminPassword && req.body?.adminPassword !== adminPassword) {
+    return res.status(401).json({ error: "Action protégée : mot de passe administrateur requis ou invalide" });
+  }
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!botToken) {
+    return res.status(400).json({
+      success: false,
+      error: "Le secret TELEGRAM_BOT_TOKEN n'est pas configuré sur le serveur.",
+    });
+  }
+
+  try {
+    let webhookUrl = `https://${req.get("host")}/api/telegram-webhook`;
+    if (req.body?.customDomain) {
+      const cleanDomain = String(req.body.customDomain).trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      if (cleanDomain) webhookUrl = `https://${cleanDomain}/api/telegram-webhook`;
+    }
+
+    const secretToken = await getTelegramSecretToken(botToken);
+
+    const tgWebhookRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: webhookUrl,
+        secret_token: secretToken,
+        allowed_updates: ["message", "channel_post"],
+        drop_pending_updates: false,
+      }),
+    });
+
+    const tgWebhookData = (await tgWebhookRes.json().catch(() => null)) as any;
+    if (!tgWebhookData || !tgWebhookData.ok) {
+      const errDescription = tgWebhookData?.description || `Erreur HTTP ${tgWebhookRes.status}`;
+      return res.status(400).json({
+        success: false,
+        error: `Échec de l'enregistrement auprès de Telegram : ${errDescription}`,
+      });
+    }
+
+    const getMeRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`).catch(() => null);
+    const getMeData = (await getMeRes?.json().catch(() => null)) as any;
+    const botUsername = getMeData?.result?.username || null;
+    const botName = getMeData?.result?.first_name || null;
+
+    localTelegramBotInfo = {
+      connected: true,
+      webhookUrl,
+      botUsername,
+      botName,
+      connectedAt: Date.now(),
+    };
+
+    return res.json({
+      success: true,
+      connected: true,
+      webhookUrl,
+      botUsername,
+      botName,
+      message: "Bot Telegram connecté avec succès ! Webhook sécurisé par signature secrète.",
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: `Erreur interne lors de la connexion : ${err.message}`,
+    });
+  }
 });
 
-app.post("/api/telegram/config", (req, res) => {
-  const { botToken } = req.body;
-  if (botToken !== undefined) {
-    telegramConfig.botToken = botToken.trim();
+// 9. Disconnect Telegram Bot (Protected action)
+app.post("/api/telegram/disconnect", async (req, res) => {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const authHeader = (req.headers["x-admin-password"] as string | undefined) || req.headers["authorization"]?.replace("Bearer ", "");
+  if (adminPassword && authHeader !== adminPassword && req.body?.adminPassword !== adminPassword) {
+    return res.status(401).json({ error: "Action protégée : mot de passe administrateur requis ou invalide" });
   }
-  res.json({ success: true, configured: Boolean(telegramConfig.botToken) });
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (botToken) {
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook`);
+    } catch (e) {}
+  }
+
+  localTelegramBotInfo = null;
+  return res.json({
+    success: true,
+    connected: false,
+    message: "Webhook Telegram déconnecté avec succès.",
+  });
 });
 
 // 8. Social Media Bridge Webhook / Dispatcher (Instagram, TikTok, Facebook gateway)

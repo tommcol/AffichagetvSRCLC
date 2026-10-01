@@ -57,6 +57,10 @@ import {
   AlignCenter,
   AlignRight,
   Move,
+  Link,
+  Unlink,
+  Lock,
+  Radio,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -485,12 +489,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return DEFAULT_REAL_FFBB_TEAMS;
   });
 
+  // Telegram Bot State
+  const [telegramStatus, setTelegramStatus] = useState<{
+    hasSecretToken: boolean;
+    connected: boolean;
+    webhookUrl?: string | null;
+    botUsername?: string | null;
+    botName?: string | null;
+    lastError?: string | null;
+    pendingUpdateCount?: number;
+    message?: string;
+  } | null>(null);
+  const [telegramStatusLoading, setTelegramStatusLoading] = useState<boolean>(false);
+  const [telegramConnecting, setTelegramConnecting] = useState<boolean>(false);
+  const [telegramDisconnecting, setTelegramDisconnecting] = useState<boolean>(false);
+  const [telegramActionMsg, setTelegramActionMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [adminPasswordPrompt, setAdminPasswordPrompt] = useState<boolean>(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
+  const [savedAdminPassword, setSavedAdminPassword] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem('src_admin_password') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
   // Telegram Simulator State
   const [telegramSimText, setTelegramSimText] = useState<string>('Victoire Seniors 1 82-74');
   const [telegramSimResponse, setTelegramSimResponse] = useState<string | null>(null);
   const [telegramSimLoading, setTelegramSimLoading] = useState<boolean>(false);
   const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
-  const [telegramBotToken, setTelegramBotToken] = useState<string>('');
 
   // Excel & Birthday parsing/editing state
   const [isParsingExcel, setIsParsingExcel] = useState<boolean>(false);
@@ -1673,6 +1701,138 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setTimeout(() => setCopiedWebhook(false), 2500);
   };
 
+  // Telegram Bot Operations
+  const fetchTelegramStatus = async () => {
+    setTelegramStatusLoading(true);
+    try {
+      const res = await fetch('/api/telegram/status');
+      if (res.ok) {
+        const data = await res.json();
+        setTelegramStatus(data);
+      }
+    } catch (err) {
+      console.error('Erreur chargement statut Telegram:', err);
+    } finally {
+      setTelegramStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'telegram') {
+      fetchTelegramStatus();
+    }
+  }, [activeTab]);
+
+  const handleConnectTelegram = async (customPassword?: string) => {
+    setTelegramConnecting(true);
+    setTelegramActionMsg(null);
+    const passwordToSend = customPassword !== undefined ? customPassword : savedAdminPassword;
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (passwordToSend) {
+        headers['x-admin-password'] = passwordToSend;
+      }
+
+      const res = await fetch('/api/telegram/connect', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          adminPassword: passwordToSend,
+          customDomain: typeof window !== 'undefined' ? window.location.host : undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 401) {
+        setAdminPasswordPrompt(true);
+        setTelegramActionMsg({
+          type: 'error',
+          text: data.error || 'Action protégée : mot de passe administrateur requis pour connecter le bot.',
+        });
+        return;
+      }
+
+      if (data.success && data.connected) {
+        if (passwordToSend) {
+          setSavedAdminPassword(passwordToSend);
+          try { sessionStorage.setItem('src_admin_password', passwordToSend); } catch (e) {}
+        }
+        setAdminPasswordPrompt(false);
+        setAdminPasswordInput('');
+        setTelegramActionMsg({
+          type: 'success',
+          text: `Bot connecté avec succès ! (@${data.botUsername || 'bot'}). Le webhook est configuré et sécurisé par signature secrète.`,
+        });
+        await fetchTelegramStatus();
+      } else {
+        setTelegramActionMsg({
+          type: 'error',
+          text: data.error || 'Échec de la connexion du bot Telegram.',
+        });
+      }
+    } catch (err: any) {
+      setTelegramActionMsg({
+        type: 'error',
+        text: `Erreur de connexion : ${err.message || 'serveur inaccessible'}`,
+      });
+    } finally {
+      setTelegramConnecting(false);
+    }
+  };
+
+  const handleDisconnectTelegram = async () => {
+    if (!confirm('Voulez-vous vraiment déconnecter le webhook Telegram ? Le bot ne recevra plus les alertes de victoires / défaites en direct.')) {
+      return;
+    }
+    setTelegramDisconnecting(true);
+    setTelegramActionMsg(null);
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (savedAdminPassword) {
+        headers['x-admin-password'] = savedAdminPassword;
+      }
+
+      const res = await fetch('/api/telegram/disconnect', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ adminPassword: savedAdminPassword }),
+      });
+
+      const data = await res.json();
+      if (res.status === 401) {
+        setAdminPasswordPrompt(true);
+        setTelegramActionMsg({
+          type: 'error',
+          text: data.error || 'Action protégée : mot de passe administrateur requis.',
+        });
+        return;
+      }
+
+      if (data.success) {
+        setTelegramActionMsg({
+          type: 'info',
+          text: 'Webhook Telegram déconnecté avec succès.',
+        });
+        await fetchTelegramStatus();
+      } else {
+        setTelegramActionMsg({
+          type: 'error',
+          text: data.error || 'Erreur lors de la déconnexion.',
+        });
+      }
+    } catch (err: any) {
+      setTelegramActionMsg({
+        type: 'error',
+        text: `Erreur : ${err.message || 'serveur inaccessible'}`,
+      });
+    } finally {
+      setTelegramDisconnecting(false);
+    }
+  };
+
   const setFilterToCurrentWeekend = () => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -2772,6 +2932,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             >
               <Bot className="w-4 h-4 text-sky-400" />
               <span>Bot Telegram</span>
+              {telegramStatus?.connected && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" title="Bot connecté" />
+              )}
             </button>
 
             <button
@@ -6652,6 +6815,237 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </p>
               </div>
 
+              {/* Telegram Connection & Status Card */}
+              <div className="bg-slate-950 border border-slate-800 p-6 rounded-3xl space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                      <Bot className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-white font-bebas tracking-wide flex items-center gap-2">
+                        <span>LIAISON SERVEUR DU BOT TELEGRAM</span>
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Gestion sécurisée du webhook sans divulgation du secret TELEGRAM_BOT_TOKEN
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Connection indicator */}
+                  <div className="flex items-center gap-2">
+                    {telegramStatusLoading ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-xs font-bold text-slate-300">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                        <span>Vérification du statut...</span>
+                      </div>
+                    ) : telegramStatus?.connected ? (
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-xs font-bold text-emerald-300 shadow-md shadow-emerald-500/10">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span>Bot connecté et opérationnel</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-bold text-amber-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span>Bot non connecté</span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={fetchTelegramStatus}
+                      disabled={telegramStatusLoading}
+                      title="Actualiser le statut auprès de Telegram"
+                      className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${telegramStatusLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status details / Informational feedback */}
+                {telegramStatus?.connected ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        Identifiant du Bot
+                      </div>
+                      <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <Bot className="w-4 h-4 text-sky-400" />
+                        <span>@{telegramStatus.botUsername || 'SRC Bot'}</span>
+                      </div>
+                      {telegramStatus.botName && (
+                        <div className="text-xs text-slate-400 mt-0.5">{telegramStatus.botName}</div>
+                      )}
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        Sécurité des Requêtes
+                      </div>
+                      <div className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Signature Secrète Active</span>
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        Certifié par X-Telegram-Bot-Api-Secret-Token
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        Mises à jour en attente
+                      </div>
+                      <div className="text-sm font-bold text-white">
+                        {telegramStatus.pendingUpdateCount ?? 0} message(s)
+                      </div>
+                      <div className="text-xs text-emerald-400/80 mt-0.5">
+                        Prêt à recevoir les victoires/défaites
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 space-y-2">
+                    {telegramStatus?.hasSecretToken ? (
+                      <p className="flex items-center gap-2 text-slate-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          Le secret <code>TELEGRAM_BOT_TOKEN</code> est bien configuré côté serveur. Cliquez ci-dessous sur <strong>« Connecter le bot »</strong> pour initialiser automatiquement la liaison webhook avec Telegram.
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="flex items-start gap-2 text-amber-300">
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <span>
+                          Le secret <code>TELEGRAM_BOT_TOKEN</code> n'est pas encore défini dans Cloudflare. Ajoutez-le dans <strong>Cloudflare &gt; Workers &gt; Settings &gt; Variables et secrets &gt; section "Exécution"</strong>, puis cliquez sur <strong>« Connecter le bot »</strong>.
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Last error from Telegram if any */}
+                {telegramStatus?.lastError && (
+                  <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>Dernier message Telegram : {telegramStatus.lastError}</span>
+                  </div>
+                )}
+
+                {/* Action message feedback */}
+                {telegramActionMsg && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs flex items-center justify-between gap-3 border ${
+                      telegramActionMsg.type === 'success'
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                        : telegramActionMsg.type === 'error'
+                        ? 'bg-red-950/40 border-red-500/40 text-red-300'
+                        : 'bg-sky-950/40 border-sky-500/40 text-sky-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {telegramActionMsg.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                      )}
+                      <span>{telegramActionMsg.text}</span>
+                    </div>
+                    <button
+                      onClick={() => setTelegramActionMsg(null)}
+                      className="text-slate-400 hover:text-white p-1"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Password prompt box if protected */}
+                {adminPasswordPrompt && (
+                  <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/40 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold text-xs uppercase tracking-wider">
+                      <Lock className="w-4 h-4" />
+                      <span>Action protégée : Mot de passe administrateur requis</span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      La modification du webhook nécessite le mot de passe configuré dans Cloudflare (variable d'environnement <code>ADMIN_PASSWORD</code>).
+                    </p>
+                    <div className="flex gap-2 max-w-md">
+                      <input
+                        type="password"
+                        value={adminPasswordInput}
+                        onChange={(e) => setAdminPasswordInput(e.target.value)}
+                        placeholder="Mot de passe admin Cloudflare..."
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
+                        onKeyDown={(e) => e.key === 'Enter' && handleConnectTelegram(adminPasswordInput)}
+                      />
+                      <button
+                        onClick={() => handleConnectTelegram(adminPasswordInput)}
+                        disabled={telegramConnecting || !adminPasswordInput.trim()}
+                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                      >
+                        {telegramConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        <span>Valider et connecter</span>
+                      </button>
+                      <button
+                        onClick={() => setAdminPasswordPrompt(false)}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    onClick={() => handleConnectTelegram()}
+                    disabled={telegramConnecting}
+                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-black text-xs md:text-sm uppercase tracking-wider flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-sky-600/30 disabled:opacity-50 cursor-pointer"
+                  >
+                    {telegramConnecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Connexion en cours...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-4 h-4" />
+                        <span>{telegramStatus?.connected ? 'Reconnecter le bot' : 'Connecter le bot'}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {telegramStatus?.connected && (
+                    <button
+                      onClick={handleDisconnectTelegram}
+                      disabled={telegramDisconnecting}
+                      className="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-red-950/40 text-slate-300 hover:text-red-300 border border-slate-800 hover:border-red-500/40 font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {telegramDisconnecting ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Déconnexion...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Unlink className="w-3.5 h-3.5 text-red-400" />
+                          <span>Déconnecter le bot</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <div className="text-xs text-slate-500 ml-auto flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Le token n'est jamais affiché ni renvoyé au navigateur</span>
+                  </div>
+                </div>
+              </div>
+
               {/* 3 Step Setup Guide */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
@@ -6661,6 +7055,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   <h4 className="text-sm font-bold text-white mb-1">Créer le bot sur Telegram</h4>
                   <p className="text-xs text-slate-400">
                     Ouvrez Telegram, cherchez <strong>@BotFather</strong>, envoyez <code>/newbot</code> et donnez un nom à votre bot (ex: <em>{clubSettings.shortName || 'SRC'} Score Bot</em>).
+                    Enregistrez le jeton obtenu comme secret <code>TELEGRAM_BOT_TOKEN</code> dans Cloudflare.
                   </p>
                 </div>
 
@@ -6668,9 +7063,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center mb-2">
                     2
                   </div>
-                  <h4 className="text-sm font-bold text-white mb-1">Copier l'URL Webhook</h4>
+                  <h4 className="text-sm font-bold text-white mb-1">Cliquer sur « Connecter le bot »</h4>
                   <p className="text-xs text-slate-400 mb-2">
-                    Ce lien permet à Telegram de transmettre les messages à votre carrousel TV.
+                    Le serveur configure automatiquement le webhook sécurisé auprès de Telegram et protège les échanges par une signature secrète.
                   </p>
                   <button
                     onClick={handleCopyWebhook}
