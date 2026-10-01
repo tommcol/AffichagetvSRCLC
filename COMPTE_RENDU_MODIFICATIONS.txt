@@ -210,3 +210,36 @@ Vérifications réellement effectuées :
 
 ================================================================
 ================
+SECTION 9 : MISE À JOUR DE L'ONGLET « BOT TELEGRAM » — INSTRUCTIONS ET ÉTATS RÉELS
+================================================================================
+
+Date : 01/10/2026
+Objet : Mise à jour de l'onglet « Bot Telegram » pour refléter l'état réel (webhook déjà configuré, secret actif dans Cloudflare) et affichage conditionnel rigoureux des statuts de messages.
+
+Comportement Avant :
+- Des étapes d'installation initiale (création avec BotFather, copie d'URL webhook) et un bouton « Copier l'URL Webhook » étaient affichés alors que le webhook et la signature étaient déjà en production.
+- Le statut « Bot opérationnel » pouvait s'afficher simplement parce que le webhook était configuré auprès de Telegram, sans vérifier si de véritables messages avaient déjà été reçus et traités.
+
+Comportement Après :
+- **Suppression des étapes initiales 1 & 2 et du bouton « Copier l'URL Webhook »** :
+  • Les étapes d'installation obsolètes et le bouton de copie ont été retirés.
+- **Section « Exemples de messages à envoyer au bot » conservée et mise en valeur** :
+  • Intitulé exact : « EXEMPLES DE MESSAGES À ENVOYER AU BOT ».
+  • Présente les 4 exemples types de syntaxe : Victoire avec score, Défaite avec score, Victoire par alias, Équipe féminine.
+- **Statut dynamique strict selon les messages réels** :
+  • Tant qu'aucun message réel n'a été reçu et traité via le webhook : affichage du statut bleu ciel « Configuration active — en attente du premier message ».
+  • Dès qu'un vrai message est reçu et traité avec succès : affichage du statut vert « Bot opérationnel » avec l'horodatage précis de réception (« Reçu le DD/MM/YYYY à HH:mm »), le texte du message et l'équipe/score reconnus.
+  • En cas d'échec de traitement d'un message reçu (ex: syntaxe sans Victoire/Défaite) : affichage du statut rouge clair « Le message n'a pas été traité » avec la date de réception et le motif de rejet.
+  • Si le webhook n'est pas connecté : affichage clair « Bot non connecté » avec invite à cliquer sur le bouton de connexion.
+- **Commandes de gestion serveur préservées** :
+  • Bouton « Reconnecter le bot » (ou « Connecter le bot ») et « Déconnecter le bot » maintenus.
+  • Le token n'est jamais redemandé, ni affiché, ni stocké dans le navigateur.
+- **Polling automatique d'état** :
+  • Rafraîchissement automatique toutes les 15 secondes pendant que l'onglet Bot Telegram est actif pour détecter immédiatement l'arrivée d'un message envoyé depuis un smartphone.
+
+Vérifications effectuées :
+- Exécution du script de test automatisé `scripts/test_telegram_webhook.ts` (10/10 assertions validées ✅).
+- Bancs de tests de régression FFBB, Anniversaires et Titres carrousel passés avec succès ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================

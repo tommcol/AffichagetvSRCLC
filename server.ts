@@ -68,6 +68,15 @@ let localTelegramBotInfo: {
   botName?: string;
   connectedAt?: number;
 } | null = null;
+let localTelegramLastMessage: {
+  receivedAt: number;
+  text: string | null;
+  team?: string;
+  isWin?: boolean;
+  score?: string;
+  success: boolean;
+  error?: string;
+} | null = null;
 
 async function getTelegramSecretToken(botToken: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -383,27 +392,80 @@ app.post("/api/telegram-webhook", async (req, res) => {
 
     const text = message.text;
     const chatId = message.chat?.id;
+    const now = Date.now();
     console.log(`[TELEGRAM INCOMING] ChatId: ${chatId} | Message: "${text}"`);
+
+    // Gestion des commandes d'aide Telegram (/start, /help, /aide)
+    const isStartOrHelp = /^(\/start|\/help|\/aide)/i.test(text.trim());
+    if (isStartOrHelp) {
+      if (chatId) {
+        const helpText = `🏀 *Bot Affichage TV — SRC Basket La Clayette*\n\nPour afficher un résultat sur la TV du club, envoyez simplement :\n• \`Victoire Seniors 1 82-74\`\n• \`Défaite U15 54-60\`\n• \`Victoire SG2\`\n\nLe visuel correspondant restera affiché 1 heure dans la boucle TV.`;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: helpText, parse_mode: "Markdown" }),
+          });
+        } catch (e) {}
+      }
+      return res.json({ success: true, message: "Aide envoyée" });
+    }
+
+    // Vérification : le message doit contenir un résultat explicite (victoire ou défaite)
+    const hasOutcome = /victoire|gagné|gagne|win|défaite|defaite|perdu|loss/i.test(text);
+    if (!hasOutcome) {
+      const errMsg = "Message non reconnu : précisez Victoire ou Défaite (ex: Victoire Seniors 1 82-74)";
+      localTelegramLastMessage = {
+        receivedAt: now,
+        text,
+        success: false,
+        error: errMsg,
+      };
+
+      if (chatId) {
+        const errorReply = `⚠️ *Message non traité*\n\nPour injecter une affiche sur l'écran TV, votre message doit indiquer *Victoire* ou *Défaite*.\n\nExemples valides :\n• \`Victoire Seniors 1 82-74\`\n• \`Défaite U18 62-68\``;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: errorReply, parse_mode: "Markdown" }),
+          });
+        } catch (e) {}
+      }
+
+      return res.status(200).json({ success: false, error: errMsg });
+    }
 
     // Parse the message
     const parsed = parseTelegramMatchMessage(text);
     const durationMs = 60 * 60 * 1000; // 1 heure
 
     const newAlert: ActiveMatchAlert = {
-      id: "tg-" + Date.now(),
+      id: "tg-" + now,
       team: parsed.team,
       isWin: parsed.isWin ?? true,
       ourScore: parsed.ourScore,
       opponentScore: parsed.opponentScore,
       opponent: parsed.opponent,
       triggeredBy: "telegram",
-      timestamp: Date.now(),
-      expiresAt: Date.now() + durationMs,
+      timestamp: now,
+      expiresAt: now + durationMs,
       rawMessage: text,
     };
 
     activeAlerts.unshift(newAlert);
     cleanExpiredAlerts();
+
+    localTelegramLastMessage = {
+      receivedAt: now,
+      text,
+      team: parsed.team,
+      isWin: parsed.isWin ?? true,
+      score: parsed.ourScore !== undefined && parsed.opponentScore !== undefined
+        ? `${parsed.ourScore} - ${parsed.opponentScore}`
+        : undefined,
+      success: true,
+    };
 
     // Reply back on Telegram if token is set
     if (botToken && chatId) {
@@ -503,6 +565,7 @@ const handleTelegramStatus = async (req: express.Request, res: express.Response)
       botName,
       lastError,
       pendingUpdateCount,
+      lastMessage: localTelegramLastMessage || null,
     });
   } catch (e: any) {
     return res.json({
@@ -511,6 +574,7 @@ const handleTelegramStatus = async (req: express.Request, res: express.Response)
       webhookUrl: localTelegramBotInfo?.webhookUrl || null,
       botUsername: localTelegramBotInfo?.botUsername || null,
       botName: localTelegramBotInfo?.botName || null,
+      lastMessage: localTelegramLastMessage,
     });
   }
 };
@@ -608,6 +672,7 @@ app.post("/api/telegram/disconnect", async (req, res) => {
   }
 
   localTelegramBotInfo = null;
+  localTelegramLastMessage = null;
   return res.json({
     success: true,
     connected: false,

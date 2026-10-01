@@ -499,6 +499,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     lastError?: string | null;
     pendingUpdateCount?: number;
     message?: string;
+    lastMessage?: {
+      receivedAt: number;
+      text: string | null;
+      team?: string;
+      isWin?: boolean;
+      score?: string;
+      success: boolean;
+      error?: string;
+    } | null;
   } | null>(null);
   const [telegramStatusLoading, setTelegramStatusLoading] = useState<boolean>(false);
   const [telegramConnecting, setTelegramConnecting] = useState<boolean>(false);
@@ -514,11 +523,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   });
 
+  // Dernier message réel reçu depuis le webhook Telegram
+  const effectiveLastTelegramMessage = useMemo(() => {
+    return telegramStatus?.lastMessage || null;
+  }, [telegramStatus?.lastMessage]);
+
+  const formatTelegramDate = (timestamp: number) => {
+    try {
+      const d = new Date(timestamp);
+      return d.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (e) {
+      return '';
+    }
+  };
+
   // Telegram Simulator State
   const [telegramSimText, setTelegramSimText] = useState<string>('Victoire Seniors 1 82-74');
   const [telegramSimResponse, setTelegramSimResponse] = useState<string | null>(null);
   const [telegramSimLoading, setTelegramSimLoading] = useState<boolean>(false);
-  const [copiedWebhook, setCopiedWebhook] = useState<boolean>(false);
 
   // Excel & Birthday parsing/editing state
   const [isParsingExcel, setIsParsingExcel] = useState<boolean>(false);
@@ -1693,14 +1721,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
   };
 
-  // Copy Webhook URL
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/telegram-webhook` : '/api/telegram-webhook';
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setCopiedWebhook(true);
-    setTimeout(() => setCopiedWebhook(false), 2500);
-  };
-
   // Telegram Bot Operations
   const fetchTelegramStatus = async () => {
     setTelegramStatusLoading(true);
@@ -1720,6 +1740,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   useEffect(() => {
     if (activeTab === 'telegram') {
       fetchTelegramStatus();
+      const interval = setInterval(() => {
+        fetchTelegramStatus();
+      }, 15000);
+      return () => clearInterval(interval);
     }
   }, [activeTab]);
 
@@ -2933,7 +2957,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <Bot className="w-4 h-4 text-sky-400" />
               <span>Bot Telegram</span>
               {telegramStatus?.connected && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" title="Bot connecté" />
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false
+                      ? 'bg-emerald-400 shadow-emerald-400/50'
+                      : 'bg-sky-400 shadow-sky-400/50'
+                  } animate-pulse shadow-sm`}
+                  title={
+                    effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false
+                      ? 'Bot opérationnel'
+                      : 'Configuration active — en attente du premier message'
+                  }
+                />
               )}
             </button>
 
@@ -6839,18 +6874,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
                         <span>Vérification du statut...</span>
                       </div>
-                    ) : telegramStatus?.connected ? (
+                    ) : !telegramStatus?.connected ? (
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-bold text-amber-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span>Bot non connecté</span>
+                      </div>
+                    ) : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success === false ? (
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-500/20 border border-red-500/40 text-xs font-bold text-red-300 shadow-md shadow-red-500/10">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                        <span>Le message n'a pas été traité</span>
+                      </div>
+                    ) : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false ? (
                       <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-xs font-bold text-emerald-300 shadow-md shadow-emerald-500/10">
                         <span className="relative flex h-2.5 w-2.5">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                         </span>
-                        <span>Bot connecté et opérationnel</span>
+                        <span>Bot opérationnel</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-xs font-bold text-amber-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                        <span>Bot non connecté</span>
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/20 border border-sky-500/40 text-xs font-bold text-sky-300 shadow-md shadow-sky-500/10">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+                        </span>
+                        <span>Configuration active — en attente du premier message</span>
                       </div>
                     )}
 
@@ -6867,62 +6915,119 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                 {/* Status details / Informational feedback */}
                 {telegramStatus?.connected ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                        Identifiant du Bot
+                  <div className="space-y-4">
+                    {/* Bot info grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          Identifiant du Bot
+                        </div>
+                        <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <Bot className="w-4 h-4 text-sky-400" />
+                          <span>@{telegramStatus.botUsername || 'SRC Bot'}</span>
+                        </div>
+                        {telegramStatus.botName && (
+                          <div className="text-xs text-slate-400 mt-0.5">{telegramStatus.botName}</div>
+                        )}
                       </div>
-                      <div className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <Bot className="w-4 h-4 text-sky-400" />
-                        <span>@{telegramStatus.botUsername || 'SRC Bot'}</span>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          Sécurité des Requêtes
+                        </div>
+                        <div className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Signature Secrète Active</span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          Certifié par X-Telegram-Bot-Api-Secret-Token
+                        </div>
                       </div>
-                      {telegramStatus.botName && (
-                        <div className="text-xs text-slate-400 mt-0.5">{telegramStatus.botName}</div>
-                      )}
+
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          État des Messages
+                        </div>
+                        <div className="text-sm font-bold text-white">
+                          {effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false
+                            ? 'Dernier message validé'
+                            : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success === false
+                            ? "Le message n'a pas été traité"
+                            : 'En attente du premier message'}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          {effectiveLastTelegramMessage?.receivedAt
+                            ? `Reçu le ${formatTelegramDate(effectiveLastTelegramMessage.receivedAt)}`
+                            : "Aucun message reçu pour l'instant"}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                        Sécurité des Requêtes
+                    {/* Bloc d'état dynamique selon la réception de vrais messages */}
+                    {effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false ? (
+                      <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2">
+                          <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <span>Dernier message reçu le {formatTelegramDate(effectiveLastTelegramMessage.receivedAt)}</span>
+                          </div>
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 w-fit">
+                            Actif dans la boucle TV
+                          </span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1">
+                          <div className="space-y-1">
+                            <div className="text-slate-400">Message reçu depuis le smartphone :</div>
+                            <div className="font-mono font-bold text-white text-sm bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800 inline-block">
+                              "{effectiveLastTelegramMessage.text}"
+                            </div>
+                          </div>
+                          {effectiveLastTelegramMessage.team && (
+                            <div className="text-left sm:text-right space-y-1">
+                              <span className="text-slate-400">Équipe & résultat détectés :</span>
+                              <div className="font-bold text-emerald-300 text-sm">
+                                {effectiveLastTelegramMessage.team} • {effectiveLastTelegramMessage.isWin ? 'Victoire 🏆' : 'Défaite 🏀'}
+                                {effectiveLastTelegramMessage.score ? ` (${effectiveLastTelegramMessage.score})` : ''}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Signature Secrète Active</span>
+                    ) : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success === false ? (
+                      <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/40 text-xs text-red-300 space-y-1.5">
+                        <div className="flex items-center gap-2 font-bold text-sm text-red-200">
+                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                          <span>Le message n'a pas été traité</span>
+                          {effectiveLastTelegramMessage.receivedAt && (
+                            <span className="text-xs font-normal text-red-400">
+                              (reçu le {formatTelegramDate(effectiveLastTelegramMessage.receivedAt)})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-red-300/90 pl-6">
+                          Motif : {effectiveLastTelegramMessage.error || 'Format non reconnu ou erreur de synchronisation.'}
+                        </p>
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
-                        Certifié par X-Telegram-Bot-Api-Secret-Token
+                    ) : (
+                      <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-500/40 text-xs text-sky-200 space-y-1.5">
+                        <div className="flex items-center gap-2 font-bold text-sky-300">
+                          <Clock className="w-4 h-4 text-sky-400 shrink-0" />
+                          <span>Configuration active — en attente du premier message</span>
+                        </div>
+                        <p className="text-slate-300 pl-6">
+                          Le webhook Telegram est correctement relié au serveur et la signature secrète est active. Aucun message réel n'a encore été reçu depuis un smartphone. Dès qu'un message de match sera envoyé, l'état passera à <strong>Bot opérationnel</strong> avec son horodatage de réception.
+                        </p>
                       </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                        Mises à jour en attente
-                      </div>
-                      <div className="text-sm font-bold text-white">
-                        {telegramStatus.pendingUpdateCount ?? 0} message(s)
-                      </div>
-                      <div className="text-xs text-emerald-400/80 mt-0.5">
-                        Prêt à recevoir les victoires/défaites
-                      </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 space-y-2">
-                    {telegramStatus?.hasSecretToken ? (
-                      <p className="flex items-center gap-2 text-slate-300">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>
-                          Le secret <code>TELEGRAM_BOT_TOKEN</code> est bien configuré côté serveur. Cliquez ci-dessous sur <strong>« Connecter le bot »</strong> pour initialiser automatiquement la liaison webhook avec Telegram.
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="flex items-start gap-2 text-amber-300">
-                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                        <span>
-                          Le secret <code>TELEGRAM_BOT_TOKEN</code> n'est pas encore défini dans Cloudflare. Ajoutez-le dans <strong>Cloudflare &gt; Workers &gt; Settings &gt; Variables et secrets &gt; section "Exécution"</strong>, puis cliquez sur <strong>« Connecter le bot »</strong>.
-                        </span>
-                      </p>
-                    )}
+                    <p className="flex items-start gap-2 text-amber-300">
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <span>
+                        Le bot Telegram n'est pas connecté. Cliquez sur le bouton <strong>« Connecter le bot »</strong> ci-dessous pour initialiser automatiquement la liaison webhook avec Telegram.
+                      </span>
+                    </p>
                   </div>
                 )}
 
@@ -7046,47 +7151,51 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
               </div>
 
-              {/* 3 Step Setup Guide */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center mb-2">
-                    1
-                  </div>
-                  <h4 className="text-sm font-bold text-white mb-1">Créer le bot sur Telegram</h4>
-                  <p className="text-xs text-slate-400">
-                    Ouvrez Telegram, cherchez <strong>@BotFather</strong>, envoyez <code>/newbot</code> et donnez un nom à votre bot (ex: <em>{clubSettings.shortName || 'SRC'} Score Bot</em>).
-                    Enregistrez le jeton obtenu comme secret <code>TELEGRAM_BOT_TOKEN</code> dans Cloudflare.
-                  </p>
+              {/* Exemples de messages à envoyer au bot */}
+              <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 space-y-4">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-xs uppercase tracking-wider">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Format des commandes par smartphone</span>
                 </div>
+                <h4 className="text-lg font-black text-white font-bebas tracking-wide">
+                  EXEMPLES DE MESSAGES À ENVOYER AU BOT
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Depuis votre smartphone sur Telegram, envoyez directement un message dans la conversation du bot au coup de sifflet final :
+                </p>
 
-                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center mb-2">
-                    2
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Victoire avec score</span>
+                    <div className="text-xs font-mono font-bold text-emerald-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      Victoire Seniors 1 82-74
+                    </div>
+                    <p className="text-[11px] text-slate-400">Affiche victoire + score exact</p>
                   </div>
-                  <h4 className="text-sm font-bold text-white mb-1">Cliquer sur « Connecter le bot »</h4>
-                  <p className="text-xs text-slate-400 mb-2">
-                    Le serveur configure automatiquement le webhook sécurisé auprès de Telegram et protège les échanges par une signature secrète.
-                  </p>
-                  <button
-                    onClick={handleCopyWebhook}
-                    className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-mono font-bold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors"
-                  >
-                    {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedWebhook ? 'Copié !' : 'Copier l\'URL Webhook'}</span>
-                  </button>
-                </div>
 
-                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center mb-2">
-                    3
+                  <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Défaite avec score</span>
+                    <div className="text-xs font-mono font-bold text-rose-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      Defaite U15 54-60
+                    </div>
+                    <p className="text-[11px] text-slate-400">Affiche défaite + score exact</p>
                   </div>
-                  <h4 className="text-sm font-bold text-white mb-1">Exemples de messages</h4>
-                  <p className="text-xs text-slate-400">
-                    Écrivez naturellement à votre bot :<br />
-                    <code>Victoire Seniors 1 82-74</code><br />
-                    <code>Defaite U15 54-60</code><br />
-                    <code>Victoire SG1</code>
-                  </p>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Victoire par alias</span>
+                    <div className="text-xs font-mono font-bold text-emerald-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      Victoire SG1
+                    </div>
+                    <p className="text-[11px] text-slate-400">Reconnaissance de l'équipe SG1</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Équipe féminine</span>
+                    <div className="text-xs font-mono font-bold text-sky-400 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                      Victoire SF1 71-65
+                    </div>
+                    <p className="text-[11px] text-slate-400">Seniors Filles 1 reconnues</p>
+                  </div>
                 </div>
               </div>
 

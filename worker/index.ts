@@ -548,6 +548,57 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
 
     const text = message.text;
     const chatId = message.chat?.id;
+    const now = Date.now();
+
+    // Gestion des commandes d'aide Telegram (/start, /help, /aide)
+    const isStartOrHelp = /^(\/start|\/help|\/aide)/i.test(text.trim());
+    if (isStartOrHelp) {
+      if (chatId) {
+        const helpText = `🏀 *Bot Affichage TV — SRC Basket La Clayette*\n\nPour afficher un résultat sur la TV du club, envoyez simplement :\n• \`Victoire Seniors 1 82-74\`\n• \`Défaite U15 54-60\`\n• \`Victoire SG2\`\n\nLe visuel correspondant restera affiché 1 heure dans la boucle TV.`;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: helpText, parse_mode: 'Markdown' }),
+          });
+        } catch (e) {}
+      }
+      return new Response(JSON.stringify({ success: true, message: 'Aide envoyée' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Vérification : le message doit contenir un résultat explicite (victoire ou défaite)
+    const hasOutcome = /victoire|gagné|gagne|win|défaite|defaite|perdu|loss/i.test(text);
+    if (!hasOutcome) {
+      const errMsg = "Message non reconnu : précisez Victoire ou Défaite (ex: Victoire Seniors 1 82-74)";
+      const failedRecord = {
+        receivedAt: now,
+        text,
+        success: false,
+        error: errMsg,
+      };
+      try {
+        await env.AFFICHAGE_KV.put('telegram-last-message', JSON.stringify(failedRecord));
+      } catch (e) {}
+
+      if (chatId) {
+        const errorReply = `⚠️ *Message non traité*\n\nPour injecter une affiche sur l'écran TV, votre message doit indiquer *Victoire* ou *Défaite*.\n\nExemples valides :\n• \`Victoire Seniors 1 82-74\`\n• \`Défaite U18 62-68\``;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: errorReply, parse_mode: 'Markdown' }),
+          });
+        } catch (e) {}
+      }
+
+      return new Response(JSON.stringify({ success: false, error: errMsg }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // Parse the message
     const parsed = parseTelegramMatchMessage(text);
@@ -578,7 +629,6 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
       }
     } catch (e) {}
 
-    const now = Date.now();
     const newAlert = {
       id: 'tg-' + now + '-' + Math.random().toString(36).substring(2, 6),
       team: parsed.team,
@@ -599,6 +649,21 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const alertesValides = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
     alertesValides.unshift(newAlert);
     await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+
+    // Enregistrer le dernier message reçu avec succès
+    const lastMsgRecord = {
+      receivedAt: now,
+      text: text,
+      team: parsed.team,
+      isWin: parsed.isWin ?? true,
+      score: parsed.ourScore !== undefined && parsed.opponentScore !== undefined
+        ? `${parsed.ourScore} - ${parsed.opponentScore}`
+        : undefined,
+      success: true,
+    };
+    try {
+      await env.AFFICHAGE_KV.put('telegram-last-message', JSON.stringify(lastMsgRecord));
+    } catch (e) {}
 
     // Reply back on Telegram if token is set
     if (chatId) {
@@ -630,6 +695,17 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     });
   } catch (error: any) {
     console.error('Erreur webhook Telegram:', error);
+    try {
+      await env.AFFICHAGE_KV.put(
+        'telegram-last-message',
+        JSON.stringify({
+          receivedAt: Date.now(),
+          text: null,
+          success: false,
+          error: error?.message || 'Erreur lors du traitement du message',
+        })
+      );
+    } catch (e) {}
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
@@ -841,6 +917,7 @@ async function telegramDisconnect(request: Request, env: Env): Promise<Response>
 
   try {
     await env.AFFICHAGE_KV.delete('telegram-bot-info');
+    await env.AFFICHAGE_KV.delete('telegram-last-message');
   } catch (e) {}
 
   return new Response(
@@ -891,6 +968,14 @@ async function telegramConfig(request: Request, env: Env): Promise<Response> {
     const lastError = webhookData?.result?.last_error_message || null;
     const pendingUpdateCount = webhookData?.result?.pending_update_count || 0;
 
+    let lastMessage: any = null;
+    try {
+      const rawMsg = await env.AFFICHAGE_KV.get('telegram-last-message');
+      if (rawMsg) {
+        lastMessage = JSON.parse(rawMsg);
+      }
+    } catch (e) {}
+
     return new Response(
       JSON.stringify({
         hasSecretToken: true,
@@ -900,6 +985,7 @@ async function telegramConfig(request: Request, env: Env): Promise<Response> {
         botName,
         lastError,
         pendingUpdateCount,
+        lastMessage,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );

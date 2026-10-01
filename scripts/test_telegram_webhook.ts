@@ -5,6 +5,12 @@
  * 2. La protection de l'action /api/telegram/connect par ADMIN_PASSWORD
  * 3. La vérification stricte du header X-Telegram-Bot-Api-Secret-Token sur /api/telegram-webhook
  * 4. L'absence de champ de saisie de token dans l'interface
+ * 5. La suppression des étapes 1 & 2 et du bouton « Copier l'URL Webhook »
+ * 6. La présence de la section « Exemples de messages à envoyer au bot »
+ * 7. L'affichage « Configuration active — en attente du premier message » avant tout message réel
+ * 8. L'affichage « Bot opérationnel » avec date/heure après réception d'un vrai message
+ * 9. L'affichage clair en cas d'échec (« Bot non connecté » ou « Le message n'a pas été traité »)
+ * 10. La conservation des commandes de reconnexion et de déconnexion
  */
 
 import { readFileSync } from 'fs';
@@ -61,11 +67,16 @@ async function runTests() {
     throw new Error("worker/index.ts doit protéger l'action par ADMIN_PASSWORD");
   }
 
+  // Vérifier le suivi du dernier message
+  if (!workerContent.includes('telegram-last-message')) {
+    throw new Error("worker/index.ts doit persister telegram-last-message");
+  }
+
   // Vérifier qu'aucune route ne renvoie le token
   if (workerContent.includes('botToken: env.TELEGRAM_BOT_TOKEN') || workerContent.includes('token: env.TELEGRAM_BOT_TOKEN')) {
     throw new Error("worker/index.ts ne doit jamais renvoyer la valeur du token");
   }
-  console.log('✅ Test 3 réussi : worker/index.ts applique la sécurité complète.');
+  console.log('✅ Test 3 réussi : worker/index.ts applique la sécurité complète et le suivi des messages réels.');
 
   console.log('\n--- TEST 4 : Vérification dans server.ts ---');
   const serverContent = readFileSync(path.join(process.cwd(), 'server.ts'), 'utf-8');
@@ -76,38 +87,59 @@ async function runTests() {
   if (!serverContent.includes('x-telegram-bot-api-secret-token')) {
     throw new Error("server.ts doit vérifier le header x-telegram-bot-api-secret-token");
   }
+  if (!serverContent.includes('localTelegramLastMessage')) {
+    throw new Error("server.ts doit suivre localTelegramLastMessage");
+  }
   if (serverContent.includes('botTokenMasked:')) {
     throw new Error("server.ts ne doit pas renvoyer de jeton masqué");
   }
-  console.log('✅ Test 4 réussi : server.ts sécurisé à l\'identique de Cloudflare.');
+  console.log('✅ Test 4 réussi : server.ts sécurisé à l\'identique de Cloudflare avec suivi du dernier message.');
 
-  console.log('\n--- TEST 5 : Vérification dans l\'interface React (AdminPanel.tsx) ---');
+  console.log('\n--- TEST 5 : Vérification des instructions et de l\'interface dans AdminPanel.tsx ---');
   const adminPanelContent = readFileSync(path.join(process.cwd(), 'src', 'components', 'Admin', 'AdminPanel.tsx'), 'utf-8');
 
-  // Doit comporter le bouton "Connecter le bot"
-  if (!adminPanelContent.includes('Connecter le bot')) {
-    throw new Error("AdminPanel.tsx doit contenir le bouton « Connecter le bot »");
+  // 1. Suppression des étapes 1 & 2 et du bouton Copier l'URL Webhook
+  if (adminPanelContent.includes("Copier l'URL Webhook") || adminPanelContent.includes("handleCopyWebhook")) {
+    throw new Error("Le bouton « Copier l'URL Webhook » doit être supprimé car l'installation est déjà faite.");
+  }
+  if (adminPanelContent.includes("Créer le bot sur Telegram") || adminPanelContent.includes("3 Step Setup Guide")) {
+    throw new Error("Les étapes numérotées d'installation initiale doivent être supprimées.");
   }
 
-  // Doit comporter l'indicateur de statut de connexion
-  if (!adminPanelContent.includes('Bot connecté') || !adminPanelContent.includes('telegramStatus')) {
-    throw new Error("AdminPanel.tsx doit contenir l'indicateur de connexion du bot");
+  // 2. Présence de la section "Exemples de messages à envoyer au bot"
+  if (!adminPanelContent.includes("EXEMPLES DE MESSAGES À ENVOYER AU BOT")) {
+    throw new Error("AdminPanel.tsx doit contenir la section « EXEMPLES DE MESSAGES À ENVOYER AU BOT »");
   }
 
-  // Doit appeler /api/telegram/connect
-  if (!adminPanelContent.includes('/api/telegram/connect')) {
-    throw new Error("AdminPanel.tsx doit appeler /api/telegram/connect");
+  // 3. Statut « Configuration active — en attente du premier message »
+  if (!adminPanelContent.includes("Configuration active — en attente du premier message")) {
+    throw new Error("L'interface doit afficher « Configuration active — en attente du premier message » tant qu'aucun message n'a été reçu.");
   }
 
-  // NE DOIT PAS contenir de champ pour saisir le token
+  // 4. Statut « Bot opérationnel » avec affichage de la date/heure
+  if (!adminPanelContent.includes("Bot opérationnel") || !adminPanelContent.includes("Dernier message reçu le")) {
+    throw new Error("L'interface doit afficher « Bot opérationnel » et la date/heure après réception d'un vrai message.");
+  }
+
+  // 5. Gestion des échecs
+  if (!adminPanelContent.includes("Bot non connecté") || !adminPanelContent.includes("Le message n'a pas été traité")) {
+    throw new Error("L'interface doit indiquer clairement « Bot non connecté » ou « Le message n'a pas été traité » en cas d'échec.");
+  }
+
+  // 6. Présence des commandes de reconnexion et déconnexion
+  if (!adminPanelContent.includes("Reconnecter le bot") || !adminPanelContent.includes("Déconnecter le bot")) {
+    throw new Error("Les boutons « Reconnecter le bot » et « Déconnecter le bot » doivent être conservés.");
+  }
+
+  // 7. NE DOIT PAS contenir de champ pour saisir le token
   if (adminPanelContent.includes('placeholder="Entrez votre token Telegram"') || 
       adminPanelContent.includes('placeholder="Tapez le bot token"') ||
       adminPanelContent.includes('telegramBotToken')) {
     throw new Error("AdminPanel.tsx ne doit contenir AUCUN champ pour saisir le token dans l'application");
   }
-  console.log('✅ Test 5 réussi : Interface conforme, bouton et indicateur présents, 0 champ de token.');
+  console.log('✅ Test 5 réussi : Instructions mises à jour, étapes supprimées, statuts dynamiques et commandes préservées.');
 
-  console.log('\n🎉 TOUS LES TESTS SONT PASSÉS AVEC SUCCÈS ! (100% VALIDE)');
+  console.log('\n🎉 TOUS LES TESTS SONT PASSÉS AVEC SUCCÈS ! (100% CONFORME)');
 }
 
 runTests().catch((err) => {
