@@ -4,6 +4,7 @@ import fs from "fs";
 import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { matchTelegramTeam, DEFAULT_CANONICAL_TEAMS } from "./src/utils/telegramTeamMatcher";
 
 interface ActiveMatchAlert {
   id: string;
@@ -149,13 +150,9 @@ export function parseTelegramMatchMessage(text: string): {
     opponent = parts[1]?.trim() || undefined;
   }
 
-  // Fallback default team if empty
-  if (!teamPart) {
-    teamPart = "Seniors Garçons 1";
-  }
-
   return {
     isWin: isWin ?? true,
+    teamRaw: teamPart,
     team: teamPart,
     ourScore,
     opponentScore,
@@ -440,9 +437,68 @@ app.post("/api/telegram-webhook", async (req, res) => {
     const parsed = parseTelegramMatchMessage(text);
     const durationMs = 60 * 60 * 1000; // 1 heure
 
+    // Récupérer les équipes configurées dans l'application
+    const savedData = getSavedAppData();
+    const configuredTeams = savedData?.teamVisuals && savedData.teamVisuals.length > 0
+      ? savedData.teamVisuals
+      : DEFAULT_CANONICAL_TEAMS;
+
+    // Validation stricte du nom d'équipe
+    const teamMatch = matchTelegramTeam(parsed.teamRaw, configuredTeams);
+    if (!teamMatch.matched) {
+      // RÈGLE : Si le nom envoyé ne correspond pas clairement à une équipe, ne crée aucune alerte.
+      // Réponds en proposant jusqu'à trois équipes configurées qui s'en rapprochent et demande de renvoyer le message avec le bon nom.
+      // En cas d'ambiguïté, ne choisis jamais l'équipe automatiquement.
+      const reasonMsg = teamMatch.isAmbiguous
+        ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes configurées correspondent : ${teamMatch.suggestions.join(', ')}`
+        : `Équipe non configurée ("${parsed.teamRaw || 'non précisée'}"). Suggestions d'équipes configurées : ${teamMatch.suggestions.join(', ')}`;
+
+      localTelegramLastMessage = {
+        receivedAt: now,
+        text,
+        success: false,
+        error: reasonMsg,
+      };
+
+      if (chatId) {
+        const headerText = teamMatch.isAmbiguous
+          ? `⚠️ *Équipe ambiguë : "${parsed.teamRaw}"*`
+          : `⚠️ *Équipe non reconnue : "${parsed.teamRaw}"*`;
+
+        const descText = teamMatch.isAmbiguous
+          ? 'Plusieurs équipes de l\'application correspondent à votre message :'
+          : 'Cette équipe ne fait pas partie des équipes configurées dans l\'application. Voici les équipes les plus proches :';
+
+        const listText = teamMatch.suggestions.map((s) => `• *${s}*`).join('\n');
+        const exampleTeam = teamMatch.suggestions[0] || 'Seniors Garçons 1';
+        const sampleScore = parsed.ourScore !== undefined && parsed.opponentScore !== undefined
+          ? `${parsed.ourScore}-${parsed.opponentScore}`
+          : '82-74';
+        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam} ${sampleScore}\``;
+
+        const fullReply = `${headerText}\n\n${descText}\n${listText}\n\n${helpExample}`;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: fullReply, parse_mode: "Markdown" }),
+          });
+        } catch (e) {}
+      }
+
+      return res.status(200).json({
+        success: false,
+        error: reasonMsg,
+        suggestions: teamMatch.suggestions,
+        isAmbiguous: teamMatch.isAmbiguous,
+      });
+    }
+
+    const officialTeamName = teamMatch.teamName!;
+
     const newAlert: ActiveMatchAlert = {
       id: "tg-" + now,
-      team: parsed.team,
+      team: officialTeamName,
       isWin: parsed.isWin ?? true,
       ourScore: parsed.ourScore,
       opponentScore: parsed.opponentScore,
@@ -459,7 +515,7 @@ app.post("/api/telegram-webhook", async (req, res) => {
     localTelegramLastMessage = {
       receivedAt: now,
       text,
-      team: parsed.team,
+      team: officialTeamName,
       isWin: parsed.isWin ?? true,
       score: parsed.ourScore !== undefined && parsed.opponentScore !== undefined
         ? `${parsed.ourScore} - ${parsed.opponentScore}`
@@ -506,9 +562,32 @@ app.post("/api/telegram/test", (req, res) => {
   }
 
   const parsed = parseTelegramMatchMessage(messageText);
+
+  // Vérification de l'équipe
+  const savedData = getSavedAppData();
+  const configuredTeams = savedData?.teamVisuals && savedData.teamVisuals.length > 0
+    ? savedData.teamVisuals
+    : DEFAULT_CANONICAL_TEAMS;
+
+  const teamMatch = matchTelegramTeam(parsed.teamRaw, configuredTeams);
+  if (!teamMatch.matched) {
+    const errorMsg = teamMatch.isAmbiguous
+      ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes correspondent : ${teamMatch.suggestions.join(', ')}`
+      : `Équipe non configurée ("${parsed.teamRaw || 'non précisée'}"). Suggestions : ${teamMatch.suggestions.join(', ')}`;
+
+    return res.status(200).json({
+      success: false,
+      error: errorMsg,
+      suggestions: teamMatch.suggestions,
+      isAmbiguous: teamMatch.isAmbiguous,
+    });
+  }
+
+  const officialTeamName = teamMatch.teamName!;
+
   const newAlert: ActiveMatchAlert = {
     id: "test-" + Date.now(),
-    team: parsed.team,
+    team: officialTeamName,
     isWin: parsed.isWin ?? true,
     ourScore: parsed.ourScore,
     opponentScore: parsed.opponentScore,

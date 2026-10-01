@@ -237,6 +237,33 @@ const DEFAULT_REAL_FFBB_TEAMS: FFBBTeamItem[] = [
     matchesCount: 5,
     status: 'active',
   },
+  {
+    id: 'team-200000005363355',
+    name: 'U9 Garçons / Mixte',
+    category: 'U9 Mixte',
+    gender: 'Mixte',
+    competition: 'Plateaux Mini-Basket U9 - Secteur Mâconnais-Charolais',
+    matchesCount: 6,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005363356',
+    name: 'U9 Filles 1',
+    category: 'U9 F1',
+    gender: 'F',
+    competition: 'Plateaux Mini-Basket U9 Féminin',
+    matchesCount: 6,
+    status: 'active',
+  },
+  {
+    id: 'team-200000005335760',
+    name: 'Seniors Garçons 2',
+    category: 'Seniors M2',
+    gender: 'M',
+    competition: 'Départementale masculine seniors - Division 5',
+    matchesCount: 14,
+    status: 'active',
+  },
 ];
 
 interface AdminPanelProps {
@@ -546,6 +573,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Telegram Simulator State
   const [telegramSimText, setTelegramSimText] = useState<string>('Victoire Seniors 1 82-74');
   const [telegramSimResponse, setTelegramSimResponse] = useState<string | null>(null);
+  const [telegramSimFeedback, setTelegramSimFeedback] = useState<{
+    success: boolean;
+    message: string;
+    suggestions?: string[];
+    isAmbiguous?: boolean;
+  } | null>(null);
   const [telegramSimLoading, setTelegramSimLoading] = useState<boolean>(false);
 
   // Excel & Birthday parsing/editing state
@@ -1677,6 +1710,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     if (!telegramSimText.trim()) return;
     setTelegramSimLoading(true);
     setTelegramSimResponse(null);
+    setTelegramSimFeedback(null);
 
     try {
       const res = await fetch('/api/telegram/test', {
@@ -1688,8 +1722,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       if (data.success && data.alert) {
         // Look up matching visual in team visuals
         const teamMatch = teamVisuals.find((tv) =>
-          tv.teamName.toLowerCase().includes(data.parsed.team.toLowerCase()) ||
-          tv.shortAliases.some((alias) => data.parsed.team.toLowerCase().includes(alias.toLowerCase()))
+          tv.teamName.toLowerCase().includes(data.alert.team.toLowerCase()) ||
+          tv.shortAliases.some((alias) => data.alert.team.toLowerCase().includes(alias.toLowerCase()))
         );
 
         const commonBank = data.alert.isWin ? visualTemplates.commonVictoryVisuals : visualTemplates.commonDefeatVisuals;
@@ -1709,13 +1743,30 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         }
 
         onAddAlert(data.alert);
-        setTelegramSimResponse(data.confirmationMessage || 'Message Telegram traité avec succès !');
+        const confirmMsg = data.confirmationMessage || `Visuel ${data.alert.isWin ? 'VICTOIRE' : 'DÉFAITE'} pour ${data.alert.team} injecté dans la boucle TV pendant 1 heure !`;
+        setTelegramSimResponse(confirmMsg);
+        setTelegramSimFeedback({
+          success: true,
+          message: confirmMsg,
+        });
       } else {
-        setTelegramSimResponse('Erreur lors du traitement du message');
+        const errorMsg = data.error || 'Équipe non reconnue : aucune alerte créée.';
+        setTelegramSimResponse(errorMsg);
+        setTelegramSimFeedback({
+          success: false,
+          message: errorMsg,
+          suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+          isAmbiguous: Boolean(data.isAmbiguous),
+        });
       }
     } catch (e) {
       console.error(e);
-      setTelegramSimResponse('Erreur de connexion au serveur API');
+      const connErrMsg = 'Erreur de connexion au serveur API';
+      setTelegramSimResponse(connErrMsg);
+      setTelegramSimFeedback({
+        success: false,
+        message: connErrMsg,
+      });
     } finally {
       setTelegramSimLoading(false);
     }
@@ -7221,19 +7272,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     Victoire Seniors 1 88-75
                   </button>
                   <button
+                    onClick={() => setTelegramSimText('Victoire U9 Garçons 24-18')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
+                  >
+                    Victoire U9 Garçons 24-18
+                  </button>
+                  <button
+                    onClick={() => setTelegramSimText('Victoire U9 Mixte 24-18')}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
+                  >
+                    Victoire U9 Mixte 24-18
+                  </button>
+                  <button
                     onClick={() => setTelegramSimText('Défaite U18 62-68')}
                     className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
                   >
                     Défaite U18 62-68
                   </button>
                   <button
-                    onClick={() => setTelegramSimText('Victoire SG2')}
+                    onClick={() => setTelegramSimText('Victoire U13F1 42-36')}
                     className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
                   >
-                    Victoire SG2
+                    Victoire U13F1 42-36
                   </button>
                   <button
-                    onClick={() => setTelegramSimText('Victoire Seniors Filles 1 71-65')}
+                    onClick={() => setTelegramSimText('Victoire SF1 71-65')}
                     className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
                   >
                     Victoire SF1 71-65
@@ -7260,16 +7323,55 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 </div>
 
                 {/* Result feedback */}
-                {telegramSimResponse && (
-                  <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-sm flex items-start gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold">{telegramSimResponse}</p>
-                      <p className="text-xs text-emerald-400/80 mt-1">
-                        Le visuel de l'équipe a été injecté dans la rotation TV pour une durée de 1 heure. Vous pouvez le voir dans l'onglet "Alertes 1h en cours" ou en lançant la TV !
-                      </p>
+                {telegramSimFeedback && (
+                  telegramSimFeedback.success ? (
+                    <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-sm flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-bold">{telegramSimFeedback.message}</p>
+                        <p className="text-xs text-emerald-400/80">
+                          Le visuel de l'équipe a été injecté dans la rotation TV pour une durée de 1 heure. Vous pouvez le voir dans l'onglet "Alertes 1h en cours" ou en basculant sur la TV !
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-sm space-y-2.5">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-amber-300">
+                            {telegramSimFeedback.isAmbiguous
+                              ? 'Nom d\'équipe ambigu : aucune alerte créée'
+                              : 'Nom d\'équipe non reconnu : aucune alerte créée'}
+                          </p>
+                          <p className="text-xs text-amber-200/90 mt-0.5">
+                            {telegramSimFeedback.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      {telegramSimFeedback.suggestions && telegramSimFeedback.suggestions.length > 0 && (
+                        <div className="pt-2 border-t border-amber-500/20 pl-8">
+                          <span className="text-xs font-semibold text-slate-300 block mb-1.5">
+                            Équipes configurées les plus proches (cliquez pour tester) :
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {telegramSimFeedback.suggestions.map((sug) => (
+                              <button
+                                key={sug}
+                                onClick={() => {
+                                  setTelegramSimText(`Victoire ${sug} 82-74`);
+                                }}
+                                className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 hover:text-white border border-amber-500/30 text-xs font-bold transition-all hover:scale-105"
+                              >
+                                {sug}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
                 )}
               </div>
             </div>

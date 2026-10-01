@@ -243,3 +243,46 @@ Vérifications effectuées :
 - Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
 - Validation `npm run build` : succès ✅.
 ================================================================================
+
+================================================================================
+SECTION 10 : RECONNAISSANCE DES ÉQUIPES CONFIGURÉES — U9 AUX SENIORS & ANTI-AMBIGUÏTÉ
+================================================================================
+
+Date : 01/10/2026
+Objet : Reconnaissance stricte et intelligente des équipes Telegram basée sur les équipes réellement configurées dans l'application, des U9 aux Seniors (filles, garçons et mixtes), liaison U9 Garçons / Mixte, rejet des équipes fictives, suggestions ciblées et zéro choix automatique en cas d'ambiguïté.
+
+Comportement Avant :
+- Le serveur extrayait la chaîne brute du message et l'injectait directement sans vérifier si l'équipe existait dans la configuration du club (création possible d'équipes fictives).
+- En cas de nom ambigu ou inconnu, aucune suggestion n'était retournée et aucune alerte n'était évitée.
+
+Comportement Après :
+- **Référence stricte aux équipes configurées (des U9 aux Seniors : filles, garçons et mixtes)** :
+  • Le serveur et le worker prennent comme référence les équipes réelles définies dans `appData.teamVisuals` (ou le catalogue canonique officiel du club).
+  • Aucune équipe fictive n'est créée automatiquement.
+- **Tolérance multi-appellations, accents, casse, espaces et abréviations courantes** :
+  • Normalisation complète des diacritiques (sans accent), de la casse et des séparateurs.
+  • Abréviations courantes supportées pour chaque équipe (ex: `SG1`, `SG 1`, `SM1`, `Seniors Garçons 1`, `SF1`, `SF`, `U18M`, `U18F`, `U13F1`, `U13F-2`, etc.).
+- **Liaison unique de l'équipe U9 Garçons / Mixte** :
+  • Conformément à la règle, qu'un utilisateur écrive `U9 Garçons`, `U9 Mixte`, `U9`, `U9G` ou `U9M`, toutes ces appellations pointent vers la même équipe configurée `U9 Garçons / Mixte`.
+- **Règle absolue d'anti-ambiguïté** :
+  • Si un message est ambigu (ex: `Victoire U13 Filles` alors qu'il existe `U13 Filles 1` et `U13 Filles 2`, ou `Seniors` quand plusieurs équipes existent), le serveur ne choisit JAMAIS automatiquement.
+  • Aucune alerte n'est créée dans la boucle TV.
+  • Le bot répond sur Telegram en listant les équipes candidates et demande de renvoyer le message avec le nom précis.
+- **Gestion des noms non reconnus et suggestions** :
+  • Si le nom envoyé ne correspond à aucune équipe configurée (ex: `Poussins`, `Real Madrid`), aucune alerte n'est créée.
+  • Le bot répond avec jusqu'à 3 équipes configurées les plus proches (distance de Levenshtein et similarité sémantique) et donne un exemple prêt à l'emploi.
+  • L'interface d'administration et le simulateur affichent les suggestions sous forme de boutons cliquables pour tester immédiatement.
+
+Vérifications effectuées :
+- Création et exécution du banc de test automatisé `scripts/test_team_matching.ts` (6/6 assertions validées ✅) :
+  • Test 1 : U9 Garçons et U9 Mixte pointent bien vers la même équipe.
+  • Test 2 : Tolérance accents, casse, tirets, espaces et abréviations.
+  • Test 3 : Distinction nette entre U13 Filles 1 et U13 Filles 2.
+  • Test 4 : Détection d'ambiguïté sans numéro d'équipe avec suggestions.
+  • Test 5 : Rejet des équipes inconnues sans alerte et propositions des 3 équipes les plus proches.
+  • Test 6 : Couverture complète des 14 équipes canoniques des U9 aux Seniors.
+- Bancs de tests de régression (`test_telegram_webhook.ts`, `test_titles_split_all.ts`, `test_birthdays_persistence.ts`, `test_ffbb_merge.ts`) passés avec succès ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================
+

@@ -309,9 +309,399 @@ async function uploadMultiple(request: Request, env: Env): Promise<Response> {
 // ALERTES VICTOIRE / DÉFAITE & TÉLÉGRAM
 // ============================================================
 
+// ============================================================
+// Équipes configurées et reconnaissance intelligente des équipes Telegram
+// ============================================================
+
+interface TeamVisualItemWorker {
+  id: string;
+  teamName: string;
+  shortAliases: string[];
+  category: string;
+  winVisualUrl?: string;
+  lossVisualUrl?: string;
+}
+
+const DEFAULT_CANONICAL_TEAMS_WORKER: TeamVisualItemWorker[] = [
+  {
+    id: 'tv-sg1',
+    teamName: 'Seniors Garçons 1',
+    shortAliases: [
+      'sg1', 'sg 1', 'sm1', 'sm 1', 'seniors 1', 'seniors garcons 1', 'seniors garçons 1',
+      'seniors g1', 'seniors m1', 'seniors masculins 1', 'sg', 'seniors garcons', 'seniors garçons',
+      'seniors m', 'seniors masculins',
+    ],
+    category: 'Seniors Garçons',
+  },
+  {
+    id: 'tv-sg2',
+    teamName: 'Seniors Garçons 2',
+    shortAliases: [
+      'sg2', 'sg 2', 'sm2', 'sm 2', 'seniors 2', 'seniors garcons 2', 'seniors garçons 2',
+      'seniors g2', 'seniors m2', 'seniors masculins 2',
+    ],
+    category: 'Seniors Garçons',
+  },
+  {
+    id: 'tv-sf',
+    teamName: 'Seniors Filles 1',
+    shortAliases: [
+      'sf1', 'sf 1', 'seniors filles 1', 'seniors f1', 'seniors f 1', 'seniors feminines 1',
+      'seniors féminines 1', 'sf', 'seniors filles', 'seniors f', 'seniors feminines', 'seniors féminines',
+    ],
+    category: 'Seniors Féminines',
+  },
+  {
+    id: 'tv-u18m',
+    teamName: 'U18 Garçons 1',
+    shortAliases: [
+      'u18m', 'u18g', 'u18 garcons', 'u18 garçons', 'u18 garcons 1', 'u18 garçons 1',
+      'u18 masculins', 'u18m1', 'u18g1', 'u18 m', 'u18 g',
+    ],
+    category: 'Jeunes U18',
+  },
+  {
+    id: 'tv-u18f',
+    teamName: 'U18 Filles 1',
+    shortAliases: [
+      'u18f', 'u18 filles', 'u18 f', 'u18 filles 1', 'u18f1', 'u18 feminines', 'u18 féminines', 'u18f 1',
+    ],
+    category: 'Jeunes U18',
+  },
+  {
+    id: 'tv-u15m',
+    teamName: 'U15 Garçons 1',
+    shortAliases: [
+      'u15m', 'u15g', 'u15 garcons', 'u15 garçons', 'u15 garcons 1', 'u15 garçons 1',
+      'u15 masculins', 'u15m1', 'u15g1', 'u15 m', 'u15 g',
+    ],
+    category: 'Jeunes U15',
+  },
+  {
+    id: 'tv-u15f',
+    teamName: 'U15 Filles 1',
+    shortAliases: [
+      'u15f', 'u15 filles', 'u15 f', 'u15 filles 1', 'u15f1', 'u15 feminines', 'u15 féminines', 'u15f 1',
+    ],
+    category: 'Jeunes U15',
+  },
+  {
+    id: 'tv-u13m',
+    teamName: 'U13 Garçons 1',
+    shortAliases: [
+      'u13m', 'u13g', 'u13 garcons', 'u13 garçons', 'u13 garcons 1', 'u13 garçons 1',
+      'u13 masculins', 'u13m1', 'u13g1', 'u13 m', 'u13 g',
+    ],
+    category: 'Jeunes U13',
+  },
+  {
+    id: 'tv-u13f1',
+    teamName: 'U13 Filles 1',
+    shortAliases: [
+      'u13f 1', 'u13f1', 'u13 filles 1', 'u13f-1', 'u13 f 1', 'u13 f1', 'u13 feminines 1', 'u13 féminines 1',
+    ],
+    category: 'Jeunes U13',
+  },
+  {
+    id: 'tv-u13f2',
+    teamName: 'U13 Filles 2',
+    shortAliases: [
+      'u13f 2', 'u13f2', 'u13 filles 2', 'u13f-2', 'u13 f 2', 'u13 f2', 'u13 feminines 2', 'u13 féminines 2',
+    ],
+    category: 'Jeunes U13',
+  },
+  {
+    id: 'tv-u11m',
+    teamName: 'U11 Garçons 1',
+    shortAliases: [
+      'u11m', 'u11g', 'u11 garcons', 'u11 garçons', 'u11 garcons 1', 'u11 garçons 1',
+      'u11 masculins', 'u11m1', 'u11g1', 'u11 m', 'u11 g',
+    ],
+    category: 'École de Basket U11',
+  },
+  {
+    id: 'tv-u11f',
+    teamName: 'U11 Filles 1',
+    shortAliases: [
+      'u11f', 'u11 filles', 'u11 f', 'u11 filles 1', 'u11f1', 'u11 feminines', 'u11 féminines', 'u11f 1',
+    ],
+    category: 'École de Basket U11',
+  },
+  {
+    id: 'tv-u9-mixte',
+    // Règle explicite : Une équipe U9 Garçons qui joue en mixte doit pouvoir être reconnue
+    // sous ses deux appellations, reliées à la même équipe.
+    teamName: 'U9 Garçons / Mixte',
+    shortAliases: [
+      'u9 garcons', 'u9 garçons', 'u9g', 'u9m', 'u9 g', 'u9 m', 'u9 garcons 1', 'u9 garçons 1', 'u9 masculins', 'u9g1', 'u9m1',
+      'u9 mixte', 'u9mixte', 'u9 mix', 'u9', 'u9 mixtes', 'u9mixtes',
+    ],
+    category: 'École de Basket U9',
+  },
+  {
+    id: 'tv-u9f',
+    teamName: 'U9 Filles 1',
+    shortAliases: [
+      'u9f', 'u9 filles', 'u9 f', 'u9 filles 1', 'u9f1', 'u9 feminines', 'u9 féminines', 'u9f 1',
+    ],
+    category: 'École de Basket U9',
+  },
+];
+
+function normalizeTeamString(str: string): string {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/['’\-_/\\.:,;+*#~]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDist(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const d: number[][] = [];
+  for (let i = 0; i <= m; i++) d[i] = [i];
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[m][n];
+}
+
+function strSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshteinDist(a, b) / maxLen;
+}
+
+function getTeamNormalizedVariations(tv: any): string[] {
+  const set = new Set<string>();
+  const add = (s?: string) => {
+    if (!s) return;
+    const norm = normalizeTeamString(s);
+    if (norm) {
+      set.add(norm);
+      const noSpace = norm.replace(/\s+/g, '');
+      if (noSpace.length > 1) set.add(noSpace);
+    }
+  };
+
+  add(tv.teamName);
+  add(tv.category);
+  if (Array.isArray(tv.shortAliases)) {
+    tv.shortAliases.forEach(add);
+  }
+
+  const normName = normalizeTeamString(tv.teamName || '');
+  if (normName.includes('u9') && (normName.includes('mixte') || normName.includes('garcon'))) {
+    add('u9 garcons');
+    add('u9 garcons 1');
+    add('u9 mixte');
+    add('u9 mix');
+    add('u9');
+    add('u9g');
+    add('u9m');
+  }
+
+  return Array.from(set);
+}
+
+function parseTeamComponents(normStr: string) {
+  const result: { age?: string; gender?: string; teamNumber?: string } = {};
+
+  const ageMatch = normStr.match(/\b(u\s*0?([79]|1[13578]|20))\b/);
+  if (ageMatch) {
+    result.age = 'u' + ageMatch[2];
+  } else if (/\bsenior(s)?\b|\bsg\b|\bsf\b|\bsm\b/.test(normStr)) {
+    result.age = 'seniors';
+  }
+
+  if (/\b(fille(s)?|feminine(s)?|f)\b/.test(normStr) || normStr.startsWith('sf') || normStr.includes('u18f') || normStr.includes('u15f') || normStr.includes('u13f') || normStr.includes('u11f') || normStr.includes('u9f')) {
+    result.gender = 'f';
+  } else if (/\b(mixte(s)?|mix)\b/.test(normStr)) {
+    result.gender = 'mixte';
+  } else if (/\b(garcon(s)?|masculin(s)?|m|g)\b/.test(normStr) || normStr.startsWith('sg') || normStr.startsWith('sm')) {
+    result.gender = 'm';
+  }
+
+  if (result.age === 'u9' && (result.gender === 'm' || result.gender === 'mixte')) {
+    result.gender = 'mixte';
+  }
+
+  const numMatch = normStr.match(/\b([123])\b/) || normStr.match(/(?:f|m|g|sg|sf|sm|u\d+f|u\d+m|u\d+g)\s*([123])/);
+  if (numMatch) {
+    result.teamNumber = numMatch[1];
+  }
+
+  return result;
+}
+
+function findClosestTeams(rawInput: string, configuredTeams: any[], limit = 3): string[] {
+  const normInput = normalizeTeamString(rawInput);
+  const inputComponents = parseTeamComponents(normInput);
+  const scored: { name: string; score: number }[] = [];
+
+  for (const tv of configuredTeams) {
+    const variations = getTeamNormalizedVariations(tv);
+    const tvComponents = parseTeamComponents(normalizeTeamString(tv.teamName || ''));
+    let bestScore = 0;
+
+    for (const v of variations) {
+      let score = strSimilarity(normInput, v);
+      if (v.includes(normInput) || normInput.includes(v)) {
+        score = Math.max(score, 0.75);
+      }
+      if (inputComponents.age && tvComponents.age && inputComponents.age === tvComponents.age) {
+        score += 0.3;
+      }
+      if (inputComponents.gender && tvComponents.gender && inputComponents.gender === tvComponents.gender) {
+        score += 0.2;
+      }
+      if (score > bestScore) bestScore = score;
+    }
+
+    scored.push({ name: tv.teamName, score: bestScore });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const seen = new Set<string>();
+  const results: string[] = [];
+  for (const s of scored) {
+    if (!seen.has(s.name)) {
+      seen.add(s.name);
+      results.push(s.name);
+      if (results.length >= limit) break;
+    }
+  }
+  return results;
+}
+
+function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
+  const configuredTeams = Array.isArray(appDataTeamVisuals) && appDataTeamVisuals.length > 0
+    ? appDataTeamVisuals
+    : DEFAULT_CANONICAL_TEAMS_WORKER;
+
+  const clean = rawInput ? rawInput.trim() : '';
+  if (!clean) {
+    return {
+      matched: false,
+      isAmbiguous: false,
+      suggestions: configuredTeams.slice(0, 3).map((t) => t.teamName),
+      reason: 'Nom d\'équipe vide',
+    };
+  }
+
+  const normInput = normalizeTeamString(clean);
+  const inputNoSpace = normInput.replace(/\s+/g, '');
+  const inputComponents = parseTeamComponents(normInput);
+
+  // 1. Égalité exacte parmi les variations
+  const exactMatches: any[] = [];
+  for (const tv of configuredTeams) {
+    const variations = getTeamNormalizedVariations(tv);
+    if (variations.includes(normInput) || variations.includes(inputNoSpace)) {
+      if (!exactMatches.some((m) => m.id === tv.id)) {
+        exactMatches.push(tv);
+      }
+    }
+  }
+
+  if (exactMatches.length === 1) {
+    return {
+      matched: true,
+      team: exactMatches[0],
+      teamName: exactMatches[0].teamName,
+      isAmbiguous: false,
+      suggestions: [] as string[],
+    };
+  }
+
+  if (exactMatches.length > 1) {
+    return {
+      matched: false,
+      isAmbiguous: true,
+      suggestions: exactMatches.map((t) => t.teamName).slice(0, 3),
+      reason: `Plusieurs équipes correspondent à "${clean}"`,
+    };
+  }
+
+  // 2. Règle U9 Garçons / Mixte
+  if (inputComponents.age === 'u9' && (inputComponents.gender === 'm' || inputComponents.gender === 'mixte' || !inputComponents.gender)) {
+    const u9MixteTeam = configuredTeams.find((tv) => {
+      const n = normalizeTeamString(tv.teamName || '');
+      return n.includes('u9') && (n.includes('mixte') || n.includes('garcon'));
+    });
+    if (u9MixteTeam) {
+      return {
+        matched: true,
+        team: u9MixteTeam,
+        teamName: u9MixteTeam.teamName,
+        isAmbiguous: false,
+        suggestions: [] as string[],
+      };
+    }
+  }
+
+  // 3. Analyse structurelle
+  if (inputComponents.age) {
+    const candidateTeams = configuredTeams.filter((tv) => {
+      const tvComp = parseTeamComponents(normalizeTeamString(tv.teamName || ''));
+      if (tvComp.age !== inputComponents.age) return false;
+      if (inputComponents.gender && tvComp.gender) {
+        if (inputComponents.age === 'u9' && (inputComponents.gender === 'm' || inputComponents.gender === 'mixte')) {
+          if (tvComp.gender !== 'm' && tvComp.gender !== 'mixte') return false;
+        } else if (inputComponents.gender !== tvComp.gender) {
+          return false;
+        }
+      }
+      if (inputComponents.teamNumber && tvComp.teamNumber) {
+        if (inputComponents.teamNumber !== tvComp.teamNumber) return false;
+      }
+      return true;
+    });
+
+    if (candidateTeams.length === 1) {
+      return {
+        matched: true,
+        team: candidateTeams[0],
+        teamName: candidateTeams[0].teamName,
+        isAmbiguous: false,
+        suggestions: [] as string[],
+      };
+    }
+
+    if (candidateTeams.length > 1) {
+      return {
+        matched: false,
+        isAmbiguous: true,
+        suggestions: candidateTeams.map((t) => t.teamName).slice(0, 3),
+        reason: `Nom ambigu : plusieurs équipes (${candidateTeams.map((t) => t.teamName).join(', ')}) correspondent à "${clean}"`,
+      };
+    }
+  }
+
+  // 4. Aucune équipe reconnue : proposer jusqu'à 3 équipes proches
+  const suggestions = findClosestTeams(clean, configuredTeams, 3);
+  return {
+    matched: false,
+    isAmbiguous: false,
+    suggestions,
+    reason: `Équipe non configurée : "${clean}" ne correspond à aucune équipe active de l'application`,
+  };
+}
+
 function parseTelegramMatchMessage(text: string): {
   isWin: boolean | null;
-  team: string;
+  teamRaw: string;
   ourScore?: number;
   opponentScore?: number;
   opponent?: string;
@@ -330,7 +720,7 @@ function parseTelegramMatchMessage(text: string): {
   let ourScore: number | undefined;
   let opponentScore: number | undefined;
 
-  const scoreRegex = /(\b\d{2,3}\b)\s*[-–/:]\s*(\b\d{2,3}\b)/;
+  const scoreRegex = /(\b\d{1,3}\b)\s*[-–/:]\s*(\b\d{1,3}\b)/;
   const scoreMatch = clean.match(scoreRegex);
 
   let textWithoutScore = clean;
@@ -352,7 +742,7 @@ function parseTelegramMatchMessage(text: string): {
     }
   }
 
-  // Remove command or trigger words from text to find the team name
+  // Remove command or trigger words from text to find the raw team name
   let teamPart = textWithoutScore
     .replace(/^(\/victoire|\/defaite|\/défaite|victoire|defaite|défaite|gagné|perdu|win|loss)/i, '')
     .replace(/(contre|vs|face à|face a)/i, 'contre')
@@ -365,14 +755,9 @@ function parseTelegramMatchMessage(text: string): {
     opponent = parts[1]?.trim() || undefined;
   }
 
-  // Fallback default team if empty
-  if (!teamPart) {
-    teamPart = 'Seniors Garçons 1';
-  }
-
   return {
     isWin: isWin ?? true,
-    team: teamPart,
+    teamRaw: teamPart,
     ourScore,
     opponentScore,
     opponent,
@@ -604,34 +989,95 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const parsed = parseTelegramMatchMessage(text);
     const durationMs = 60 * 60 * 1000; // 1 heure
 
-    let customImg: string | undefined = undefined;
-    let customTitleConfig = undefined;
+    // Récupérer appData pour accéder aux équipes réellement configurées dans l'application
+    let appData: any = null;
     try {
       const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
       if (appDataRaw) {
-        const appData = JSON.parse(appDataRaw);
-        const vt = appData.visualTemplates;
-        const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
-        if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
-          customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
-        } else if (Array.isArray(appData.teamVisuals)) {
-          const tv = appData.teamVisuals.find((t: any) =>
-            t.teamName?.toLowerCase().includes(parsed.team.toLowerCase()) ||
-            t.category?.toLowerCase() === parsed.team.toLowerCase()
-          );
-          if (tv) {
-            customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
-          }
-        }
-        if (customImg && vt?.visualTitleConfigs?.[customImg]) {
-          customTitleConfig = vt.visualTitleConfigs[customImg];
-        }
+        appData = JSON.parse(appDataRaw);
       }
     } catch (e) {}
 
+    // Vérification stricte de l'équipe par rapport aux équipes configurées (U9 aux Seniors : filles, garçons et mixtes)
+    const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData?.teamVisuals);
+
+    if (!teamMatch.matched) {
+      // RÈGLE : Si le nom envoyé ne correspond pas clairement à une équipe, ne crée aucune alerte.
+      // Réponds en proposant jusqu'à trois équipes configurées qui s'en rapprochent et demande de renvoyer le message avec le bon nom.
+      // En cas d'ambiguïté, ne choisis jamais l'équipe automatiquement.
+      const reasonMsg = teamMatch.isAmbiguous
+        ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes configurées correspondent : ${teamMatch.suggestions.join(', ')}`
+        : `Équipe non reconnue ("${parsed.teamRaw || 'non précisée'}"). Suggestions d'équipes configurées : ${teamMatch.suggestions.join(', ')}`;
+
+      const failedRecord = {
+        receivedAt: now,
+        text,
+        success: false,
+        error: reasonMsg,
+        suggestions: teamMatch.suggestions,
+        isAmbiguous: teamMatch.isAmbiguous,
+      };
+      try {
+        await env.AFFICHAGE_KV.put('telegram-last-message', JSON.stringify(failedRecord));
+      } catch (e) {}
+
+      if (chatId) {
+        const headerText = teamMatch.isAmbiguous
+          ? `⚠️ *Équipe ambiguë : "${parsed.teamRaw}"*`
+          : `⚠️ *Équipe non reconnue : "${parsed.teamRaw}"*`;
+
+        const descText = teamMatch.isAmbiguous
+          ? 'Plusieurs équipes de l\'application correspondent à votre message :'
+          : 'Cette équipe ne fait pas partie des équipes configurées dans l\'application. Voici les équipes les plus proches :';
+
+        const listText = teamMatch.suggestions.map((s) => `• *${s}*`).join('\n');
+        const exampleTeam = teamMatch.suggestions[0] || 'Seniors Garçons 1';
+        const sampleScore = parsed.ourScore !== undefined && parsed.opponentScore !== undefined
+          ? `${parsed.ourScore}-${parsed.opponentScore}`
+          : '82-74';
+        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam} ${sampleScore}\``;
+
+        const fullReply = `${headerText}\n\n${descText}\n${listText}\n\n${helpExample}`;
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: fullReply, parse_mode: 'Markdown' }),
+          });
+        } catch (e) {}
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: reasonMsg,
+          suggestions: teamMatch.suggestions,
+          isAmbiguous: teamMatch.isAmbiguous,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const officialTeamName = teamMatch.teamName!;
+
+    let customImg: string | undefined = undefined;
+    let customTitleConfig = undefined;
+    if (appData) {
+      const vt = appData.visualTemplates;
+      const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
+      if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
+        customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
+      } else if (teamMatch.team && (teamMatch.team.winVisualUrl || teamMatch.team.lossVisualUrl)) {
+        customImg = parsed.isWin ? teamMatch.team.winVisualUrl : teamMatch.team.lossVisualUrl;
+      }
+      if (customImg && vt?.visualTitleConfigs?.[customImg]) {
+        customTitleConfig = vt.visualTitleConfigs[customImg];
+      }
+    }
+
     const newAlert = {
       id: 'tg-' + now + '-' + Math.random().toString(36).substring(2, 6),
-      team: parsed.team,
+      team: officialTeamName,
       isWin: parsed.isWin ?? true,
       ourScore: parsed.ourScore,
       opponentScore: parsed.opponentScore,
@@ -654,7 +1100,7 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const lastMsgRecord = {
       receivedAt: now,
       text: text,
-      team: parsed.team,
+      team: officialTeamName,
       isWin: parsed.isWin ?? true,
       score: parsed.ourScore !== undefined && parsed.opponentScore !== undefined
         ? `${parsed.ourScore} - ${parsed.opponentScore}`
@@ -718,35 +1164,55 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
   }
 
   const parsed = parseTelegramMatchMessage(messageText);
-  let customImg: string | undefined = undefined;
-  let customTitleConfig = undefined;
+
+  // Récupérer appData pour accéder aux équipes configurées
+  let appData: any = null;
   try {
     const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
     if (appDataRaw) {
-      const appData = JSON.parse(appDataRaw);
-      const vt = appData.visualTemplates;
-      const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
-      if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
-        customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
-      } else if (Array.isArray(appData.teamVisuals)) {
-        const tv = appData.teamVisuals.find((t: any) =>
-          t.teamName?.toLowerCase().includes(parsed.team.toLowerCase()) ||
-          t.category?.toLowerCase() === parsed.team.toLowerCase()
-        );
-        if (tv) {
-          customImg = parsed.isWin ? tv.winVisualUrl : tv.lossVisualUrl;
-        }
-      }
-      if (customImg && vt?.visualTitleConfigs?.[customImg]) {
-        customTitleConfig = vt.visualTitleConfigs[customImg];
-      }
+      appData = JSON.parse(appDataRaw);
     }
   } catch (e) {}
+
+  // Vérification de l'équipe
+  const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData?.teamVisuals);
+  if (!teamMatch.matched) {
+    const errorMsg = teamMatch.isAmbiguous
+      ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes correspondent : ${teamMatch.suggestions.join(', ')}`
+      : `Équipe non configurée ("${parsed.teamRaw || 'non précisée'}"). Suggestions : ${teamMatch.suggestions.join(', ')}`;
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: errorMsg,
+        suggestions: teamMatch.suggestions,
+        isAmbiguous: teamMatch.isAmbiguous,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const officialTeamName = teamMatch.teamName!;
+
+  let customImg: string | undefined = undefined;
+  let customTitleConfig = undefined;
+  if (appData) {
+    const vt = appData.visualTemplates;
+    const commonBank = parsed.isWin ? vt?.commonVictoryVisuals : vt?.commonDefeatVisuals;
+    if (commonBank && Array.isArray(commonBank) && commonBank.length > 0) {
+      customImg = commonBank[Math.floor(Math.random() * commonBank.length)];
+    } else if (teamMatch.team && (teamMatch.team.winVisualUrl || teamMatch.team.lossVisualUrl)) {
+      customImg = parsed.isWin ? teamMatch.team.winVisualUrl : teamMatch.team.lossVisualUrl;
+    }
+    if (customImg && vt?.visualTitleConfigs?.[customImg]) {
+      customTitleConfig = vt.visualTitleConfigs[customImg];
+    }
+  }
 
   const now = Date.now();
   const newAlert = {
     id: 'test-' + now + '-' + Math.random().toString(36).substring(2, 6),
-    team: parsed.team,
+    team: officialTeamName,
     isWin: parsed.isWin ?? true,
     ourScore: parsed.ourScore,
     opponentScore: parsed.opponentScore,
