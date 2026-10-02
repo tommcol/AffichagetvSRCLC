@@ -307,6 +307,7 @@ interface AdminPanelProps {
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   saveErrorMessage?: string;
   onManualSave?: () => void;
+  onReloadFromServer?: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -350,6 +351,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   saveStatus = 'idle',
   saveErrorMessage,
   onManualSave,
+  onReloadFromServer,
 }) => {
   const [activeTab, setActiveTab] = useState<
     | 'club_identity'
@@ -3003,6 +3005,47 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             )}
           </div>
         </div>
+
+        {/* Bandeau de notification de conflit de concurrence (Optimistic Concurrency Control) */}
+        {saveStatus === 'error' && (
+          <div className="mx-4 sm:mx-6 my-2.5 p-3.5 sm:p-4 rounded-2xl bg-red-950/90 border border-red-500/50 text-red-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md animate-in fade-in duration-200">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 rounded-xl bg-red-500/20 text-red-400 shrink-0 mt-0.5 sm:mt-0">
+                <AlertCircle className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="font-extrabold text-sm text-white">
+                  {saveErrorMessage || "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau."}
+                </div>
+                <p className="text-xs text-red-200/80 mt-0.5">
+                  Vos modifications en cours sont conservées dans votre navigateur. Cliquez sur « Recharger les données » pour récupérer la version la plus récente du serveur.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              {onReloadFromServer && (
+                <button
+                  type="button"
+                  onClick={onReloadFromServer}
+                  className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-lg shadow-red-600/30"
+                  title="Recharger la dernière version enregistrée sur le serveur"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Recharger les données</span>
+                </button>
+              )}
+              {onManualSave && (
+                <button
+                  type="button"
+                  onClick={onManualSave}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Réessayer
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation Menu with Horizontal Slider Controls */}
         <div className="relative bg-slate-950 border-b border-slate-800 flex items-center group">

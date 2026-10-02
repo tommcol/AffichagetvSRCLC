@@ -302,16 +302,49 @@ const saveAppDataToFile = (data: any) => {
 
 app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data"], (req, res) => {
   const data = getSavedAppData();
-  res.json({ success: true, data });
+  const currentVersion = data && typeof data.version === "number" ? data.version : 0;
+  if (data && typeof data.version !== "number") {
+    data.version = currentVersion;
+  }
+  res.json({ success: true, data, version: currentVersion });
 });
 
 app.post(["/api/app-data", "/api/save-app-data", "/.netlify/functions/save-app-data"], (req, res) => {
-  const { data } = req.body || {};
+  const { data, version: bodyVersion } = req.body || {};
   if (!data) {
     return res.status(400).json({ error: "Champ data requis" });
   }
+
+  const currentData = getSavedAppData();
+  let currentVersion = 0;
+  if (currentData && typeof currentData.version === "number") {
+    currentVersion = currentData.version;
+  }
+
+  const clientVersion = typeof bodyVersion === "number"
+    ? bodyVersion
+    : (typeof data.version === "number" ? data.version : undefined);
+
+  const isConflict = (clientVersion !== undefined && clientVersion !== currentVersion) ||
+                     (clientVersion === undefined && currentVersion > 0);
+
+  if (isConflict) {
+    console.warn(`[CONCURRENCY CONFLICT] Sauvegarde rejetée (server.ts) : clientVersion=${clientVersion}, serverVersion=${currentVersion}`);
+    return res.status(409).json({
+      ok: false,
+      success: false,
+      error: "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau.",
+      code: "CONCURRENCY_CONFLICT",
+      serverVersion: currentVersion,
+      clientVersion: clientVersion ?? null,
+    });
+  }
+
+  const nextVersion = currentVersion + 1;
+  data.version = nextVersion;
+
   const ok = saveAppDataToFile(data);
-  res.json({ ok, success: ok });
+  res.json({ ok, success: ok, version: nextVersion });
 });
 
 app.post("/api/verify-password", (_req, res) => {

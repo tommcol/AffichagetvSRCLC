@@ -152,6 +152,14 @@ export default function App() {
     return [];
   });
   const [dataChargee, setDataChargee] = useState(false);
+  const [dataVersion, setDataVersion] = useState<number>(0);
+  const dataVersionRef = useRef<number>(0);
+
+  const updateDataVersion = useCallback((v: number) => {
+    setDataVersion(v);
+    dataVersionRef.current = v;
+  }, []);
+
   const [adminAuthentifie, setAdminAuthentifie] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
@@ -179,72 +187,76 @@ export default function App() {
     type: 'matches',
   });
 
+  // Application en mémoire des données chargées
+  const applyLoadedData = useCallback((d: any) => {
+    if (!d) return;
+    if (d.clubSettings) {
+      setClubSettings({
+        ...d.clubSettings,
+        victoryPhotoDurationSeconds: typeof d.clubSettings.victoryPhotoDurationSeconds === 'number'
+          ? d.clubSettings.victoryPhotoDurationSeconds
+          : 10,
+      });
+    }
+    if (d.categories) {
+      const clampedCats = d.categories.map((c: CategoryConfig) => ({
+        ...c,
+        durationSeconds: Math.min(10, Math.max(3, c.durationSeconds || 6)),
+      }));
+      setCategories(clampedCats);
+    }
+    if (d.matches) setMatches(d.matches);
+    if (d.results) setResults(d.results);
+    if (d.sponsors) setSponsors(d.sponsors);
+    if (d.logos) setLogos(d.logos);
+    if (d.photos) setPhotos(d.photos);
+    if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
+      setAllMembers(d.allMembers);
+      try {
+        localStorage.setItem('club_all_members_pool', JSON.stringify(d.allMembers));
+      } catch (e) {}
+      const ref = simulatedDate || new Date();
+      const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
+      setBirthdays(calculatedWeekBirthdays.length > 0 ? calculatedWeekBirthdays : (d.birthdays || []));
+    } else if (d.birthdays) {
+      setBirthdays(d.birthdays);
+    }
+    if (d.events) setEvents(d.events);
+    if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
+    if (d.visualTemplates) {
+      let vt = { ...d.visualTemplates };
+      if (vt.matchesSettings) {
+        const s = (vt.matchesSettings as any).matchDisplayScope;
+        if (s === 'home' || s === 'away') {
+          vt.matchesSettings = { ...vt.matchesSettings, matchDisplayScope: 'split' };
+        }
+      }
+      if (vt.resultsSettings) {
+        const s = (vt.resultsSettings as any).matchDisplayScope;
+        if (s === 'home' || s === 'away') {
+          vt.resultsSettings = { ...vt.resultsSettings, matchDisplayScope: 'split' };
+        }
+      }
+      setVisualTemplates(vt);
+    }
+    if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
+      setFfbbTeams(d.ffbbTeams);
+      try {
+        localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(d.ffbbTeams));
+      } catch (e) {}
+    }
+  }, [simulatedDate]);
+
   // Chargement des données avec support complet Hors-Ligne (PWA / Cache local)
   useEffect(() => {
-    const applyLoadedData = (d: any) => {
-      if (!d) return;
-      if (d.clubSettings) {
-        setClubSettings({
-          ...d.clubSettings,
-          victoryPhotoDurationSeconds: typeof d.clubSettings.victoryPhotoDurationSeconds === 'number'
-            ? d.clubSettings.victoryPhotoDurationSeconds
-            : 10,
-        });
-      }
-      if (d.categories) {
-        const clampedCats = d.categories.map((c: CategoryConfig) => ({
-          ...c,
-          durationSeconds: Math.min(10, Math.max(3, c.durationSeconds || 6)),
-        }));
-        setCategories(clampedCats);
-      }
-      if (d.matches) setMatches(d.matches);
-      if (d.results) setResults(d.results);
-      if (d.sponsors) setSponsors(d.sponsors);
-      if (d.logos) setLogos(d.logos);
-      if (d.photos) setPhotos(d.photos);
-      if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
-        setAllMembers(d.allMembers);
-        try {
-          localStorage.setItem('club_all_members_pool', JSON.stringify(d.allMembers));
-        } catch (e) {}
-        const ref = simulatedDate || new Date();
-        const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
-        setBirthdays(calculatedWeekBirthdays.length > 0 ? calculatedWeekBirthdays : (d.birthdays || []));
-      } else if (d.birthdays) {
-        setBirthdays(d.birthdays);
-      }
-      if (d.events) setEvents(d.events);
-      if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
-      if (d.visualTemplates) {
-        let vt = { ...d.visualTemplates };
-        if (vt.matchesSettings) {
-          const s = (vt.matchesSettings as any).matchDisplayScope;
-          if (s === 'home' || s === 'away') {
-            vt.matchesSettings = { ...vt.matchesSettings, matchDisplayScope: 'split' };
-          }
-        }
-        if (vt.resultsSettings) {
-          const s = (vt.resultsSettings as any).matchDisplayScope;
-          if (s === 'home' || s === 'away') {
-            vt.resultsSettings = { ...vt.resultsSettings, matchDisplayScope: 'split' };
-          }
-        }
-        setVisualTemplates(vt);
-      }
-      if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
-        setFfbbTeams(d.ffbbTeams);
-        try {
-          localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(d.ffbbTeams));
-        } catch (e) {}
-      }
-    };
-
     const loadFromOfflineCache = () => {
       try {
         const saved = localStorage.getItem('src_app_data_offline_cache');
         if (saved) {
           const parsed = JSON.parse(saved);
+          if (typeof parsed.version === 'number') {
+            updateDataVersion(parsed.version);
+          }
           applyLoadedData(parsed);
           return true;
         }
@@ -260,11 +272,15 @@ export default function App() {
         if (!res.ok) throw new Error('Network error');
         return res.json();
       })
-      .then((res: { data: any }) => {
+      .then((res: { data: any; version?: number }) => {
         if (res.data) {
+          const v = typeof res.data.version === 'number'
+            ? res.data.version
+            : (typeof res.version === 'number' ? res.version : 0);
+          updateDataVersion(v);
           applyLoadedData(res.data);
           try {
-            localStorage.setItem('src_app_data_offline_cache', JSON.stringify(res.data));
+            localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...res.data, version: v }));
           } catch (e) {}
         } else {
           loadFromOfflineCache();
@@ -338,7 +354,9 @@ export default function App() {
     saveDebounceRef.current = setTimeout(() => {
       setSaveStatus('saving');
       const currentSeq = ++saveSeqRef.current;
+      const currentVer = dataVersionRef.current;
       const payload = {
+        version: currentVer,
         data: {
           clubSettings,
           categories,
@@ -353,6 +371,7 @@ export default function App() {
           teamVisuals,
           visualTemplates,
           ffbbTeams,
+          version: currentVer,
         },
       };
 
@@ -375,6 +394,14 @@ export default function App() {
           .then(async (res) => {
             if (currentSeq !== saveSeqRef.current) return;
             if (res.ok) {
+              const resJson = await res.json().catch(() => null);
+              if (resJson && typeof resJson.version === 'number') {
+                updateDataVersion(resJson.version);
+                payload.data.version = resJson.version;
+                try {
+                  localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+                } catch (e) {}
+              }
               setSaveStatus('saved');
               setSaveErrorMessage('');
               setTimeout(() => {
@@ -384,8 +411,13 @@ export default function App() {
               }, 2000);
             } else {
               const errJson = await res.json().catch(() => null);
-              const msg = errJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`);
-              if (!estNouvelleTentative) {
+              const isConflict = res.status === 409 || errJson?.code === 'CONCURRENCY_CONFLICT';
+              const msg = isConflict
+                ? "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau."
+                : (errJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`));
+
+              // En cas de conflit de concurrence, ne pas écraser ni boucler : stopper les tentatives
+              if (!estNouvelleTentative && !isConflict) {
                 setTimeout(() => {
                   if (currentSeq === saveSeqRef.current) tenter(true);
                 }, 3000);
@@ -431,13 +463,16 @@ export default function App() {
     teamVisuals,
     visualTemplates,
     ffbbTeams,
+    updateDataVersion,
   ]);
 
   const handleManualSave = useCallback(() => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaveStatus('saving');
     const currentSeq = ++saveSeqRef.current;
+    const currentVer = dataVersionRef.current;
     const payload = {
+      version: currentVer,
       data: {
         clubSettings,
         categories,
@@ -452,6 +487,7 @@ export default function App() {
         teamVisuals,
         visualTemplates,
         ffbbTeams,
+        version: currentVer,
       },
     };
 
@@ -470,6 +506,14 @@ export default function App() {
       .then(async (res) => {
         if (currentSeq !== saveSeqRef.current) return;
         if (res.ok) {
+          const resJson = await res.json().catch(() => null);
+          if (resJson && typeof resJson.version === 'number') {
+            updateDataVersion(resJson.version);
+            payload.data.version = resJson.version;
+            try {
+              localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+            } catch (e) {}
+          }
           setSaveStatus('saved');
           setSaveErrorMessage('');
           setTimeout(() => {
@@ -479,7 +523,10 @@ export default function App() {
           }, 2500);
         } else {
           const errJson = await res.json().catch(() => null);
-          const msg = errJson?.error || `Erreur serveur (${res.status})`;
+          const isConflict = res.status === 409 || errJson?.code === 'CONCURRENCY_CONFLICT';
+          const msg = isConflict
+            ? "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau."
+            : (errJson?.error || `Erreur serveur (${res.status})`);
           setSaveStatus('error');
           setSaveErrorMessage(msg);
         }
@@ -503,7 +550,34 @@ export default function App() {
     events,
     teamVisuals,
     visualTemplates,
+    ffbbTeams,
+    updateDataVersion,
   ]);
+
+  // Rechargement manuel depuis le serveur en cas de conflit de concurrence
+  const handleReloadFromServer = useCallback(async () => {
+    setSaveStatus('saving');
+    try {
+      const res = await fetch('/api/get-app-data');
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const json = await res.json();
+      if (json.data) {
+        const v = typeof json.data.version === 'number'
+          ? json.data.version
+          : (typeof json.version === 'number' ? json.version : 0);
+        updateDataVersion(v);
+        applyLoadedData(json.data);
+        try {
+          localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...json.data, version: v }));
+        } catch (e) {}
+        setSaveStatus('idle');
+        setSaveErrorMessage('');
+      }
+    } catch (err: any) {
+      setSaveStatus('error');
+      setSaveErrorMessage("Impossible de recharger les données : " + (err.message || 'Erreur réseau'));
+    }
+  }, [applyLoadedData, updateDataVersion]);
 
   // Mise à jour du pool permanent d'adhérents (Excel ou ajouts manuels)
   const handleUpdateAllMembers = useCallback(
@@ -1323,6 +1397,7 @@ export default function App() {
           saveStatus={saveStatus}
           saveErrorMessage={saveErrorMessage}
           onManualSave={handleManualSave}
+          onReloadFromServer={handleReloadFromServer}
           onSwitchToTvMode={() => {
             setViewMode('tv');
             handleToggleFullscreen();

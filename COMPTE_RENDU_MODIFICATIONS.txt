@@ -324,3 +324,49 @@ Vérifications effectuées :
 - Validation `npm run build` : succès ✅.
 ================================================================================
 
+================================================================================
+SECTION 12 : FIABILITÉ DE LA SAUVEGARDE — CONCURRENCE OPTIMISTE & VERSIONNAGE
+================================================================================
+
+Date : 02/10/2026
+Objet : Mise en place d'un contrôle de concurrence optimiste (OCC) avec numéro de version sur le document « app-data » dans Cloudflare KV et le serveur local, empêchant tout écrasement silencieux lors d'éditions simultanées.
+
+1. Analyse préalable :
+- **Récupération** : Les données sont récupérées via `GET /api/get-app-data` (ou `/api/app-data`).
+- **Modification** : Les données sont modifiées dans l'état React de `src/App.tsx` et manipulées via l'interface `AdminPanel.tsx`.
+- **Sauvegarde dans Cloudflare KV** : Deux déclencheurs dans `src/App.tsx` appellent `POST /api/save-app-data` :
+  1. La sauvegarde automatique avec anti-rebond de 800ms (`saveDebounceRef`).
+  2. Le bouton manuel « Enregistrer » dans l'en-tête de l'administration (`handleManualSave`).
+- **Endpoints concernés** : `/api/get-app-data`, `/api/app-data`, `/api/save-app-data`.
+
+2. Solution mise en place (Concurrence optimiste & Versionnage) :
+- **Numéro de version incrémental** :
+  • Le document `app-data` intègre un champ `version: number`.
+  • Rétrocompatibilité : si aucune version n'existe encore en base, elle est initialisée à 0 sans provoquer d'erreur.
+- **Vérification stricte côté serveur** (`worker/index.ts` & `server.ts`) :
+  • À chaque appel de sauvegarde, le serveur lit la version actuelle dans KV (`currentVersion`).
+  • Le client transmet la version qu'il avait lue (`clientVersion`).
+  • Si `clientVersion !== currentVersion` : la sauvegarde est **rejetée avec le statut HTTP 409 Conflict**.
+  • **Le serveur n'écrit RIEN dans KV** : les modifications plus récentes sont 100% préservées.
+  • Si `clientVersion === currentVersion` : la sauvegarde est acceptée, la version passe à `currentVersion + 1`, et la nouvelle version est renvoyée au client.
+- **Gestion côté interface** (`src/App.tsx` & `src/components/Admin/AdminPanel.tsx`) :
+  • En cas de rejet 409, l'application ne perd rien silencieusement et affiche un bandeau rouge bien visible :
+    « Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau. »
+  • Un bouton « Recharger les données » permet de récupérer la dernière version du serveur en un clic.
+  • Le bouton « Réessayer » reste disponible pour forcer l'enregistrement si l'utilisateur le souhaite.
+
+3. Vérifications réellement effectuées :
+- `scripts/test_optimistic_concurrency.ts` (7/7 assertions validées ✅) :
+  • Test 1 : Rétrocompatibilité données legacy sans version (initialisation à 0).
+  • Test 2 : Première sauvegarde valide (version 0 -> 1).
+  • Test 3 : Deuxième sauvegarde valide (version 1 -> 2).
+  • Test 4 : Détection de conflit avec statut 409 lorsqu'un client a une version en retard.
+  • Test 5 : Vérification que les données du serveur ne sont pas écrasées lors du conflit.
+  • Test 6 : Rechargement des données et sauvegarde réussie (version 2 -> 3).
+  • Test 7 : Validation statique de la conformité de `worker/index.ts` et `server.ts`.
+- Tous les bancs de tests existants (`test_ffbb_merge.ts`, `test_team_matching.ts`, `test_telegram_webhook.ts`) validés à 100% sans régression ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================
+
+

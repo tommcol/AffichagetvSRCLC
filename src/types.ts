@@ -409,3 +409,20 @@ export interface CarouselSlide {
   label: string;
 }
 
+export interface AppDataPayload {
+  version?: number;
+  clubSettings?: ClubSettings;
+  categories?: CategoryConfig[];
+  matches?: MatchItem[];
+  results?: MatchItem[];
+  sponsors?: SponsorItem[];
+  logos?: ClubLogoItem[];
+  photos?: ClubPhotoItem[];
+  birthdays?: BirthdayItem[];
+  allMembers?: BirthdayItem[];
+  events?: ClubEventItem[];
+  teamVisuals?: TeamVisualItem[];
+  visualTemplates?: VisualTemplatesConfig;
+  ffbbTeams?: FFBBTeamItem[];
+}
+
