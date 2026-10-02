@@ -245,7 +245,45 @@ Vérifications effectuées :
 ================================================================================
 
 ================================================================================
-SECTION 10 : RECONNAISSANCE DES ÉQUIPES CONFIGURÉES — U9 AUX SENIORS & ANTI-AMBIGUÏTÉ
+SECTION 11 : FINALISATION DE LA SYNCHRONISATION FFBB ET DU BOT TELEGRAM
+================================================================================
+
+Date : 02/10/2026
+Objet : Finalisation de la personnalisation des noms dans « Sync FFBB », de la reconnaissance des équipes dans Telegram et de la gestion stricte des scores facultatifs sans données fictives.
+
+1. Personnalisation des noms dans « Sync FFBB » :
+- **Champ dédié pour chaque équipe sélectionnée** :
+  • Dans l'onglet « Sync FFBB », chaque carte d'équipe dispose désormais d'un champ éditable « Nom affiché dans l'application », avec le nom officiel FFBB en indicateur de substitution (placeholder).
+  • Un bouton de réinitialisation permet à tout moment de rétablir le nom officiel FFBB.
+- **Séparation stricte du nom personnalisé et du rattachement FFBB** :
+  • Utilisation exclusive de l'identifiant FFBB (`team.id`, `rawFfbbCategory`, `ffbbMatchNumber`) pour retrouver les matchs et résultats de l'équipe.
+  • Le nom personnalisé est conservé après chaque synchronisation (enregistré dans `clubSettings.customTeamNames` et dans le cache d'équipe).
+  • Une nouvelle synchronisation officielle FFBB n'écrase jamais le nom personnalisé par le nom FFBB.
+  • Aucun doublon de match n'est créé en cas de renommage ou de nouvelle synchronisation.
+- **Affichage transversal dans toute l'application** :
+  • Le nom personnalisé apparaît automatiquement dans tous les affichages : diapositive des Matchs, diapositive des Résultats, carrousel TV plein écran, aperçu dans l'administration, et notifications/alertes de match.
+  • Concerne l'intégralité des équipes réelles du club des U9 aux Seniors : filles, garçons et mixtes, sans jamais créer automatiquement d'équipes inexistantes.
+
+2. Messages Telegram et reconnaissance des équipes :
+- **Identification unifiée** :
+  • Pour identifier une équipe dans un message, le bot utilise les équipes présentes dans « Sync FFBB », leur nom personnalisé, leur nom officiel FFBB et leurs alias.
+  • Tolérance complète des différences de majuscules/minuscules, d'accents (diacritiques), d'espaces et d'abréviations courantes (ex: `U9 Mixte`, `U9 M`, `u9m`, `u9g`, `SF1`, `Seniors Filles`, `SG1`, etc.).
+- **Liaison U9 Garçons / Mixte** :
+  • Le nom personnalisé (« U9 Mixte ») et le nom officiel FFBB (« U9 M » ou « U9 Garçons / Mixte ») désignent strictement la même équipe.
+- **Scores strictement facultatifs (zéro score fictif)** :
+  • Le bot accepte les messages avec ou sans score (ex: « Victoire Seniors Filles », « Défaite U15 Filles », « Victoire U9 Mixte 42-36 »).
+  • Si aucun score n'est indiqué dans le message, le bot n'invente rien : `ourScore` et `opponentScore` restent indéfinis, aucun chiffre fictif (comme 0-0 ou 82-74) n'est créé ni affiché sur la TV.
+  • L'affichage des alertes sur la TV adapte son visuel : le badge de score n'apparaît que lorsqu'un score réel a été renseigné.
+- **Anti-ambiguïté et propositions d'équipes proches** :
+  • Si l'équipe n'est pas reconnue ou si le message est ambigu, aucune alerte n'est créée dans la boucle TV.
+  • Le bot répond directement sur Telegram en proposant jusqu'à 3 équipes existantes qui s'en rapprochent et fournit un exemple clair pour inviter l'utilisateur à renvoyer son message.
+
+Vérifications réellement effectuées :
+- `scripts/test_ffbb_merge.ts` : 10/10 assertions validées avec succès ✅ (incluant la conservation du nom personnalisé "U9 Mixte" sans écrasement par FFBB et l'absence totale de doublons lors des renommages).
+- `scripts/test_team_matching.ts` : 8/8 assertions validées avec succès ✅ (couverture U9 aux Seniors, liaison U9 Garçons / Mixte, tolérance casse/accents/espaces, gestion des noms personnalisés, parsing fidèle avec/sans score).
+- `scripts/test_telegram_webhook.ts` : 100% conforme ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : compilation réussie sans erreur ✅.
 ================================================================================
 
 Date : 01/10/2026

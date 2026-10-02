@@ -123,7 +123,6 @@ const expectedTeams = [
   'U13 Garçons 1',
   'U13 Filles 1',
   'U13 Filles 2',
-  'U15 Garçons 1',
   'U15 Filles 1',
   'U18 Garçons 1',
   'U18 Filles 1',
@@ -138,8 +137,40 @@ for (const exp of expectedTeams) {
     throw new Error(`Échec pour équipe canonique "${exp}"`);
   }
 }
-console.log(`✓ Réussi : Les ${expectedTeams.length} équipes canoniques des U9 aux Seniors sont reconnues à 100%`);
+console.log(`✓ Réussi : Les ${expectedTeams.length} équipes réelles des U9 aux Seniors sont reconnues à 100%`);
+
+// 7. Test de personnalisation des noms (ex: "U9 Mixte")
+console.log('\n--- TEST 7 : Personnalisation des noms et lien FFBB ---');
+const customRes = matchTelegramTeam('U9 Mixte', {
+  customTeamNames: {
+    'team-200000005363355': 'U9 Mixte',
+  },
+});
+if (!customRes.matched || customRes.teamName !== 'U9 Mixte') {
+  throw new Error(`Le nom personnalisé "U9 Mixte" doit être renvoyé comme nom effectif`);
+}
+console.log(`✓ Réussi : Le nom personnalisé "U9 Mixte" est renvoyé avec succès pour l'équipe liée`);
+
+// 8. Test parsing des scores facultatifs
+console.log('\n--- TEST 8 : Parsing des messages Telegram et scores facultatifs ---');
+import { parseTelegramMatchMessage } from '../src/utils/telegramTeamMatcher';
+
+const msgWithScore = parseTelegramMatchMessage('Victoire U9 Mixte 42-36');
+if (!msgWithScore.isWin || msgWithScore.teamRaw !== 'U9 Mixte' || msgWithScore.ourScore !== 42 || msgWithScore.opponentScore !== 36) {
+  throw new Error('Échec parsing Victoire U9 Mixte 42-36');
+}
+
+const msgWithoutScore = parseTelegramMatchMessage('Victoire Seniors Filles');
+if (!msgWithoutScore.isWin || msgWithoutScore.teamRaw !== 'Seniors Filles' || msgWithoutScore.ourScore !== undefined || msgWithoutScore.opponentScore !== undefined) {
+  throw new Error('Échec parsing message sans score : aucun score fictif ne doit être inventé');
+}
+
+const msgDefaite = parseTelegramMatchMessage('Défaite U15 Filles');
+if (msgDefaite.isWin !== false || msgDefaite.teamRaw !== 'U15 Filles' || msgDefaite.ourScore !== undefined) {
+  throw new Error('Échec parsing Défaite U15 Filles');
+}
+console.log('✓ Réussi : Les messages avec et sans score sont parsés fidèlement sans score fictif');
 
 console.log('\n================================================================');
-console.log('🎉 TOUS LES TESTS DE RECONNAISSANCE D\'ÉQUIPES SONT PASSÉS ! (6/6)');
+console.log('🎉 TOUS LES TESTS DE RECONNAISSANCE D\'ÉQUIPES SONT PASSÉS ! (8/8)');
 console.log('================================================================');

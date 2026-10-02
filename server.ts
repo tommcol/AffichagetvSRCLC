@@ -439,12 +439,11 @@ app.post("/api/telegram-webhook", async (req, res) => {
 
     // Récupérer les équipes configurées dans l'application
     const savedData = getSavedAppData();
-    const configuredTeams = savedData?.teamVisuals && savedData.teamVisuals.length > 0
-      ? savedData.teamVisuals
-      : DEFAULT_CANONICAL_TEAMS;
-
-    // Validation stricte du nom d'équipe
-    const teamMatch = matchTelegramTeam(parsed.teamRaw, configuredTeams);
+    const teamMatch = matchTelegramTeam(parsed.teamRaw, {
+      ffbbTeams: savedData?.ffbbTeams,
+      customTeamNames: savedData?.clubSettings?.customTeamNames,
+      teamVisuals: savedData?.teamVisuals,
+    });
     if (!teamMatch.matched) {
       // RÈGLE : Si le nom envoyé ne correspond pas clairement à une équipe, ne crée aucune alerte.
       // Réponds en proposant jusqu'à trois équipes configurées qui s'en rapprochent et demande de renvoyer le message avec le bon nom.
@@ -472,9 +471,9 @@ app.post("/api/telegram-webhook", async (req, res) => {
         const listText = teamMatch.suggestions.map((s) => `• *${s}*`).join('\n');
         const exampleTeam = teamMatch.suggestions[0] || 'Seniors Garçons 1';
         const sampleScore = parsed.ourScore !== undefined && parsed.opponentScore !== undefined
-          ? `${parsed.ourScore}-${parsed.opponentScore}`
-          : '82-74';
-        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam} ${sampleScore}\``;
+          ? ` ${parsed.ourScore}-${parsed.opponentScore}`
+          : '';
+        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam}${sampleScore}\``;
 
         const fullReply = `${headerText}\n\n${descText}\n${listText}\n\n${helpExample}`;
         try {
@@ -565,11 +564,11 @@ app.post("/api/telegram/test", (req, res) => {
 
   // Vérification de l'équipe
   const savedData = getSavedAppData();
-  const configuredTeams = savedData?.teamVisuals && savedData.teamVisuals.length > 0
-    ? savedData.teamVisuals
-    : DEFAULT_CANONICAL_TEAMS;
-
-  const teamMatch = matchTelegramTeam(parsed.teamRaw, configuredTeams);
+  const teamMatch = matchTelegramTeam(parsed.teamRaw, {
+    ffbbTeams: savedData?.ffbbTeams,
+    customTeamNames: savedData?.clubSettings?.customTeamNames,
+    teamVisuals: savedData?.teamVisuals,
+  });
   if (!teamMatch.matched) {
     const errorMsg = teamMatch.isAmbiguous
       ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes correspondent : ${teamMatch.suggestions.join(', ')}`

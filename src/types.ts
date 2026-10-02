@@ -36,6 +36,9 @@ export interface MatchItem {
   poule?: string;
   pouleId?: string;
   selectedForWeekend?: boolean;
+  // Identifiant de rattachement FFBB et nom d'origine
+  ffbbTeamId?: string;
+  rawFfbbCategory?: string;
   // Provenance et indicateurs de modifications manuelles (pour la fusion FFBB)
   isManualMatch?: boolean;
   isDateManual?: boolean;
@@ -48,6 +51,7 @@ export interface MatchItem {
 export interface FFBBTeamItem {
   id: string;
   name: string;
+  customName?: string; // Nom personnalisé affiché dans l'application, le carrousel et Telegram
   category: string;
   gender: 'M' | 'F' | 'Mixte';
   competition: string;
@@ -379,6 +383,7 @@ export interface ClubSettings {
   autoSyncFFBB?: boolean; // Synchronisation automatique périodique avec FFBB
   autoSyncIntervalMinutes?: number; // Fréquence de synchronisation en minutes (défaut 3 min)
   ignoredTeamCategories?: string[]; // Catégories normalisées ignorées (ex: ["U18 F1"]). Par défaut vide = toutes suivies.
+  customTeamNames?: Record<string, string>; // Noms personnalisés par équipe FFBB (clé: teamId ou catégorie normalisée -> valeur: nom affiché)
 }
 
 export interface CarouselSlide {

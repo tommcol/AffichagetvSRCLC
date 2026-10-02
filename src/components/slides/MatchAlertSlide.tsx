@@ -495,6 +495,22 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
               ))}
             </h1>
           )}
+
+          {/* Badge de score réel (uniquement si score fourni dans le message Telegram ou la saisie, aucun score fictif) */}
+          {alert.ourScore !== undefined && alert.opponentScore !== undefined && (
+            <div className="mt-4 flex items-center justify-center pointer-events-none">
+              <div className="inline-flex items-center gap-3 px-6 py-2 rounded-2xl bg-black/85 border border-white/20 shadow-2xl backdrop-blur-md">
+                <span className="text-2xl md:text-3xl font-black text-amber-300 font-mono tracking-wider">
+                  {alert.ourScore} - {alert.opponentScore}
+                </span>
+                {alert.opponent && (
+                  <span className="text-sm md:text-base text-slate-300 font-semibold">
+                    vs {alert.opponent}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

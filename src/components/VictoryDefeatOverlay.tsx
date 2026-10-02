@@ -78,7 +78,10 @@ export const VictoryDefeatOverlay: React.FC<VictoryDefeatOverlayProps> = ({
             <span className="text-[11px] text-slate-300">({remainingMinutes} min restantes)</span>
           </div>
           <div className="font-bold text-sm">
-            {category} : {ourScore} - {opponentScore}
+            {category}
+            {ourScore !== undefined && opponentScore !== undefined && (
+              <span className="ml-1 text-amber-300 font-mono">: {ourScore} - {opponentScore}</span>
+            )}
           </div>
         </div>
         <button
@@ -207,51 +210,77 @@ export const VictoryDefeatOverlay: React.FC<VictoryDefeatOverlayProps> = ({
           </p>
         </div>
 
-        {/* Scoreboard Component */}
-        <div className="my-8 max-w-2xl mx-auto bg-slate-950/80 rounded-3xl border border-slate-800 p-6 md:p-8 shadow-inner">
-          <div className="grid grid-cols-5 items-center gap-4">
-            {/* Our Team */}
-            <div className="col-span-2 text-right">
-              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Notre Équipe</div>
-              <div className="text-xl md:text-2xl font-black text-white truncate font-bebas tracking-wide">
-                {ourTeam}
+        {/* Scoreboard Component - Uniquement si un score réel est renseigné */}
+        {ourScore !== undefined && opponentScore !== undefined ? (
+          <div className="my-8 max-w-2xl mx-auto bg-slate-950/80 rounded-3xl border border-slate-800 p-6 md:p-8 shadow-inner">
+            <div className="grid grid-cols-5 items-center gap-4">
+              {/* Our Team */}
+              <div className="col-span-2 text-right">
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Notre Équipe</div>
+                <div className="text-xl md:text-2xl font-black text-white truncate font-bebas tracking-wide">
+                  {ourTeam}
+                </div>
+                <div className="text-xs text-emerald-400 font-semibold mt-1">
+                  {isWin ? 'Victoire validée' : 'Match terminé'}
+                </div>
               </div>
-              <div className="text-xs text-emerald-400 font-semibold mt-1">
-                {isWin ? 'Victoire validée' : 'Match terminé'}
-              </div>
-            </div>
 
-            {/* Score Digit Display */}
-            <div className="col-span-1 flex flex-col items-center justify-center">
-              <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-2xl border border-slate-700 shadow-xl">
-                <span
-                  className={`text-4xl md:text-6xl font-black font-teko ${
-                    isWin ? 'text-emerald-400' : 'text-slate-200'
-                  }`}
-                >
-                  {ourScore}
-                </span>
-                <span className="text-2xl font-black text-slate-500">:</span>
-                <span
-                  className={`text-4xl md:text-6xl font-black font-teko ${
-                    !isWin ? 'text-rose-400' : 'text-slate-400'
-                  }`}
-                >
-                  {opponentScore}
-                </span>
+              {/* Score Digit Display */}
+              <div className="col-span-1 flex flex-col items-center justify-center">
+                <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-2xl border border-slate-700 shadow-xl">
+                  <span
+                    className={`text-4xl md:text-6xl font-black font-teko ${
+                      isWin ? 'text-emerald-400' : 'text-slate-200'
+                    }`}
+                  >
+                    {ourScore}
+                  </span>
+                  <span className="text-2xl font-black text-slate-500">:</span>
+                  <span
+                    className={`text-4xl md:text-6xl font-black font-teko ${
+                      !isWin ? 'text-rose-400' : 'text-slate-400'
+                    }`}
+                  >
+                    {opponentScore}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* Opponent Team */}
-            <div className="col-span-2 text-left">
-              <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Adversaire</div>
-              <div className="text-xl md:text-2xl font-black text-slate-200 truncate font-bebas tracking-wide">
-                {opponent}
+              {/* Opponent Team */}
+              <div className="col-span-2 text-left">
+                <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Adversaire</div>
+                <div className="text-xl md:text-2xl font-black text-slate-200 truncate font-bebas tracking-wide">
+                  {opponent || 'Adversaire'}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">{gymnasium}</div>
               </div>
-              <div className="text-xs text-slate-400 mt-1">{gymnasium}</div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* Pas de score renseigné : affichage propre sans score fictif */
+          <div className="my-8 max-w-xl mx-auto bg-slate-950/80 rounded-3xl border border-slate-800 p-6 text-center shadow-inner">
+            <div className="flex items-center justify-center gap-6">
+              <div className="text-right">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Équipe</div>
+                <div className="text-xl md:text-2xl font-black text-white font-bebas tracking-wide">
+                  {ourTeam}
+                </div>
+              </div>
+              {opponent && (
+                <>
+                  <span className="text-slate-500 font-bold text-lg font-bebas">VS</span>
+                  <div className="text-left">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Adversaire</div>
+                    <div className="text-xl md:text-2xl font-black text-slate-200 font-bebas tracking-wide">
+                      {opponent}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            {gymnasium && <div className="text-xs text-slate-400 mt-3 font-medium">📍 {gymnasium}</div>}
+          </div>
+        )}
 
         {/* Motivational message */}
         <p className="text-sm md:text-base text-slate-300 italic mb-8 max-w-lg mx-auto">

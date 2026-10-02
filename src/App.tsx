@@ -13,6 +13,7 @@ import {
   DEFAULT_EVENTS,
   DEFAULT_TEAM_VISUALS,
   DEFAULT_VISUAL_TEMPLATES,
+  DEFAULT_REAL_FFBB_TEAMS,
 } from './data/defaultData';
 import { filterAndSortBirthdaysForWeek, getWeekBounds, getWeekKey } from './utils/excelBirthdayParser';
 import {
@@ -29,6 +30,7 @@ import {
   TeamVisualItem,
   VisualTemplatesConfig,
   CarouselSlide,
+  FFBBTeamItem,
 } from './types';
 import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
@@ -124,6 +126,18 @@ export default function App() {
   const [events, setEvents] = useState<ClubEventItem[]>(DEFAULT_EVENTS);
   const [teamVisuals, setTeamVisuals] = useState<TeamVisualItem[]>(DEFAULT_TEAM_VISUALS);
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
+  const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ffbb_club_teams_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_REAL_FFBB_TEAMS;
+  });
   const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>(() => {
     try {
       const cached = localStorage.getItem('src_active_alerts_cache');
@@ -217,6 +231,12 @@ export default function App() {
           }
         }
         setVisualTemplates(vt);
+      }
+      if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
+        setFfbbTeams(d.ffbbTeams);
+        try {
+          localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(d.ffbbTeams));
+        } catch (e) {}
       }
     };
 
@@ -332,6 +352,7 @@ export default function App() {
           events,
           teamVisuals,
           visualTemplates,
+          ffbbTeams,
         },
       };
 
@@ -409,6 +430,7 @@ export default function App() {
     events,
     teamVisuals,
     visualTemplates,
+    ffbbTeams,
   ]);
 
   const handleManualSave = useCallback(() => {
@@ -429,6 +451,7 @@ export default function App() {
         events,
         teamVisuals,
         visualTemplates,
+        ffbbTeams,
       },
     };
 
@@ -1290,6 +1313,8 @@ export default function App() {
           onSetSimulatedDate={handleSetSimulatedDate}
           teamVisuals={teamVisuals}
           onUpdateTeamVisuals={setTeamVisuals}
+          ffbbTeams={ffbbTeams}
+          onUpdateFfbbTeams={setFfbbTeams}
           visualTemplates={visualTemplates}
           onUpdateVisualTemplates={setVisualTemplates}
           activeAlerts={activeAlerts}

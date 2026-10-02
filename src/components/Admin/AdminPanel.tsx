@@ -294,6 +294,8 @@ interface AdminPanelProps {
   onSetSimulatedDate?: (date: Date | null) => void;
   teamVisuals: TeamVisualItem[];
   onUpdateTeamVisuals: (newVisuals: TeamVisualItem[]) => void;
+  ffbbTeams?: FFBBTeamItem[];
+  onUpdateFfbbTeams?: (teams: FFBBTeamItem[]) => void;
   visualTemplates: VisualTemplatesConfig;
   onUpdateVisualTemplates: (newTemplates: VisualTemplatesConfig) => void;
   activeAlerts: ActiveMatchAlert[];
@@ -335,6 +337,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onSetSimulatedDate,
   teamVisuals,
   onUpdateTeamVisuals,
+  ffbbTeams: externalFfbbTeams,
+  onUpdateFfbbTeams,
   visualTemplates,
   onUpdateVisualTemplates,
   activeAlerts,
@@ -503,7 +507,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [proposalAppliedMsg, setProposalAppliedMsg] = useState<string | null>(null);
 
   const [editingMatch, setEditingMatch] = useState<MatchItem | null>(null);
-  const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
+  const [internalFfbbTeams, setInternalFfbbTeams] = useState<FFBBTeamItem[]>(() => {
     try {
       const saved = localStorage.getItem('ffbb_club_teams_cache');
       if (saved) {
@@ -515,6 +519,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     } catch (e) {}
     return DEFAULT_REAL_FFBB_TEAMS;
   });
+
+  const ffbbTeams = externalFfbbTeams && externalFfbbTeams.length > 0 ? externalFfbbTeams : internalFfbbTeams;
+  const setFfbbTeams = (teams: FFBBTeamItem[]) => {
+    setInternalFfbbTeams(teams);
+    if (onUpdateFfbbTeams) {
+      onUpdateFfbbTeams(teams);
+    }
+  };
 
   // Telegram Bot State
   const [telegramStatus, setTelegramStatus] = useState<{
@@ -2142,8 +2154,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         allSeasonMatches = applyLogos(allSeasonMatches);
         allSeasonResults = applyLogos(allSeasonResults);
 
-        const finalMatches = mergeMatchItems(matches, allSeasonMatches);
-        const finalResults = mergeMatchItems(results, allSeasonResults);
+        const customNames = clubSettings.customTeamNames || {};
+        const finalMatches = mergeMatchItems(matches, allSeasonMatches, customNames);
+        const finalResults = mergeMatchItems(results, allSeasonResults, customNames);
 
         onUpdateMatches(finalMatches);
         onUpdateResults(finalResults);
@@ -2154,9 +2167,22 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         }
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
-          setFfbbTeams(res.clubInfo.teamsList);
+          // Préserver les noms personnalisés pour chaque équipe par son identifiant FFBB
+          const existingMap = new Map(ffbbTeams.map((t) => [t.id, t]));
+          const existingCatMap = new Map(ffbbTeams.map((t) => [normalizeCategoryKey(t.category), t]));
+
+          const updatedTeams = res.clubInfo.teamsList.map((t) => {
+            const existing = existingMap.get(t.id) || existingCatMap.get(normalizeCategoryKey(t.category));
+            const customName = customNames[t.id] || customNames[t.category] || existing?.customName;
+            return {
+              ...t,
+              customName: customName || undefined,
+            };
+          });
+
+          setFfbbTeams(updatedTeams);
           try {
-            localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(res.clubInfo.teamsList));
+            localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(updatedTeams));
           } catch (e) {}
         }
         
@@ -2286,6 +2312,78 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     onUpdateMatches([]);
     onUpdateResults([]);
     setProposalAppliedMsg('⚠ Toutes les équipes sont décochées. Aucune rencontre ne sera affichée.');
+    setTimeout(() => setProposalAppliedMsg(null), 5000);
+  };
+
+  // Personnalisation du nom d'affichage d'une équipe FFBB
+  const handleUpdateTeamCustomName = (teamId: string, teamCategory: string, newCustomName: string) => {
+    const trimmed = newCustomName.trim();
+    const updatedCustomNames = { ...(clubSettings.customTeamNames || {}) };
+
+    if (trimmed) {
+      updatedCustomNames[teamId] = trimmed;
+      updatedCustomNames[teamCategory] = trimmed;
+      updatedCustomNames[normalizeCategoryKey(teamCategory)] = trimmed;
+    } else {
+      delete updatedCustomNames[teamId];
+      delete updatedCustomNames[teamCategory];
+      delete updatedCustomNames[normalizeCategoryKey(teamCategory)];
+    }
+
+    onUpdateClubSettings({
+      ...clubSettings,
+      customTeamNames: updatedCustomNames,
+    });
+
+    // 1. Mettre à jour ffbbTeams
+    const nextFfbbTeams = ffbbTeams.map((t) => {
+      if (t.id === teamId || normalizeCategoryKey(t.category) === normalizeCategoryKey(teamCategory)) {
+        return {
+          ...t,
+          customName: trimmed || undefined,
+        };
+      }
+      return t;
+    });
+    setFfbbTeams(nextFfbbTeams);
+    try {
+      localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(nextFfbbTeams));
+    } catch (e) {}
+
+    // 2. Mettre à jour les matchs et résultats pour afficher ce nouveau nom sur le carrousel
+    const targetCatKey = normalizeCategoryKey(teamCategory);
+    const effectiveDisplayName = trimmed || nextFfbbTeams.find(t => t.id === teamId)?.name || teamCategory;
+
+    const updatedMatches = matches.map((m) => {
+      const matchCatKey = normalizeCategoryKey(m.rawFfbbCategory || m.category);
+      if (m.ffbbTeamId === teamId || matchCatKey === targetCatKey) {
+        return {
+          ...m,
+          category: effectiveDisplayName,
+          rawFfbbCategory: m.rawFfbbCategory || teamCategory,
+          ffbbTeamId: teamId,
+        };
+      }
+      return m;
+    });
+
+    const updatedResults = results.map((r) => {
+      const resultCatKey = normalizeCategoryKey(r.rawFfbbCategory || r.category);
+      if (r.ffbbTeamId === teamId || resultCatKey === targetCatKey) {
+        return {
+          ...r,
+          category: effectiveDisplayName,
+          rawFfbbCategory: r.rawFfbbCategory || teamCategory,
+          ffbbTeamId: teamId,
+        };
+      }
+      return r;
+    });
+
+    onUpdateMatches(updatedMatches);
+    onUpdateResults(updatedResults);
+
+    setProposalAppliedMsg(`✓ Nom d'équipe mis à jour : « ${effectiveDisplayName} » sera affiché dans l'application, le carrousel et Telegram.`);
     setTimeout(() => setProposalAppliedMsg(null), 5000);
   };
 
@@ -8761,76 +8859,139 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
 
-                    {/* Grille des équipes interactives */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* Grille des équipes interactives avec personnalisation des noms */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                       {ffbbTeams.map((team, idx) => {
                         const isIgnored = isTeamCategoryIgnored(team.category, ignoredList);
                         const isTracked = !isIgnored;
+                        const currentCustomName = clubSettings.customTeamNames?.[team.id] ||
+                          clubSettings.customTeamNames?.[team.category] ||
+                          team.customName || '';
 
                         return (
                           <div
                             key={team.id || idx}
-                            onClick={() => handleToggleTrackTeam(team.category, team.name)}
-                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 group ${
+                            className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group ${
                               isTracked
                                 ? 'bg-slate-950 border-slate-700/80 hover:border-orange-500/60 shadow-md'
                                 : 'bg-slate-950/40 border-slate-900 opacity-60 hover:opacity-90'
                             }`}
                           >
-                            {/* Case à cocher personnalisée */}
-                            <div className="pt-0.5 shrink-0">
-                              <div
-                                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${
-                                  isTracked
-                                    ? 'bg-orange-600 text-white shadow-sm shadow-orange-600/40'
-                                    : 'border border-slate-600 bg-slate-900 group-hover:border-slate-500'
-                                }`}
-                              >
-                                {isTracked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            <div>
+                              {/* Ligne 1 : Case à cocher + Nom et badges */}
+                              <div className="flex items-start gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleTrackTeam(team.category, currentCustomName || team.name)}
+                                  className="pt-0.5 shrink-0 cursor-pointer"
+                                  title={isTracked ? "Cliquer pour ignorer l'équipe" : "Cliquer pour diffuser l'équipe"}
+                                >
+                                  <div
+                                    className={`w-5 h-5 rounded-lg flex items-center justify-center transition-colors ${
+                                      isTracked
+                                        ? 'bg-orange-600 text-white shadow-sm shadow-orange-600/40'
+                                        : 'border border-slate-600 bg-slate-900 hover:border-slate-500'
+                                    }`}
+                                  >
+                                    {isTracked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                  </div>
+                                </button>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`text-xs font-bold ${isTracked ? 'text-white' : 'text-slate-400 line-through'}`}>
+                                      {currentCustomName ? (
+                                        <span className="flex items-center gap-1">
+                                          <span className="text-orange-400 font-extrabold">{currentCustomName}</span>
+                                          <span className="text-[10px] text-slate-400 font-normal">({team.name})</span>
+                                        </span>
+                                      ) : (
+                                        team.name
+                                      )}
+                                    </span>
+                                    <span
+                                      className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                        team.gender === 'M'
+                                          ? 'bg-sky-500/20 text-sky-300'
+                                          : team.gender === 'F'
+                                          ? 'bg-pink-500/20 text-pink-300'
+                                          : 'bg-amber-500/20 text-amber-300'
+                                      }`}
+                                    >
+                                      {team.gender === 'F' ? 'Féminine' : team.gender === 'M' ? 'Masculine' : 'Mixte'}
+                                    </span>
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                                      {team.category}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                                    {team.competition}
+                                    {team.poule && (
+                                      <span className="text-orange-400/90 font-medium"> • {team.poule}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Champ de personnalisation du nom pour l'application, carrousel et Telegram */}
+                              <div className="mt-3 pt-3 border-t border-slate-800/80">
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                    <span>Nom affiché dans l'application :</span>
+                                  </label>
+                                  {currentCustomName && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                      Personnalisé
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={currentCustomName}
+                                    placeholder={team.name}
+                                    onChange={(e) => handleUpdateTeamCustomName(team.id, team.category, e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 focus:border-orange-500 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 font-semibold transition-all focus:outline-none"
+                                  />
+                                  {currentCustomName && (
+                                    <button
+                                      type="button"
+                                      title="Rétablir le nom officiel FFBB"
+                                      onClick={() => handleUpdateTeamCustomName(team.id, team.category, '')}
+                                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0 text-xs"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+                                  <span className="truncate">
+                                    ID FFBB : <code className="text-slate-400 font-mono">{team.id}</code>
+                                  </span>
+                                  {currentCustomName ? (
+                                    <span className="text-emerald-400 font-medium shrink-0">✓ TV & Telegram</span>
+                                  ) : (
+                                    <span className="text-slate-500 shrink-0">Nom FFBB actif</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
-                            {/* Informations sur l'équipe */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`text-xs font-bold ${isTracked ? 'text-white' : 'text-slate-400 line-through'}`}>
-                                  {team.name}
-                                </span>
-                                <span
-                                  className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                    team.gender === 'M'
-                                      ? 'bg-sky-500/20 text-sky-300'
-                                      : team.gender === 'F'
-                                      ? 'bg-pink-500/20 text-pink-300'
-                                      : 'bg-amber-500/20 text-amber-300'
-                                  }`}
-                                >
-                                  {team.gender === 'F' ? 'Féminine' : team.gender === 'M' ? 'Masculine' : 'Mixte'}
-                                </span>
-                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                                  {team.category}
-                                </span>
-                              </div>
-
-                              <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                                {team.competition}
-                                {team.poule && (
-                                  <span className="text-orange-400/90 font-medium"> • {team.poule}</span>
-                                )}
-                              </p>
-
-                              <div className="mt-2 flex items-center justify-between">
-                                <span
-                                  className={`text-[10px] font-bold ${
-                                    isTracked ? 'text-emerald-400' : 'text-slate-500'
-                                  }`}
-                                >
-                                  {isTracked ? '✓ Diffusée sur TV' : '✕ Ignorée (exclue)'}
-                                </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                                  {team.matchesCount} matchs
-                                </span>
-                              </div>
+                            {/* Statut de diffusion et compteur de matchs */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-900 flex items-center justify-between">
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  isTracked ? 'text-emerald-400' : 'text-slate-500'
+                                }`}
+                              >
+                                {isTracked ? '✓ Diffusée sur TV' : '✕ Ignorée (exclue)'}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                {team.matchesCount} matchs
+                              </span>
                             </div>
                           </div>
                         );

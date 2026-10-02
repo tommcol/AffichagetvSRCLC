@@ -448,6 +448,22 @@ const DEFAULT_CANONICAL_TEAMS_WORKER: TeamVisualItemWorker[] = [
   },
 ];
 
+const DEFAULT_REAL_FFBB_TEAMS_WORKER = [
+  { id: 'team-200000005335541', name: 'Seniors Filles 1', category: 'Seniors F1', gender: 'F' },
+  { id: 'team-200000005335759', name: 'Seniors Garçons 1', category: 'Seniors M1', gender: 'M' },
+  { id: 'team-200000005335760', name: 'Seniors Garçons 2', category: 'Seniors M2', gender: 'M' },
+  { id: 'team-200000005361201', name: 'U18 Filles 1', category: 'U18 F1', gender: 'F' },
+  { id: 'team-200000005360595', name: 'U18 Garçons 1', category: 'U18 M1', gender: 'M' },
+  { id: 'team-200000005361338', name: 'U15 Filles 1', category: 'U15 F1', gender: 'F' },
+  { id: 'team-200000005360457', name: 'U13 Garçons 1', category: 'U13 M1', gender: 'M' },
+  { id: 'team-200000005360524', name: 'U13 Filles 1', category: 'U13 F1', gender: 'F' },
+  { id: 'team-200000005360525', name: 'U13 Filles 2', category: 'U13 F2', gender: 'F' },
+  { id: 'team-200000005363537', name: 'U11 Filles 1', category: 'U11 F1', gender: 'F' },
+  { id: 'team-200000005363354', name: 'U11 Garçons 1', category: 'U11 M1', gender: 'M' },
+  { id: 'team-200000005363355', name: 'U9 Garçons / Mixte', category: 'U9 Mixte', gender: 'Mixte' },
+  { id: 'team-200000005363356', name: 'U9 Filles 1', category: 'U9 F1', gender: 'F' },
+];
+
 function normalizeTeamString(str: string): string {
   if (!str) return '';
   return str
@@ -551,7 +567,7 @@ function findClosestTeams(rawInput: string, configuredTeams: any[], limit = 3): 
   const scored: { name: string; score: number }[] = [];
 
   for (const tv of configuredTeams) {
-    const variations = getTeamNormalizedVariations(tv);
+    const variations = tv.variations || getTeamNormalizedVariations(tv);
     const tvComponents = parseTeamComponents(normalizeTeamString(tv.teamName || ''));
     let bestScore = 0;
 
@@ -585,17 +601,252 @@ function findClosestTeams(rawInput: string, configuredTeams: any[], limit = 3): 
   return results;
 }
 
-function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
-  const configuredTeams = Array.isArray(appDataTeamVisuals) && appDataTeamVisuals.length > 0
-    ? appDataTeamVisuals
+function matchConfiguredTeam(rawInput: string, appData?: any) {
+  const customMap = (appData?.clubSettings?.customTeamNames as Record<string, string>) || {};
+  const rawFfbbTeams = (appData?.ffbbTeams && Array.isArray(appData.ffbbTeams) && appData.ffbbTeams.length > 0)
+    ? appData.ffbbTeams
+    : DEFAULT_REAL_FFBB_TEAMS_WORKER;
+  const rawVisuals = (appData?.teamVisuals && Array.isArray(appData.teamVisuals) && appData.teamVisuals.length > 0)
+    ? appData.teamVisuals
     : DEFAULT_CANONICAL_TEAMS_WORKER;
+
+  // Construire la liste unifiée des équipes identifiables
+  const configuredTeams = rawFfbbTeams.map((ffbbTeam: any) => {
+    const customName = customMap[ffbbTeam.id] || customMap[ffbbTeam.category] || ffbbTeam.customName;
+    const displayName = customName || ffbbTeam.name;
+
+    const normOfficial = normalizeTeamString(ffbbTeam.name || '');
+    const normCat = normalizeTeamString(ffbbTeam.category || '');
+    const normCustom = customName ? normalizeTeamString(customName) : '';
+
+    const matchingVisual = rawVisuals.find((v: any) => {
+      const vNorm = normalizeTeamString(v.teamName || '');
+      if (v.id === ffbbTeam.id) return true;
+      if (vNorm === normOfficial || vNorm === normCat || (normCustom && vNorm === normCustom)) return true;
+      if (normOfficial.includes('u9') && vNorm.includes('u9')) {
+        const isF = ffbbTeam.gender === 'F' || normOfficial.includes('fille');
+        const vIsF = vNorm.includes('fille') || vNorm.includes('u9f');
+        return isF === vIsF;
+      }
+      if (normOfficial.includes('seniors filles') && vNorm.includes('seniors filles')) return true;
+      if (normOfficial.includes('seniors') && vNorm.includes('seniors')) {
+        const isF = ffbbTeam.gender === 'F' || normOfficial.includes('fille');
+        const vIsF = vNorm.includes('fille');
+        if (isF !== vIsF) return false;
+        const numOfficial = normOfficial.match(/[12]/)?.[0] || '1';
+        const numV = vNorm.match(/[12]/)?.[0] || '1';
+        return numOfficial === numV;
+      }
+      return false;
+    });
+
+    const variationsSet = new Set<string>();
+    const addVar = (s?: string) => {
+      if (!s) return;
+      const clean = normalizeTeamString(s);
+      if (clean) {
+        variationsSet.add(clean);
+        const noSpace = clean.replace(/\s+/g, '');
+        if (noSpace.length > 1) variationsSet.add(noSpace);
+      }
+    };
+
+    addVar(displayName);
+    addVar(ffbbTeam.name);
+    addVar(ffbbTeam.category);
+    if (customName) addVar(customName);
+
+    if (matchingVisual && Array.isArray(matchingVisual.shortAliases)) {
+      matchingVisual.shortAliases.forEach(addVar);
+    }
+
+    const isU9 = normOfficial.includes('u9') || normCat.includes('u9') || normCustom.includes('u9');
+    const isSeniors = normOfficial.includes('senior') || normCat.includes('senior');
+    const isU15 = normOfficial.includes('u15') || normCat.includes('u15');
+    const isU18 = normOfficial.includes('u18') || normCat.includes('u18');
+    const isU13 = normOfficial.includes('u13') || normCat.includes('u13');
+    const isU11 = normOfficial.includes('u11') || normCat.includes('u11');
+
+    if (isU9 && (ffbbTeam.gender === 'Mixte' || normOfficial.includes('mixte') || normOfficial.includes('garcon'))) {
+      addVar('u9 mixte');
+      addVar('u9 mixte 1');
+      addVar('u9 mixtes');
+      addVar('u9 mix');
+      addVar('u9');
+      addVar('u9m');
+      addVar('u9g');
+      addVar('u9 m');
+      addVar('u9 g');
+      addVar('u9 m1');
+      addVar('u9 g1');
+      addVar('u9 garcons');
+      addVar('u9 garçons');
+      addVar('u9 garcons 1');
+      addVar('u9 garçons 1');
+      addVar('u9 masculins');
+      addVar('u9m1');
+      addVar('u9g1');
+    } else if (isU9 && ffbbTeam.gender === 'F') {
+      addVar('u9f');
+      addVar('u9 f');
+      addVar('u9 filles');
+      addVar('u9 filles 1');
+      addVar('u9f1');
+      addVar('u9 feminines');
+      addVar('u9 féminines');
+      addVar('u9f 1');
+    }
+
+    if (isU11 && ffbbTeam.gender === 'F') {
+      addVar('u11f');
+      addVar('u11 f');
+      addVar('u11 filles');
+      addVar('u11 filles 1');
+      addVar('u11f1');
+      addVar('u11 feminines');
+      addVar('u11 féminines');
+      addVar('u11f 1');
+    } else if (isU11 && ffbbTeam.gender === 'M') {
+      addVar('u11m');
+      addVar('u11 m');
+      addVar('u11g');
+      addVar('u11 g');
+      addVar('u11 garcons');
+      addVar('u11 garçons');
+      addVar('u11 garcons 1');
+      addVar('u11 garçons 1');
+      addVar('u11m1');
+      addVar('u11 masculins');
+    }
+
+    if (isU13 && ffbbTeam.gender === 'F') {
+      const isNum2 = normOfficial.includes('2') || normCat.includes('2') || (customName && customName.includes('2'));
+      if (isNum2) {
+        addVar('u13f 2');
+        addVar('u13f2');
+        addVar('u13 f 2');
+        addVar('u13 f2');
+        addVar('u13 filles 2');
+        addVar('u13f-2');
+        addVar('u13 feminines 2');
+        addVar('u13 féminines 2');
+      } else {
+        addVar('u13f 1');
+        addVar('u13f1');
+        addVar('u13 f 1');
+        addVar('u13 f1');
+        addVar('u13 filles 1');
+        addVar('u13f-1');
+        addVar('u13 feminines 1');
+        addVar('u13 féminines 1');
+      }
+    } else if (isU13 && ffbbTeam.gender === 'M') {
+      addVar('u13m');
+      addVar('u13 m');
+      addVar('u13g');
+      addVar('u13 g');
+      addVar('u13 garcons');
+      addVar('u13 garçons');
+      addVar('u13 garcons 1');
+      addVar('u13 garçons 1');
+      addVar('u13m1');
+      addVar('u13 masculins');
+    }
+
+    if (isU15 && ffbbTeam.gender === 'F') {
+      addVar('u15f');
+      addVar('u15 f');
+      addVar('u15 filles');
+      addVar('u15 filles 1');
+      addVar('u15f1');
+      addVar('u15 feminines');
+      addVar('u15 féminines');
+      addVar('u15f 1');
+    }
+
+    if (isU18 && ffbbTeam.gender === 'F') {
+      addVar('u18f');
+      addVar('u18 f');
+      addVar('u18 filles');
+      addVar('u18 filles 1');
+      addVar('u18f1');
+      addVar('u18 feminines');
+      addVar('u18 féminines');
+      addVar('u18f 1');
+    } else if (isU18 && ffbbTeam.gender === 'M') {
+      addVar('u18m');
+      addVar('u18 m');
+      addVar('u18g');
+      addVar('u18 g');
+      addVar('u18 garcons');
+      addVar('u18 garçons');
+      addVar('u18 garcons 1');
+      addVar('u18 garçons 1');
+      addVar('u18m1');
+      addVar('u18 masculins');
+    }
+
+    if (isSeniors && ffbbTeam.gender === 'F') {
+      addVar('seniors filles');
+      addVar('seniors filles 1');
+      addVar('seniors f');
+      addVar('seniors f1');
+      addVar('seniors f 1');
+      addVar('sf');
+      addVar('sf1');
+      addVar('sf 1');
+      addVar('seniors feminines');
+      addVar('seniors féminines');
+    } else if (isSeniors && ffbbTeam.gender === 'M') {
+      const isNum2 = normOfficial.includes('2') || normCat.includes('2') || (customName && customName.includes('2'));
+      if (isNum2) {
+        addVar('seniors garcons 2');
+        addVar('seniors garçons 2');
+        addVar('seniors g2');
+        addVar('seniors m2');
+        addVar('seniors 2');
+        addVar('sg2');
+        addVar('sg 2');
+        addVar('sm2');
+        addVar('sm 2');
+      } else {
+        addVar('seniors garcons 1');
+        addVar('seniors garçons 1');
+        addVar('seniors g1');
+        addVar('seniors m1');
+        addVar('seniors 1');
+        addVar('sg1');
+        addVar('sg 1');
+        addVar('sm1');
+        addVar('sm 1');
+        addVar('seniors garcons');
+        addVar('seniors garçons');
+        addVar('seniors m');
+        addVar('seniors g');
+        addVar('sg');
+        addVar('sm');
+      }
+    }
+
+    return {
+      id: ffbbTeam.id,
+      teamName: displayName,
+      officialName: ffbbTeam.name,
+      customName,
+      category: ffbbTeam.category,
+      gender: ffbbTeam.gender,
+      variations: Array.from(variationsSet),
+      winVisualUrl: matchingVisual?.winVisualUrl,
+      lossVisualUrl: matchingVisual?.lossVisualUrl,
+    };
+  });
 
   const clean = rawInput ? rawInput.trim() : '';
   if (!clean) {
     return {
       matched: false,
       isAmbiguous: false,
-      suggestions: configuredTeams.slice(0, 3).map((t) => t.teamName),
+      suggestions: configuredTeams.slice(0, 3).map((t: any) => t.teamName),
       reason: 'Nom d\'équipe vide',
     };
   }
@@ -606,11 +857,10 @@ function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
 
   // 1. Égalité exacte parmi les variations
   const exactMatches: any[] = [];
-  for (const tv of configuredTeams) {
-    const variations = getTeamNormalizedVariations(tv);
-    if (variations.includes(normInput) || variations.includes(inputNoSpace)) {
-      if (!exactMatches.some((m) => m.id === tv.id)) {
-        exactMatches.push(tv);
+  for (const team of configuredTeams) {
+    if (team.variations.includes(normInput) || team.variations.includes(inputNoSpace)) {
+      if (!exactMatches.some((m) => m.id === team.id)) {
+        exactMatches.push(team);
       }
     }
   }
@@ -634,11 +884,14 @@ function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
     };
   }
 
-  // 2. Règle U9 Garçons / Mixte
-  if (inputComponents.age === 'u9' && (inputComponents.gender === 'm' || inputComponents.gender === 'mixte' || !inputComponents.gender)) {
-    const u9MixteTeam = configuredTeams.find((tv) => {
-      const n = normalizeTeamString(tv.teamName || '');
-      return n.includes('u9') && (n.includes('mixte') || n.includes('garcon'));
+  // 2. Règle U9 Garçons / Mixte / U9 M (les deux appellations désignent la même équipe)
+  if (inputComponents.age === 'u9' && (inputComponents.gender === 'm' || inputComponents.gender === 'mixte')) {
+    const u9MixteTeam = configuredTeams.find((t: any) => {
+      const n = normalizeTeamString(t.teamName);
+      const o = normalizeTeamString(t.officialName);
+      const c = normalizeTeamString(t.category);
+      return (n.includes('u9') || o.includes('u9') || c.includes('u9')) &&
+        (t.gender === 'Mixte' || n.includes('mixte') || o.includes('mixte') || n.includes('garcon') || o.includes('garcon'));
     });
     if (u9MixteTeam) {
       return {
@@ -653,18 +906,18 @@ function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
 
   // 3. Analyse structurelle
   if (inputComponents.age) {
-    const candidateTeams = configuredTeams.filter((tv) => {
-      const tvComp = parseTeamComponents(normalizeTeamString(tv.teamName || ''));
-      if (tvComp.age !== inputComponents.age) return false;
-      if (inputComponents.gender && tvComp.gender) {
+    const candidateTeams = configuredTeams.filter((t: any) => {
+      const tComp = parseTeamComponents(normalizeTeamString(t.teamName) + ' ' + normalizeTeamString(t.officialName));
+      if (tComp.age !== inputComponents.age) return false;
+      if (inputComponents.gender && tComp.gender) {
         if (inputComponents.age === 'u9' && (inputComponents.gender === 'm' || inputComponents.gender === 'mixte')) {
-          if (tvComp.gender !== 'm' && tvComp.gender !== 'mixte') return false;
-        } else if (inputComponents.gender !== tvComp.gender) {
+          if (tComp.gender !== 'm' && tComp.gender !== 'mixte') return false;
+        } else if (inputComponents.gender !== tComp.gender) {
           return false;
         }
       }
-      if (inputComponents.teamNumber && tvComp.teamNumber) {
-        if (inputComponents.teamNumber !== tvComp.teamNumber) return false;
+      if (inputComponents.teamNumber && tComp.teamNumber) {
+        if (inputComponents.teamNumber !== tComp.teamNumber) return false;
       }
       return true;
     });
@@ -689,7 +942,7 @@ function matchConfiguredTeam(rawInput: string, appDataTeamVisuals?: any[]) {
     }
   }
 
-  // 4. Aucune équipe reconnue : proposer jusqu'à 3 équipes proches
+  // 4. Proposer jusqu'à 3 équipes proches
   const suggestions = findClosestTeams(clean, configuredTeams, 3);
   return {
     matched: false,
@@ -999,7 +1252,7 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     } catch (e) {}
 
     // Vérification stricte de l'équipe par rapport aux équipes configurées (U9 aux Seniors : filles, garçons et mixtes)
-    const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData?.teamVisuals);
+    const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData);
 
     if (!teamMatch.matched) {
       // RÈGLE : Si le nom envoyé ne correspond pas clairement à une équipe, ne crée aucune alerte.
@@ -1033,9 +1286,9 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
         const listText = teamMatch.suggestions.map((s) => `• *${s}*`).join('\n');
         const exampleTeam = teamMatch.suggestions[0] || 'Seniors Garçons 1';
         const sampleScore = parsed.ourScore !== undefined && parsed.opponentScore !== undefined
-          ? `${parsed.ourScore}-${parsed.opponentScore}`
-          : '82-74';
-        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam} ${sampleScore}\``;
+          ? ` ${parsed.ourScore}-${parsed.opponentScore}`
+          : '';
+        const helpExample = `👉 *Merci de renvoyer votre message avec le nom exact de l'équipe*, par exemple :\n\`${parsed.isWin ? 'Victoire' : 'Défaite'} ${exampleTeam}${sampleScore}\``;
 
         const fullReply = `${headerText}\n\n${descText}\n${listText}\n\n${helpExample}`;
         try {

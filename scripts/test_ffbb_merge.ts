@@ -326,6 +326,67 @@ assert(res8[0].time === '16:00', 'Heure modifiée manuellement (16:00) conservé
 assert(res8[0].gymnasium === 'Salle Annexe', 'Gymnase modifié manuellement (Salle Annexe) conservé');
 assert(res8[0].competition === 'D1 Fille', 'Compétition officielle FFBB (D1 Fille) mise à jour car non éditée manuellement');
 
+// -----------------------------------------------------------------------------
+// TEST 9 : Conservation du nom personnalisé sans remplacement par le nom FFBB
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 9 : Conservation du nom personnalisé lors d\'une synchronisation FFBB ---');
+const customNamesMap: Record<string, string> = {
+  'team-200000005363355': 'U9 Mixte',
+  'U9 Mixte': 'U9 Mixte',
+};
+
+const existingMatchCustom: MatchItem[] = [{
+  id: 'ffbb-901',
+  ffbbMatchNumber: '901',
+  ffbbTeamId: 'team-200000005363355',
+  rawFfbbCategory: 'U9 M1',
+  date: '2026-10-18',
+  time: '14:00',
+  category: 'U9 Mixte', // Nom personnalisé choisi par l'utilisateur
+  competition: 'Plateaux Mini-Basket',
+  teamHome: 'SRC Basket',
+  teamAway: 'Charnay',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  status: 'upcoming',
+}];
+
+const incomingFromFfbb: MatchItem[] = [{
+  id: 'ffbb-901',
+  ffbbMatchNumber: '901',
+  ffbbTeamId: 'team-200000005363355',
+  rawFfbbCategory: 'U9 M1',
+  date: '2026-10-18',
+  time: '14:30', // Heure décalée par la FFBB
+  category: 'U9 M1', // Nom brut officiel FFBB entrant
+  competition: 'Plateaux Mini-Basket U9 - Secteur Charolais',
+  teamHome: 'SRC Basket',
+  teamAway: 'Charnay',
+  isHomeMatch: true,
+  ourClubName: 'SRC Basket',
+  status: 'upcoming',
+}];
+
+const res9 = mergeMatchItems(existingMatchCustom, incomingFromFfbb, customNamesMap);
+assert(res9.length === 1, '1 seul match présent après fusion FFBB');
+assert(res9[0].category === 'U9 Mixte', 'Le nom personnalisé "U9 Mixte" est STRICTEMENT conservé (non écrasé par "U9 M1")');
+assert(res9[0].time === '14:30', 'L\'heure officielle FFBB a bien été actualisée');
+assert(res9[0].competition === 'Plateaux Mini-Basket U9 - Secteur Charolais', 'La compétition FFBB a bien été actualisée');
+assert(res9[0].ffbbTeamId === 'team-200000005363355', 'L\'identifiant de rattachement FFBB est conservé');
+
+// -----------------------------------------------------------------------------
+// TEST 10 : Changement de nom personnalisé sans création de doublon
+// -----------------------------------------------------------------------------
+console.log('\n--- TEST 10 : Changement de nom personnalisé sans création de doublon ---');
+const updatedCustomMap: Record<string, string> = {
+  'team-200000005363355': 'U9 Garçons & Filles',
+};
+
+const res10 = mergeMatchItems(res9, incomingFromFfbb, updatedCustomMap);
+assert(res10.length === 1, 'Aucun doublon créé même si le nom personnalisé change');
+assert(res10[0].category === 'U9 Garçons & Filles', 'Le nouveau nom personnalisé "U9 Garçons & Filles" est appliqué');
+assert(res10[0].ffbbTeamId === 'team-200000005363355', 'Identifiant FFBB toujours intact pour relier les matchs');
+
 console.log('\n=============================================================');
-console.log('🎉 TOUTES LES ASSERTIONS DE FUSION FFBB SONT VALIDÉES AVEC SUCCÈS !');
+console.log('🎉 TOUTES LES ASSERTIONS DE FUSION FFBB SONT VALIDÉES AVEC SUCCÈS ! (10/10)');
 console.log('=============================================================\n');

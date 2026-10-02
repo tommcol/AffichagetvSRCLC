@@ -33,8 +33,13 @@ export function getFfbbKey(m: MatchItem): string | null {
  * Fusionne intelligemment une liste de rencontres existantes avec une nouvelle liste venant de la FFBB.
  * Les données officielles FFBB (compétition, poule, ville, etc.) sont actualisées
  * sauf si l'utilisateur a explicitement modifié le champ concerné dans l'application.
+ * Le nom personnalisé d'affichage est strictement conservé et ne sera jamais écrasé par le nom FFBB.
  */
-export function mergeMatchItems(existingList: MatchItem[], incomingList: MatchItem[]): MatchItem[] {
+export function mergeMatchItems(
+  existingList: MatchItem[],
+  incomingList: MatchItem[],
+  customTeamNames?: Record<string, string>
+): MatchItem[] {
   const incomingFfbbMap = new Map<string, MatchItem>();
   incomingList.forEach((inc) => {
     const key = getFfbbKey(inc);
@@ -108,11 +113,27 @@ export function mergeMatchItems(existingList: MatchItem[], incomingList: MatchIt
       ? existing.selectedForWeekend
       : (incoming.selectedForWeekend !== false);
 
+    // Résolution du nom affiché de l'équipe (personnalisation préservée, jamais écrasée par FFBB)
+    const teamId = existing.ffbbTeamId || incoming.ffbbTeamId;
+    const rawCategory = existing.rawFfbbCategory || incoming.rawFfbbCategory || incoming.category;
+    let finalCategory = existing.category || incoming.category;
+
+    if (customTeamNames) {
+      if (teamId && customTeamNames[teamId]) {
+        finalCategory = customTeamNames[teamId];
+      } else if (rawCategory && customTeamNames[rawCategory]) {
+        finalCategory = customTeamNames[rawCategory];
+      }
+    }
+
     // On part des données entrantes OFFICIELLES (pour actualiser compétition, poule, ville, etc.)
     // et on applique les surcharges et protections locales
     merged.push({
       ...incoming,
       id: existing.id || incoming.id,
+      category: finalCategory,
+      rawFfbbCategory: rawCategory,
+      ffbbTeamId: teamId,
       ffbbMatchNumber: incoming.ffbbMatchNumber || existing.ffbbMatchNumber,
       date: finalDate,
       time: finalTime,
@@ -137,8 +158,22 @@ export function mergeMatchItems(existingList: MatchItem[], incomingList: MatchIt
   incomingList.forEach((inc) => {
     const key = getFfbbKey(inc);
     if (key && !processedFfbbKeys.has(key)) {
+      const teamId = inc.ffbbTeamId;
+      const rawCategory = inc.rawFfbbCategory || inc.category;
+      let finalCategory = inc.category;
+
+      if (customTeamNames) {
+        if (teamId && customTeamNames[teamId]) {
+          finalCategory = customTeamNames[teamId];
+        } else if (rawCategory && customTeamNames[rawCategory]) {
+          finalCategory = customTeamNames[rawCategory];
+        }
+      }
+
       merged.push({
         ...inc,
+        category: finalCategory,
+        rawFfbbCategory: rawCategory,
         selectedForWeekend: inc.selectedForWeekend !== false,
       });
       processedFfbbKeys.add(key);
