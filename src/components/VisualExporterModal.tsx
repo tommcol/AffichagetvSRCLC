@@ -101,6 +101,7 @@ import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers'
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
+import { getPosterContentItems } from '../utils/posterContentHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -481,10 +482,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Active source items list for pagination
-  const allSourceItems = useMemo(() => {
-    if (contentType === 'results') return filteredResults;
-    return filteredMatches;
-  }, [contentType, filteredResults, filteredMatches]);
+  const allSourceItems = useMemo(
+    () => getPosterContentItems(contentType, filteredMatches, filteredResults),
+    [contentType, filteredMatches, filteredResults]
+  );
 
   // Total pages
   const totalPages = useMemo(
@@ -529,9 +530,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Items for caption selection (Global Publication: covers ALL matches/results of this publication regardless of number of posters)
-  const allCurrentCaptionItems = useMemo(() => {
-    return contentType === 'results' ? filteredResults : filteredMatches;
-  }, [contentType, filteredResults, filteredMatches]);
+  const allCurrentCaptionItems = useMemo(
+    () => getPosterContentItems(contentType, filteredMatches, filteredResults),
+    [contentType, filteredMatches, filteredResults]
+  );
 
   const allCurrentCaptionItemKeys = useMemo(() => {
     return allCurrentCaptionItems.map((item, idx) => getPosterItemKey(item, idx));
