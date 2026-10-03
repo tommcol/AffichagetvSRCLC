@@ -80,3 +80,14 @@ Voici le texte brut que tu dois améliorer et réécrire :
 "${currentCaption}"
 Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni phrases d'introduction.`,
 });
+
+
+export const requestPosterAiCaption = async (payload: PosterAiCaptionRequestPayload): Promise<any> => {
+  const response = await fetch('/api/generate-caption', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  return response.json();
+};
