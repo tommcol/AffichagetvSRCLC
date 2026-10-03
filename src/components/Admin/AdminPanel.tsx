@@ -7190,6 +7190,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             (alert) => alert.triggeredBy === 'telegram'
                           );
 
+                          if (!latestTelegramAlert) return null;
+
                           return (
                             <div className="pt-2 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                               <div className="text-xs text-slate-400">
@@ -7197,29 +7199,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               </div>
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  if (latestTelegramAlert) {
-                                    onRemoveAlert(latestTelegramAlert.id);
-                                    return;
-                                  }
-
-                                  try {
-                                    const response = await fetch('/api/get-alerts');
-                                    if (!response.ok) return;
-                                    const data = await response.json();
-                                    const serverAlert = Array.isArray(data?.alerts)
-                                      ? data.alerts.find(
-                                          (alert: ActiveMatchAlert) =>
-                                            alert?.triggeredBy === 'telegram'
-                                        )
-                                      : null;
-                                    if (serverAlert?.id) {
-                                      onRemoveAlert(serverAlert.id);
-                                    }
-                                  } catch {
-                                    // Le rafraîchissement serveur peut échouer hors ligne.
-                                  }
-                                }}
+                                onClick={() => onRemoveAlert(latestTelegramAlert.id)}
                                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
                                 title="Supprimer l'alerte Telegram de la boucle TV"
                               >
