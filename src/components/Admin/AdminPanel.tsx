@@ -7211,17 +7211,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                         </div>
                       );
                     })()}
-                    ) : (
-                      <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-500/40 text-xs text-sky-200 space-y-1.5">
-                        <div className="flex items-center gap-2 font-bold text-sky-300">
-                          <Clock className="w-4 h-4 text-sky-400 shrink-0" />
-                          <span>Configuration active — en attente du premier message</span>
-                        </div>
-                        <p className="text-slate-300 pl-6">
-                          Le webhook Telegram est correctement relié au serveur et la signature secrète est active. Aucun message réel n'a encore été reçu depuis un smartphone. Dès qu'un message de match sera envoyé, l'état passera à <strong>Bot opérationnel</strong> avec son horodatage de réception.
-                        </p>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 space-y-2">
