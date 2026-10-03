@@ -78,6 +78,11 @@ import {
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
 import { getPosterBadgeTitle } from '../utils/posterBadgeHelpers';
+import {
+  getPosterItemKey,
+  filterCaptionItems,
+  toggleCaptionItemSelection,
+} from '../utils/posterCaptionSelectionHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -505,54 +510,28 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     ]
   );
 
-  // Helper to get unique key for match or result
-  const getItemKey = (item: any, index: number) => {
-    if (item.id) return String(item.id);
-    return `${item.category || 'cat'}-${item.teamHome || 'home'}-${item.teamAway || 'away'}-${index}`;
-  };
-
   // Items for caption selection (Global Publication: covers ALL matches/results of this publication regardless of number of posters)
   const allCurrentCaptionItems = useMemo(() => {
     return contentType === 'results' ? filteredResults : filteredMatches;
   }, [contentType, filteredResults, filteredMatches]);
 
   const allCurrentCaptionItemKeys = useMemo(() => {
-    return allCurrentCaptionItems.map((item, idx) => getItemKey(item, idx));
+    return allCurrentCaptionItems.map((item, idx) => getPosterItemKey(item, idx));
   }, [allCurrentCaptionItems]);
 
   const captionMatches = useMemo(() => {
-    return filteredMatches.filter((m, idx) => {
-      if (selectedItemKeysForCaption === null) return true;
-      const k = getItemKey(m, idx);
-      return selectedItemKeysForCaption.includes(k);
-    });
+    return filterCaptionItems(filteredMatches, selectedItemKeysForCaption);
   }, [filteredMatches, selectedItemKeysForCaption]);
 
   const captionResults = useMemo(() => {
-    return filteredResults.filter((r, idx) => {
-      if (selectedItemKeysForCaption === null) return true;
-      const k = getItemKey(r, idx);
-      return selectedItemKeysForCaption.includes(k);
-    });
+    return filterCaptionItems(filteredResults, selectedItemKeysForCaption);
   }, [filteredResults, selectedItemKeysForCaption]);
 
   // Toggle selection of a match/result for text captions
   const toggleCaptionItemKey = (key: string, allKeys: string[]) => {
-    if (selectedItemKeysForCaption === null) {
-      setSelectedItemKeysForCaption(allKeys.filter((k) => k !== key));
-    } else {
-      if (selectedItemKeysForCaption.includes(key)) {
-        const next = selectedItemKeysForCaption.filter((k) => k !== key);
-        setSelectedItemKeysForCaption(next);
-      } else {
-        const next = [...selectedItemKeysForCaption, key];
-        if (next.length >= allKeys.length) {
-          setSelectedItemKeysForCaption(null);
-        } else {
-          setSelectedItemKeysForCaption(next);
-        }
-      }
-    }
+    setSelectedItemKeysForCaption(
+      toggleCaptionItemSelection(key, allKeys, selectedItemKeysForCaption)
+    );
   };
 
   const selectAllCaptionItems = () => setSelectedItemKeysForCaption(null);
@@ -2338,7 +2317,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
                           <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
                             {allCurrentCaptionItems.map((item: any, idx: number) => {
-                              const key = getItemKey(item, idx);
+                              const key = getPosterItemKey(item, idx);
                               const isSelected = selectedItemKeysForCaption === null || selectedItemKeysForCaption.includes(key);
                               const teamOpp = item.isHomeMatch ? item.teamAway : item.teamHome;
                               const label = `${item.category || 'Match'}${teamOpp ? ` vs ${teamOpp}` : ''}`;
