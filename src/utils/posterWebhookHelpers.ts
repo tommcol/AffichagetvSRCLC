@@ -1,3 +1,4 @@
+import type { MatchItem } from '../types';
 import type { PosterContentType, PosterSocialPlatform } from './posterTypes';
 
 export const buildPosterSocialWebhookPayload = ({
@@ -16,8 +17,8 @@ export const buildPosterSocialWebhookPayload = ({
   badgeTitle: string;
   shortClubName: string;
   caption: string;
-  matches: unknown[];
-  results: unknown[];
+  matches: MatchItem[];
+  results: MatchItem[];
   totalPages: number;
   webhookUrl: string;
 }) => ({
