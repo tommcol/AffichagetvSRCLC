@@ -32,11 +32,21 @@ function getDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+const activeBlobUrls = new Map<string, string>();
+
 /**
  * Enregistre un fichier média (vidéo ou image) dans IndexedDB
  * et retourne un ObjectURL actif tout en l'enregistrant auprès du registre vidéo.
  */
 export async function saveMediaBlob(key: string, file: Blob | File): Promise<string> {
+  const existing = activeBlobUrls.get(key);
+  if (existing) {
+    try {
+      URL.revokeObjectURL(existing);
+    } catch (e) {}
+    activeBlobUrls.delete(key);
+  }
+
   try {
     const db = await getDB();
     await new Promise<void>((resolve, reject) => {
@@ -52,11 +62,13 @@ export async function saveMediaBlob(key: string, file: Blob | File): Promise<str
     if (isVideo) {
       registerVideoBlob(url);
     }
+    activeBlobUrls.set(key, url);
     return url;
   } catch (err) {
     console.warn('Erreur lors de la sauvegarde du média dans IndexedDB:', err);
     const url = URL.createObjectURL(file);
     if (file.type.startsWith('video')) registerVideoBlob(url);
+    activeBlobUrls.set(key, url);
     return url;
   }
 }
@@ -65,6 +77,11 @@ export async function saveMediaBlob(key: string, file: Blob | File): Promise<str
  * Récupère un fichier média depuis IndexedDB et génère une URL Blob valide
  */
 export async function getMediaBlobUrl(key: string): Promise<string | null> {
+  const existing = activeBlobUrls.get(key);
+  if (existing) {
+    return existing;
+  }
+
   try {
     const db = await getDB();
     const blob = await new Promise<Blob | null>((resolve, reject) => {
@@ -81,6 +98,7 @@ export async function getMediaBlobUrl(key: string): Promise<string | null> {
     if (isVideo) {
       registerVideoBlob(url);
     }
+    activeBlobUrls.set(key, url);
     return url;
   } catch (err) {
     console.warn('Erreur récupération média IndexedDB:', err);
@@ -92,6 +110,14 @@ export async function getMediaBlobUrl(key: string): Promise<string | null> {
  * Supprime un média d'IndexedDB
  */
 export async function deleteMediaBlob(key: string): Promise<void> {
+  const existing = activeBlobUrls.get(key);
+  if (existing) {
+    try {
+      URL.revokeObjectURL(existing);
+    } catch (e) {}
+    activeBlobUrls.delete(key);
+  }
+
   try {
     const db = await getDB();
     await new Promise<void>((resolve, reject) => {

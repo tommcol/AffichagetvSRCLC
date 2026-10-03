@@ -680,41 +680,82 @@ export default function App() {
   }, []);
 
   // Actualisation automatique des résultats et matchs depuis le serveur (mise à jour continue en temps réel)
-  useEffect(() => {
-    const pollUpdatedData = async () => {
-      // En mode TV (non administrateur actif), synchroniser automatiquement les nouveaux résultats et matchs
-      if (adminAuthentifie && viewMode === 'admin') return;
-      try {
-        const res = await fetch('/api/get-app-data');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data) {
-            const d = json.data;
-            if (Array.isArray(d.results)) {
-              setResults((prev) => {
-                const prevJson = JSON.stringify(prev);
-                const nextJson = JSON.stringify(d.results);
-                return prevJson === nextJson ? prev : d.results;
-              });
-            }
-            if (Array.isArray(d.matches)) {
-              setMatches((prev) => {
-                const prevJson = JSON.stringify(prev);
-                const nextJson = JSON.stringify(d.matches);
-                return prevJson === nextJson ? prev : d.matches;
-              });
-            }
+  const refreshInProgressRef = useRef(false);
+
+  const pollUpdatedData = useCallback(async () => {
+    // En mode TV (non administrateur actif), synchroniser automatiquement les nouveaux résultats et matchs
+    if (adminAuthentifie && viewMode === 'admin') return;
+
+    // Verrou anti-chevauchement de requêtes
+    if (refreshInProgressRef.current) return;
+    refreshInProgressRef.current = true;
+
+    try {
+      const res = await fetch('/api/get-app-data');
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.data) {
+          const d = json.data;
+          const v = typeof d.version === 'number'
+            ? d.version
+            : (typeof json.version === 'number' ? json.version : 0);
+
+          updateDataVersion(v);
+
+          // Mise à jour du cache hors-ligne uniquement en cas de vraie réponse serveur valide
+          try {
+            localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...d, version: v }));
+          } catch (e) {}
+
+          // Éviter les mises à jour d'état inutile si les données n'ont pas changé
+          if (Array.isArray(d.results)) {
+            setResults((prev) => (JSON.stringify(prev) === JSON.stringify(d.results) ? prev : d.results));
+          }
+          if (Array.isArray(d.matches)) {
+            setMatches((prev) => (JSON.stringify(prev) === JSON.stringify(d.matches) ? prev : d.matches));
+          }
+          if (Array.isArray(d.sponsors)) {
+            setSponsors((prev) => (JSON.stringify(prev) === JSON.stringify(d.sponsors) ? prev : d.sponsors));
+          }
+          if (Array.isArray(d.photos)) {
+            setPhotos((prev) => (JSON.stringify(prev) === JSON.stringify(d.photos) ? prev : d.photos));
+          }
+          if (Array.isArray(d.events)) {
+            setEvents((prev) => (JSON.stringify(prev) === JSON.stringify(d.events) ? prev : d.events));
+          }
+          if (Array.isArray(d.categories)) {
+            setCategories((prev) => (JSON.stringify(prev) === JSON.stringify(d.categories) ? prev : d.categories));
           }
         }
-      } catch (err) {
-        // silencieux
+      }
+    } catch (err) {
+      console.warn('Erreur lors du rafraîchissement automatique TV (données actuelles conservées):', err);
+    } finally {
+      refreshInProgressRef.current = false;
+    }
+  }, [adminAuthentifie, viewMode, updateDataVersion]);
+
+  // Polling toutes les 30 secondes + Rafraîchissement intelligent au retour au premier plan
+  useEffect(() => {
+    if (adminAuthentifie && viewMode === 'admin') return;
+
+    const dataPollInterval = window.setInterval(() => {
+      pollUpdatedData();
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        pollUpdatedData();
       }
     };
 
-    // Polling toutes les 30 secondes
-    const dataPollInterval = setInterval(pollUpdatedData, 30000);
-    return () => clearInterval(dataPollInterval);
-  }, [adminAuthentifie, viewMode]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(dataPollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [adminAuthentifie, viewMode, pollUpdatedData]);
 
   // Filter out any expired alerts every 30 seconds
   useEffect(() => {
