@@ -52,6 +52,7 @@ import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/ap
 import { isCarouselSlideVideo } from './utils/carouselVideoHelpers';
 import { registerVideoBlob } from './utils/mediaUtils';
 import { saveAppDataRequest } from './utils/appDataSaveHelpers';
+import { getPolledAppDataVersion, getPolledCollections, hasChangedJson } from './utils/appDataPollingHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
 import { FixedCanvas169 } from './components/common/FixedCanvas169';
@@ -549,36 +550,30 @@ export default function App() {
       if (res.ok) {
         const json = await res.json();
         if (json?.data) {
-          const d = json.data;
-          const v = typeof d.version === 'number'
-            ? d.version
-            : (typeof json.version === 'number' ? json.version : 0);
+          const d: AppDataPayload = json.data;
+          const v = getPolledAppDataVersion(d, json.version);
 
           updateDataVersion(v);
+          setOfflineAppData({ ...d, version: v });
 
-          // Mise à jour du cache hors-ligne uniquement en cas de vraie réponse serveur valide
-          try {
-            setOfflineAppData({ ...d, version: v });
-          } catch (e) {}
-
-          // Éviter les mises à jour d'état inutile si les données n'ont pas changé
-          if (Array.isArray(d.results)) {
-            setResults((prev) => (JSON.stringify(prev) === JSON.stringify(d.results) ? prev : d.results));
+          const collections = getPolledCollections(d);
+          if (collections.results) {
+            setResults((prev) => (hasChangedJson(prev, collections.results) ? collections.results! : prev));
           }
-          if (Array.isArray(d.matches)) {
-            setMatches((prev) => (JSON.stringify(prev) === JSON.stringify(d.matches) ? prev : d.matches));
+          if (collections.matches) {
+            setMatches((prev) => (hasChangedJson(prev, collections.matches) ? collections.matches! : prev));
           }
-          if (Array.isArray(d.sponsors)) {
-            setSponsors((prev) => (JSON.stringify(prev) === JSON.stringify(d.sponsors) ? prev : d.sponsors));
+          if (collections.sponsors) {
+            setSponsors((prev) => (hasChangedJson(prev, collections.sponsors) ? collections.sponsors! : prev));
           }
-          if (Array.isArray(d.photos)) {
-            setPhotos((prev) => (JSON.stringify(prev) === JSON.stringify(d.photos) ? prev : d.photos));
+          if (collections.photos) {
+            setPhotos((prev) => (hasChangedJson(prev, collections.photos) ? collections.photos! : prev));
           }
-          if (Array.isArray(d.events)) {
-            setEvents((prev) => (JSON.stringify(prev) === JSON.stringify(d.events) ? prev : d.events));
+          if (collections.events) {
+            setEvents((prev) => (hasChangedJson(prev, collections.events) ? collections.events! : prev));
           }
-          if (Array.isArray(d.categories)) {
-            setCategories((prev) => (JSON.stringify(prev) === JSON.stringify(d.categories) ? prev : d.categories));
+          if (collections.categories) {
+            setCategories((prev) => (hasChangedJson(prev, collections.categories) ? collections.categories! : prev));
           }
         }
       }
