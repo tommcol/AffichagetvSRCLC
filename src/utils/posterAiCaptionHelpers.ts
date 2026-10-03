@@ -1,3 +1,4 @@
+import type { MatchItem } from '../types';
 import type { PosterContentType, PosterSocialPlatform } from './posterTypes';
 
 export type PosterAiCaptionPlatform = PosterSocialPlatform;
@@ -5,8 +6,8 @@ export type PosterAiCaptionPlatform = PosterSocialPlatform;
 export interface PosterAiCaptionRequestPayload {
   platform: PosterAiCaptionPlatform;
   type: 'matches' | 'results';
-  matches: any[];
-  results: any[];
+  matches: MatchItem[];
+  results: MatchItem[];
   clubName: string;
   shortClub: string;
   gymnasium: string;
@@ -27,8 +28,8 @@ export const buildPosterAiCaptionRequestPayload = ({
 }: {
   platform: PosterAiCaptionPlatform;
   contentType: PosterContentType;
-  matches: any[];
-  results: any[];
+  matches: MatchItem[];
+  results: MatchItem[];
   clubName: string;
   shortClub: string;
   gymnasium: string;
@@ -82,7 +83,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 });
 
 
-export const requestPosterAiCaption = async (payload: PosterAiCaptionRequestPayload): Promise<any> => {
+export interface PosterAiCaptionResponse {
+  success?: boolean;
+  caption?: string;
+  error?: string;
+}
+
+export const requestPosterAiCaption = async (
+  payload: PosterAiCaptionRequestPayload
+): Promise<PosterAiCaptionResponse> => {
   const response = await fetch('/api/generate-caption', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
