@@ -102,6 +102,7 @@ import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
 import { getPosterContentItems } from '../utils/posterContentHelpers';
+import { getInitialPosterContentType } from '../utils/posterContentTypeHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
   PosterFilterType,
@@ -151,11 +152,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const safeGymnasium = (clubSettings?.gymnasiumDefault || 'Gymnase').trim();
 
   const [contentType, setContentType] = useState<'matches' | 'results' | 'notification'>(
-    initialType === 'victory' || initialType === 'defeat'
-      ? 'notification'
-      : initialType === 'results'
-      ? 'results'
-      : 'matches'
+    getInitialPosterContentType(initialType)
   );
 
   // Default to 4:5 portrait (1080x1350 for Instagram / Facebook - directly matching user reference images!)
