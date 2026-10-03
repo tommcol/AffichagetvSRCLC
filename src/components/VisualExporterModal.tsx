@@ -105,6 +105,7 @@ import { getPosterContentItems } from '../utils/posterContentHelpers';
 import { getInitialPosterContentType } from '../utils/posterContentTypeHelpers';
 import { getAvailablePosterFilter } from '../utils/posterFilterHelpers';
 import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
+import { buildPosterSocialWebhookPayload } from '../utils/posterWebhookHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
   PosterFilterType,
@@ -880,17 +881,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       const res = await fetch('/api/social/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: selectedSocialTab,
-          type: contentType,
-          badgeTitle,
-          title: `${safeShortName} • ${badgeTitle}`,
-          caption: activeCaption,
-          ...getPosterPublicationItems(contentType, captionMatches, captionResults),
-          totalPages,
-          itemsCount: contentType === 'matches' ? captionMatches.length : captionResults.length,
-          webhookUrl: clubSettings.socialWebhookUrl || '',
-        }),
+        body: JSON.stringify(
+          buildPosterSocialWebhookPayload({
+            platform: selectedSocialTab,
+            contentType,
+            badgeTitle,
+            shortClubName: safeShortName,
+            caption: activeCaption,
+            matches: captionMatches,
+            results: captionResults,
+            totalPages,
+            webhookUrl: clubSettings.socialWebhookUrl || '',
+          })
+        ),
       });
 
       const data = await res.json();
