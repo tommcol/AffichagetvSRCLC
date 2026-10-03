@@ -60,6 +60,10 @@ import {
   resolvePosterBackgroundUrl,
   resolveLayerMediaUrl,
 } from '../utils/posterVisualHelpers';
+import {
+  getLayer2Settings,
+  mergeLayer2TemplateSetting,
+} from '../utils/posterLayer2Helpers';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -516,25 +520,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     if (partial.resultDisplayMode !== undefined) setResultDisplayMode(partial.resultDisplayMode);
 
     if (onUpdateVisualTemplates && visualTemplates) {
-      if (categoryType === 'matches') {
-        const current = visualTemplates.matchesSettings || {};
-        onUpdateVisualTemplates({
-          ...visualTemplates,
-          matchesSettings: {
-            ...current,
-            ...partial,
-          },
-        });
-      } else if (categoryType === 'results') {
-        const current = visualTemplates.resultsSettings || {};
-        onUpdateVisualTemplates({
-          ...visualTemplates,
-          resultsSettings: {
-            ...current,
-            ...partial,
-          },
-        });
-      }
+      onUpdateVisualTemplates(
+        mergeLayer2TemplateSetting(
+          visualTemplates,
+          categoryType,
+          partial
+        )
+      );
     }
   };
 
@@ -554,19 +546,38 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   };
 
   useEffect(() => {
-    if (effectiveCategoryConfig && effectiveCategoryConfig.categoryTheme) {
-      const ct = effectiveCategoryConfig.categoryTheme;
-      if (ct.primaryColor) setLayer2PrimaryColor(ct.primaryColor);
-      if (ct.textColor) setLayer2TextColor(ct.textColor);
-      if (ct.badgeBgColor) {
-        setLayer2BadgeBgColor(ct.badgeBgColor);
-      } else if (ct.primaryColor) {
-        setLayer2BadgeBgColor(ct.primaryColor);
-      }
-      if (ct.badgeTextColor) setLayer2BadgeTextColor(ct.badgeTextColor);
-      if (ct.fontFamilyHeader) setLayer2FontHeader(ct.fontFamilyHeader);
-      if (ct.fontFamilyBody) setLayer2FontBody(ct.fontFamilyBody);
-      if (ct.resultDisplayMode) setResultDisplayMode(ct.resultDisplayMode);
+    if (!effectiveCategoryConfig?.categoryTheme) return;
+
+    const settings = getLayer2Settings(
+      effectiveCategoryConfig.categoryTheme
+    );
+
+    if (settings.primaryColor) {
+      setLayer2PrimaryColor(settings.primaryColor);
+    }
+
+    if (settings.textColor) {
+      setLayer2TextColor(settings.textColor);
+    }
+
+    if (settings.badgeBgColor) {
+      setLayer2BadgeBgColor(settings.badgeBgColor);
+    }
+
+    if (settings.badgeTextColor) {
+      setLayer2BadgeTextColor(settings.badgeTextColor);
+    }
+
+    if (settings.fontFamilyHeader) {
+      setLayer2FontHeader(settings.fontFamilyHeader);
+    }
+
+    if (settings.fontFamilyBody) {
+      setLayer2FontBody(settings.fontFamilyBody);
+    }
+
+    if (settings.resultDisplayMode) {
+      setResultDisplayMode(settings.resultDisplayMode);
     }
   }, [effectiveCategoryConfig]);
 
