@@ -86,7 +86,7 @@ export const applyAlertToCurrentWeekendMatches = (
 
     return {
       ...match,
-      status: getMatchLifecycleStatus(match, referenceDate),
+      // Un résultat reçu signifie que le match est terminé, quelle que soit son heure prévue.\n      status: 'finished',
       result: alert.isWin ? 'win' : 'loss',
       ...(homeScore !== undefined ? { homeScore } : {}),
       ...(awayScore !== undefined ? { awayScore } : {}),
