@@ -77,6 +77,7 @@ import {
   formatTeamNameForBadge,
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
+import { getPosterBadgeTitle } from '../utils/posterBadgeHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -284,37 +285,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Compute effective header badge title
-  const badgeTitle = useMemo(() => {
-    const custom = (customBadgeTitle || '').trim();
-    if (custom) return custom.toUpperCase();
-
-    if (contentType === 'results') {
-      switch (posterFilter) {
-        case 'home':
-          return 'RÉSULTATS DOMICILE';
-        case 'away':
-          return 'RÉSULTATS EXTÉRIEUR';
-        case 'exempt':
-          return 'EXEMPT';
-        case 'all':
-        default:
-          return 'RÉSULTATS';
-      }
-    }
-    if (contentType === 'notification') return specificNotification?.isWin ? 'VICTOIRE !' : 'FIN DE MATCH';
-
-    switch (posterFilter) {
-      case 'home':
-        return 'DOMICILE';
-      case 'away':
-        return 'EXTÉRIEUR';
-      case 'exempt':
-        return 'EXEMPT';
-      case 'all':
-      default:
-        return 'MATCHDAY';
-    }
-  }, [customBadgeTitle, contentType, posterFilter, specificNotification]);
+  const badgeTitle = useMemo(
+    () =>
+      getPosterBadgeTitle({
+        customBadgeTitle,
+        contentType,
+        posterFilter,
+        isWin: specificNotification?.isWin,
+      }),
+    [customBadgeTitle, contentType, posterFilter, specificNotification?.isWin]
+  );
 
   // Mode d'affichage mobile : 'preview' (Affiche en direct + téléchargement) ou 'settings' (Options & Calques)
   const [mobileTab, setMobileTab] = useState<PosterMobileTab>('preview');
