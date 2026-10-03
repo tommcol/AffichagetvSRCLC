@@ -7197,10 +7197,31 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                               </div>
                               <button
                                 type="button"
-                                onClick={() => latestTelegramAlert && onRemoveAlert(latestTelegramAlert.id)}
-                                disabled={!latestTelegramAlert}
-                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-xs font-bold transition-colors"
-                                title={latestTelegramAlert ? "Supprimer l'alerte Telegram de la boucle TV" : "Aucune alerte Telegram active"}
+                                onClick={async () => {
+                                  if (latestTelegramAlert) {
+                                    onRemoveAlert(latestTelegramAlert.id);
+                                    return;
+                                  }
+
+                                  try {
+                                    const response = await fetch('/api/get-alerts');
+                                    if (!response.ok) return;
+                                    const data = await response.json();
+                                    const serverAlert = Array.isArray(data?.alerts)
+                                      ? data.alerts.find(
+                                          (alert: ActiveMatchAlert) =>
+                                            alert?.triggeredBy === 'telegram'
+                                        )
+                                      : null;
+                                    if (serverAlert?.id) {
+                                      onRemoveAlert(serverAlert.id);
+                                    }
+                                  } catch {
+                                    // Le rafraîchissement serveur peut échouer hors ligne.
+                                  }
+                                }}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                                title="Supprimer l'alerte Telegram de la boucle TV"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 Supprimer l'alerte de la TV
