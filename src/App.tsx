@@ -54,6 +54,19 @@ import { registerVideoBlob } from './utils/mediaUtils';
 import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getPolledAppDataVersion, getPolledCollections, hasChangedJson } from './utils/appDataPollingHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
+import {
+  getBirthdayWeekState,
+  getNextMondayDelayMs,
+  hasBirthdayWeekChanged,
+} from './utils/birthdayWeekHelpers';
+import {
+  addAlertRequest,
+  filterActiveAlerts,
+  hasSameActiveAlerts,
+  mergeActiveAlert,
+  removeActiveAlert,
+  removeAlertRequest,
+} from './utils/activeAlertHelpers';
 import { AnimatePresence, motion } from 'motion/react';
 import { FixedCanvas169 } from './components/common/FixedCanvas169';
 import {
@@ -463,75 +476,52 @@ export default function App() {
     [allMembers]
   );
 
-  // =========================================================================
-  // SURVEILLANCE AUTOMATIQUE PERMANENTE DU CHANGEMENT DE SEMAINE DES ANNIVERSAIRES
-  // La semaine commence Lundi 00:00:00 et finit Dimanche 23:59:59.
-  // Au passage à Lundi 00:00, recalcul dynamique immédiat sans recharger la page.
-  // =========================================================================
+  // Surveillance automatique du changement de semaine des anniversaires.
   useEffect(() => {
     const checkWeekTransition = () => {
       const now = simulatedDate || new Date();
-      const newKey = getWeekKey(now);
-      if (newKey !== currentWeekKey) {
-        console.log(`[Anniversaires] Bascule de semaine automatique détectée : ${currentWeekKey} ➔ ${newKey}`);
-        setCurrentWeekKey(newKey);
-        if (allMembers && allMembers.length > 0) {
-          const newBirthdays = filterAndSortBirthdaysForWeek(allMembers, now, 0);
-          console.log(`[Anniversaires] Nouveau calcul hebdomadaire (${newBirthdays.length} retenu(s))`);
-          setBirthdays(newBirthdays);
-        }
+      if (!hasBirthdayWeekChanged(currentWeekKey, now)) return;
+
+      const { weekKey, birthdays: newBirthdays } = getBirthdayWeekState(allMembers, now);
+      setCurrentWeekKey(weekKey);
+      if (allMembers.length > 0) {
+        setBirthdays(newBirthdays);
       }
     };
 
-    // 1. Ticker périodique de contrôle léger (toutes les 2 secondes pour être réactif aux secondes simulées et au temps réel)
-    const interval = setInterval(checkWeekTransition, 2000);
-
-    // 2. Minuteur ultra-précis ciblant exactement la milliseconde de Lundi 00:00:00 local
+    const interval = window.setInterval(checkWeekTransition, 2000);
     const now = simulatedDate || new Date();
-    const { monday } = getWeekBounds(now, 1);
-    const msUntilNextMonday = monday.getTime() - now.getTime();
-    let exactTimer: ReturnType<typeof setTimeout> | null = null;
-    if (msUntilNextMonday > 0 && msUntilNextMonday < 2147483647) {
-      exactTimer = setTimeout(() => {
-        checkWeekTransition();
-      }, msUntilNextMonday + 50);
-    }
+    const delay = getNextMondayDelayMs(now);
+    const exactTimer =
+      delay > 0 && delay < 2147483647
+        ? window.setTimeout(checkWeekTransition, delay + 50)
+        : null;
 
     return () => {
-      clearInterval(interval);
-      if (exactTimer) clearTimeout(exactTimer);
+      window.clearInterval(interval);
+      if (exactTimer !== null) window.clearTimeout(exactTimer);
     };
   }, [allMembers, currentWeekKey, simulatedDate]);
 
-  // Vérification périodique des alertes victoire/défaite actives
+  // Synchronisation périodique des alertes victoire/défaite actives.
   useEffect(() => {
     const fetchServerAlerts = async () => {
       try {
         const res = await fetch('/api/get-alerts');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.alerts && Array.isArray(data.alerts)) {
-            const now = Date.now();
-            const valid = data.alerts.filter((a: ActiveMatchAlert) => a && a.expiresAt > now);
-            try {
-              setActiveAlertsCache(valid);
-            } catch (e) {}
-            setActiveAlerts((prev) => {
-              if (prev.length === valid.length && prev.every((p, i) => p.id === valid[i]?.id)) {
-                return prev;
-              }
-              return valid;
-            });
-          }
-        }
-      } catch (err) {
-        // silencieux
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const valid = filterActiveAlerts(data?.alerts);
+        setActiveAlertsCache(valid);
+        setActiveAlerts((prev) => (hasSameActiveAlerts(prev, valid) ? prev : valid));
+      } catch {
+        // Hors ligne : conserver les alertes locales.
       }
     };
 
-    fetchServerAlerts();
-    const interval = setInterval(fetchServerAlerts, 10000);
-    return () => clearInterval(interval);
+    void fetchServerAlerts();
+    const interval = window.setInterval(fetchServerAlerts, 10000);
+    return () => window.clearInterval(interval);
   }, []);
 
   // Actualisation automatique des résultats et matchs depuis le serveur (mise à jour continue en temps réel)
@@ -605,19 +595,6 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [adminAuthentifie, viewMode, pollUpdatedData]);
-
-  // Filter out any expired alerts every 30 seconds
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      setActiveAlerts((prev) => {
-        const filtered = prev.filter((a) => a.expiresAt > now);
-        if (filtered.length === prev.length) return prev;
-        return filtered;
-      });
-    }, 30000);
-    return () => clearInterval(cleanupInterval);
-  }, []);
 
   // Build the full carousel rotation playlist
   // Alternates dynamically between categories (Mélange Équilibré) so spectators never see 10 sponsors or 10 photos back-to-back!
@@ -803,38 +780,24 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextSlide, prevSlide]);
 
-  // Helper to add an alert to local and server state
-  const handleAddAlert = async (alert: ActiveMatchAlert) => {
+  // Synchronisation locale immédiate + persistance serveur des alertes.
+  const handleAddAlert = useCallback(async (alert: ActiveMatchAlert) => {
     setActiveAlerts((prev) => {
-      const updated = [alert, ...prev.filter((a) => a.id !== alert.id)];
-      try {
-        setActiveAlertsCache(updated);
-      } catch (e) {}
+      const updated = mergeActiveAlert(prev, alert);
+      setActiveAlertsCache(updated);
       return updated;
     });
-    try {
-      await fetch('/api/add-alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alert),
-      });
-    } catch (e) {
-      // Hors ligne
-    }
-  };
+    await addAlertRequest(alert);
+  }, []);
 
-  const handleRemoveAlert = (id: string) => {
+  const handleRemoveAlert = useCallback(async (id: string) => {
     setActiveAlerts((prev) => {
-      const updated = prev.filter((a) => a.id !== id);
-      try {
-        setActiveAlertsCache(updated);
-      } catch (e) {}
+      const updated = removeActiveAlert(prev, id);
+      setActiveAlertsCache(updated);
       return updated;
     });
-    fetch(`/api/delete-alert?id=${encodeURIComponent(id)}`, { method: 'POST' }).catch((err) => {
-      console.error('Échec de la suppression de l\'alerte côté serveur :', err);
-    });
-  };
+    await removeAlertRequest(id);
+  }, []);
 
   // Find matching team visual if current slide is an alert
   const matchingTeamVisual = currentSlide?.type === 'alert' && currentSlide.alert
