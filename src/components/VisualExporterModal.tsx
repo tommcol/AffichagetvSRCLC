@@ -103,6 +103,7 @@ import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
 import { getPosterContentItems } from '../utils/posterContentHelpers';
 import { getInitialPosterContentType } from '../utils/posterContentTypeHelpers';
+import { getAvailablePosterFilter } from '../utils/posterFilterHelpers';
 import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
@@ -286,16 +287,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const awayResultsCount = resultCounts.away;
   const exemptResultsCount = resultCounts.exempt;
 
-  // Auto-reset filter to 'all' if active filter has 0 matches
+  // Auto-reset filter to 'all' if active filter has 0 items
   useEffect(() => {
-    if (contentType === 'matches') {
-      if (posterFilter === 'home' && homeMatchesCount === 0) setPosterFilter('all');
-      else if (posterFilter === 'away' && awayMatchesCount === 0) setPosterFilter('all');
-      else if (posterFilter === 'exempt' && exemptMatchesCount === 0) setPosterFilter('all');
-    } else if (contentType === 'results') {
-      if (posterFilter === 'home' && homeResultsCount === 0) setPosterFilter('all');
-      else if (posterFilter === 'away' && awayResultsCount === 0) setPosterFilter('all');
-      else if (posterFilter === 'exempt' && exemptResultsCount === 0) setPosterFilter('all');
+    const counts =
+      contentType === 'matches'
+        ? { home: homeMatchesCount, away: awayMatchesCount, exempt: exemptMatchesCount }
+        : { home: homeResultsCount, away: awayResultsCount, exempt: exemptResultsCount };
+
+    const nextFilter = getAvailablePosterFilter(posterFilter, counts);
+    if (nextFilter !== posterFilter) {
+      setPosterFilter(nextFilter);
     }
   }, [posterFilter, contentType, homeMatchesCount, awayMatchesCount, exemptMatchesCount, homeResultsCount, awayResultsCount, exemptResultsCount]);
 
