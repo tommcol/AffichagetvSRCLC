@@ -25,11 +25,9 @@ import {
   ClubPhotoItem,
   ClubEventItem,
   BirthdayItem,
-  SlideCategory,
   ActiveMatchAlert,
   TeamVisualItem,
   VisualTemplatesConfig,
-  CarouselSlide,
   FFBBTeamItem,
   AppDataPayload,
 } from './types';
@@ -52,7 +50,7 @@ import {
 import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
 import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/appDataHelpers';
 import { isCarouselSlideVideo } from './utils/carouselVideoHelpers';
-import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
+import { registerVideoBlob } from './utils/mediaUtils';
 import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
@@ -70,12 +68,7 @@ import {
   Sliders,
   Eye,
   EyeOff,
-  Lock,
 } from 'lucide-react';
-
-function loadStorage<T>(_key: string, fallback: T): T {
-  return fallback;
-}
 
 export default function App() {
   // Persistence state
