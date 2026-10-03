@@ -39,6 +39,16 @@ import { AdminPanel } from './components/Admin/AdminPanel';
 import { OfflineIndicator } from './components/common/OfflineIndicator';
 import { PWAInstallButton } from './components/common/PWAInstallButton';
 import { getEffectiveCategoryConfig } from './utils/themeUtils';
+import {
+  getOfflineAppData,
+  setOfflineAppData,
+  getMemberPoolCache,
+  setMemberPoolCache,
+  getFfbbTeamsCache,
+  setFfbbTeamsCache,
+  getActiveAlertsCache,
+  setActiveAlertsCache,
+} from './utils/appStorageHelpers';
 import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
@@ -75,21 +85,13 @@ export default function App() {
   const [photos, setPhotos] = useState<ClubPhotoItem[]>(DEFAULT_PHOTOS);
   // Pool permanent des adhérents du club (conservé et persistant en base)
   const [allMembers, setAllMembers] = useState<BirthdayItem[]>(() => {
-    try {
-      const localPool = localStorage.getItem('club_all_members_pool');
-      if (localPool) {
-        const parsed = JSON.parse(localPool);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
+    const localPool = getMemberPoolCache();
+    if (localPool) return localPool;
 
-    try {
-      const saved = localStorage.getItem('src_app_data_offline_cache');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.allMembers) && parsed.allMembers.length > 0) return parsed.allMembers;
-      }
-    } catch (e) {}
+    const cachedData = getOfflineAppData();
+    if (cachedData?.allMembers && cachedData.allMembers.length > 0) {
+      return cachedData.allMembers;
+    }
 
     return getAnchorDemoMembers(new Date());
   });
@@ -102,23 +104,10 @@ export default function App() {
 
   // Anniversaires actifs de la semaine courante (calcul dynamique immédiat au démarrage)
   const [birthdays, setBirthdays] = useState<BirthdayItem[]>(() => {
-    const initialPool = (() => {
-      try {
-        const localPool = localStorage.getItem('club_all_members_pool');
-        if (localPool) {
-          const parsed = JSON.parse(localPool);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-      try {
-        const saved = localStorage.getItem('src_app_data_offline_cache');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.allMembers) && parsed.allMembers.length > 0) return parsed.allMembers;
-        }
-      } catch (e) {}
-      return getAnchorDemoMembers(new Date());
-    })();
+    const initialPool =
+      getMemberPoolCache() ||
+      getOfflineAppData()?.allMembers ||
+      getAnchorDemoMembers(new Date());
 
     const calculated = filterAndSortBirthdaysForWeek(initialPool, new Date(), 0);
     return calculated.length > 0 ? calculated : DEFAULT_BIRTHDAYS;
@@ -127,31 +116,10 @@ export default function App() {
   const [events, setEvents] = useState<ClubEventItem[]>(DEFAULT_EVENTS);
   const [teamVisuals, setTeamVisuals] = useState<TeamVisualItem[]>(DEFAULT_TEAM_VISUALS);
   const [visualTemplates, setVisualTemplates] = useState<VisualTemplatesConfig>(DEFAULT_VISUAL_TEMPLATES);
-  const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('ffbb_club_teams_cache');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name) {
-          return parsed;
-        }
-      }
-    } catch (e) {}
-    return DEFAULT_REAL_FFBB_TEAMS;
-  });
-  const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>(() => {
-    try {
-      const cached = localStorage.getItem('src_active_alerts_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        const now = Date.now();
-        if (Array.isArray(parsed)) {
-          return parsed.filter((a) => a && a.expiresAt > now);
-        }
-      }
-    } catch (e) {}
-    return [];
-  });
+  const [ffbbTeams, setFfbbTeams] = useState<FFBBTeamItem[]>(() =>
+    getFfbbTeamsCache() || DEFAULT_REAL_FFBB_TEAMS
+  );
+  const [activeAlerts, setActiveAlerts] = useState<ActiveMatchAlert[]>(getActiveAlertsCache);
   const [dataChargee, setDataChargee] = useState(false);
   const [dataVersion, setDataVersion] = useState<number>(0);
   const dataVersionRef = useRef<number>(0);
@@ -214,7 +182,7 @@ export default function App() {
     if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
       setAllMembers(d.allMembers);
       try {
-        localStorage.setItem('club_all_members_pool', JSON.stringify(d.allMembers));
+        setMemberPoolCache(d.allMembers);
       } catch (e) {}
       const ref = simulatedDate || new Date();
       const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
@@ -243,7 +211,7 @@ export default function App() {
     if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
       setFfbbTeams(d.ffbbTeams);
       try {
-        localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(d.ffbbTeams));
+        setFfbbTeamsCache(d.ffbbTeams);
       } catch (e) {}
     }
   }, [simulatedDate]);
@@ -251,19 +219,14 @@ export default function App() {
   // Chargement des données avec support complet Hors-Ligne (PWA / Cache local)
   useEffect(() => {
     const loadFromOfflineCache = () => {
-      try {
-        const saved = localStorage.getItem('src_app_data_offline_cache');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (typeof parsed.version === 'number') {
-            updateDataVersion(parsed.version);
-          }
-          applyLoadedData(parsed);
-          lastSavedDataRef.current = JSON.stringify({ ...parsed, version: undefined });
-          return true;
+      const parsed = getOfflineAppData();
+      if (parsed) {
+        if (typeof parsed.version === 'number') {
+          updateDataVersion(parsed.version);
         }
-      } catch (e) {
-        console.warn('Erreur lecture cache local hors-ligne:', e);
+        applyLoadedData(parsed);
+        lastSavedDataRef.current = JSON.stringify({ ...parsed, version: undefined });
+        return true;
       }
       return false;
     };
@@ -283,7 +246,7 @@ export default function App() {
           applyLoadedData(res.data);
           lastSavedDataRef.current = JSON.stringify({ ...res.data, version: undefined });
           try {
-            localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...res.data, version: v }));
+            setOfflineAppData({ ...res.data, version: v });
           } catch (e) {}
         } else {
           loadFromOfflineCache();
@@ -413,9 +376,9 @@ export default function App() {
 
       // Sauvegarde immédiate dans le cache hors-ligne local
       try {
-        localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+        setOfflineAppData(payload.data);
         if (allMembers && allMembers.length > 0) {
-          localStorage.setItem('club_all_members_pool', JSON.stringify(allMembers));
+          setMemberPoolCache(allMembers);
         }
       } catch (e) {}
 
@@ -436,7 +399,7 @@ export default function App() {
                 payload.data.version = resJson.version;
                 lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
                 try {
-                  localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+                  setOfflineAppData(payload.data);
                 } catch (e) {}
               } else {
                 lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
@@ -505,9 +468,9 @@ export default function App() {
     };
 
     try {
-      localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+      setOfflineAppData(payload.data);
       if (allMembers && allMembers.length > 0) {
-        localStorage.setItem('club_all_members_pool', JSON.stringify(allMembers));
+        setMemberPoolCache(allMembers);
       }
     } catch (e) {}
 
@@ -525,7 +488,7 @@ export default function App() {
             payload.data.version = resJson.version;
             lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
             try {
-              localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
+              setOfflineAppData(payload.data);
             } catch (e) {}
           } else {
             lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
@@ -573,7 +536,7 @@ export default function App() {
         updateDataVersion(v);
         applyLoadedData(json.data);
         try {
-          localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...json.data, version: v }));
+          setOfflineAppData({ ...json.data, version: v });
         } catch (e) {}
         setSaveStatus('idle');
         setSaveErrorMessage('');
@@ -589,7 +552,7 @@ export default function App() {
     (newMembers: BirthdayItem[], weekBirthdays?: BirthdayItem[]) => {
       setAllMembers(newMembers);
       try {
-        localStorage.setItem('club_all_members_pool', JSON.stringify(newMembers));
+        setMemberPoolCache(newMembers);
       } catch (e) {}
       if (weekBirthdays !== undefined) {
         setBirthdays(weekBirthdays);
@@ -664,7 +627,7 @@ export default function App() {
             const now = Date.now();
             const valid = data.alerts.filter((a: ActiveMatchAlert) => a && a.expiresAt > now);
             try {
-              localStorage.setItem('src_active_alerts_cache', JSON.stringify(valid));
+              setActiveAlertsCache(valid);
             } catch (e) {}
             setActiveAlerts((prev) => {
               if (prev.length === valid.length && prev.every((p, i) => p.id === valid[i]?.id)) {
@@ -709,7 +672,7 @@ export default function App() {
 
           // Mise à jour du cache hors-ligne uniquement en cas de vraie réponse serveur valide
           try {
-            localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...d, version: v }));
+            setOfflineAppData({ ...d, version: v });
           } catch (e) {}
 
           // Éviter les mises à jour d'état inutile si les données n'ont pas changé
@@ -1004,7 +967,7 @@ export default function App() {
     setActiveAlerts((prev) => {
       const updated = [alert, ...prev.filter((a) => a.id !== alert.id)];
       try {
-        localStorage.setItem('src_active_alerts_cache', JSON.stringify(updated));
+        setActiveAlertsCache(updated);
       } catch (e) {}
       return updated;
     });
@@ -1023,7 +986,7 @@ export default function App() {
     setActiveAlerts((prev) => {
       const updated = prev.filter((a) => a.id !== id);
       try {
-        localStorage.setItem('src_active_alerts_cache', JSON.stringify(updated));
+        setActiveAlertsCache(updated);
       } catch (e) {}
       return updated;
     });
