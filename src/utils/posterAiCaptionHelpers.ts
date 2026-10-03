@@ -1,9 +1,6 @@
-import type { PosterContentType } from './posterTypes';
+import type { PosterContentType, PosterSocialPlatform } from './posterTypes';
 
-export type PosterAiCaptionPlatform =
-  | 'instagram'
-  | 'tiktok'
-  | 'facebook';
+export type PosterAiCaptionPlatform = PosterSocialPlatform;
 
 export interface PosterAiCaptionRequestPayload {
   platform: PosterAiCaptionPlatform;
