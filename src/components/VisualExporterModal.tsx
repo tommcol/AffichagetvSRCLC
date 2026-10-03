@@ -77,6 +77,13 @@ import {
   formatTeamNameForBadge,
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
+import type {
+  PosterFilterType,
+  PosterThemeType,
+  PosterSocialTab,
+  PosterRightPanelTab,
+  PosterMobileTab,
+} from '../utils/posterTypes';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -95,8 +102,7 @@ interface VisualExporterModalProps {
   embeddedInTab?: boolean;
 }
 
-type PosterFilterType = 'home' | 'away' | 'exempt' | 'all';
-type PosterThemeType = 'poster-red' | 'brick' | 'modern';
+
 
 
 
@@ -148,8 +154,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [layer1Grayscale, setLayer1Grayscale] = useState<boolean>(true); // default N&B
   const [layer1Contrast, setLayer1Contrast] = useState<number>(1.25); // 0.8 to 2.0 (default 125%)
 
-  const [selectedSocialTab, setSelectedSocialTab] = useState<'instagram' | 'tiktok' | 'facebook' | 'webhook'>('instagram');
-  const [rightPanelTab, setRightPanelTab] = useState<'social' | 'layers'>('social');
+  const [selectedSocialTab, setSelectedSocialTab] = useState<PosterSocialTab>('instagram');
+  const [rightPanelTab, setRightPanelTab] = useState<PosterRightPanelTab>('social');
 
   // Social Media Text Proposals & Match Selection State
   const [selectedItemKeysForCaption, setSelectedItemKeysForCaption] = useState<string[] | null>(null);
@@ -311,7 +317,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   }, [customBadgeTitle, contentType, posterFilter, specificNotification]);
 
   // Mode d'affichage mobile : 'preview' (Affiche en direct + téléchargement) ou 'settings' (Options & Calques)
-  const [mobileTab, setMobileTab] = useState<'preview' | 'settings'>('preview');
+  const [mobileTab, setMobileTab] = useState<PosterMobileTab>('preview');
 
   // Limit of matches to display per visual (auto or manual 3-6)
   const [matchesLimit, setMatchesLimit] = useState<number | 'auto'>('auto');
