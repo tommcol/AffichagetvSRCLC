@@ -1,7 +1,8 @@
 import type { MatchItem } from '../types';
+import type { PosterContentType } from './posterTypes';
 
 export const getPosterPublicationItems = (
-  contentType: 'matches' | 'results' | 'notification',
+  contentType: PosterContentType,
   matches: MatchItem[],
   results: MatchItem[]
 ): { matches: MatchItem[]; results: MatchItem[] } => ({
