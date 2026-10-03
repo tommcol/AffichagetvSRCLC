@@ -54,6 +54,7 @@ import { registerVideoBlob } from './utils/mediaUtils';
 import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getPolledAppDataVersion, getPolledCollections, hasChangedJson } from './utils/appDataPollingHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
+import { applyAlertToCurrentWeekendMatches, applyAlertsToCurrentWeekendMatches } from './utils/weekendMatchResultHelpers';
 import {
   getBirthdayWeekState,
   getNextMondayDelayMs,
@@ -515,6 +516,10 @@ export default function App() {
         const valid = filterActiveAlerts(data?.alerts);
         setActiveAlertsCache(valid);
         setActiveAlerts((prev) => (hasSameActiveAlerts(prev, valid) ? prev : valid));
+        setMatches((prev) => {
+          const updated = applyAlertsToCurrentWeekendMatches(prev, valid);
+          return hasChangedJson(prev, updated) ? updated : prev;
+        });
       } catch {
         // Hors ligne : conserver les alertes locales.
       }
@@ -803,6 +808,7 @@ export default function App() {
       setActiveAlertsCache(updated);
       return updated;
     });
+    setMatches((prev) => applyAlertToCurrentWeekendMatches(prev, alert));
     await addAlertRequest(alert);
   }, []);
 
