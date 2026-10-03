@@ -1,7 +1,9 @@
-export type PosterContentCollection = 'matches' | 'results' | 'notification';
+import type { PosterContentType } from './posterTypes';
+
+export type PosterContentCollection = PosterContentType;
 
 export const getPosterContentItems = <T>(
-  contentType: PosterContentCollection,
+  contentType: PosterContentType,
   matches: T[],
   results: T[]
 ): T[] => {
