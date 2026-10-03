@@ -7155,76 +7155,62 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </div>
                     </div>
 
-                    {/* Bloc d'état dynamique selon la réception de vrais messages */}
-                    {effectiveLastTelegramMessage && effectiveLastTelegramMessage.success !== false ? (
-                      <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2">
-                          <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                            <span>Dernier message reçu le {formatTelegramDate(effectiveLastTelegramMessage.receivedAt)}</span>
-                          </div>
-                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 w-fit">
-                            Actif dans la boucle TV
-                          </span>
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1">
-                          <div className="space-y-1">
-                            <div className="text-slate-400">Message reçu depuis le smartphone :</div>
-                            <div className="font-mono font-bold text-white text-sm bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800 inline-block">
-                              "{effectiveLastTelegramMessage.text}"
-                            </div>
-                          </div>
-                          {effectiveLastTelegramMessage.team && (
-                            <div className="text-left sm:text-right space-y-1">
-                              <span className="text-slate-400">Équipe & résultat détectés :</span>
-                              <div className="font-bold text-emerald-300 text-sm">
-                                {effectiveLastTelegramMessage.team} • {effectiveLastTelegramMessage.isWin ? 'Victoire 🏆' : 'Défaite 🏀'}
-                                {effectiveLastTelegramMessage.score ? ` (${effectiveLastTelegramMessage.score})` : ''}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                    {/* Bloc d'état dynamique : visible uniquement tant que l'alerte Telegram est active */}
+                    {(() => {
+                      const latestTelegramAlert = activeAlerts.find(
+                        (alert) => alert.triggeredBy === 'telegram'
+                      );
 
-                        {(() => {
-                          const latestTelegramAlert = activeAlerts.find(
-                            (alert) => alert.triggeredBy === 'telegram'
-                          );
+                      if (!effectiveLastTelegramMessage || effectiveLastTelegramMessage.success === false || !latestTelegramAlert) {
+                        return null;
+                      }
 
-                          if (!latestTelegramAlert) return null;
-
-                          return (
-                            <div className="pt-2 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div className="text-xs text-slate-400">
-                                Cette alerte est actuellement diffusée dans la boucle TV.
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => onRemoveAlert(latestTelegramAlert.id)}
-                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
-                                title="Supprimer l'alerte Telegram de la boucle TV"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                Supprimer l'alerte de la TV
-                              </button>
+                      return (
+                        <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2">
+                            <div className="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                              <span>Dernier message reçu le {formatTelegramDate(effectiveLastTelegramMessage.receivedAt)}</span>
                             </div>
-                          );
-                        })()}
-                      </div>
-                    ) : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success === false ? (
-                      <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/40 text-xs text-red-300 space-y-1.5">
-                        <div className="flex items-center gap-2 font-bold text-sm text-red-200">
-                          <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                          <span>Le message n'a pas été traité</span>
-                          {effectiveLastTelegramMessage.receivedAt && (
-                            <span className="text-xs font-normal text-red-400">
-                              (reçu le {formatTelegramDate(effectiveLastTelegramMessage.receivedAt)})
+                            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 w-fit">
+                              Actif dans la boucle TV
                             </span>
-                          )}
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs pt-1">
+                            <div className="space-y-1">
+                              <div className="text-slate-400">Message reçu depuis le smartphone :</div>
+                              <div className="font-mono font-bold text-white text-sm bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800 inline-block">
+                                "{effectiveLastTelegramMessage.text}"
+                              </div>
+                            </div>
+                            {effectiveLastTelegramMessage.team && (
+                              <div className="text-left sm:text-right space-y-1">
+                                <span className="text-slate-400">Équipe & résultat détectés :</span>
+                                <div className="font-bold text-emerald-300 text-sm">
+                                  {effectiveLastTelegramMessage.team} • {effectiveLastTelegramMessage.isWin ? 'Victoire 🏆' : 'Défaite 🏀'}
+                                  {effectiveLastTelegramMessage.score ? ` (${effectiveLastTelegramMessage.score})` : ''}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="text-xs text-slate-400">
+                              Cette alerte est actuellement diffusée dans la boucle TV.
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onRemoveAlert(latestTelegramAlert.id)}
+                              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                              title="Supprimer l'alerte Telegram de la boucle TV"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Supprimer l'alerte de la TV
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-red-300/90 pl-6">
-                          Motif : {effectiveLastTelegramMessage.error || 'Format non reconnu ou erreur de synchronisation.'}
-                        </p>
-                      </div>
+                      );
+                    })()}
                     ) : (
                       <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-500/40 text-xs text-sky-200 space-y-1.5">
                         <div className="flex items-center gap-2 font-bold text-sky-300">
