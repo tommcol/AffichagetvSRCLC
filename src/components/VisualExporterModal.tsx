@@ -97,6 +97,7 @@ import {
   type PosterAiCaptionPlatform,
 } from '../utils/posterAiCaptionHelpers';
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
+import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -585,11 +586,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     ]
   );
 
-  const handleCopyText = (text: string, key: string) => {
-    if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(text);
+  const handleCopyText = async (text: string, key: string) => {
+    try {
+      await copyTextToClipboard(text);
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
     }
   };
 
