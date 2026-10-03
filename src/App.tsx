@@ -82,6 +82,7 @@ import {
   Sliders,
   Eye,
   EyeOff,
+  Trash2,
 } from 'lucide-react';
 
 export default function App() {
@@ -971,6 +972,20 @@ export default function App() {
           </button>
 
           <div className="w-px h-5 bg-slate-700 mx-0.5" />
+
+          {currentSlide?.type === 'alert' && currentSlide.alert && (
+            <>
+              <button
+                onClick={() => handleRemoveAlert(currentSlide.alert!.id)}
+                className="px-3 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all hover:scale-105"
+                title="Supprimer cette alerte de la boucle TV"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Supprimer l'alerte</span>
+              </button>
+              <div className="w-px h-5 bg-slate-700 mx-0.5" />
+            </>
+          )}
 
           {/* Prev / Next & Pause */}
           <button
