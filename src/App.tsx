@@ -31,6 +31,7 @@ import {
   VisualTemplatesConfig,
   CarouselSlide,
   FFBBTeamItem,
+  AppDataPayload,
 } from './types';
 import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
@@ -258,6 +259,7 @@ export default function App() {
             updateDataVersion(parsed.version);
           }
           applyLoadedData(parsed);
+          lastSavedDataRef.current = JSON.stringify({ ...parsed, version: undefined });
           return true;
         }
       } catch (e) {
@@ -279,6 +281,7 @@ export default function App() {
             : (typeof res.version === 'number' ? res.version : 0);
           updateDataVersion(v);
           applyLoadedData(res.data);
+          lastSavedDataRef.current = JSON.stringify({ ...res.data, version: undefined });
           try {
             localStorage.setItem('src_app_data_offline_cache', JSON.stringify({ ...res.data, version: v }));
           } catch (e) {}
@@ -343,6 +346,44 @@ export default function App() {
     restoreVideos();
   }, []);
 
+  // Construction centralisée de app-data
+  const buildAppData = useCallback(
+    (version: number): AppDataPayload => ({
+      clubSettings,
+      categories,
+      matches,
+      results,
+      sponsors,
+      logos,
+      photos,
+      birthdays,
+      allMembers,
+      events,
+      teamVisuals,
+      visualTemplates,
+      ffbbTeams,
+      version,
+    }),
+    [
+      clubSettings,
+      categories,
+      matches,
+      results,
+      sponsors,
+      logos,
+      photos,
+      birthdays,
+      allMembers,
+      events,
+      teamVisuals,
+      visualTemplates,
+      ffbbTeams,
+    ]
+  );
+
+  // Référence pour mémoriser le dernier contenu réellement sauvegardé (évite les sauvegardes identiques)
+  const lastSavedDataRef = useRef<string | null>(null);
+
   // Enregistrement automatique (avec anti-rebond de 800ms) dès qu'une donnée change
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveSeqRef = useRef<number>(0);
@@ -352,27 +393,22 @@ export default function App() {
 
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
-      setSaveStatus('saving');
       const currentSeq = ++saveSeqRef.current;
       const currentVer = dataVersionRef.current;
+
+      const dataToSave = buildAppData(currentVer);
+      // Sérialisation du contenu métier hors numéro de version pour la comparaison d'identité
+      const contentToCompare = JSON.stringify({ ...dataToSave, version: undefined });
+
+      if (lastSavedDataRef.current === contentToCompare && currentVer === dataVersionRef.current) {
+        setSaveStatus('idle');
+        return;
+      }
+
+      setSaveStatus('saving');
       const payload = {
         version: currentVer,
-        data: {
-          clubSettings,
-          categories,
-          matches,
-          results,
-          sponsors,
-          logos,
-          photos,
-          birthdays,
-          allMembers,
-          events,
-          teamVisuals,
-          visualTemplates,
-          ffbbTeams,
-          version: currentVer,
-        },
+        data: dataToSave,
       };
 
       // Sauvegarde immédiate dans le cache hors-ligne local
@@ -398,9 +434,12 @@ export default function App() {
               if (resJson && typeof resJson.version === 'number') {
                 updateDataVersion(resJson.version);
                 payload.data.version = resJson.version;
+                lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
                 try {
                   localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
                 } catch (e) {}
+              } else {
+                lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
               }
               setSaveStatus('saved');
               setSaveErrorMessage('');
@@ -450,20 +489,9 @@ export default function App() {
     };
   }, [
     dataChargee,
-    clubSettings,
-    categories,
-    matches,
-    results,
-    sponsors,
-    logos,
-    photos,
-    birthdays,
-    allMembers,
-    events,
-    teamVisuals,
-    visualTemplates,
-    ffbbTeams,
+    buildAppData,
     updateDataVersion,
+    allMembers,
   ]);
 
   const handleManualSave = useCallback(() => {
@@ -473,22 +501,7 @@ export default function App() {
     const currentVer = dataVersionRef.current;
     const payload = {
       version: currentVer,
-      data: {
-        clubSettings,
-        categories,
-        matches,
-        results,
-        sponsors,
-        logos,
-        photos,
-        birthdays,
-        allMembers,
-        events,
-        teamVisuals,
-        visualTemplates,
-        ffbbTeams,
-        version: currentVer,
-      },
+      data: buildAppData(currentVer),
     };
 
     try {
@@ -510,9 +523,12 @@ export default function App() {
           if (resJson && typeof resJson.version === 'number') {
             updateDataVersion(resJson.version);
             payload.data.version = resJson.version;
+            lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
             try {
               localStorage.setItem('src_app_data_offline_cache', JSON.stringify(payload.data));
             } catch (e) {}
+          } else {
+            lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
           }
           setSaveStatus('saved');
           setSaveErrorMessage('');
@@ -538,20 +554,9 @@ export default function App() {
         console.error("Échec de l'enregistrement des données :", err);
       });
   }, [
-    clubSettings,
-    categories,
-    matches,
-    results,
-    sponsors,
-    logos,
-    photos,
-    birthdays,
-    allMembers,
-    events,
-    teamVisuals,
-    visualTemplates,
-    ffbbTeams,
+    buildAppData,
     updateDataVersion,
+    allMembers,
   ]);
 
   // Rechargement manuel depuis le serveur en cas de conflit de concurrence
