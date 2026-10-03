@@ -88,6 +88,10 @@ import {
   getPosterExportRatioLabel,
   getPosterExportPageSuffix,
 } from '../utils/posterExportNamingHelpers';
+import {
+  getSocialCaptionForPlatform,
+  type PosterSocialPlatform,
+} from '../utils/posterSocialPlatformHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -821,12 +825,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       );
 
       const title = `Affiche ${badgeTitle || ''} - ${safeShortName}`;
-      const text =
-        selectedSocialTab === 'tiktok'
-          ? generatedCaptions.tiktok
-          : selectedSocialTab === 'facebook'
-          ? generatedCaptions.facebook
-          : generatedCaptions.instagram;
+      const text = getSocialCaptionForPlatform(selectedSocialTab, generatedCaptions);
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -855,12 +854,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   const handleSendToWebhook = async () => {
     setWebhookStatus({ loading: true });
     try {
-      const activeCaption =
-        selectedSocialTab === 'tiktok'
-          ? generatedCaptions.tiktok
-          : selectedSocialTab === 'facebook'
-          ? generatedCaptions.facebook
-          : generatedCaptions.instagram;
+      const activeCaption = getSocialCaptionForPlatform(selectedSocialTab, generatedCaptions);
 
       const res = await fetch('/api/social/publish', {
         method: 'POST',
