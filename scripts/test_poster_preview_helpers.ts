@@ -26,3 +26,8 @@ assertEqual(
 );
 
 console.log('🎉 TOUS LES TESTS POSTER PREVIEW HELPERS SONT PASSÉS ! (3/3)');
+
+
+assert(calculateInitialPosterPreviewScale(0) === 0.35, 'zero width uses safe fallback');
+assert(calculateInitialPosterPreviewScale(1000) === 460 / 1080, 'wide viewport is capped at 460px');
+assert(calculateInitialPosterPreviewScale(200) === 168 / 1080, 'small viewport uses available width');
