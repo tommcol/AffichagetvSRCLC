@@ -1,10 +1,8 @@
 import type { MatchItem } from '../types';
 import type { PosterContentType, PosterSocialPlatform } from './posterTypes';
 
-export type PosterAiCaptionPlatform = PosterSocialPlatform;
-
 export interface PosterAiCaptionRequestPayload {
-  platform: PosterAiCaptionPlatform;
+  platform: PosterSocialPlatform;
   type: 'matches' | 'results';
   matches: MatchItem[];
   results: MatchItem[];
@@ -26,7 +24,7 @@ export const buildPosterAiCaptionRequestPayload = ({
   tone,
   extraContext,
 }: {
-  platform: PosterAiCaptionPlatform;
+  platform: PosterSocialPlatform;
   contentType: PosterContentType;
   matches: MatchItem[];
   results: MatchItem[];
@@ -58,7 +56,7 @@ export const buildPosterAiCaptionRewritePayload = ({
   gymnasium,
   tone,
 }: {
-  platform: PosterAiCaptionPlatform;
+  platform: PosterSocialPlatform;
   contentType: PosterContentType;
   currentCaption: string;
   instructions: string;
