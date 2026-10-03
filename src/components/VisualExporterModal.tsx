@@ -102,6 +102,7 @@ import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
 import { getPosterContentItems } from '../utils/posterContentHelpers';
+import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -230,11 +231,15 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       if (!previewWrapperRef.current) return;
       const containerWidth = previewWrapperRef.current.clientWidth;
       if (containerWidth > 0) {
-        const viewportMaxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.65 : 600;
-        const scaleByWidth = (containerWidth - 8) / targetDims.width;
-        const scaleByHeight = viewportMaxHeight / targetDims.height;
-        const computedScale = Math.max(0.12, Math.min(scaleByWidth, scaleByHeight, 480 / targetDims.width));
-        setPreviewScale(computedScale);
+        const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+        setPreviewScale(
+          calculatePosterPreviewScale(
+            containerWidth,
+            viewportHeight,
+            targetDims.width,
+            targetDims.height
+          )
+        );
       }
     };
 
