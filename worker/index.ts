@@ -1191,6 +1191,13 @@ async function deleteAlert(request: Request, env: Env): Promise<Response> {
     const alerts = raw ? JSON.parse(raw) : [];
     const nouvelleListe = Array.isArray(alerts) ? alerts.filter((a: { id: string }) => a && a.id !== id) : [];
     await env.AFFICHAGE_KV.put('alerts', JSON.stringify(nouvelleListe));
+    const targetAlert = Array.isArray(alerts) ? alerts.find((a: { id: string }) => a && a.id === id) : null;
+    if (targetAlert?.triggeredBy === 'telegram' && targetAlert.telegramChatId && targetAlert.telegramMessageId) {
+      const botToken = env.TELEGRAM_BOT_TOKEN?.trim();
+      if (botToken) {
+        await fetch('https://api.telegram.org/bot' + botToken + '/deleteMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: targetAlert.telegramChatId, message_id: targetAlert.telegramMessageId }) }).catch(() => null);
+      }
+    }
     return new Response(JSON.stringify({ success: true, count: nouvelleListe.length }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -1251,6 +1258,25 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const chatId = message.chat?.id;
     const now = Date.now();
 
+    // Suppression de la dernière alerte injectée par Telegram.
+    const isDeleteCommand = /^(\/supprimer|\/delete|\/annuler)\b/i.test(text.trim());
+    if (isDeleteCommand) {
+      const rawAlerts = await env.AFFICHAGE_KV.get('alerts');
+      const alerts = rawAlerts ? JSON.parse(rawAlerts) : [];
+      const telegramAlerts = Array.isArray(alerts) ? alerts.filter((a: any) => a?.triggeredBy === 'telegram') : [];
+      const latestTelegramAlert = telegramAlerts[0];
+      if (!latestTelegramAlert) {
+        if (chatId) await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: 'ℹ️ Aucune alerte Telegram active à supprimer.' }) }).catch(() => null);
+        return new Response(JSON.stringify({ success: true, deleted: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      const remainingAlerts = alerts.filter((a: any) => a?.id !== latestTelegramAlert.id);
+      await env.AFFICHAGE_KV.put('alerts', JSON.stringify(remainingAlerts));
+      if (latestTelegramAlert.telegramChatId && latestTelegramAlert.telegramMessageId) {
+        await fetch('https://api.telegram.org/bot' + botToken + '/deleteMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: latestTelegramAlert.telegramChatId, message_id: latestTelegramAlert.telegramMessageId }) }).catch(() => null);
+      }
+      if (chatId) await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: '🗑️ Alerte ' + (latestTelegramAlert.isWin ? 'VICTOIRE' : 'DÉFAITE') + ' de *' + latestTelegramAlert.team + '* supprimée de la boucle TV.', parse_mode: 'Markdown' }) }).catch(() => null);
+      return new Response(JSON.stringify({ success: true, deleted: true, alertId: latestTelegramAlert.id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     // Gestion des commandes d'aide Telegram (/start, /help, /aide)
     const isStartOrHelp = /^(\/start|\/help|\/aide)/i.test(text.trim());
     if (isStartOrHelp) {
@@ -1404,6 +1430,8 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
       timestamp: now,
       expiresAt: now + durationMs,
       rawMessage: text,
+      telegramChatId: chatId,
+      telegramMessageId: message.message_id,
     };
 
     const raw = await env.AFFICHAGE_KV.get('alerts');
