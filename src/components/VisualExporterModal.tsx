@@ -90,13 +90,11 @@ import {
 } from '../utils/posterExportNamingHelpers';
 import {
   getSocialCaptionForPlatform,
-  type PosterSocialPlatform,
 } from '../utils/posterSocialPlatformHelpers';
 import {
   buildPosterAiCaptionRequestPayload,
   buildPosterAiCaptionRewritePayload,
   requestPosterAiCaption,
-  type PosterAiCaptionPlatform,
 } from '../utils/posterAiCaptionHelpers';
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
@@ -121,6 +119,7 @@ import type {
   PosterMobileTab,
   PosterContentType,
   PosterInitialContentType,
+  PosterSocialPlatform,
 } from '../utils/posterTypes';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
