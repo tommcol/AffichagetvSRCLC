@@ -99,6 +99,7 @@ import {
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
 import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
+import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -849,7 +850,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       const blob = await res.blob();
       const file = new File(
         [blob],
-        `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${(badgeTitle || '').toLowerCase()}.png`,
+        buildPosterShareFilename(safeShortName, badgeTitle || ''),
         { type: 'image/png' }
       );
 
