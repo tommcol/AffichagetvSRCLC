@@ -56,6 +56,10 @@ import {
   getTotalPages,
   paginatePosterItems,
 } from '../utils/posterDataHelpers';
+import {
+  resolvePosterBackgroundUrl,
+  resolveLayerMediaUrl,
+} from '../utils/posterVisualHelpers';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -581,17 +585,23 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const layer4FileInputRef = useRef<HTMLInputElement>(null);
 
   // Effective Layer 3 and Layer 4 URLs
-  const effectiveLayer3Url = useMemo(() => {
-    if (customLayer3Image) return customLayer3Image;
-    if (effectiveCategoryConfig.layer3?.mediaUrl) return effectiveCategoryConfig.layer3.mediaUrl;
-    return '';
-  }, [customLayer3Image, effectiveCategoryConfig.layer3?.mediaUrl]);
+  const effectiveLayer3Url = useMemo(
+    () =>
+      resolveLayerMediaUrl(
+        customLayer3Image,
+        effectiveCategoryConfig.layer3?.mediaUrl
+      ),
+    [customLayer3Image, effectiveCategoryConfig.layer3?.mediaUrl]
+  );
 
-  const effectiveLayer4Url = useMemo(() => {
-    if (customLayer4Image) return customLayer4Image;
-    if (effectiveCategoryConfig.layer4?.mediaUrl) return effectiveCategoryConfig.layer4.mediaUrl;
-    return '';
-  }, [customLayer4Image, effectiveCategoryConfig.layer4?.mediaUrl]);
+  const effectiveLayer4Url = useMemo(
+    () =>
+      resolveLayerMediaUrl(
+        customLayer4Image,
+        effectiveCategoryConfig.layer4?.mediaUrl
+      ),
+    [customLayer4Image, effectiveCategoryConfig.layer4?.mediaUrl]
+  );
 
   const handleLayer3Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -658,14 +668,22 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Effective background image URL
-  const effectiveBgUrl = useMemo(() => {
-    if (customBgImage) return customBgImage;
-    if (bgSource === 'studio' && effectiveCategoryConfig.backgroundUrl) {
-      return effectiveCategoryConfig.backgroundUrl;
-    }
-    if (visualTemplates?.matchesBackgroundUrl) return visualTemplates.matchesBackgroundUrl;
-    return defaultPosterBg;
-  }, [customBgImage, bgSource, effectiveCategoryConfig.backgroundUrl, visualTemplates]);
+  const effectiveBgUrl = useMemo(
+    () =>
+      resolvePosterBackgroundUrl({
+        customBgImage,
+        bgSource,
+        categoryBackgroundUrl: effectiveCategoryConfig.backgroundUrl,
+        visualTemplates,
+        defaultPosterBg,
+      }),
+    [
+      customBgImage,
+      bgSource,
+      effectiveCategoryConfig.backgroundUrl,
+      visualTemplates,
+    ]
+  );
 
   // Helper to get unique key for match or result
   const getItemKey = (item: any, index: number) => {
