@@ -83,6 +83,11 @@ import {
   filterCaptionItems,
   toggleCaptionItemSelection,
 } from '../utils/posterCaptionSelectionHelpers';
+import {
+  getPosterExportFilterLabel,
+  getPosterExportRatioLabel,
+  getPosterExportPageSuffix,
+} from '../utils/posterExportNamingHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -743,9 +748,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       const dataUrl = await safeExportPosterToDataUrl(cardRef.current, aspectRatio, 0.98, 1);
 
       const link = document.createElement('a');
-      const filterLabel = contentType === 'matches' ? posterFilter : contentType;
-      const ratioLabel = aspectRatio.replace(':', '_');
-      const pageSuffix = totalPages > 1 ? `_affiche${currentPage}_sur_${totalPages}` : '';
+      const filterLabel = getPosterExportFilterLabel(contentType, posterFilter);
+      const ratioLabel = getPosterExportRatioLabel(aspectRatio);
+      const pageSuffix = getPosterExportPageSuffix(currentPage, totalPages);
       link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}${pageSuffix}_${ratioLabel}_${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
@@ -778,9 +783,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         if (cardRef.current) {
           const dataUrl = await safeExportPosterToDataUrl(cardRef.current, aspectRatio, 0.98, 1);
           const link = document.createElement('a');
-          const filterLabel = contentType === 'matches' ? posterFilter : contentType;
-          const ratioLabel = aspectRatio.replace(':', '_');
-          link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}_affiche${p}_sur_${totalPages}_${ratioLabel}_${Date.now()}.png`;
+          const filterLabel = getPosterExportFilterLabel(contentType, posterFilter);
+          const ratioLabel = getPosterExportRatioLabel(aspectRatio);
+          const pageSuffix = getPosterExportPageSuffix(p, totalPages);
+          link.download = `${safeShortName.toLowerCase().replace(/\s+/g, '_')}_affiche_${filterLabel}${pageSuffix}_${ratioLabel}_${Date.now()}.png`;
           link.href = dataUrl;
           link.click();
           await new Promise((resolve) => setTimeout(resolve, 300));
