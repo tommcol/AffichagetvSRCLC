@@ -1,4 +1,7 @@
-import { calculatePosterPreviewScale } from '../src/utils/posterPreviewHelpers';
+import {
+  calculatePosterPreviewScale,
+  calculateInitialPosterPreviewScale,
+} from '../src/utils/posterPreviewHelpers';
 
 function assertEqual(actual: number, expected: number, message: string) {
   if (Math.abs(actual - expected) > 0.000001) {
@@ -25,8 +28,15 @@ assertEqual(
   'une largeur nulle doit conserver le minimum'
 );
 
-console.log('🎉 TOUS LES TESTS POSTER PREVIEW HELPERS SONT PASSÉS ! (3/3)');
+console.log('🎉 TOUS LES TESTS POSTER PREVIEW HELPERS SONT PASSÉS ! (6/6)');
 
+
+function assert(condition: boolean, message: string) {
+  if (!condition) {
+    console.error(`❌ ${message}`);
+    process.exit(1);
+  }
+}
 
 assert(calculateInitialPosterPreviewScale(0) === 0.35, 'zero width uses safe fallback');
 assert(calculateInitialPosterPreviewScale(1000) === 460 / 1080, 'wide viewport is capped at 460px');
