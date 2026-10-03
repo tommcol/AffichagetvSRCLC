@@ -94,6 +94,7 @@ import {
 } from '../utils/posterSocialPlatformHelpers';
 import {
   buildPosterAiCaptionRequestPayload,
+  buildPosterAiCaptionRewritePayload,
   type PosterAiCaptionPlatform,
 } from '../utils/posterAiCaptionHelpers';
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
@@ -719,20 +720,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       const response = await fetch('/api/generate-caption', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform,
-          type: contentType === 'results' ? 'results' : 'matches',
-          matches: [],
-          results: [],
-          clubName: safeClubName,
-          shortClub: safeShortName,
-          gymnasium: safeGymnasium,
-          tone: aiTone,
-          extraContext: `RÉÉCRITURE DU TEXTE ACTUEL - Consignes d'amélioration : "${customRewriteInstructions.trim()}".
-Voici le texte brut que tu dois améliorer et réécrire :
-"${currentCaption}"
-Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni phrases d'introduction.`,
-        }),
+        body: JSON.stringify(
+          buildPosterAiCaptionRewritePayload({
+            platform,
+            contentType,
+            currentCaption,
+            instructions: customRewriteInstructions,
+            clubName: safeClubName,
+            shortClub: safeShortName,
+            gymnasium: safeGymnasium,
+            tone: aiTone,
+          })
+        ),
       });
       const data = await response.json();
       if (data.success && data.caption) {
