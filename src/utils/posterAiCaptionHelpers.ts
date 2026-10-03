@@ -1,3 +1,5 @@
+import type { PosterContentType } from './posterTypes';
+
 export type PosterAiCaptionPlatform =
   | 'instagram'
   | 'tiktok'
@@ -27,7 +29,7 @@ export const buildPosterAiCaptionRequestPayload = ({
   extraContext,
 }: {
   platform: PosterAiCaptionPlatform;
-  contentType: 'matches' | 'results' | 'notification';
+  contentType: PosterContentType;
   matches: any[];
   results: any[];
   clubName: string;
@@ -59,7 +61,7 @@ export const buildPosterAiCaptionRewritePayload = ({
   tone,
 }: {
   platform: PosterAiCaptionPlatform;
-  contentType: 'matches' | 'results' | 'notification';
+  contentType: PosterContentType;
   currentCaption: string;
   instructions: string;
   clubName: string;
