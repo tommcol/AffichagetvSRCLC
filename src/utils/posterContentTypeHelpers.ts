@@ -1,9 +1,7 @@
-import type { VisualExporterModalProps } from '../components/VisualExporterModal';
-
-export type PosterContentType = 'matches' | 'results' | 'notification';
+import type { PosterContentType, PosterInitialContentType } from './posterTypes';
 
 export const getInitialPosterContentType = (
-  initialType: VisualExporterModalProps['type']
+  initialType: PosterInitialContentType
 ): PosterContentType => {
   if (initialType === 'victory' || initialType === 'defeat') {
     return 'notification';
