@@ -1,4 +1,4 @@
-import { buildPosterAiCaptionRequestPayload } from '../src/utils/posterAiCaptionHelpers';
+import { buildPosterAiCaptionRequestPayload, buildPosterAiCaptionRewritePayload } from '../src/utils/posterAiCaptionHelpers';
 
 async function runTests() {
   console.log('================================================================');
@@ -130,8 +130,35 @@ async function runTests() {
     process.exit(1);
   }
 
+  // --- TEST 9 : Payload de réécriture IA ---
+  console.log('\n--- TEST 9 : Construction du payload de réécriture IA ---');
+  const rewritePayload = buildPosterAiCaptionRewritePayload({
+    platform: 'facebook',
+    contentType: 'results',
+    currentCaption: 'Texte actuel',
+    instructions: 'Rendre le texte plus dynamique',
+    clubName: 'SRC Basket La Clayette',
+    shortClub: 'SRC',
+    gymnasium: 'Gymnase',
+    tone: 'fun',
+  });
+
+  if (
+    rewritePayload.platform === 'facebook' &&
+    rewritePayload.type === 'results' &&
+    rewritePayload.matches.length === 0 &&
+    rewritePayload.results.length === 0 &&
+    rewritePayload.extraContext.includes('Rendre le texte plus dynamique') &&
+    rewritePayload.extraContext.includes('Texte actuel')
+  ) {
+    console.log('✓ Réussi : Le payload de réécriture est correctement construit');
+  } else {
+    console.error('❌ Échec : Payload de réécriture incorrect', rewritePayload);
+    process.exit(1);
+  }
+
   console.log('================================================================');
-  console.log('🎉 TOUS LES TESTS DE POSTER AI CAPTION HELPERS SONT PASSÉS ! (8/8)');
+  console.log('🎉 TOUS LES TESTS DE POSTER AI CAPTION HELPERS SONT PASSÉS ! (9/9)');
   console.log('================================================================');
 }
 
