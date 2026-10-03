@@ -7184,6 +7184,30 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                             </div>
                           )}
                         </div>
+
+                        {(() => {
+                          const latestTelegramAlert = activeAlerts.find(
+                            (alert) => alert.triggeredBy === 'telegram'
+                          );
+
+                          return (
+                            <div className="pt-2 border-t border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="text-xs text-slate-400">
+                                Cette alerte est actuellement diffusée dans la boucle TV.
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => latestTelegramAlert && onRemoveAlert(latestTelegramAlert.id)}
+                                disabled={!latestTelegramAlert}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-xs font-bold transition-colors"
+                                title={latestTelegramAlert ? "Supprimer l'alerte Telegram de la boucle TV" : "Aucune alerte Telegram active"}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Supprimer l'alerte de la TV
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ) : effectiveLastTelegramMessage && effectiveLastTelegramMessage.success === false ? (
                       <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/40 text-xs text-red-300 space-y-1.5">
