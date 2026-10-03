@@ -107,7 +107,10 @@ import { getAvailablePosterFilter } from '../utils/posterFilterHelpers';
 import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
 import { buildPosterSocialWebhookPayload } from '../utils/posterWebhookHelpers';
 import { getPosterClubDisplayNames } from '../utils/posterClubHelpers';
-import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
+import {
+  calculatePosterPreviewScale,
+  calculateInitialPosterPreviewScale,
+} from '../utils/posterPreviewHelpers';
 import { buildPosterColorSettings } from '../utils/posterColorHelpers';
 import type {
   PosterFilterType,
@@ -224,13 +227,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Zoom de prévisualisation adaptatif calculé dynamiquement
   // La composition reste 100% rigide et native (1080p), seule la vue d'aperçu zoome
-  const [previewScale, setPreviewScale] = useState<number>(() => {
-    if (typeof window !== 'undefined' && window.innerWidth > 0) {
-      const defaultAvail = Math.min(window.innerWidth - 32, 460);
-      return Math.max(0.12, defaultAvail / 1080);
-    }
-    return 0.35;
-  });
+  const [previewScale, setPreviewScale] = useState<number>(() =>
+    calculateInitialPosterPreviewScale(
+      typeof window !== 'undefined' ? window.innerWidth : 0
+    )
+  );
 
   useEffect(() => {
     const updateScale = () => {
