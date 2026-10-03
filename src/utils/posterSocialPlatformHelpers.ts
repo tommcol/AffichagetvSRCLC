@@ -1,5 +1,7 @@
+import type { PosterSocialPlatform } from './posterTypes';
+
 export const getSocialCaptionForPlatform = (
-  platform: string,
+  platform: PosterSocialPlatform,
   captions: {
     instagram?: string;
     tiktok?: string;
@@ -16,4 +18,3 @@ export const getSocialCaptionForPlatform = (
       return captions.instagram || '';
   }
 };
-
