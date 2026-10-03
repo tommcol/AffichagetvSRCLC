@@ -249,7 +249,7 @@ async function uploadFile(request: Request, env: Env): Promise<Response> {
       return new Response(
         JSON.stringify({
           success: true,
-          url: `/api/media/${filename}`,
+          url: `/uploads/${filename}`,
           fileName: decodeURIComponent(rawName),
           mediaType: isVideo ? 'video' : 'image',
         }),
@@ -294,7 +294,7 @@ async function uploadFile(request: Request, env: Env): Promise<Response> {
       return new Response(
         JSON.stringify({
           success: true,
-          url: `/api/media/${filename}`,
+          url: `/uploads/${filename}`,
           fileName: file.name,
           mediaType: isVideo ? 'video' : 'image',
           size: file.size,
@@ -343,7 +343,7 @@ async function uploadMultiple(request: Request, env: Env): Promise<Response> {
       }
 
       uploaded.push({
-        url: `/api/media/${filename}`,
+        url: `/uploads/${filename}`,
         fileName: file.name,
         mediaType: isVideo ? 'video' : 'image',
         size: file.size,

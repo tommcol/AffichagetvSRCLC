@@ -23,7 +23,7 @@ interface ActiveMatchAlert {
 const app = express();
 const PORT = 3000;
 
-// Setup upload directory
+// Setup upload directory - public/uploads is the single unified directory for local media
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
 const DATA_DIR = path.join(process.cwd(), "data");
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -186,7 +186,7 @@ app.put("/api/upload", (req, res) => {
     writeStream.on("finish", () => {
       const stats = fs.statSync(targetPath);
       const isVideo = /\.(mp4|webm|mov|m4v)$/i.test(filename) || (req.headers["content-type"] || "").startsWith("video/");
-      const publicUrl = `/api/media/${filename}`;
+      const publicUrl = `/uploads/${filename}`;
       console.log(`[UPLOAD PUT STREAM] ${cleanName} -> ${publicUrl} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
       return res.json({
         success: true,
@@ -265,13 +265,24 @@ app.post("/api/upload-multiple", upload.array("files", 30), (req, res) => {
   }
 });
 
-// 1c2. Serve media endpoint in dev
+// 1c2. Serve media endpoint in dev (supports both /uploads/ and /api/media/ seamlessly)
 app.get(["/api/media/:filename", "/uploads/:filename"], (req, res) => {
-  const filename = path.basename(req.params.filename);
-  const target = path.join(DATA_DIR, "uploads", filename);
-  if (fs.existsSync(target)) {
-    return res.sendFile(target);
+  const rawFilename = req.params.filename;
+  const decodedFilename = decodeURIComponent(rawFilename);
+  const filename = path.basename(decodedFilename);
+
+  // Primary local storage: public/uploads
+  const primaryTarget = path.join(UPLOADS_DIR, filename);
+  if (fs.existsSync(primaryTarget)) {
+    return res.sendFile(primaryTarget);
   }
+
+  // Fallback for legacy files stored in data/uploads
+  const legacyTarget = path.join(DATA_DIR, "uploads", filename);
+  if (fs.existsSync(legacyTarget)) {
+    return res.sendFile(legacyTarget);
+  }
+
   return res.status(404).send("Média non trouvé");
 });
 
