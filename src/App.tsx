@@ -51,6 +51,7 @@ import {
 } from './utils/appStorageHelpers';
 import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
 import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/appDataHelpers';
+import { isCarouselSlideVideo } from './utils/carouselVideoHelpers';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
@@ -784,60 +785,20 @@ export default function App() {
     [visualTemplates, clubSettings]
   );
 
-  const isCurrentSlideVideo = useMemo(() => {
-    if (!currentSlide) return false;
-    
-    if (currentSlide.type === 'alert' && currentSlide.alert) {
-      const alert = currentSlide.alert;
-      const matchingTeamVisual = teamVisuals.find((tv) =>
-        tv.category === alert.team || tv.teamName === alert.team ||
-        tv.teamName.toLowerCase().includes(alert.team.toLowerCase()) ||
-        tv.shortAliases.some((alias) => alert.team.toLowerCase().includes(alias.toLowerCase()))
-      );
-      const visualImage =
-        alert.customImageUrl ||
-        (alert.isWin ? matchingTeamVisual?.winVisualUrl : matchingTeamVisual?.lossVisualUrl) ||
-        (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
-      return !!(visualImage && isVideoMedia(visualImage));
-    }
-
-    if (currentSlide.type === 'category') {
-      if (currentSlide.categoryId === 'photos' && currentSlide.photo) {
-        const ph = currentSlide.photo;
-        return !!(ph.isVideo || ph.mediaType === 'video' || isVideoMedia(ph.imageUrl));
-      }
-      if (currentSlide.categoryId === 'sponsors' && currentSlide.sponsor) {
-        const sp = currentSlide.sponsor;
-        return !!(sp.isVideo || sp.mediaType === 'video' || isVideoMedia(sp.logoUrl));
-      }
-      if (currentSlide.categoryId === 'logos' && currentSlide.logo) {
-        const lg = currentSlide.logo;
-        return !!(lg.isVideo || lg.mediaType === 'video' || isVideoMedia(lg.logoUrl));
-      }
-      if (currentSlide.categoryId === 'birthdays') {
-        const bgVid = birthdaysEffective.backgroundUrl && (birthdaysEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(birthdaysEffective.backgroundUrl));
-        const l3Vid = birthdaysEffective.layer3?.enabled && (birthdaysEffective.layer3.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer3.mediaUrl));
-        const l4Vid = birthdaysEffective.layer4?.enabled && (birthdaysEffective.layer4.mediaType === 'video' || isVideoMedia(birthdaysEffective.layer4.mediaUrl));
-        const mascotVid = birthdaysEffective.mascot?.enabled && birthdaysEffective.mascot.mediaType === 'video' && birthdaysEffective.mascot.mediaUrl;
-        return !!(bgVid || l3Vid || l4Vid || mascotVid);
-      }
-      if (currentSlide.categoryId === 'matches') {
-        const bgVid = matchesEffective.backgroundUrl && (matchesEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(matchesEffective.backgroundUrl));
-        const l3Vid = matchesEffective.layer3?.enabled && (matchesEffective.layer3.mediaType === 'video' || isVideoMedia(matchesEffective.layer3.mediaUrl));
-        const l4Vid = matchesEffective.layer4?.enabled && (matchesEffective.layer4.mediaType === 'video' || isVideoMedia(matchesEffective.layer4.mediaUrl));
-        const mascotVid = matchesEffective.mascot?.enabled && matchesEffective.mascot.mediaType === 'video' && matchesEffective.mascot.mediaUrl;
-        return !!(bgVid || l3Vid || l4Vid || mascotVid);
-      }
-      if (currentSlide.categoryId === 'results') {
-        const bgVid = resultsEffective.backgroundUrl && (resultsEffective.categoryTheme?.backgroundMediaType === 'video' || isVideoMedia(resultsEffective.backgroundUrl));
-        const l3Vid = resultsEffective.layer3?.enabled && (resultsEffective.layer3.mediaType === 'video' || isVideoMedia(resultsEffective.layer3.mediaUrl));
-        const l4Vid = resultsEffective.layer4?.enabled && (resultsEffective.layer4.mediaType === 'video' || isVideoMedia(resultsEffective.layer4.mediaUrl));
-        const mascotVid = resultsEffective.mascot?.enabled && resultsEffective.mascot.mediaType === 'video' && resultsEffective.mascot.mediaUrl;
-        return !!(bgVid || l3Vid || l4Vid || mascotVid);
-      }
-    }
-    return false;
-  }, [currentSlide, birthdaysEffective, matchesEffective, resultsEffective, teamVisuals, visualTemplates]);
+  const isCurrentSlideVideo = useMemo(
+    () =>
+      isCarouselSlideVideo(
+        currentSlide,
+        {
+          birthdays: birthdaysEffective,
+          matches: matchesEffective,
+          results: resultsEffective,
+        },
+        teamVisuals,
+        visualTemplates
+      ),
+    [currentSlide, birthdaysEffective, matchesEffective, resultsEffective, teamVisuals, visualTemplates]
+  );
 
   // Slide navigation
   const nextSlide = useCallback(() => {
