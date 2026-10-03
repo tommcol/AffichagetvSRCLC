@@ -98,6 +98,7 @@ import {
 } from '../utils/posterAiCaptionHelpers';
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
 import { copyTextToClipboard } from '../utils/clipboardHelpers';
+import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -852,7 +853,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         { type: 'image/png' }
       );
 
-      const title = `Affiche ${badgeTitle || ''} - ${safeShortName}`;
+      const title = buildPosterShareTitle(badgeTitle || '', safeShortName);
       const text = getSocialCaptionForPlatform(selectedSocialTab, generatedCaptions);
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
