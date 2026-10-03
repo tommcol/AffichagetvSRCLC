@@ -1,4 +1,4 @@
-import type { PosterContentType } from './posterTypes';
+import type { PosterContentType, PosterSocialPlatform } from './posterTypes';
 
 export const buildPosterSocialWebhookPayload = ({
   platform,
@@ -11,7 +11,7 @@ export const buildPosterSocialWebhookPayload = ({
   totalPages,
   webhookUrl,
 }: {
-  platform: 'instagram' | 'tiktok' | 'facebook';
+  platform: PosterSocialPlatform;
   contentType: PosterContentType;
   badgeTitle: string;
   shortClubName: string;
