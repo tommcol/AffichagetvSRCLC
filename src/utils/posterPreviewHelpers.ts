@@ -17,3 +17,11 @@ export const calculatePosterPreviewScale = (
     Math.min(scaleByWidth, scaleByHeight, 480 / targetWidth)
   );
 };
+
+
+export const calculateInitialPosterPreviewScale = (viewportWidth: number): number => {
+  if (viewportWidth <= 0) return 0.35;
+
+  const defaultAvail = Math.min(viewportWidth - 32, 460);
+  return Math.max(0.12, defaultAvail / 1080);
+};
