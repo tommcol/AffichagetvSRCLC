@@ -279,26 +279,15 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     [weekendResults]
   );
 
-  const homeMatchesCount = matchCounts.home;
-  const awayMatchesCount = matchCounts.away;
-  const exemptMatchesCount = matchCounts.exempt;
-
-  const homeResultsCount = resultCounts.home;
-  const awayResultsCount = resultCounts.away;
-  const exemptResultsCount = resultCounts.exempt;
-
   // Auto-reset filter to 'all' if active filter has 0 items
   useEffect(() => {
-    const counts =
-      contentType === 'matches'
-        ? { home: homeMatchesCount, away: awayMatchesCount, exempt: exemptMatchesCount }
-        : { home: homeResultsCount, away: awayResultsCount, exempt: exemptResultsCount };
+    const counts = contentType === 'matches' ? matchCounts : resultCounts;
 
     const nextFilter = getAvailablePosterFilter(posterFilter, counts);
     if (nextFilter !== posterFilter) {
       setPosterFilter(nextFilter);
     }
-  }, [posterFilter, contentType, homeMatchesCount, awayMatchesCount, exemptMatchesCount, homeResultsCount, awayResultsCount, exemptResultsCount]);
+  }, [posterFilter, contentType, matchCounts.home, matchCounts.away, matchCounts.exempt, resultCounts.home, resultCounts.away, resultCounts.exempt]);
 
   // Filter matches based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
   const filteredMatches = useMemo(
@@ -1069,7 +1058,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </span>
               {/* DOMICILE */}
               {(() => {
-                const count = contentType === 'results' ? homeResultsCount : homeMatchesCount;
+                const count = contentType === 'results' ? resultCounts.home : matchCounts.home;
                 const isDisabled = count === 0;
                 return (
                   <button
@@ -1104,7 +1093,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
               {/* EXTÉRIEUR */}
               {(() => {
-                const count = contentType === 'results' ? awayResultsCount : awayMatchesCount;
+                const count = contentType === 'results' ? resultCounts.away : matchCounts.away;
                 const isDisabled = count === 0;
                 return (
                   <button
@@ -1139,7 +1128,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
               {/* EXEMPT */}
               {contentType === 'matches' && (() => {
-                const count = exemptMatchesCount;
+                const count = matchCounts.exempt;
                 const isDisabled = count === 0;
                 return (
                   <button
