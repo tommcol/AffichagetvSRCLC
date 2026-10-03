@@ -95,6 +95,7 @@ import {
 import {
   buildPosterAiCaptionRequestPayload,
   buildPosterAiCaptionRewritePayload,
+  requestPosterAiCaption,
   type PosterAiCaptionPlatform,
 } from '../utils/posterAiCaptionHelpers';
 import { buildPosterExportFilename } from '../utils/posterExportFilenameHelpers';
@@ -604,59 +605,21 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
       if (targetPlatform === 'all') {
         const [resInsta, resTikTok, resFB] = await Promise.all([
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              buildPosterAiCaptionRequestPayload({
-                platform: 'instagram',
-                contentType,
-                matches: publicationMatches,
-                results: publicationResults,
-                clubName: safeClubName,
-                shortClub: safeShortName,
-                gymnasium: safeGymnasium,
-                tone: aiTone,
-                extraContext: aiExtraContext.trim(),
-              })
-            ),
-          }).then((r) => r.json()).catch(() => null),
-
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              buildPosterAiCaptionRequestPayload({
-                platform: 'tiktok',
-                contentType,
-                matches: publicationMatches,
-                results: publicationResults,
-                clubName: safeClubName,
-                shortClub: safeShortName,
-                gymnasium: safeGymnasium,
-                tone: aiTone,
-                extraContext: aiExtraContext.trim(),
-              })
-            ),
-          }).then((r) => r.json()).catch(() => null),
-
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              buildPosterAiCaptionRequestPayload({
-                platform: 'facebook',
-                contentType,
-                matches: publicationMatches,
-                results: publicationResults,
-                clubName: safeClubName,
-                shortClub: safeShortName,
-                gymnasium: safeGymnasium,
-                tone: aiTone,
-                extraContext: aiExtraContext.trim(),
-              })
-            ),
-          }).then((r) => r.json()).catch(() => null),
+          requestPosterAiCaption(buildPosterAiCaptionRequestPayload({
+            platform: 'instagram', contentType, matches: publicationMatches, results: publicationResults,
+            clubName: safeClubName, shortClub: safeShortName, gymnasium: safeGymnasium,
+            tone: aiTone, extraContext: aiExtraContext.trim(),
+          })).catch(() => null),
+          requestPosterAiCaption(buildPosterAiCaptionRequestPayload({
+            platform: 'tiktok', contentType, matches: publicationMatches, results: publicationResults,
+            clubName: safeClubName, shortClub: safeShortName, gymnasium: safeGymnasium,
+            tone: aiTone, extraContext: aiExtraContext.trim(),
+          })).catch(() => null),
+          requestPosterAiCaption(buildPosterAiCaptionRequestPayload({
+            platform: 'facebook', contentType, matches: publicationMatches, results: publicationResults,
+            clubName: safeClubName, shortClub: safeShortName, gymnasium: safeGymnasium,
+            tone: aiTone, extraContext: aiExtraContext.trim(),
+          })).catch(() => null),
         ]);
 
         setCustomCaptions((prev) => ({
@@ -667,24 +630,17 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         }));
         setIsCustomCaptionEdited({ instagram: true, tiktok: true, facebook: true });
       } else {
-        const res = await fetch('/api/generate-caption', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            buildPosterAiCaptionRequestPayload({
-              platform: targetPlatform,
-              contentType,
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortName,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-            })
-          ),
-        });
-        const data = await res.json();
+        const data = await requestPosterAiCaption(buildPosterAiCaptionRequestPayload({
+          platform: targetPlatform,
+          contentType,
+          matches: publicationMatches,
+          results: publicationResults,
+          clubName: safeClubName,
+          shortClub: safeShortName,
+          gymnasium: safeGymnasium,
+          tone: aiTone,
+          extraContext: aiExtraContext.trim(),
+        }));
         if (data.success && data.caption) {
           setCustomCaptions((prev) => ({ ...prev, [targetPlatform]: data.caption }));
           setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: true }));
