@@ -557,7 +557,14 @@ export default function App() {
             setResults((prev) => (hasChangedJson(prev, collections.results) ? collections.results! : prev));
           }
           if (collections.matches) {
-            setMatches((prev) => (hasChangedJson(prev, collections.matches) ? collections.matches! : prev));
+            const currentAlerts = getActiveAlertsCache();
+            setMatches((prev) => {
+              const baseMatches = hasChangedJson(prev, collections.matches)
+                ? collections.matches!
+                : prev;
+              const syncedMatches = applyAlertsToCurrentWeekendMatches(baseMatches, currentAlerts);
+              return hasChangedJson(prev, syncedMatches) ? syncedMatches : prev;
+            });
           }
           if (collections.sponsors) {
             setSponsors((prev) => (hasChangedJson(prev, collections.sponsors) ? collections.sponsors! : prev));
