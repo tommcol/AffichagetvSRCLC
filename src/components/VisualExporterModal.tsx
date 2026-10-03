@@ -108,6 +108,7 @@ import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
 import { buildPosterSocialWebhookPayload } from '../utils/posterWebhookHelpers';
 import { getPosterClubDisplayNames } from '../utils/posterClubHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
+import { buildPosterColorSettings } from '../utils/posterColorHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -370,13 +371,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     badgeBg?: string,
     badgeText?: string
   ) => {
-    const partial: Partial<CategorySlideTheme> = {};
-    if (primary !== undefined) partial.primaryColor = primary;
-    if (text !== undefined) partial.textColor = text;
-    if (badgeBg !== undefined) partial.badgeBgColor = badgeBg;
-    if (badgeText !== undefined) partial.badgeTextColor = badgeText;
-    
-    updateTemplateSetting(partial);
+    updateTemplateSetting(
+      buildPosterColorSettings(primary, text, badgeBg, badgeText)
+    );
   };
 
   useEffect(() => {
