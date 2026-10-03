@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CarouselSlide,
   ClubSettings,
@@ -21,6 +21,7 @@ import { EventsSlide } from './EventsSlide';
 import { MatchAlertSlide } from './MatchAlertSlide';
 import { getEffectiveCategoryConfig } from '../../utils/themeUtils';
 import { isClubHomeMatch } from '../../utils/matchStatus';
+import { FFBBService, normalizeCategoryKey } from '../../services/ffbbService';
 
 export interface TVSlideRendererProps {
   slide: CarouselSlide;
@@ -40,6 +41,73 @@ export interface TVSlideRendererProps {
   hideShareButton?: boolean;
 }
 
+const getCurrentWeekendBounds = (referenceDate = new Date()): { start: Date; end: Date } => {
+  const date = new Date(referenceDate);
+  const day = date.getDay();
+  const fridayOffset = day === 0 ? -2 : 5 - day;
+  const start = new Date(date);
+  start.setDate(date.getDate() + fridayOffset);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 2);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+};
+
+const isCurrentWeekendResult = (match: MatchItem, referenceDate = new Date()): boolean => {
+  const { start, end } = getCurrentWeekendBounds(referenceDate);
+  const matchDate = new Date(`${match.date}T12:00:00`);
+  return !Number.isNaN(matchDate.getTime()) && matchDate >= start && matchDate <= end;
+};
+
+const getMatchOpponent = (match: MatchItem): string =>
+  match.isHomeMatch ? match.teamAway : match.teamHome;
+
+const normalizeMatchText = (value?: string): string =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const findFfbbResultForMatch = (match: MatchItem, results: MatchItem[]): MatchItem | undefined => {
+  const directKey = match.ffbbMatchNumber || match.id;
+  const direct = results.find((result) => {
+    const resultKey = result.ffbbMatchNumber || result.id;
+    return Boolean(directKey && resultKey && directKey.toLowerCase() === resultKey.toLowerCase());
+  });
+  if (direct) return direct;
+
+  const categoryKey = normalizeCategoryKey(match.rawFfbbCategory || match.category);
+  const opponentKey = normalizeMatchText(getMatchOpponent(match));
+
+  return results.find((result) => {
+    if (result.date !== match.date) return false;
+    const resultCategoryKey = normalizeCategoryKey(result.rawFfbbCategory || result.category);
+    if (categoryKey && resultCategoryKey && categoryKey !== resultCategoryKey) return false;
+    const resultOpponentKey = normalizeMatchText(getMatchOpponent(result));
+    return !opponentKey || !resultOpponentKey || opponentKey === resultOpponentKey || opponentKey.includes(resultOpponentKey) || resultOpponentKey.includes(opponentKey);
+  });
+};
+
+const applyFfbbResultsToMatches = (matches: MatchItem[], ffbbResults: MatchItem[]): MatchItem[] =>
+  matches.map((match) => {
+    const result = findFfbbResultForMatch(match, ffbbResults);
+    if (!result || result.result === null || result.result === undefined) return match;
+
+    return {
+      ...match,
+      status: 'finished',
+      result: result.result,
+      ...(result.homeScore !== undefined ? { homeScore: result.homeScore } : {}),
+      ...(result.awayScore !== undefined ? { awayScore: result.awayScore } : {}),
+      finishedAt: result.finishedAt || Date.now(),
+    };
+  });
+
 export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
   slide,
   clubSettings,
@@ -57,6 +125,102 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
   onDownloadVisual,
   hideShareButton = true,
 }) => {
+  const [ffbbResults, setFfbbResults] = useState<MatchItem[]>([]);
+  const ffbbAlertSignaturesRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncFfbbResults = async () => {
+      try {
+        const data = await FFBBService.fetchClubData(clubSettings.codeFFBB);
+        if (cancelled) return;
+
+        const weekendResults = data.results.filter(
+          (result) =>
+            isCurrentWeekendResult(result) &&
+            result.result !== null &&
+            result.result !== undefined &&
+            result.homeScore !== undefined &&
+            result.awayScore !== undefined
+        );
+
+        setFfbbResults(weekendResults);
+
+        let activeAlerts: Array<{ matchId?: string; triggeredBy?: string; ourScore?: number; opponentScore?: number }> = [];
+        try {
+          const alertResponse = await fetch('/api/get-alerts');
+          if (alertResponse.ok) {
+            const alertData = await alertResponse.json();
+            activeAlerts = Array.isArray(alertData?.alerts) ? alertData.alerts : [];
+          }
+        } catch {
+          // Le résultat FFBB reste affichable même si la lecture des alertes échoue.
+        }
+
+        for (const ffbbResult of weekendResults) {
+          const signature = `${ffbbResult.ffbbMatchNumber || ffbbResult.id}:${ffbbResult.homeScore}-${ffbbResult.awayScore}`;
+          if (ffbbAlertSignaturesRef.current.has(signature)) continue;
+
+          const alreadyActive = activeAlerts.some(
+            (alert) =>
+              alert.triggeredBy === 'ffbb' &&
+              alert.matchId &&
+              alert.matchId === ffbbResult.id &&
+              alert.ourScore !== undefined &&
+              alert.opponentScore !== undefined &&
+              ((ffbbResult.isHomeMatch && alert.ourScore === ffbbResult.homeScore && alert.opponentScore === ffbbResult.awayScore) ||
+                (!ffbbResult.isHomeMatch && alert.ourScore === ffbbResult.awayScore && alert.opponentScore === ffbbResult.homeScore))
+          );
+
+          if (alreadyActive) {
+            ffbbAlertSignaturesRef.current.add(signature);
+            continue;
+          }
+
+          const ourScore = ffbbResult.isHomeMatch ? ffbbResult.homeScore! : ffbbResult.awayScore!;
+          const opponentScore = ffbbResult.isHomeMatch ? ffbbResult.awayScore! : ffbbResult.homeScore!;
+          const alert = FFBBService.createFinishedNotification(
+            ffbbResult,
+            ourScore,
+            opponentScore,
+            60
+          );
+
+          try {
+            const response = await fetch('/api/add-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(alert),
+            });
+            if (response.ok) {
+              ffbbAlertSignaturesRef.current.add(signature);
+            }
+          } catch {
+            // Le prochain cycle retentera l'injection de l'alerte FFBB.
+          }
+        }
+      } catch (error) {
+        console.warn('Synchronisation automatique FFBB TV impossible:', error);
+      }
+    };
+
+    void syncFfbbResults();
+    const interval = window.setInterval(() => {
+      void syncFfbbResults();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [clubSettings.codeFFBB]);
+
+  const matchesWithFfbbResults = useMemo(
+    () => applyFfbbResultsToMatches(matches, ffbbResults),
+    [matches, ffbbResults]
+  );
+
   const matchesEffective = useMemo(
     () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
     [visualTemplates, clubSettings]
@@ -77,7 +241,6 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     return undefined;
   }, [slide, teamVisuals]);
 
-  // Case A: Active Victory / Defeat Alert Slide
   if (slide.type === 'alert' && slide.alert) {
     return (
       <MatchAlertSlide
@@ -91,7 +254,6 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     );
   }
 
-  // Case B: Category Visuals
   if (slide.type === 'category') {
     if (slide.categoryId === 'photos') {
       return (
@@ -136,10 +298,10 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
 
     if (slide.categoryId === 'matches') {
       const filteredMatches = slide.filterScope === 'home'
-        ? matches.filter((m) => m.isHomeMatch)
+        ? matchesWithFfbbResults.filter((m) => m.isHomeMatch)
         : slide.filterScope === 'away'
-        ? matches.filter((m) => !m.isHomeMatch)
-        : matches;
+        ? matchesWithFfbbResults.filter((m) => !m.isHomeMatch)
+        : matchesWithFfbbResults;
 
       return (
         <MatchesSlide
