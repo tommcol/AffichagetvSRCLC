@@ -4,7 +4,7 @@ import {
   TeamVisualItem,
   VisualTemplatesConfig,
 } from '../types';
-import { isVideoMedia } from './mediaHelpers';
+import { isVideoMedia } from './mediaUtils';
 
 const hasVideoMedia = (url?: string, mediaType?: 'image' | 'video'): boolean =>
   Boolean(url && (mediaType === 'video' || isVideoMedia(url)));
