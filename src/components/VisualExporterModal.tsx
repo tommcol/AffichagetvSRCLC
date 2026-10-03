@@ -64,6 +64,14 @@ import {
   getLayer2Settings,
   mergeLayer2TemplateSetting,
 } from '../utils/posterLayer2Helpers';
+import {
+  getLayer3PositionClass,
+  getLayer3TransformOrigin,
+  getLayer3Transform,
+  getLayer4PositionClass,
+  getLayer4TransformOrigin,
+  readFileAsDataUrl,
+} from '../utils/posterLayerHelpers';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -614,31 +622,29 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     [customLayer4Image, effectiveCategoryConfig.layer4?.mediaUrl]
   );
 
-  const handleLayer3Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLayer3Upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setCustomLayer3Image(event.target.result as string);
-          setShowStudioLayer3(true);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setCustomLayer3Image(dataUrl);
+      setShowStudioLayer3(true);
+    } catch (error) {
+      console.error('Erreur lecture fichier calque 3:', error);
     }
   };
 
-  const handleLayer4Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLayer4Upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setCustomLayer4Image(event.target.result as string);
-          setShowStudioLayer4(true);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setCustomLayer4Image(dataUrl);
+      setShowStudioLayer4(true);
+    } catch (error) {
+      console.error('Erreur lecture fichier calque 4:', error);
     }
   };
 
@@ -1789,19 +1795,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       {/* STUDIO LAYER 3: ÉLÉMENT LIBRE / DÉCOR GRAPHISME */}
                       {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
                         <div
-                          className={`absolute pointer-events-none z-10 transition-all ${
-                            studioLayer3Pos === 'bottom-right'
-                              ? 'bottom-8 right-8'
-                              : studioLayer3Pos === 'bottom-left'
-                              ? 'bottom-8 left-8'
-                              : studioLayer3Pos === 'top-right'
-                              ? 'top-32 right-8'
-                              : 'bottom-16 left-1/2 -translate-x-1/2'
-                          }`}
+                          className={`absolute pointer-events-none z-10 transition-all ${getLayer3PositionClass(studioLayer3Pos)}`}
                           style={{
                             opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
-                            transform: `scale(${studioLayer3Scale}) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
-                            transformOrigin: studioLayer3Pos === 'bottom-right' ? 'bottom right' : studioLayer3Pos === 'bottom-left' ? 'bottom left' : 'center center',
+                            transform: getLayer3Transform(
+                              studioLayer3Scale,
+                              effectiveCategoryConfig.layer3?.flipHorizontal
+                            ),
+                            transformOrigin: getLayer3TransformOrigin(studioLayer3Pos),
                             maxHeight: '38%',
                             maxWidth: '38%',
                           }}
@@ -1817,19 +1818,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
                       {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
                         <div
-                          className={`absolute pointer-events-none z-10 transition-all ${
-                            studioLayer4Pos === 'top-right'
-                              ? 'top-8 right-8'
-                              : studioLayer4Pos === 'bottom-left'
-                              ? 'bottom-8 left-8'
-                              : studioLayer4Pos === 'bottom-right'
-                              ? 'bottom-8 right-8'
-                              : 'top-8 left-8'
-                          }`}
+                          className={`absolute pointer-events-none z-10 transition-all ${getLayer4PositionClass(studioLayer4Pos)}`}
                           style={{
                             opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
                             transform: `scale(${studioLayer4Scale})`,
-                            transformOrigin: studioLayer4Pos.includes('right') ? 'top right' : 'top left',
+                            transformOrigin: getLayer4TransformOrigin(studioLayer4Pos),
                             maxHeight: '22%',
                             maxWidth: '28%',
                           }}
