@@ -114,6 +114,8 @@ import type {
   PosterSocialTab,
   PosterRightPanelTab,
   PosterMobileTab,
+  PosterContentType,
+  PosterInitialContentType,
 } from '../utils/posterTypes';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
@@ -123,7 +125,7 @@ export { POSTER_DIMENSIONS } from '../utils/posterExporter';
 interface VisualExporterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  type: 'matches' | 'results' | 'victory' | 'defeat';
+  type: PosterInitialContentType;
   matches: MatchItem[];
   results: MatchItem[];
   clubSettings: ClubSettings;
@@ -157,7 +159,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     gymnasium: safeGymnasium,
   } = getPosterClubDisplayNames(clubSettings);
 
-  const [contentType, setContentType] = useState<'matches' | 'results' | 'notification'>(
+  const [contentType, setContentType] = useState<PosterContentType>(
     getInitialPosterContentType(initialType)
   );
 
