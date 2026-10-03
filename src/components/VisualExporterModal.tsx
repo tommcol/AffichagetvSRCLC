@@ -103,6 +103,7 @@ import { buildPosterShareTitle } from '../utils/posterShareTextHelpers';
 import { buildPosterShareFilename } from '../utils/posterShareFilenameHelpers';
 import { getPosterContentItems } from '../utils/posterContentHelpers';
 import { getInitialPosterContentType } from '../utils/posterContentTypeHelpers';
+import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
   PosterFilterType,
@@ -607,8 +608,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const handleGenerateAICaption = async (targetPlatform: 'all' | PosterAiCaptionPlatform = 'all') => {
     setAiGenerating(true);
     try {
-      const publicationMatches = contentType === 'matches' ? captionMatches : [];
-      const publicationResults = contentType === 'results' ? captionResults : [];
+      const { matches: publicationMatches, results: publicationResults } =
+        getPosterPublicationItems(contentType, captionMatches, captionResults);
 
       if (targetPlatform === 'all') {
         const [resInsta, resTikTok, resFB] = await Promise.all([
@@ -898,8 +899,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           badgeTitle,
           title: `${safeShortName} • ${badgeTitle}`,
           caption: activeCaption,
-          matches: contentType === 'matches' ? captionMatches : [],
-          results: contentType === 'results' ? captionResults : [],
+          ...getPosterPublicationItems(contentType, captionMatches, captionResults),
           totalPages,
           itemsCount: contentType === 'matches' ? captionMatches.length : captionResults.length,
           webhookUrl: clubSettings.socialWebhookUrl || '',
