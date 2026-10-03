@@ -596,6 +596,21 @@ export default function App() {
     };
   }, [adminAuthentifie, viewMode, pollUpdatedData]);
 
+  // Nettoyage local des alertes expirées, utile même hors ligne.
+  useEffect(() => {
+    const cleanupExpiredAlerts = () => {
+      setActiveAlerts((prev) => {
+        const valid = filterActiveAlerts(prev);
+        if (hasSameActiveAlerts(prev, valid)) return prev;
+        setActiveAlertsCache(valid);
+        return valid;
+      });
+    };
+
+    const interval = window.setInterval(cleanupExpiredAlerts, 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   // Build the full carousel rotation playlist
   // Alternates dynamically between categories (Mélange Équilibré) so spectators never see 10 sponsors or 10 photos back-to-back!
   const carouselPlaylist = useMemo(
