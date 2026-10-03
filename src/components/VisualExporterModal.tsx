@@ -70,8 +70,8 @@ import {
   getLayer3Transform,
   getLayer4PositionClass,
   getLayer4TransformOrigin,
-  readFileAsDataUrl,
 } from '../utils/posterLayerHelpers';
+import { readFileAsDataUrl } from '../utils/fileReaderHelpers';
 import {
   formatPosterMatchDate,
   formatTeamNameForBadge,
@@ -926,16 +926,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   };
 
   // Custom photo upload handler
-  const handleCustomBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCustomBgUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCustomBgImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setCustomBgImage(dataUrl);
+    } catch (err) {
+      console.error('Erreur lors de la lecture de l’image :', err);
+    }
   };
 
   if (!isOpen && !embeddedInTab) return null;
