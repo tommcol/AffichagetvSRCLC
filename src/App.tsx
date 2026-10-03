@@ -50,6 +50,7 @@ import {
   setActiveAlertsCache,
 } from './utils/appStorageHelpers';
 import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
+import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/appDataHelpers';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
@@ -157,7 +158,7 @@ export default function App() {
   });
 
   // Application en mémoire des données chargées
-  const applyLoadedData = useCallback((d: any) => {
+  const applyLoadedData = useCallback((d: AppDataPayload) => {
     if (!d) return;
     if (d.clubSettings) {
       setClubSettings({
@@ -181,9 +182,7 @@ export default function App() {
     if (d.photos) setPhotos(d.photos);
     if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
       setAllMembers(d.allMembers);
-      try {
-        setMemberPoolCache(d.allMembers);
-      } catch (e) {}
+      setMemberPoolCache(d.allMembers);
       const ref = simulatedDate || new Date();
       const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
       setBirthdays(calculatedWeekBirthdays.length > 0 ? calculatedWeekBirthdays : (d.birthdays || []));
@@ -194,25 +193,11 @@ export default function App() {
     if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
     if (d.visualTemplates) {
       let vt = { ...d.visualTemplates };
-      if (vt.matchesSettings) {
-        const s = (vt.matchesSettings as any).matchDisplayScope;
-        if (s === 'home' || s === 'away') {
-          vt.matchesSettings = { ...vt.matchesSettings, matchDisplayScope: 'split' };
-        }
-      }
-      if (vt.resultsSettings) {
-        const s = (vt.resultsSettings as any).matchDisplayScope;
-        if (s === 'home' || s === 'away') {
-          vt.resultsSettings = { ...vt.resultsSettings, matchDisplayScope: 'split' };
-        }
-      }
-      setVisualTemplates(vt);
+      setVisualTemplates(normalizeLoadedVisualTemplates(vt));
     }
     if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
       setFfbbTeams(d.ffbbTeams);
-      try {
-        setFfbbTeamsCache(d.ffbbTeams);
-      } catch (e) {}
+      setFfbbTeamsCache(d.ffbbTeams);
     }
   }, [simulatedDate]);
 
@@ -237,11 +222,9 @@ export default function App() {
         if (!res.ok) throw new Error('Network error');
         return res.json();
       })
-      .then((res: { data: any; version?: number }) => {
+      .then((res: { data?: AppDataPayload; version?: number }) => {
         if (res.data) {
-          const v = typeof res.data.version === 'number'
-            ? res.data.version
-            : (typeof res.version === 'number' ? res.version : 0);
+          const v = getServerDataVersion(res.data, res.version);
           updateDataVersion(v);
           applyLoadedData(res.data);
           lastSavedDataRef.current = JSON.stringify({ ...res.data, version: undefined });
@@ -530,9 +513,7 @@ export default function App() {
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
       const json = await res.json();
       if (json.data) {
-        const v = typeof json.data.version === 'number'
-          ? json.data.version
-          : (typeof json.version === 'number' ? json.version : 0);
+        const v = getServerDataVersion(json.data, json.version);
         updateDataVersion(v);
         applyLoadedData(json.data);
         try {
@@ -541,9 +522,9 @@ export default function App() {
         setSaveStatus('idle');
         setSaveErrorMessage('');
       }
-    } catch (err: any) {
+    } catch (err) {
       setSaveStatus('error');
-      setSaveErrorMessage("Impossible de recharger les données : " + (err.message || 'Erreur réseau'));
+      setSaveErrorMessage("Impossible de recharger les données : " + (err instanceof Error ? err.message : 'Erreur réseau'));
     }
   }, [applyLoadedData, updateDataVersion]);
 
@@ -603,7 +584,7 @@ export default function App() {
     const now = simulatedDate || new Date();
     const { monday } = getWeekBounds(now, 1);
     const msUntilNextMonday = monday.getTime() - now.getTime();
-    let exactTimer: any = null;
+    let exactTimer: ReturnType<typeof setTimeout> | null = null;
     if (msUntilNextMonday > 0 && msUntilNextMonday < 2147483647) {
       exactTimer = setTimeout(() => {
         checkWeekTransition();
