@@ -106,6 +106,7 @@ import { getInitialPosterContentType } from '../utils/posterContentTypeHelpers';
 import { getAvailablePosterFilter } from '../utils/posterFilterHelpers';
 import { getPosterPublicationItems } from '../utils/posterPublicationHelpers';
 import { buildPosterSocialWebhookPayload } from '../utils/posterWebhookHelpers';
+import { getPosterClubDisplayNames } from '../utils/posterClubHelpers';
 import { calculatePosterPreviewScale } from '../utils/posterPreviewHelpers';
 import type {
   PosterFilterType,
@@ -150,9 +151,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   onUpdateVisualTemplates,
   embeddedInTab = false,
 }) => {
-  const safeShortName = (clubSettings?.shortName || clubSettings?.name || 'Nom du club').trim();
-  const safeClubName = (clubSettings?.name || safeShortName).trim();
-  const safeGymnasium = (clubSettings?.gymnasiumDefault || 'Gymnase').trim();
+  const {
+    shortName: safeShortName,
+    name: safeClubName,
+    gymnasium: safeGymnasium,
+  } = getPosterClubDisplayNames(clubSettings);
 
   const [contentType, setContentType] = useState<'matches' | 'results' | 'notification'>(
     getInitialPosterContentType(initialType)
