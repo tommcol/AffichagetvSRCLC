@@ -273,7 +273,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     const renderPosterMatchItem = (m: MatchItem) => {
       const isHome = Boolean(m.isHomeMatch);
       const isLive = isMatchLive(m, currentTime);
-      const isFinished = isMatchFinished(m, currentTime);
+      const hasReceivedResult = m.result === 'win' || m.result === 'loss' || (m.homeScore !== undefined && m.awayScore !== undefined);\n      const isFinished = hasReceivedResult || isMatchFinished(m, currentTime);
       const outcome = getMatchOutcome(m, clubSettings?.name, clubSettings?.shortName);
       const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
 
@@ -734,7 +734,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 ) : (
                   homeMatches.map((m) => {
                     const isLive = isMatchLive(m, currentTime);
-                    const isFinished = isMatchFinished(m, currentTime);
+                    const hasReceivedResult = m.result === 'win' || m.result === 'loss' || (m.homeScore !== undefined && m.awayScore !== undefined);\n                    const isFinished = hasReceivedResult || isMatchFinished(m, currentTime);
                     const isWin = m.result === 'win';
                     const clubShort = (clubSettings?.shortName || '').toLowerCase();
                     const isClubHome = clubShort ? (m.teamHome || '').toLowerCase().includes(clubShort) : false;
