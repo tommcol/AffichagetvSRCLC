@@ -669,23 +669,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
     setIsRewriting(true);
     try {
-      const response = await fetch('/api/generate-caption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          buildPosterAiCaptionRewritePayload({
-            platform,
-            contentType,
-            currentCaption,
-            instructions: customRewriteInstructions,
-            clubName: safeClubName,
-            shortClub: safeShortName,
-            gymnasium: safeGymnasium,
-            tone: aiTone,
-          })
-        ),
-      });
-      const data = await response.json();
+      const data = await requestPosterAiCaption(
+        buildPosterAiCaptionRewritePayload({
+          platform,
+          contentType,
+          currentCaption,
+          instructions: customRewriteInstructions,
+          clubName: safeClubName,
+          shortClub: safeShortName,
+          gymnasium: safeGymnasium,
+          tone: aiTone,
+        })
+      );
       if (data.success && data.caption) {
         setPreviousAiCaption(currentCaption);
         setCustomCaptions((prev) => ({ ...prev, [platform]: data.caption }));
