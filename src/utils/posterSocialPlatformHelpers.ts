@@ -1,5 +1,3 @@
-import type { PosterSocialPlatform } from './posterTypes';
-
 export const getSocialCaptionForPlatform = (
   platform: string,
   captions: {
@@ -19,4 +17,3 @@ export const getSocialCaptionForPlatform = (
   }
 };
 
-export type { PosterSocialPlatform };
