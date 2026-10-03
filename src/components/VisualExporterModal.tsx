@@ -92,6 +92,10 @@ import {
   getSocialCaptionForPlatform,
   type PosterSocialPlatform,
 } from '../utils/posterSocialPlatformHelpers';
+import {
+  buildPosterAiCaptionRequestPayload,
+  type PosterAiCaptionPlatform,
+} from '../utils/posterAiCaptionHelpers';
 import type {
   PosterFilterType,
   PosterThemeType,
@@ -589,7 +593,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   };
 
   // AI Caption Generation helper using /api/generate-caption (Single global text for the whole publication)
-  const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
+  const handleGenerateAICaption = async (targetPlatform: 'all' | PosterAiCaptionPlatform = 'all') => {
     setAiGenerating(true);
     try {
       const publicationMatches = contentType === 'matches' ? captionMatches : [];
@@ -600,49 +604,55 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           fetch('/api/generate-caption', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'instagram',
-              type: contentType === 'results' ? 'results' : 'matches',
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortName,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-            }),
+            body: JSON.stringify(
+              buildPosterAiCaptionRequestPayload({
+                platform: 'instagram',
+                contentType,
+                matches: publicationMatches,
+                results: publicationResults,
+                clubName: safeClubName,
+                shortClub: safeShortName,
+                gymnasium: safeGymnasium,
+                tone: aiTone,
+                extraContext: aiExtraContext.trim(),
+              })
+            ),
           }).then((r) => r.json()).catch(() => null),
 
           fetch('/api/generate-caption', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'tiktok',
-              type: contentType === 'results' ? 'results' : 'matches',
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortName,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-            }),
+            body: JSON.stringify(
+              buildPosterAiCaptionRequestPayload({
+                platform: 'tiktok',
+                contentType,
+                matches: publicationMatches,
+                results: publicationResults,
+                clubName: safeClubName,
+                shortClub: safeShortName,
+                gymnasium: safeGymnasium,
+                tone: aiTone,
+                extraContext: aiExtraContext.trim(),
+              })
+            ),
           }).then((r) => r.json()).catch(() => null),
 
           fetch('/api/generate-caption', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'facebook',
-              type: contentType === 'results' ? 'results' : 'matches',
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortName,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-            }),
+            body: JSON.stringify(
+              buildPosterAiCaptionRequestPayload({
+                platform: 'facebook',
+                contentType,
+                matches: publicationMatches,
+                results: publicationResults,
+                clubName: safeClubName,
+                shortClub: safeShortName,
+                gymnasium: safeGymnasium,
+                tone: aiTone,
+                extraContext: aiExtraContext.trim(),
+              })
+            ),
           }).then((r) => r.json()).catch(() => null),
         ]);
 
@@ -657,17 +667,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         const res = await fetch('/api/generate-caption', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: targetPlatform,
-            type: contentType === 'results' ? 'results' : 'matches',
-            matches: publicationMatches,
-            results: publicationResults,
-            clubName: safeClubName,
-            shortClub: safeShortName,
-            gymnasium: safeGymnasium,
-            tone: aiTone,
-            extraContext: aiExtraContext.trim(),
-          }),
+          body: JSON.stringify(
+            buildPosterAiCaptionRequestPayload({
+              platform: targetPlatform,
+              contentType,
+              matches: publicationMatches,
+              results: publicationResults,
+              clubName: safeClubName,
+              shortClub: safeShortName,
+              gymnasium: safeGymnasium,
+              tone: aiTone,
+              extraContext: aiExtraContext.trim(),
+            })
+          ),
         });
         const data = await res.json();
         if (data.success && data.caption) {
