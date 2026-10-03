@@ -30,19 +30,43 @@ const isCurrentWeekendMatch = (match: MatchItem, referenceDate: Date): boolean =
   return !Number.isNaN(matchDate.getTime()) && matchDate >= start && matchDate <= end;
 };
 
+const namesMatch = (left?: string, right?: string): boolean => {
+  const a = normalizeMatchName(left);
+  const b = normalizeMatchName(right);
+  return Boolean(a && b && (a === b || a.includes(b) || b.includes(a)));
+};
+
 const alertMatchesWeekendMatch = (alert: ActiveMatchAlert, match: MatchItem): boolean => {
   if (alert.matchId && alert.matchId === match.id) return true;
 
-  const alertTeam = normalizeMatchName(alert.team || alert.category);
-  const matchCategory = normalizeMatchName(match.category);
-  const opponent = normalizeMatchName(alert.opponent);
-  const matchOpponent = normalizeMatchName(match.isHomeMatch ? match.teamAway : match.teamHome);
+  const alertTeam = alert.team || alert.ourTeam || alert.category;
+  const clubSide = match.isHomeMatch ? match.teamHome : match.teamAway;
+  const opponentSide = match.isHomeMatch ? match.teamAway : match.teamHome;
 
-  if (!alertTeam || !matchCategory || alertTeam !== matchCategory) return false;
-  if (opponent && matchOpponent && !opponent.includes(matchOpponent) && !matchOpponent.includes(opponent)) {
+  const teamMatches =
+    namesMatch(alertTeam, clubSide) ||
+    namesMatch(alertTeam, match.category) ||
+    namesMatch(alertTeam, match.ourClubName);
+
+  if (!teamMatches) return false;
+
+  if (alert.opponent && !namesMatch(alert.opponent, opponentSide)) {
     return false;
   }
+
   return true;
+};
+
+const getMatchLifecycleStatus = (match: MatchItem, referenceDate: Date): MatchItem['status'] => {
+  const start = new Date(`${match.date}T${match.time || '00:00'}:00`);
+  if (Number.isNaN(start.getTime())) return match.status;
+
+  const end = start.getTime() + 2 * 60 * 60 * 1000;
+  const now = referenceDate.getTime();
+
+  if (now < start.getTime()) return 'upcoming';
+  if (now < end) return 'live';
+  return 'finished';
 };
 
 export const applyAlertToCurrentWeekendMatches = (
@@ -62,7 +86,7 @@ export const applyAlertToCurrentWeekendMatches = (
 
     return {
       ...match,
-      status: 'finished',
+      status: getMatchLifecycleStatus(match, referenceDate),
       result: alert.isWin ? 'win' : 'loss',
       ...(homeScore !== undefined ? { homeScore } : {}),
       ...(awayScore !== undefined ? { awayScore } : {}),
