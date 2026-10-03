@@ -523,10 +523,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Items for caption selection (Global Publication: covers ALL matches/results of this publication regardless of number of posters)
-  const allCurrentCaptionItems = useMemo(
-    () => getPosterContentItems(contentType, filteredMatches, filteredResults),
-    [contentType, filteredMatches, filteredResults]
-  );
+  const allCurrentCaptionItems = allSourceItems;
 
   const allCurrentCaptionItemKeys = useMemo(() => {
     return allCurrentCaptionItems.map((item, idx) => getPosterItemKey(item, idx));
