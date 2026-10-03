@@ -47,6 +47,15 @@ import { getEffectiveCategoryConfig } from '../utils/themeUtils';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
 import { isMatchWin, isClubHomeMatch, isMatchLive, isMatchFinished } from '../utils/matchStatus';
 import { generateSocialCaptions, isExemptItem } from '../utils/socialCaptionGenerator';
+import {
+  getWeekendMatches,
+  getWeekendResults,
+  getPosterItemCounts,
+  filterPosterItems,
+  getMaxDisplayMatches,
+  getTotalPages,
+  paginatePosterItems,
+} from '../utils/posterDataHelpers';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -380,43 +389,35 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   }, [aspectRatio, targetDims.width, targetDims.height]);
 
   // Active matches selection
-  const weekendMatches = useMemo(() => {
-    const selected = matches.filter((m) => m.selectedForWeekend !== false);
-    return selected.length > 0 ? selected : matches;
-  }, [matches]);
+  const weekendMatches = useMemo(
+    () => getWeekendMatches(matches),
+    [matches]
+  );
 
   // Active results selection
-  const weekendResults = useMemo(() => {
-    const selected = results.filter((r) => r.selectedForWeekend !== false);
-    return selected.length > 0 ? selected : results;
-  }, [results]);
+  const weekendResults = useMemo(
+    () => getWeekendResults(results),
+    [results]
+  );
 
   // Counts per filter category to grey out empty filter buttons
-  const homeMatchesCount = useMemo(
-    () => weekendMatches.filter((m) => m.isHomeMatch).length,
-    [weekendMatches]
-  );
-  const awayMatchesCount = useMemo(
-    () => weekendMatches.filter((m) => !m.isHomeMatch).length,
-    [weekendMatches]
-  );
-  const exemptMatchesCount = useMemo(
-    () => weekendMatches.filter(isExemptItem).length,
+  const matchCounts = useMemo(
+    () => getPosterItemCounts(weekendMatches, isExemptItem),
     [weekendMatches]
   );
 
-  const homeResultsCount = useMemo(
-    () => weekendResults.filter((r) => r.isHomeMatch).length,
+  const resultCounts = useMemo(
+    () => getPosterItemCounts(weekendResults, isExemptItem),
     [weekendResults]
   );
-  const awayResultsCount = useMemo(
-    () => weekendResults.filter((r) => !r.isHomeMatch).length,
-    [weekendResults]
-  );
-  const exemptResultsCount = useMemo(
-    () => weekendResults.filter(isExemptItem).length,
-    [weekendResults]
-  );
+
+  const homeMatchesCount = matchCounts.home;
+  const awayMatchesCount = matchCounts.away;
+  const exemptMatchesCount = matchCounts.exempt;
+
+  const homeResultsCount = resultCounts.home;
+  const awayResultsCount = resultCounts.away;
+  const exemptResultsCount = resultCounts.exempt;
 
   // Auto-reset filter to 'all' if active filter has 0 matches
   useEffect(() => {
@@ -432,34 +433,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   }, [posterFilter, contentType, homeMatchesCount, awayMatchesCount, exemptMatchesCount, homeResultsCount, awayResultsCount, exemptResultsCount]);
 
   // Filter matches based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
-  const filteredMatches = useMemo(() => {
-    let list: MatchItem[] = [];
-    if (posterFilter === 'home') {
-      list = weekendMatches.filter((m) => m.isHomeMatch);
-    } else if (posterFilter === 'away') {
-      list = weekendMatches.filter((m) => !m.isHomeMatch);
-    } else if (posterFilter === 'exempt') {
-      list = weekendMatches.filter(isExemptItem);
-    } else {
-      list = weekendMatches;
-    }
-    return [...list].sort(sortMatchesChronologically);
-  }, [weekendMatches, posterFilter]);
+  const filteredMatches = useMemo(
+    () => filterPosterItems(weekendMatches, posterFilter, isExemptItem),
+    [weekendMatches, posterFilter]
+  );
 
   // Filter results based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
-  const filteredResults = useMemo(() => {
-    let list: MatchItem[] = [];
-    if (posterFilter === 'home') {
-      list = weekendResults.filter((r) => r.isHomeMatch);
-    } else if (posterFilter === 'away') {
-      list = weekendResults.filter((r) => !r.isHomeMatch);
-    } else if (posterFilter === 'exempt') {
-      list = weekendResults.filter(isExemptItem);
-    } else {
-      list = weekendResults;
-    }
-    return [...list].sort(sortMatchesChronologically);
-  }, [weekendResults, posterFilter]);
+  const filteredResults = useMemo(
+    () => filterPosterItems(weekendResults, posterFilter, isExemptItem),
+    [weekendResults, posterFilter]
+  );
 
   // Compute effective header badge title
   const badgeTitle = useMemo(() => {
@@ -639,15 +622,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   };
 
   // Max number of matches to display per aspect ratio to ensure no overflow
-  const maxDisplayMatches = useMemo(() => {
-    if (matchesLimit !== 'auto') {
-      return matchesLimit;
-    }
-    if (aspectRatio === '9:16') return 6;
-    if (aspectRatio === '4:5') return 6;
-    if (aspectRatio === '1:1') return 4;
-    return 6; // 16:9
-  }, [aspectRatio, matchesLimit]);
+  const maxDisplayMatches = useMemo(
+    () => getMaxDisplayMatches(aspectRatio, matchesLimit),
+    [aspectRatio, matchesLimit]
+  );
 
   // Active source items list for pagination
   const allSourceItems = useMemo(() => {
@@ -656,9 +634,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   }, [contentType, filteredResults, filteredMatches]);
 
   // Total pages
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(allSourceItems.length / maxDisplayMatches));
-  }, [allSourceItems.length, maxDisplayMatches]);
+  const totalPages = useMemo(
+    () => getTotalPages(allSourceItems.length, maxDisplayMatches),
+    [allSourceItems.length, maxDisplayMatches]
+  );
 
   // Auto-reset current page when filter or limits change
   useEffect(() => {
@@ -668,15 +647,15 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   }, [totalPages, currentPage]);
 
   // Active items for display on the card (paginated)
-  const displayedMatches = useMemo(() => {
-    const start = (currentPage - 1) * maxDisplayMatches;
-    return filteredMatches.slice(start, start + maxDisplayMatches);
-  }, [filteredMatches, currentPage, maxDisplayMatches]);
+  const displayedMatches = useMemo(
+    () => paginatePosterItems(filteredMatches, currentPage, maxDisplayMatches),
+    [filteredMatches, currentPage, maxDisplayMatches]
+  );
 
-  const displayedResults = useMemo(() => {
-    const start = (currentPage - 1) * maxDisplayMatches;
-    return filteredResults.slice(start, start + maxDisplayMatches);
-  }, [filteredResults, currentPage, maxDisplayMatches]);
+  const displayedResults = useMemo(
+    () => paginatePosterItems(filteredResults, currentPage, maxDisplayMatches),
+    [filteredResults, currentPage, maxDisplayMatches]
+  );
 
   // Effective background image URL
   const effectiveBgUrl = useMemo(() => {
