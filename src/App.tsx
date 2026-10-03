@@ -722,15 +722,6 @@ export default function App() {
       return;
     }
 
-    // If current slide is a video, run a safety fallback timer (max 60s) in case video does not fire onEnded
-    if (isCurrentSlideVideo) {
-      const maxVideoSafetyTimer = setTimeout(() => {
-        console.warn('Watchdog vidéo: passage automatique à la slide suivante');
-        nextSlide();
-      }, 60000);
-      return () => clearTimeout(maxVideoSafetyTimer);
-    }
-
     setProgressPercent(0);
     const startTime = Date.now();
     const durationMs = currentDuration * 1000;
