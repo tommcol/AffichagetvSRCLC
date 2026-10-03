@@ -360,7 +360,7 @@ export default function App() {
         return;
       }
 
-      if (retryOnFailure) {
+      if (retryOnFailure && !result.isConflict) {
         window.setTimeout(() => {
           if (currentSeq === saveSeqRef.current) {
             void persistAppData(payload, currentSeq, false);
