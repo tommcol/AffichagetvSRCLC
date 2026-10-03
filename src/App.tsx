@@ -53,6 +53,7 @@ import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
 import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/appDataHelpers';
 import { isCarouselSlideVideo } from './utils/carouselVideoHelpers';
 import { isVideoMedia, registerVideoBlob } from './utils/mediaUtils';
+import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { AnimatePresence, motion } from 'motion/react';
 import { FixedCanvas169 } from './components/common/FixedCanvas169';
@@ -335,6 +336,46 @@ export default function App() {
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveSeqRef = useRef<number>(0);
 
+  const persistAppData = useCallback(
+    async (payload: { version: number; data: AppDataPayload }, currentSeq: number, retryOnFailure: boolean) => {
+      if (currentSeq !== saveSeqRef.current) return;
+
+      const result = await saveAppDataRequest(payload);
+      if (currentSeq !== saveSeqRef.current) return;
+
+      if (result.ok) {
+        if (typeof result.version === 'number') {
+          updateDataVersion(result.version);
+          payload.data.version = result.version;
+          lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
+          setOfflineAppData(payload.data);
+        } else {
+          lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
+        }
+        setSaveStatus('saved');
+        setSaveErrorMessage('');
+        window.setTimeout(() => {
+          if (currentSeq === saveSeqRef.current) setSaveStatus('idle');
+        }, 2000);
+        return;
+      }
+
+      if (retryOnFailure) {
+        window.setTimeout(() => {
+          if (currentSeq === saveSeqRef.current) {
+            void persistAppData(payload, currentSeq, false);
+          }
+        }, 3000);
+        return;
+      }
+
+      setSaveStatus('error');
+      setSaveErrorMessage(result.errorMessage || 'Erreur serveur');
+      console.error("Échec de l'enregistrement des données :", result.errorMessage);
+    },
+    [updateDataVersion]
+  );
+
   useEffect(() => {
     if (!dataChargee) return;
 
@@ -342,9 +383,7 @@ export default function App() {
     saveDebounceRef.current = setTimeout(() => {
       const currentSeq = ++saveSeqRef.current;
       const currentVer = dataVersionRef.current;
-
       const dataToSave = buildAppData(currentVer);
-      // Sérialisation du contenu métier hors numéro de version pour la comparaison d'identité
       const contentToCompare = JSON.stringify({ ...dataToSave, version: undefined });
 
       if (lastSavedDataRef.current === contentToCompare && currentVer === dataVersionRef.current) {
@@ -353,158 +392,30 @@ export default function App() {
       }
 
       setSaveStatus('saving');
-      const payload = {
-        version: currentVer,
-        data: dataToSave,
-      };
+      const payload = { version: currentVer, data: dataToSave };
 
-      // Sauvegarde immédiate dans le cache hors-ligne local
-      try {
-        setOfflineAppData(payload.data);
-        if (allMembers && allMembers.length > 0) {
-          setMemberPoolCache(allMembers);
-        }
-      } catch (e) {}
-
-      const tenter = (estNouvelleTentative: boolean) => {
-        if (currentSeq !== saveSeqRef.current) return;
-
-        fetch('/api/save-app-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-          .then(async (res) => {
-            if (currentSeq !== saveSeqRef.current) return;
-            if (res.ok) {
-              const resJson = await res.json().catch(() => null);
-              if (resJson && typeof resJson.version === 'number') {
-                updateDataVersion(resJson.version);
-                payload.data.version = resJson.version;
-                lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
-                try {
-                  setOfflineAppData(payload.data);
-                } catch (e) {}
-              } else {
-                lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
-              }
-              setSaveStatus('saved');
-              setSaveErrorMessage('');
-              setTimeout(() => {
-                if (currentSeq === saveSeqRef.current) {
-                  setSaveStatus('idle');
-                }
-              }, 2000);
-            } else {
-              const errJson = await res.json().catch(() => null);
-              const isConflict = res.status === 409 || errJson?.code === 'CONCURRENCY_CONFLICT';
-              const msg = isConflict
-                ? "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau."
-                : (errJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`));
-
-              // En cas de conflit de concurrence, ne pas écraser ni boucler : stopper les tentatives
-              if (!estNouvelleTentative && !isConflict) {
-                setTimeout(() => {
-                  if (currentSeq === saveSeqRef.current) tenter(true);
-                }, 3000);
-              } else {
-                setSaveStatus('error');
-                setSaveErrorMessage(msg);
-                console.error("Échec de l'enregistrement des données :", msg);
-              }
-            }
-          })
-          .catch((err) => {
-            if (currentSeq !== saveSeqRef.current) return;
-            if (!estNouvelleTentative) {
-              setTimeout(() => {
-                if (currentSeq === saveSeqRef.current) tenter(true);
-              }, 3000);
-            } else {
-              setSaveStatus('error');
-              setSaveErrorMessage('Connexion réseau interrompue');
-              console.error("Échec de l'enregistrement des données :", err);
-            }
-          });
-      };
-
-      tenter(false);
+      setOfflineAppData(payload.data);
+      if (allMembers && allMembers.length > 0) setMemberPoolCache(allMembers);
+      void persistAppData(payload, currentSeq, true);
     }, 800);
 
     return () => {
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     };
-  }, [
-    dataChargee,
-    buildAppData,
-    updateDataVersion,
-    allMembers,
-  ]);
+  }, [dataChargee, buildAppData, allMembers, persistAppData]);
 
   const handleManualSave = useCallback(() => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaveStatus('saving');
     const currentSeq = ++saveSeqRef.current;
     const currentVer = dataVersionRef.current;
-    const payload = {
-      version: currentVer,
-      data: buildAppData(currentVer),
-    };
+    const payload = { version: currentVer, data: buildAppData(currentVer) };
 
-    try {
-      setOfflineAppData(payload.data);
-      if (allMembers && allMembers.length > 0) {
-        setMemberPoolCache(allMembers);
-      }
-    } catch (e) {}
+    setOfflineAppData(payload.data);
+    if (allMembers && allMembers.length > 0) setMemberPoolCache(allMembers);
+    void persistAppData(payload, currentSeq, false);
+  }, [buildAppData, allMembers, persistAppData]);
 
-    fetch('/api/save-app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        if (currentSeq !== saveSeqRef.current) return;
-        if (res.ok) {
-          const resJson = await res.json().catch(() => null);
-          if (resJson && typeof resJson.version === 'number') {
-            updateDataVersion(resJson.version);
-            payload.data.version = resJson.version;
-            lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
-            try {
-              setOfflineAppData(payload.data);
-            } catch (e) {}
-          } else {
-            lastSavedDataRef.current = JSON.stringify({ ...payload.data, version: undefined });
-          }
-          setSaveStatus('saved');
-          setSaveErrorMessage('');
-          setTimeout(() => {
-            if (currentSeq === saveSeqRef.current) {
-              setSaveStatus('idle');
-            }
-          }, 2500);
-        } else {
-          const errJson = await res.json().catch(() => null);
-          const isConflict = res.status === 409 || errJson?.code === 'CONCURRENCY_CONFLICT';
-          const msg = isConflict
-            ? "Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau."
-            : (errJson?.error || `Erreur serveur (${res.status})`);
-          setSaveStatus('error');
-          setSaveErrorMessage(msg);
-        }
-      })
-      .catch((err) => {
-        if (currentSeq !== saveSeqRef.current) return;
-        setSaveStatus('error');
-        setSaveErrorMessage('Connexion réseau interrompue');
-        console.error("Échec de l'enregistrement des données :", err);
-      });
-  }, [
-    buildAppData,
-    updateDataVersion,
-    allMembers,
-  ]);
 
   // Rechargement manuel depuis le serveur en cas de conflit de concurrence
   const handleReloadFromServer = useCallback(async () => {
