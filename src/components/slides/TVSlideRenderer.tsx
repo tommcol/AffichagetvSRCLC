@@ -162,6 +162,24 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
           const signature = `${ffbbResult.ffbbMatchNumber || ffbbResult.id}:${ffbbResult.homeScore}-${ffbbResult.awayScore}`;
           if (ffbbAlertSignaturesRef.current.has(signature)) continue;
 
+          // Une même rencontre ne doit produire qu'une seule alerte TV, même après
+          // expiration de l'alerte d'une heure et remontage du composant.
+          let alreadyDisplayed = false;
+          try {
+            const rawDisplayed = localStorage.getItem('ffbb_tv_alert_signatures');
+            const displayed = rawDisplayed ? JSON.parse(rawDisplayed) : [];
+            if (Array.isArray(displayed) && displayed.includes(signature)) {
+              alreadyDisplayed = true;
+            }
+          } catch {
+            // Le stockage local n'est pas bloquant.
+          }
+
+          if (alreadyDisplayed) {
+            ffbbAlertSignaturesRef.current.add(signature);
+            continue;
+          }
+
           const alreadyActive = activeAlerts.some(
             (alert) =>
               alert.triggeredBy === 'ffbb' &&
@@ -195,6 +213,15 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
             });
             if (response.ok) {
               ffbbAlertSignaturesRef.current.add(signature);
+              try {
+                const rawDisplayed = localStorage.getItem('ffbb_tv_alert_signatures');
+                const displayed = rawDisplayed ? JSON.parse(rawDisplayed) : [];
+                const nextDisplayed = Array.isArray(displayed) ? displayed.filter((item) => item !== signature) : [];
+                nextDisplayed.push(signature);
+                localStorage.setItem('ffbb_tv_alert_signatures', JSON.stringify(nextDisplayed.slice(-100)));
+              } catch {
+                // Le stockage local n'est pas bloquant.
+              }
             }
           } catch {
             // Le prochain cycle retentera l'injection de l'alerte FFBB.
