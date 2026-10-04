@@ -1080,7 +1080,7 @@ function parseTelegramMatchMessage(text: string): {
   };
 }
 
-async function getAlertDeduplicationKey(alert: any): string {
+function getAlertDeduplicationKey(alert: any): string {
   const source = alert?.triggeredBy || 'manual';
   if (source === 'ffbb' || source === 'telegram') {
     if (alert?.matchId) return `${source}:match:${alert.matchId}`;
