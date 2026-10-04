@@ -1080,12 +1080,46 @@ function parseTelegramMatchMessage(text: string): {
   };
 }
 
+async function getAlertDeduplicationKey(alert: any): string {
+  const source = alert?.triggeredBy || 'manual';
+  if (source === 'ffbb' || source === 'telegram') {
+    if (alert?.matchId) return `${source}:match:${alert.matchId}`;
+    return [
+      source,
+      String(alert?.team || '').trim().toLowerCase(),
+      String(alert?.opponent || '').trim().toLowerCase(),
+      alert?.isWin ? 'win' : 'loss',
+      alert?.ourScore ?? '',
+      alert?.opponentScore ?? '',
+    ].join('|');
+  }
+  return `id:${alert?.id || ''}`;
+}
+
+function deduplicateAlerts(alerts: any[]): any[] {
+  const seen = new Set<string>();
+  return alerts.filter((alert) => {
+    const key = getAlertDeduplicationKey(alert);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function getAlerts(env: Env): Promise<Response> {
   try {
     const raw = await env.AFFICHAGE_KV.get('alerts');
     const alerts = raw ? JSON.parse(raw) : [];
     const now = Date.now();
-    const actives = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
+    const activeAlerts = Array.isArray(alerts)
+      ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now)
+      : [];
+    const actives = deduplicateAlerts(activeAlerts);
+
+    if (Array.isArray(alerts) && JSON.stringify(alerts) !== JSON.stringify(actives)) {
+      await env.AFFICHAGE_KV.put('alerts', JSON.stringify(actives));
+    }
+
     return new Response(JSON.stringify({ alerts: actives, count: actives.length }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -1164,8 +1198,14 @@ async function addAlert(request: Request, env: Env): Promise<Response> {
     const alertesValides = Array.isArray(alerts)
       ? alerts.filter((a: { id: string; expiresAt: number }) => a && a.id !== alertId && a.expiresAt > now)
       : [];
-    alertesValides.unshift(newAlert);
-    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+
+    const newKey = getAlertDeduplicationKey(newAlert);
+    const dedupedExisting = alertesValides.filter(
+      (existing: any) => getAlertDeduplicationKey(existing) !== newKey
+    );
+
+    dedupedExisting.unshift(newAlert);
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(dedupedExisting));
   } catch (kvErr) {
     console.error('Erreur KV put alerts:', kvErr);
   }
