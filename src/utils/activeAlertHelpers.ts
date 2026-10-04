@@ -1,19 +1,54 @@
 import { ActiveMatchAlert } from '../types';
 
+const getAlertDeduplicationKey = (alert: ActiveMatchAlert): string => {
+  if ((alert.triggeredBy === 'ffbb' || alert.triggeredBy === 'telegram') && alert.matchId) {
+    return `match:${alert.matchId}`;
+  }
+
+  if (alert.triggeredBy === 'ffbb' || alert.triggeredBy === 'telegram') {
+    return [
+      alert.team || '',
+      alert.opponent || '',
+      alert.isWin ? 'win' : 'loss',
+      alert.ourScore ?? '',
+      alert.opponentScore ?? '',
+    ]
+      .join('|')
+      .toLowerCase();
+  }
+
+  return `id:${alert.id}`;
+};
+
 export const filterActiveAlerts = (
   alerts: unknown,
   now = Date.now()
 ): ActiveMatchAlert[] => {
   if (!Array.isArray(alerts)) return [];
 
-  return alerts.filter(
-    (alert): alert is ActiveMatchAlert =>
-      !!alert &&
-      typeof alert === 'object' &&
-      typeof (alert as ActiveMatchAlert).id === 'string' &&
-      typeof (alert as ActiveMatchAlert).expiresAt === 'number' &&
-      (alert as ActiveMatchAlert).expiresAt > now
-  );
+  const seen = new Set<string>();
+  const valid: ActiveMatchAlert[] = [];
+
+  for (const item of alerts) {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      typeof (item as ActiveMatchAlert).id !== 'string' ||
+      typeof (item as ActiveMatchAlert).expiresAt !== 'number' ||
+      (item as ActiveMatchAlert).expiresAt <= now
+    ) {
+      continue;
+    }
+
+    const alert = item as ActiveMatchAlert;
+    const key = getAlertDeduplicationKey(alert);
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    valid.push(alert);
+  }
+
+  return valid;
 };
 
 export const mergeActiveAlert = (
