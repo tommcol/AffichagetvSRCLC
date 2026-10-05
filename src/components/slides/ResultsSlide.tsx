@@ -419,7 +419,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             </div>
 
             {/* Pastille Pilule de Titre Rouge */}
-            <div className={`px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center ${getFontFamilyClass(headerFont)}`}>
+            <div className={`max-w-[calc(100%-1rem)] sm:max-w-none px-5 sm:px-7 md:px-10 py-2 rounded-full bg-red-600 text-white font-black text-lg sm:text-xl md:text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center whitespace-nowrap ${getFontFamilyClass(headerFont)}`}>
               {customHeaderTitle || (
                 sortedResults.length > 0 && sortedResults.every((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
                   ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RÉSULTATS À DOMICILE'
