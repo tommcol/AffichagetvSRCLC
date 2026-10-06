@@ -200,3 +200,78 @@ export function sortMatchesChronologically<T extends { date?: string; time?: str
   }
   return (a.category || '').localeCompare(b.category || '');
 }
+
+
+/**
+ * Retourne les bornes du week-end civil courant : vendredi 00:00
+ * jusqu'au dimanche 23:59:59.999.
+ */
+export function getCurrentWeekendBounds(referenceDate: Date = new Date()): { start: Date; end: Date } {
+  const date = new Date(referenceDate);
+  const day = date.getDay();
+  const fridayOffset = day === 0 ? -2 : 5 - day;
+
+  const start = new Date(date);
+  start.setDate(date.getDate() + fridayOffset);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 2);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+}
+
+/**
+ * Vérifie qu'un match appartient bien au week-end courant.
+ * Les dates ISO YYYY-MM-DD et les formats DD/MM/YYYY sont pris en charge.
+ */
+export function isMatchInCurrentWeekend(
+  dateStr?: string,
+  referenceDate: Date = new Date()
+): boolean {
+  if (!dateStr) return false;
+
+  const raw = dateStr.trim();
+  let matchDate: Date | null = null;
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    matchDate = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3]),
+      12, 0, 0, 0
+    );
+  } else {
+    const euro = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (euro) {
+      matchDate = new Date(
+        Number(euro[3]),
+        Number(euro[2]) - 1,
+        Number(euro[1]),
+        12, 0, 0, 0
+      );
+    } else {
+      const french = raw.match(
+        /(?:vendredi|samedi|dimanche)\s+(\d{1,2})(?:\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre))?(?:\s+(\d{4}))?/i
+      );
+      if (french) {
+        const monthNames = [
+          'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+          'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+        ];
+        const monthName = french[2]?.toLowerCase();
+        const monthIndex = monthName ? monthNames.indexOf(monthName) : -1;
+        const inferredMonth = monthIndex >= 0 ? monthIndex : referenceDate.getMonth();
+        const inferredYear = french[3] ? Number(french[3]) : referenceDate.getFullYear();
+        matchDate = new Date(inferredYear, inferredMonth, Number(french[1]), 12, 0, 0, 0);
+      }
+    }
+  }
+
+  if (!matchDate || Number.isNaN(matchDate.getTime())) return false;
+
+  const { start, end } = getCurrentWeekendBounds(referenceDate);
+  return matchDate >= start && matchDate <= end;
+}
