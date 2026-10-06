@@ -12,6 +12,7 @@ import {
   VisualTemplatesConfig,
 } from '../types';
 import { isClubHomeMatch } from './matchStatus';
+import { isMatchInCurrentWeekend } from './matchDateHelper';
 
 export interface BuildCarouselPlaylistParams {
   activeAlerts: ActiveMatchAlert[];
@@ -132,7 +133,9 @@ export function buildCarouselPlaylist({
         }));
       }
     } else if (cat.id === 'matches') {
-      const weekendMatches = matches.filter((m) => m.selectedForWeekend !== false);
+      const weekendMatches = matches.filter(
+        (m) => m.selectedForWeekend !== false && isMatchInCurrentWeekend(m.date)
+      );
       const sortMatches = (a: MatchItem, b: MatchItem) => {
         const dateA = a.date || '';
         const dateB = b.date || '';
@@ -154,111 +157,73 @@ export function buildCarouselPlaylist({
         const matchSlides: CarouselSlide[] = [];
 
         if (displayScope === 'all') {
-          // MODE 1 — TOUT : Matchs à domicile et à l'extérieur ensemble
+          // MODE 1 — TOUT : chaque match dispose de son propre passage dans la boucle.
           const effectiveTitle = customTitle || 'LES RENCONTRES DU WEEK-END';
-          if (weekendMatches.length <= 10) {
+          weekendMatches.forEach((match, index) => {
             matchSlides.push({
-              id: 'cat-matches-all',
+              id: `cat-matches-all-${match.id}`,
               type: 'category' as const,
               categoryId: 'matches' as const,
               filterScope: 'all' as const,
-              customTitle: effectiveTitle,
+              matchesPage: {
+                homeMatches: match.isHomeMatch ? [match] : [],
+                awayMatches: match.isHomeMatch ? [] : [match],
+                pageNumber: index + 1,
+                totalPages: weekendMatches.length,
+              },
+              customTitle: weekendMatches.length > 1
+                ? `${effectiveTitle} (${index + 1}/${weekendMatches.length})`
+                : effectiveTitle,
               durationSeconds: cat.durationSeconds,
-              label: 'Tous les Matchs',
+              label: `Match ${index + 1}/${weekendMatches.length}`,
             });
-          } else {
-            const totalPages = Math.ceil(weekendMatches.length / 10);
-            for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-              const pageMatches = weekendMatches.slice(pageIdx * 10, (pageIdx + 1) * 10);
-              const pageHome = pageMatches.filter((m) => m.isHomeMatch);
-              const pageAway = pageMatches.filter((m) => !m.isHomeMatch);
-              matchSlides.push({
-                id: `cat-matches-all-page-${pageIdx + 1}`,
-                type: 'category' as const,
-                categoryId: 'matches' as const,
-                filterScope: 'all' as const,
-                matchesPage: {
-                  homeMatches: pageHome,
-                  awayMatches: pageAway,
-                  pageNumber: pageIdx + 1,
-                  totalPages,
-                },
-                customTitle: totalPages > 1 ? `${effectiveTitle} (${pageIdx + 1}/${totalPages})` : effectiveTitle,
-                durationSeconds: cat.durationSeconds,
-                label: `Tous les Matchs (Page ${pageIdx + 1}/${totalPages})`,
-              });
-            }
-          }
+          });
         } else {
           // MODE 2 — DOMICILE & EXTÉRIEUR SÉPARÉS : Matchs Domicile puis Matchs Extérieur
           const effectiveTitleHome = customTitleHome || 'LES RENCONTRES À DOMICILE';
           const effectiveTitleAway = customTitleAway || "LES RENCONTRES À L'EXTÉRIEUR";
           if (homeList.length > 0) {
-            if (homeList.length <= 10) {
+            homeList.forEach((match, index) => {
               matchSlides.push({
-                id: 'cat-matches-home',
+                id: `cat-matches-home-${match.id}`,
                 type: 'category' as const,
                 categoryId: 'matches' as const,
                 filterScope: 'home' as const,
-                customTitle: effectiveTitleHome,
+                matchesPage: {
+                  homeMatches: [match],
+                  awayMatches: [],
+                  pageNumber: index + 1,
+                  totalPages: homeList.length,
+                },
+                customTitle: homeList.length > 1
+                  ? `${effectiveTitleHome} (${index + 1}/${homeList.length})`
+                  : effectiveTitleHome,
                 durationSeconds: cat.durationSeconds,
-                label: 'Matchs Domicile',
+                label: `Match Domicile ${index + 1}/${homeList.length}`,
               });
-            } else {
-              const totalPages = Math.ceil(homeList.length / 10);
-              for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-                const pageMatches = homeList.slice(pageIdx * 10, (pageIdx + 1) * 10);
-                matchSlides.push({
-                  id: `cat-matches-home-page-${pageIdx + 1}`,
-                  type: 'category' as const,
-                  categoryId: 'matches' as const,
-                  filterScope: 'home' as const,
-                  matchesPage: {
-                    homeMatches: pageMatches,
-                    awayMatches: [],
-                    pageNumber: pageIdx + 1,
-                    totalPages,
-                  },
-                  customTitle: totalPages > 1 ? `${effectiveTitleHome} (${pageIdx + 1}/${totalPages})` : effectiveTitleHome,
-                  durationSeconds: cat.durationSeconds,
-                  label: `Matchs Domicile (Page ${pageIdx + 1}/${totalPages})`,
-                });
-              }
-            }
+            });
           }
 
           if (awayList.length > 0) {
-            if (awayList.length <= 10) {
+            awayList.forEach((match, index) => {
               matchSlides.push({
-                id: 'cat-matches-away',
+                id: `cat-matches-away-${match.id}`,
                 type: 'category' as const,
                 categoryId: 'matches' as const,
                 filterScope: 'away' as const,
-                customTitle: effectiveTitleAway,
+                matchesPage: {
+                  homeMatches: [],
+                  awayMatches: [match],
+                  pageNumber: index + 1,
+                  totalPages: awayList.length,
+                },
+                customTitle: awayList.length > 1
+                  ? `${effectiveTitleAway} (${index + 1}/${awayList.length})`
+                  : effectiveTitleAway,
                 durationSeconds: cat.durationSeconds,
-                label: 'Matchs Extérieur',
+                label: `Match Extérieur ${index + 1}/${awayList.length}`,
               });
-            } else {
-              const totalPages = Math.ceil(awayList.length / 10);
-              for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-                const pageMatches = awayList.slice(pageIdx * 10, (pageIdx + 1) * 10);
-                matchSlides.push({
-                  id: `cat-matches-away-page-${pageIdx + 1}`,
-                  type: 'category' as const,
-                  categoryId: 'matches' as const,
-                  filterScope: 'away' as const,
-                  matchesPage: {
-                    homeMatches: [],
-                    awayMatches: pageMatches,
-                    pageNumber: pageIdx + 1,
-                    totalPages,
-                  },
-                  customTitle: totalPages > 1 ? `${effectiveTitleAway} (${pageIdx + 1}/${totalPages})` : effectiveTitleAway,
-                  durationSeconds: cat.durationSeconds,
-                  label: `Matchs Extérieur (Page ${pageIdx + 1}/${totalPages})`,
-                });
-              }
-            }
+            });
           }
         }
 
@@ -267,7 +232,9 @@ export function buildCarouselPlaylist({
         }
       }
     } else if (cat.id === 'results') {
-      const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+      const activeResults = results.filter(
+        (r) => r.selectedForWeekend !== false && isMatchInCurrentWeekend(r.date)
+      );
       const resultsToUse = activeResults;
 
       const sortMatches = (a: MatchItem, b: MatchItem) => {
