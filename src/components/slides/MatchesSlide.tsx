@@ -205,12 +205,12 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
   const getPosterAdaptiveScale = (count: number) => {
     if (count <= 2) {
       return {
-        headerSize: 'text-2xl',
-        pillHeight: 'min-h-[76px] md:min-h-[82px]',
-        pillText: 'text-2xl md:text-3xl',
-        centerPill: 'text-2xl md:text-3xl px-6 md:px-8 min-h-[76px] md:min-h-[82px]',
-        badgeSize: 'text-sm px-4 py-1',
-        badgeIcon: 'w-5 h-5',
+        headerSize: 'text-3xl md:text-4xl lg:text-5xl',
+        pillHeight: 'min-h-[100px] md:min-h-[118px] lg:min-h-[132px]',
+        pillText: 'text-3xl md:text-4xl lg:text-5xl xl:text-6xl',
+        centerPill: 'text-3xl md:text-4xl lg:text-5xl px-7 md:px-9 lg:px-11 min-h-[100px] md:min-h-[118px] lg:min-h-[132px]',
+        badgeSize: 'text-base md:text-lg px-5 py-1.5',
+        badgeIcon: 'w-6 h-6 md:w-7 md:h-7',
       };
     }
     if (count <= 4) {
@@ -350,10 +350,10 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           </div>
 
           {/* Rangée de Pilules : Notre Club en ROUGE OFFICIEL, Adversaire en ANTHRACITE CONTRASTÉ */}
-          <div className="flex items-center justify-between gap-1.5 md:gap-2.5 w-full min-w-0">
+          <div className="flex items-center justify-between gap-3 md:gap-5 lg:gap-7 w-full min-w-0">
             {/* Pilule Équipe Domicile (À gauche) */}
             <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-3 md:py-4 px-4 md:px-6 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
                 isHome
                   ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
                   : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
@@ -372,7 +372,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                   EN COURS
                 </span>
-                <span className="text-base md:text-2xl font-black tracking-tight leading-none">
+                <span className="text-xl md:text-3xl lg:text-4xl font-black tracking-tight leading-none">
                   {hasScore ? `${m.homeScore} - ${m.awayScore}` : (m.time || 'EN COURS')}
                 </span>
               </div>
@@ -381,7 +381,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
               >
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">SCORE</span>
-                <span className="text-base md:text-2xl font-black leading-none">{m.homeScore}&nbsp;-&nbsp;{m.awayScore}</span>
+                <span className="text-xl md:text-3xl lg:text-4xl font-black leading-none">{m.homeScore}&nbsp;-&nbsp;{m.awayScore}</span>
               </div>
             ) : (
               <div
@@ -466,10 +466,10 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         </div>
 
         {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES MATCHS ÉTENDUE 16:9) */}
-        <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
+        <div className="relative z-20 w-full h-full flex flex-col justify-between p-5 md:p-7 lg:p-8 xl:p-10">
           
           {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
-          <div className={`w-full flex flex-col relative shrink-0 ${
+          <div className={`w-full flex flex-col relative shrink-0 mb-2 md:mb-3 ${
             titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
           }`}>
             
@@ -518,7 +518,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
               </p>
             </div>
           ) : (
-            <div className="w-full flex-1 flex flex-row gap-5 xl:gap-8 my-2 py-0.5 items-stretch min-h-0 min-w-0 overflow-hidden">
+            <div className="w-full flex-1 flex flex-row gap-5 xl:gap-8 my-2 md:my-3 py-1 items-stretch min-h-0 min-w-0 overflow-hidden">
               {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
               <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
                 {leftMatches.map(renderPosterMatchItem)}
