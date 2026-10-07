@@ -369,4 +369,75 @@ Objet : Mise en place d'un contrôle de concurrence optimiste (OCC) avec numéro
 - Validation `npm run build` : succès ✅.
 ================================================================================
 
+================================================================================
+SECTION 13 : CYCLE DE VIE DES MATCHS — FFBB / TELEGRAM / TERMINAISON AUTOMATIQUE
+================================================================================
 
+Date : 07/10/2026
+Objet : Unification du résultat d'un même match entre Telegram et FFBB, avec
+persistance du résultat, dédoublonnage des alertes et terminaison automatique
+à +2h.
+
+Règle fonctionnelle définitive :
+- Avant l'heure annoncée : match « à venir ».
+- À l'heure annoncée : match « en cours ».
+- Résultat reçu par Telegram : passage immédiat en « terminé », victoire/défaite
+  et scores éventuels enregistrés.
+- Résultat reçu par FFBB : passage immédiat en « terminé », victoire/défaite et
+  scores officiels enregistrés.
+- À exactement +2h sans résultat : passage automatique en « terminé ».
+- Un résultat enregistré reste attaché au match après expiration ou suppression
+  de l'alerte Telegram d'1 heure.
+- Telegram et FFBB ne créent pas deux résultats indépendants pour le même match.
+
+Cas Telegram -> FFBB :
+- Telegram crée le visuel/alerte d'1 heure une seule fois.
+- Si FFBB arrive ensuite, le match et le visuel Telegram existant sont mis à jour
+  avec les données FFBB.
+- L'identifiant, l'heure d'arrivée initiale et l'expiration 1h du visuel existant
+  restent inchangés.
+- Aucun nouveau slide n'est créé et aucune nouvelle heure n'est ajoutée.
+
+Cas FFBB -> Telegram :
+- Si le match possède déjà un résultat FFBB, Telegram ne crée aucun visuel.
+- Le bot répond : « Résultat déjà transmis par FFBB. »
+- L'alerte d'1 heure n'est donc jamais relancée par un doublon Telegram.
+
+Persistance et provenance :
+- Ajout de resultSource (ffbb, telegram, manual) et resultReceivedAt à MatchItem.
+- Le résultat Telegram est enregistré dans matches et dans results.
+- finishedAt et resultReceivedAt du premier résultat sont conservés lorsqu'une
+  mise à jour FFBB arrive ensuite.
+- La fusion FFBB donne priorité aux données officielles FFBB sans effacer un
+  résultat Telegram déjà reçu si FFBB ne transmet pas encore de résultat.
+
+Fichiers principaux :
+- src/types.ts
+- src/utils/matchStatus.ts
+- src/utils/matchLifecycleHelpers.ts
+- src/utils/weekendMatchResultHelpers.ts
+- src/utils/ffbbMergeUtils.ts
+- src/App.tsx
+- worker/index.ts
+- server.ts
+- scripts/test_match_lifecycle.ts
+
+Nettoyage technique :
+- Suppression de l'ancien helper de cycle de vie à +2h devenu incohérent.
+- Suppression de l'ancien chemin serveur qui créait une alerte autonome lors d'un
+  résultat FFBB.
+- Suppression d'un ancien chemin de fusion FFBB devenu obsolète.
+- Correction du simulateur Telegram pour utiliser la même logique de persistance
+  et de dédoublonnage.
+- Correction de la frontière exacte des 2 heures : à +2h, le match est terminé.
+- Le cycle temporel est maintenant appliqué périodiquement dans App.tsx.
+
+Vérifications :
+- Relecture des chemins Telegram et FFBB côté Worker et serveur local.
+- Contrôle statique des nouveaux chemins et recherche des anciens helpers inutilisés.
+- Nouveau banc de régression ajouté : scripts/test_match_lifecycle.ts.
+- Ce nouveau banc n'a pas pu être exécuté dans l'environnement actuel, car le
+  dépôt ne peut pas être cloné localement ici ; aucune réussite d'exécution ne
+  doit donc être considérée comme acquise tant que npm run lint et npm run build
+  n'ont pas été relancés sur une machine/environnement disposant des dépendances.
+================================================================================
