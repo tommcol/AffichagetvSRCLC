@@ -1937,6 +1937,7 @@ async function runBackgroundFFBBSync() {
         ...(saved || {}),
         matches: mergedMatches,
         results: mergedResults,
+        version: (typeof saved?.version === "number" ? saved.version : 0) + 1,
       };
       saveAppDataToFile(updatedData);
 
