@@ -1874,12 +1874,6 @@ async function runBackgroundFFBBSync() {
       const filteredFfbbMatches = ffbbData.matches.filter((m: any) => !isTeamCategoryIgnored(m.category, ignoredCategories));
       const filteredFfbbResults = ffbbData.results.filter((r: any) => !isTeamCategoryIgnored(r.category, ignoredCategories));
 
-      const existingResults = saved?.results || [];
-      const manualResults = existingResults.filter((r: any) => !String(r.id).startsWith("ffbb-"));
-
-      // Merge new official FFBB results with any manual ones
-      const combinedResults = [...filteredFfbbResults, ...manualResults];
-
       // Fusionner avec les données locales : un résultat Telegram déjà reçu
       // ne doit jamais être effacé par une réponse FFBB incomplète.
       const customNames = saved?.clubSettings?.customTeamNames || {};
