@@ -2,17 +2,22 @@ import { MatchItem } from '../types';
 
 /**
  * Détermine le statut temporel d'une rencontre :
- * - 'live' : l'heure du match est arrivée (et < 2h depuis le coup d'envoi)
- * - 'finished' : plus de 2h se sont écoulées depuis le coup d'envoi (si pas déjà validé)
  * - 'upcoming' : avant le coup d'envoi
+ * - 'live' : de l'heure annoncée jusqu'à 2h après, tant qu'aucun résultat n'est reçu
+ * - 'finished' : résultat reçu ou plus de 2h écoulées depuis l'heure annoncée
+ *
+ * Les résultats confirmés sont prioritaires sur toute logique temporelle.
  */
 export function getMatchTimingStatus(
   match: MatchItem,
   now: Date = new Date()
 ): 'upcoming' | 'live' | 'finished' {
-  if (match.status === 'finished') return 'finished';
-  if (match.status === 'live') return 'live';
+  const hasConfirmedResult =
+    match.result === 'win' ||
+    match.result === 'loss' ||
+    (match.homeScore !== undefined && match.awayScore !== undefined);
 
+  if (hasConfirmedResult || match.status === 'finished') return 'finished';
   if (!match.time) return 'upcoming';
 
   // Nettoyage de l'heure : "15:00", "15h30", "15H30", "15:00:00"
@@ -111,8 +116,14 @@ export function getMatchTimingStatus(
  * Détermine si une rencontre est actuellement "En cours"
  */
 export function isMatchLive(match: MatchItem, now: Date = new Date()): boolean {
-  if (match.status === 'finished') return false;
-  if (match.status === 'live') return true;
+  if (
+    match.status === 'finished' ||
+    match.result === 'win' ||
+    match.result === 'loss' ||
+    (match.homeScore !== undefined && match.awayScore !== undefined)
+  ) {
+    return false;
+  }
   return getMatchTimingStatus(match, now) === 'live';
 }
 
@@ -120,7 +131,14 @@ export function isMatchLive(match: MatchItem, now: Date = new Date()): boolean {
  * Détermine si une rencontre est terminée (explicitement ou après 2h écoulées)
  */
 export function isMatchFinished(match: MatchItem, now: Date = new Date()): boolean {
-  if (match.status === 'finished') return true;
+  if (
+    match.status === 'finished' ||
+    match.result === 'win' ||
+    match.result === 'loss' ||
+    (match.homeScore !== undefined && match.awayScore !== undefined)
+  ) {
+    return true;
+  }
   return getMatchTimingStatus(match, now) === 'finished';
 }
 
