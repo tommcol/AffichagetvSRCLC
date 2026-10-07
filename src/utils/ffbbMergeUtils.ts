@@ -80,32 +80,56 @@ export function mergeMatchItems(
       ? existing.opponentLogo
       : incoming.opponentLogo;
 
-    // Score : préserver le score si saisi/corrigé manuellement ou en conflit local
+    // Résultat : FFBB devient la source prioritaire lorsqu'il arrive après Telegram.
+    // Une arrivée FFBB met à jour le résultat existant sans recréer ni prolonger d'alerte TV.
     let finalHomeScore = incoming.homeScore;
     let finalAwayScore = incoming.awayScore;
     let finalResult = incoming.result;
     let finalStatus = incoming.status;
     let finalIsScoreManual = existing.isScoreManual;
+    let finalResultSource = existing.resultSource;
+    let finalResultReceivedAt = existing.resultReceivedAt;
+    let finalFinishedAt = existing.finishedAt;
+
+    const incomingHasResult =
+      incoming.result === 'win' ||
+      incoming.result === 'loss' ||
+      (incoming.homeScore !== undefined && incoming.awayScore !== undefined);
+
+    const existingHasResult =
+      existing.result === 'win' ||
+      existing.result === 'loss' ||
+      (existing.homeScore !== undefined && existing.awayScore !== undefined);
 
     if (existing.isScoreManual) {
-      // Score saisi/modifié manuellement -> conserver le score local
+      // Une correction manuelle explicite reste prioritaire.
       finalHomeScore = existing.homeScore;
       finalAwayScore = existing.awayScore;
       finalResult = existing.result;
       finalStatus = existing.status || incoming.status;
+    } else if (incomingHasResult) {
+      // FFBB est autoritaire dès qu'il fournit le résultat : cela permet de corriger
+      // un résultat Telegram arrivé 10, 30 ou 60 minutes plus tôt.
+      finalHomeScore = incoming.homeScore;
+      finalAwayScore = incoming.awayScore;
+      finalResult = incoming.result;
+      finalStatus = 'finished';
+      finalResultSource = 'ffbb';
+      finalResultReceivedAt = existing.resultReceivedAt ?? Date.now();
+      finalFinishedAt = existing.finishedAt ?? Date.now();
+    } else if (existingHasResult || existing.resultSource) {
+      // Une synchronisation FFBB sans score ne doit jamais effacer un résultat déjà reçu.
+      finalHomeScore = existing.homeScore;
+      finalAwayScore = existing.awayScore;
+      finalResult = existing.result;
+      finalStatus = existing.result === 'win' || existing.result === 'loss'
+        ? 'finished'
+        : existing.status;
     } else if (existing.homeScore !== undefined) {
-      if (incoming.homeScore === undefined) {
-        // FFBB n'a pas encore de score, conserver le score local existant
-        finalHomeScore = existing.homeScore;
-        finalAwayScore = existing.awayScore;
-        finalResult = existing.result;
-      } else if (existing.homeScore !== incoming.homeScore || existing.awayScore !== incoming.awayScore) {
-        // Conflit entre score local enregistré et score FFBB -> préserver le score local et marquer comme manuel
-        finalHomeScore = existing.homeScore;
-        finalAwayScore = existing.awayScore;
-        finalResult = existing.result;
-        finalIsScoreManual = true;
-      }
+      // Aucun nouveau résultat officiel : conserver un score local partiel existant.
+      finalHomeScore = existing.homeScore;
+      finalAwayScore = existing.awayScore;
+      finalResult = existing.result;
     }
 
     // Choix individuel de diffusion TV (selectedForWeekend) : TOUJOURS conserver le choix utilisateur
@@ -141,7 +165,10 @@ export function mergeMatchItems(
       homeScore: finalHomeScore,
       awayScore: finalAwayScore,
       result: finalResult,
+      resultSource: finalResultSource,
+      resultReceivedAt: finalResultReceivedAt,
       status: finalStatus,
+      finishedAt: finalFinishedAt,
       opponentLogo: finalOpponentLogo,
       teamLogo: existing.teamLogo || incoming.teamLogo,
       selectedForWeekend: finalSelectedForWeekend,
