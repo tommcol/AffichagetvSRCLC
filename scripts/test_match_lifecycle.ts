@@ -19,10 +19,12 @@ const makeMatch = (overrides: any = {}) => ({
 
 const before = new Date('2026-10-10T14:59:00');
 const atStart = new Date('2026-10-10T15:00:00');
+const exactlyTwoHours = new Date('2026-10-10T17:00:00');
 const afterTwoHours = new Date('2026-10-10T17:01:00');
 
 if (getMatchTimingStatus(makeMatch(), before) !== 'upcoming') throw new Error('upcoming lifecycle failed');
 if (getMatchTimingStatus(makeMatch(), atStart) !== 'live') throw new Error('live lifecycle failed');
+if (getMatchTimingStatus(makeMatch(), exactlyTwoHours) !== 'finished') throw new Error('2h boundary lifecycle failed');
 if (getMatchTimingStatus(makeMatch(), afterTwoHours) !== 'finished') throw new Error('2h finish lifecycle failed');
 
 const resultMatch = makeMatch({
@@ -69,4 +71,4 @@ if (!preserved || preserved.resultSource !== 'telegram' || preserved.result !== 
   throw new Error('Telegram result was overwritten by FFBB without a result');
 }
 
-console.log('match lifecycle + result merge: 10/10 OK');
+console.log('match lifecycle + result merge: 11/11 OK');
