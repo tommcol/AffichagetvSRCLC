@@ -12,6 +12,7 @@ export interface CategoryConfig {
 
 export type MatchStatus = 'upcoming' | 'live' | 'finished';
 export type MatchResult = 'win' | 'loss' | null;
+export type MatchResultSource = 'ffbb' | 'telegram' | 'manual';
 
 export interface MatchItem {
   id: string;
@@ -29,6 +30,8 @@ export interface MatchItem {
   awayScore?: number;
   status: MatchStatus;
   result?: MatchResult; // 'win' -> vert, 'loss' -> rouge
+  resultSource?: MatchResultSource; // Source du premier résultat confirmé, FFBB prioritaire si une mise à jour arrive ensuite
+  resultReceivedAt?: number; // Timestamp de réception du premier résultat confirmé
   ffbbMatchNumber?: string;
   finishedAt?: number; // timestamp when match ended
   teamLogo?: string;
