@@ -1393,6 +1393,79 @@ async function getTelegramSecretToken(botToken: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function syncActiveTelegramAlertsWithFfbbResults(
+  env: Env,
+  matches: any[],
+  now = Date.now()
+): Promise<void> {
+  try {
+    const raw = await env.AFFICHAGE_KV.get('alerts');
+    const alerts = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(alerts) || alerts.length === 0) return;
+
+    let changed = false;
+    const updatedAlerts = alerts.map((alert: any) => {
+      if (!alert || alert.expiresAt <= now || alert.triggeredBy !== 'telegram') return alert;
+
+      let ffbbMatch = alert.matchId
+        ? matches.find((match: any) => match?.id === alert.matchId)
+        : null;
+
+      if (!ffbbMatch) {
+        const alertCategoryKey = normalizeCategoryKey(alert.category || alert.team);
+        const alertOpponent = normalizeTeamString(alert.opponent || '');
+        const candidates = matches.filter((match: any) => {
+          if (!match?.result || !alertCategoryKey) return false;
+          if (normalizeCategoryKey(match.category) !== alertCategoryKey) return false;
+          if (!alertOpponent) return true;
+          const opponentSide = match.isHomeMatch ? match.teamAway : match.teamHome;
+          const opponentKey = normalizeTeamString(opponentSide || '');
+          return opponentKey.includes(alertOpponent) || alertOpponent.includes(opponentKey);
+        });
+        ffbbMatch = candidates.sort(
+          (a: any, b: any) =>
+            getDateDistanceScore(a.date, alert.timestamp || now) -
+            getDateDistanceScore(b.date, alert.timestamp || now)
+        )[0];
+      }
+
+      if (!ffbbMatch || (ffbbMatch.result !== 'win' && ffbbMatch.result !== 'loss')) {
+        return alert;
+      }
+
+      const ourScore = ffbbMatch.isHomeMatch ? ffbbMatch.homeScore : ffbbMatch.awayScore;
+      const opponentScore = ffbbMatch.isHomeMatch ? ffbbMatch.awayScore : ffbbMatch.homeScore;
+      const nextAlert = {
+        ...alert,
+        isWin: ffbbMatch.result === 'win',
+        ourScore,
+        opponentScore,
+        category: ffbbMatch.category,
+        competition: ffbbMatch.competition,
+        opponent: ffbbMatch.isHomeMatch ? ffbbMatch.teamAway : ffbbMatch.teamHome,
+        matchId: ffbbMatch.id,
+      };
+
+      if (
+        nextAlert.isWin !== alert.isWin ||
+        nextAlert.ourScore !== alert.ourScore ||
+        nextAlert.opponentScore !== alert.opponentScore ||
+        nextAlert.matchId !== alert.matchId
+      ) {
+        changed = true;
+        return nextAlert;
+      }
+      return alert;
+    });
+
+    if (changed) {
+      await env.AFFICHAGE_KV.put('alerts', JSON.stringify(updatedAlerts));
+    }
+  } catch (error) {
+    console.warn('Erreur synchronisation alerte Telegram avec FFBB:', error);
+  }
+}
+
 async function telegramWebhook(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') {
     return new Response('Méthode non autorisée', { status: 405 });
@@ -2309,6 +2382,8 @@ async function ffbbMatches(request: Request): Promise<Response> {
     }
 
     mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+    await syncActiveTelegramAlertsWithFfbbResults(env, mappedMatches);
+
     resultsList.sort((a: any, b: any) => b.date.localeCompare(a.date));
 
     const rawTeams = Array.isArray(teamsData?.teams) && teamsData.teams.length > 0 ? teamsData.teams : [];
