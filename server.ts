@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { matchTelegramTeam, DEFAULT_CANONICAL_TEAMS } from "./src/utils/telegramTeamMatcher";
 import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
+import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
 
 interface ActiveMatchAlert {
   id: string;
@@ -102,6 +103,7 @@ function cleanExpiredAlerts() {
 export function parseTelegramMatchMessage(text: string): {
   isWin: boolean | null;
   team: string;
+  teamRaw: string;
   teamRaw: string;
   ourScore?: number;
   opponentScore?: number;
@@ -316,6 +318,119 @@ const saveAppDataToFile = (data: any) => {
     return false;
   }
 };
+
+const normalizeLocalResultText = (value?: string): string =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+function findLocalTelegramMatch(savedData: any, teamMatch: any, officialTeamName: string, opponent?: string, now = Date.now()): any | null {
+  const matches = Array.isArray(savedData?.matches) ? savedData.matches : [];
+  if (matches.length === 0) return null;
+
+  const teamKeys = new Set(
+    [officialTeamName, teamMatch?.team?.name, teamMatch?.team?.category]
+      .map((value) => normalizeCategoryKey(value))
+      .filter(Boolean)
+  );
+  const normalizedOpponent = normalizeLocalResultText(opponent);
+
+  const candidates = matches
+    .filter((match: any) => match && match.selectedForWeekend !== false)
+    .filter((match: any) => {
+      if (teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id) return true;
+      return teamKeys.has(normalizeCategoryKey(match.category));
+    })
+    .map((match: any) => {
+      const opponentSide = match.isHomeMatch ? match.teamAway : match.teamHome;
+      const opponentKey = normalizeLocalResultText(opponentSide);
+      const opponentMatch = Boolean(normalizedOpponent && opponentKey) &&
+        (opponentKey.includes(normalizedOpponent) || normalizedOpponent.includes(opponentKey));
+      const parsedDate = Date.parse(String(match.date || '').slice(0, 10) + 'T12:00:00');
+      const dateDistance = Number.isFinite(parsedDate) ? Math.abs(parsedDate - now) / 86400000 : 30;
+      const ffbbIdentity = Boolean(teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id);
+      return {
+        match,
+        score: (ffbbIdentity ? 1000 : 0) + (opponentMatch ? 500 : 0) - Math.min(dateDistance, 30),
+      };
+    })
+    .sort((a: any, b: any) => b.score - a.score);
+
+  return candidates[0]?.match || null;
+}
+
+function hasLocalMatchResult(match: any): boolean {
+  return Boolean(
+    match &&
+    (
+      match.result === 'win' ||
+      match.result === 'loss' ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    )
+  );
+}
+
+function persistLocalTelegramMatchResult(
+  savedData: any,
+  teamMatch: any,
+  officialTeamName: string,
+  parsed: any,
+  now = Date.now()
+): {
+  status: 'created' | 'duplicate_ffbb' | 'duplicate_existing' | 'not_found';
+  match?: any;
+} {
+  const match = findLocalTelegramMatch(savedData, teamMatch, officialTeamName, parsed.opponent, now);
+  if (!match) return { status: 'not_found' };
+
+  if (
+    match.resultSource === 'ffbb' ||
+    (hasLocalMatchResult(match) && match.resultSource !== 'telegram' && match.resultSource !== 'manual')
+  ) {
+    return { status: 'duplicate_ffbb', match };
+  }
+
+  if (hasLocalMatchResult(match) || match.resultSource) {
+    return { status: 'duplicate_existing', match };
+  }
+
+  const isWin = parsed.isWin ?? true;
+  const updatedMatch = {
+    ...match,
+    status: 'finished',
+    result: isWin ? 'win' : 'loss',
+    resultSource: 'telegram',
+    resultReceivedAt: now,
+    finishedAt: now,
+    ...(match.isHomeMatch
+      ? {
+          ...(parsed.ourScore !== undefined ? { homeScore: parsed.ourScore } : {}),
+          ...(parsed.opponentScore !== undefined ? { awayScore: parsed.opponentScore } : {}),
+        }
+      : {
+          ...(parsed.opponentScore !== undefined ? { homeScore: parsed.opponentScore } : {}),
+          ...(parsed.ourScore !== undefined ? { awayScore: parsed.ourScore } : {}),
+        }),
+  };
+
+  savedData.matches = (Array.isArray(savedData.matches) ? savedData.matches : []).map((item: any) =>
+    item?.id === match.id ? updatedMatch : item
+  );
+  savedData.results = mergeMatchItems(
+    Array.isArray(savedData.results) ? savedData.results : [],
+    [updatedMatch],
+    savedData?.clubSettings?.customTeamNames || {}
+  );
+  savedData.version = (typeof savedData.version === 'number' ? savedData.version : 0) + 1;
+  saveAppDataToFile(savedData);
+
+  return { status: 'created', match: updatedMatch };
+}
+
 
 
 const normalizeLocalResultText = (value?: string): string =>
@@ -660,30 +775,93 @@ app.post("/api/telegram-webhook", async (req, res) => {
     }
 
     const officialTeamName = teamMatch.teamName!;
+    const savedForResult = getSavedAppData() || {};
+    const persistence = persistLocalTelegramMatchResult(
+      savedForResult,
+      teamMatch,
+      officialTeamName,
+      parsed,
+      now
+    );
 
+    if (persistence.status === "duplicate_ffbb") {
+      const replyText = `ℹ️ Résultat déjà transmis par FFBB pour *${officialTeamName}*.`;
+      localTelegramLastMessage = {
+        receivedAt: now,
+        text,
+        team: officialTeamName,
+        isWin: persistence.match?.result === "win",
+        score: persistence.match?.homeScore !== undefined && persistence.match?.awayScore !== undefined
+          ? `${persistence.match.homeScore} - ${persistence.match.awayScore}`
+          : undefined,
+        success: true,
+        error: replyText,
+      };
+      if (botToken && chatId) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: "Markdown" }),
+        }).catch(() => null);
+      }
+      return res.json({ success: true, duplicate: true, source: "ffbb", message: "Résultat déjà transmis par FFBB." });
+    }
+
+    if (persistence.status === "duplicate_existing") {
+      const replyText = `ℹ️ Résultat déjà transmis pour *${officialTeamName}*. L'alerte d'1 heure n'est pas prolongée.`;
+      localTelegramLastMessage = {
+        receivedAt: now,
+        text,
+        team: officialTeamName,
+        isWin: persistence.match?.result === "win",
+        score: persistence.match?.homeScore !== undefined && persistence.match?.awayScore !== undefined
+          ? `${persistence.match.homeScore} - ${persistence.match.awayScore}`
+          : undefined,
+        success: true,
+        error: replyText,
+      };
+      if (botToken && chatId) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: "Markdown" }),
+        }).catch(() => null);
+      }
+      return res.json({ success: true, duplicate: true, message: "Résultat déjà transmis." });
+    }
+
+    const matchedMatch = persistence.match;
     const newAlert: ActiveMatchAlert = {
-      id: "tg-" + now,
+      id: "tg-" + now + "-" + Math.random().toString(36).substring(2, 6),
       team: officialTeamName,
+      ourTeam: matchedMatch?.ourClubName,
+      matchId: matchedMatch?.id,
+      category: matchedMatch?.category || officialTeamName,
+      competition: matchedMatch?.competition,
       isWin: parsed.isWin ?? true,
       ourScore: parsed.ourScore,
       opponentScore: parsed.opponentScore,
-      opponent: parsed.opponent,
+      opponent: parsed.opponent || (matchedMatch
+        ? (matchedMatch.isHomeMatch ? matchedMatch.teamAway : matchedMatch.teamHome)
+        : undefined),
       triggeredBy: "telegram",
       timestamp: now,
       expiresAt: now + durationMs,
       rawMessage: text,
     };
 
-    activeAlerts.unshift(newAlert);
     cleanExpiredAlerts();
+    if (!activeAlerts.some((alert) => alert.matchId && alert.matchId === matchedMatch?.id)) {
+      activeAlerts.unshift(newAlert);
+    }
 
     localTelegramLastMessage = {
       receivedAt: now,
       text,
       team: officialTeamName,
-      isWin: parsed.isWin ?? true,
-      score: parsed.ourScore !== undefined && parsed.opponentScore !== undefined
-        ? `${parsed.ourScore} - ${parsed.opponentScore}`
+      isWin: newAlert.isWin,
+      score: newAlert.ourScore !== undefined && newAlert.opponentScore !== undefined
+        ? `${newAlert.ourScore} - ${newAlert.opponentScore}`
         : undefined,
       success: true,
     };
@@ -749,17 +927,52 @@ app.post("/api/telegram/test", (req, res) => {
   }
 
   const officialTeamName = teamMatch.teamName!;
+  const now = Date.now();
+  const savedForResult = getSavedAppData() || {};
+  const persistence = persistLocalTelegramMatchResult(
+    savedForResult,
+    teamMatch,
+    officialTeamName,
+    parsed,
+    now
+  );
 
+  if (persistence.status === "duplicate_ffbb") {
+    return res.json({
+      success: true,
+      duplicate: true,
+      source: "ffbb",
+      parsed,
+      confirmationMessage: `ℹ️ Résultat déjà transmis par FFBB pour ${officialTeamName}.`,
+    });
+  }
+
+  if (persistence.status === "duplicate_existing") {
+    return res.json({
+      success: true,
+      duplicate: true,
+      parsed,
+      confirmationMessage: `ℹ️ Résultat déjà transmis pour ${officialTeamName}. L'alerte d'1 heure n'est pas prolongée.`,
+    });
+  }
+
+  const matchedMatch = persistence.match;
   const newAlert: ActiveMatchAlert = {
-    id: "test-" + Date.now(),
+    id: "test-" + now,
     team: officialTeamName,
+    ourTeam: matchedMatch?.ourClubName,
+    matchId: matchedMatch?.id,
+    category: matchedMatch?.category || officialTeamName,
+    competition: matchedMatch?.competition,
     isWin: parsed.isWin ?? true,
     ourScore: parsed.ourScore,
     opponentScore: parsed.opponentScore,
-    opponent: parsed.opponent,
+    opponent: parsed.opponent || (matchedMatch
+      ? (matchedMatch.isHomeMatch ? matchedMatch.teamAway : matchedMatch.teamHome)
+      : undefined),
     triggeredBy: "telegram",
-    timestamp: Date.now(),
-    expiresAt: Date.now() + 60 * 60 * 1000,
+    timestamp: now,
+    expiresAt: now + 60 * 60 * 1000,
     rawMessage: messageText,
   };
 
