@@ -5,6 +5,7 @@ import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { matchTelegramTeam, DEFAULT_CANONICAL_TEAMS } from "./src/utils/telegramTeamMatcher";
+import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
 
 interface ActiveMatchAlert {
   id: string;
@@ -18,6 +19,10 @@ interface ActiveMatchAlert {
   timestamp: number;
   expiresAt: number; // Default + 1 hour (3600000 ms)
   rawMessage?: string;
+  matchId?: string;
+  ourTeam?: string;
+  category?: string;
+  competition?: string;
 }
 
 const app = express();
@@ -97,6 +102,7 @@ function cleanExpiredAlerts() {
 export function parseTelegramMatchMessage(text: string): {
   isWin: boolean | null;
   team: string;
+  teamRaw: string;
   ourScore?: number;
   opponentScore?: number;
   opponent?: string;
@@ -310,6 +316,122 @@ const saveAppDataToFile = (data: any) => {
     return false;
   }
 };
+
+
+const normalizeLocalResultText = (value?: string): string =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+function findLocalTelegramMatch(savedData: any, teamMatch: any, officialTeamName: string, opponent?: string, now = Date.now()): any | null {
+  const matches = Array.isArray(savedData?.matches) ? savedData.matches : [];
+  if (matches.length === 0) return null;
+
+  const teamKeys = new Set(
+    [officialTeamName, teamMatch?.team?.name, teamMatch?.team?.category]
+      .map((value) => normalizeCategoryKey(value))
+      .filter(Boolean)
+  );
+
+  const normalizedOpponent = normalizeLocalResultText(opponent);
+  const candidates = matches
+    .filter((match: any) => match && match.selectedForWeekend !== false)
+    .filter((match: any) => {
+      if (teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id) return true;
+      return teamKeys.has(normalizeCategoryKey(match.category));
+    })
+    .map((match: any) => {
+      const opponentSide = match.isHomeMatch ? match.teamAway : match.teamHome;
+      const opponentKey = normalizeLocalResultText(opponentSide);
+      const opponentMatch = Boolean(normalizedOpponent && opponentKey) &&
+        (opponentKey.includes(normalizedOpponent) || normalizedOpponent.includes(opponentKey));
+      const dateKey = String(match.date || '').slice(0, 10);
+      const parsedDate = Date.parse(dateKey + 'T12:00:00');
+      const dateDistance = Number.isFinite(parsedDate) ? Math.abs(parsedDate - now) / 86400000 : 30;
+      const ffbbIdentity = Boolean(teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id);
+      return {
+        match,
+        score: (ffbbIdentity ? 1000 : 0) + (opponentMatch ? 500 : 0) - Math.min(dateDistance, 30),
+      };
+    })
+    .sort((a: any, b: any) => b.score - a.score);
+
+  return candidates[0]?.match || null;
+}
+
+function hasLocalMatchResult(match: any): boolean {
+  return Boolean(
+    match &&
+    (
+      match.result === 'win' ||
+      match.result === 'loss' ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    )
+  );
+}
+
+function persistLocalTelegramMatchResult(
+  savedData: any,
+  teamMatch: any,
+  officialTeamName: string,
+  parsed: any,
+  now = Date.now()
+): {
+  status: 'created' | 'duplicate_ffbb' | 'duplicate_existing' | 'not_found';
+  match?: any;
+} {
+  const match = findLocalTelegramMatch(savedData, teamMatch, officialTeamName, parsed.opponent, now);
+  if (!match) return { status: 'not_found' };
+
+  if (
+    match.resultSource === 'ffbb' ||
+    (hasLocalMatchResult(match) && match.resultSource !== 'telegram' && match.resultSource !== 'manual')
+  ) {
+    return { status: 'duplicate_ffbb', match };
+  }
+
+  if (hasLocalMatchResult(match) || match.resultSource) {
+    return { status: 'duplicate_existing', match };
+  }
+
+  const isWin = parsed.isWin ?? true;
+  const updatedMatch = {
+    ...match,
+    status: 'finished',
+    result: isWin ? 'win' : 'loss',
+    resultSource: 'telegram',
+    resultReceivedAt: now,
+    finishedAt: now,
+    ...(match.isHomeMatch
+      ? {
+          ...(parsed.ourScore !== undefined ? { homeScore: parsed.ourScore } : {}),
+          ...(parsed.opponentScore !== undefined ? { awayScore: parsed.opponentScore } : {}),
+        }
+      : {
+          ...(parsed.opponentScore !== undefined ? { homeScore: parsed.opponentScore } : {}),
+          ...(parsed.ourScore !== undefined ? { awayScore: parsed.ourScore } : {}),
+        }),
+  };
+
+  savedData.matches = (Array.isArray(savedData.matches) ? savedData.matches : []).map((item: any) =>
+    item?.id === match.id ? updatedMatch : item
+  );
+  savedData.results = mergeMatchItems(
+    Array.isArray(savedData.results) ? savedData.results : [],
+    [updatedMatch],
+    savedData?.clubSettings?.customTeamNames || {}
+  );
+  savedData.version = (typeof savedData.version === 'number' ? savedData.version : 0) + 1;
+  saveAppDataToFile(savedData);
+
+  return { status: 'created', match: updatedMatch };
+}
+
+
 
 app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data"], (req, res) => {
   const data = getSavedAppData();
@@ -1545,39 +1667,63 @@ async function runBackgroundFFBBSync() {
       // Merge new official FFBB results with any manual ones
       const combinedResults = [...filteredFfbbResults, ...manualResults];
 
-      // Detect any new victories/defeats to alert
-      const todayStr = new Date().toISOString().slice(0, 10);
-      for (const r of filteredFfbbResults) {
-        if (r.date === todayStr && r.homeScore !== undefined && r.awayScore !== undefined) {
-          const alreadyAlerted = activeAlerts.some((a) => a.id === `alert-${r.id}` || a.rawMessage === r.id);
-          if (!alreadyAlerted) {
-            const ourScore = r.isHomeMatch ? r.homeScore : r.awayScore;
-            const oppScore = r.isHomeMatch ? r.awayScore : r.homeScore;
-            const isWin = ourScore > oppScore;
-            const newAlert: ActiveMatchAlert = {
-              id: `alert-${r.id}`,
-              team: r.category,
-              isWin,
-              ourScore,
-              opponentScore: oppScore,
-              opponent: r.isHomeMatch ? r.teamAway : r.teamHome,
-              triggeredBy: "ffbb",
-              timestamp: Date.now(),
-              expiresAt: Date.now() + 60 * 60 * 1000,
-              rawMessage: r.id,
-            };
-            activeAlerts.unshift(newAlert);
-            cleanExpiredAlerts();
-            console.log(`[AUTO-SYNC ALERTE] Alerte score créée pour ${r.category} (${isWin ? 'Victoire' : 'Défaite'})`);
-          }
+      // Fusionner avec les données locales : un résultat Telegram déjà reçu
+      // ne doit jamais être effacé par une réponse FFBB incomplète.
+      const customNames = saved?.clubSettings?.customTeamNames || {};
+      const mergedMatches = mergeMatchItems(
+        Array.isArray(saved?.matches) ? saved.matches : [],
+        filteredFfbbMatches,
+        customNames
+      );
+      const mergedResults = mergeMatchItems(
+        Array.isArray(saved?.results) ? saved.results : [],
+        filteredFfbbResults,
+        customNames
+      );
+
+      // Si FFBB arrive après Telegram, mettre à jour le visuel Telegram existant
+      // sans modifier son id, son timestamp ni son expiration à 1 heure.
+      let alertsChanged = false;
+      const updatedAlerts = activeAlerts.map((alert) => {
+        if (alert.triggeredBy !== "telegram" || alert.expiresAt <= Date.now()) return alert;
+        const match = mergedMatches.find((m: any) =>
+          (alert.matchId && m.id === alert.matchId) ||
+          (!alert.matchId &&
+            normalizeCategoryKey(alert.category || alert.team) === normalizeCategoryKey(m.category) &&
+            normalizeLocalResultText(alert.opponent || '') === normalizeLocalResultText(m.isHomeMatch ? m.teamAway : m.teamHome))
+        );
+        if (!match || !hasLocalMatchResult(match) || (match.result !== 'win' && match.result !== 'loss')) return alert;
+
+        const ourScore = match.isHomeMatch ? match.homeScore : match.awayScore;
+        const opponentScore = match.isHomeMatch ? match.awayScore : match.homeScore;
+        const nextAlert = {
+          ...alert,
+          matchId: match.id,
+          category: match.category,
+          competition: match.competition,
+          isWin: match.result === 'win',
+          ourScore,
+          opponentScore,
+          opponent: match.isHomeMatch ? match.teamAway : match.teamHome,
+        };
+        if (
+          nextAlert.isWin !== alert.isWin ||
+          nextAlert.ourScore !== alert.ourScore ||
+          nextAlert.opponentScore !== alert.opponentScore ||
+          nextAlert.matchId !== alert.matchId
+        ) {
+          alertsChanged = true;
+          return nextAlert;
         }
-      }
+        return alert;
+      });
+      if (alertsChanged) activeAlerts = updatedAlerts;
 
       // Update saved app data
       const updatedData = {
         ...(saved || {}),
-        matches: filteredFfbbMatches,
-        results: combinedResults,
+        matches: mergedMatches,
+        results: mergedResults,
       };
       saveAppDataToFile(updatedData);
 
