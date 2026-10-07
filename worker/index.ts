@@ -1094,9 +1094,9 @@ function hasConfirmedMatchResult(match: any): boolean {
 function normalizeResultDate(date?: string): string {
   if (!date) return '';
   const clean = String(date).trim();
-  const iso = clean.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+  const iso = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[0];
-  const euro = clean.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})/);
+  const euro = clean.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
   if (euro) return euro[3] + '-' + euro[2].padStart(2, '0') + '-' + euro[1].padStart(2, '0');
   return '';
 }
