@@ -57,18 +57,6 @@ const alertMatchesWeekendMatch = (alert: ActiveMatchAlert, match: MatchItem): bo
   return true;
 };
 
-const getMatchLifecycleStatus = (match: MatchItem, referenceDate: Date): MatchItem['status'] => {
-  const start = new Date(`${match.date}T${match.time || '00:00'}:00`);
-  if (Number.isNaN(start.getTime())) return match.status;
-
-  const end = start.getTime() + 2 * 60 * 60 * 1000;
-  const now = referenceDate.getTime();
-
-  if (now < start.getTime()) return 'upcoming';
-  if (now < end) return 'live';
-  return 'finished';
-};
-
 export const applyAlertToCurrentWeekendMatches = (
   matches: MatchItem[],
   alert: ActiveMatchAlert,
@@ -88,9 +76,11 @@ export const applyAlertToCurrentWeekendMatches = (
       ...match,
       // Un résultat reçu signifie que le match est terminé, quelle que soit son heure prévue.\n      status: 'finished',
       result: alert.isWin ? 'win' : 'loss',
+      resultSource: alert.triggeredBy,
+      resultReceivedAt: match.resultReceivedAt ?? alert.timestamp,
       ...(homeScore !== undefined ? { homeScore } : {}),
       ...(awayScore !== undefined ? { awayScore } : {}),
-      finishedAt: alert.timestamp,
+      finishedAt: match.finishedAt ?? alert.timestamp,
     };
   });
 
