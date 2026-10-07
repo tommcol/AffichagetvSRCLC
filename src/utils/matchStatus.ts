@@ -104,7 +104,7 @@ export function getMatchTimingStatus(
 
   if (currentMs < startMs) {
     return 'upcoming';
-  } else if (currentMs <= endMs) {
+  } else if (currentMs < endMs) {
     return 'live';
   } else {
     // Au bout de 2h, passe en terminé automatiquement si pas de notif
