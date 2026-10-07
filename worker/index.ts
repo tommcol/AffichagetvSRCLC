@@ -1575,6 +1575,78 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
 
     const officialTeamName = teamMatch.teamName!;
 
+    const persistence = await persistTelegramMatchResult(
+      env,
+      appData,
+      teamMatch,
+      officialTeamName,
+      parsed,
+      now
+    );
+
+    if (persistence.status === 'duplicate_ffbb') {
+      const replyText = `ℹ️ Résultat déjà transmis par FFBB pour *${officialTeamName}*.`;
+      const lastMsgRecord = {
+        receivedAt: now,
+        text,
+        team: officialTeamName,
+        isWin: persistence.match?.result === 'win',
+        score: persistence.match?.homeScore !== undefined && persistence.match?.awayScore !== undefined
+          ? `${persistence.match.homeScore} - ${persistence.match.awayScore}`
+          : undefined,
+        success: true,
+        error: replyText,
+      };
+      try {
+        await env.AFFICHAGE_KV.put('telegram-last-message', JSON.stringify(lastMsgRecord));
+      } catch (e) {}
+      if (chatId) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: 'Markdown' }),
+        }).catch(() => null);
+      }
+      return new Response(JSON.stringify({
+        success: true,
+        duplicate: true,
+        source: 'ffbb',
+        message: 'Résultat déjà transmis par FFBB.',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (persistence.status === 'duplicate_existing') {
+      const replyText = `ℹ️ Résultat déjà transmis pour *${officialTeamName}*. L'alerte d'1 heure n'est pas prolongée.`;
+      const lastMsgRecord = {
+        receivedAt: now,
+        text,
+        team: officialTeamName,
+        isWin: persistence.match?.result === 'win',
+        score: persistence.match?.homeScore !== undefined && persistence.match?.awayScore !== undefined
+          ? `${persistence.match.homeScore} - ${persistence.match.awayScore}`
+          : undefined,
+        success: true,
+        error: replyText,
+      };
+      try {
+        await env.AFFICHAGE_KV.put('telegram-last-message', JSON.stringify(lastMsgRecord));
+      } catch (e) {}
+      if (chatId) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: 'Markdown' }),
+        }).catch(() => null);
+      }
+      return new Response(JSON.stringify({
+        success: true,
+        duplicate: true,
+        message: 'Résultat déjà transmis.',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const matchedMatch = persistence.match;
+
     let customImg: string | undefined = undefined;
     let customTitleConfig = undefined;
     if (appData) {
@@ -1593,10 +1665,16 @@ async function telegramWebhook(request: Request, env: Env): Promise<Response> {
     const newAlert = {
       id: 'tg-' + now + '-' + Math.random().toString(36).substring(2, 6),
       team: officialTeamName,
+      ourTeam: matchedMatch?.ourClubName,
+      matchId: matchedMatch?.id,
+      category: matchedMatch?.category || teamMatch.team?.category,
+      competition: matchedMatch?.competition,
       isWin: parsed.isWin ?? true,
       ourScore: parsed.ourScore,
       opponentScore: parsed.opponentScore,
-      opponent: parsed.opponent,
+      opponent: parsed.opponent || (matchedMatch
+        ? (matchedMatch.isHomeMatch ? matchedMatch.teamAway : matchedMatch.teamHome)
+        : undefined),
       customImageUrl: customImg,
       titleConfig: customTitleConfig,
       triggeredBy: 'telegram',
