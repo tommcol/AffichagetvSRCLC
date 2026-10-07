@@ -1843,7 +1843,7 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
   } catch (e) {}
 
   // Vérification de l'équipe
-  const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData?.teamVisuals);
+  const teamMatch = matchConfiguredTeam(parsed.teamRaw, appData);
   if (!teamMatch.matched) {
     const errorMsg = teamMatch.isAmbiguous
       ? `Équipe ambiguë ("${parsed.teamRaw || 'non précisée'}"). Plusieurs équipes correspondent : ${teamMatch.suggestions.join(', ')}`
@@ -1861,6 +1861,42 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
   }
 
   const officialTeamName = teamMatch.teamName!;
+
+  const persistence = await persistTelegramMatchResult(
+    env,
+    appData,
+    teamMatch,
+    officialTeamName,
+    parsed,
+    Date.now()
+  );
+
+  if (persistence.status === 'duplicate_ffbb') {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        duplicate: true,
+        source: 'ffbb',
+        message: 'Résultat déjà transmis par FFBB.',
+        confirmationMessage: `ℹ️ Résultat déjà transmis par FFBB pour ${officialTeamName}.`,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (persistence.status === 'duplicate_existing') {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        duplicate: true,
+        message: 'Résultat déjà transmis. Alerte non prolongée.',
+        confirmationMessage: `ℹ️ Résultat déjà transmis pour ${officialTeamName}. L'alerte d'1 heure n'est pas prolongée.`,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const matchedMatch = persistence.match;
 
   let customImg: string | undefined = undefined;
   let customTitleConfig = undefined;
@@ -1881,10 +1917,16 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
   const newAlert = {
     id: 'test-' + now + '-' + Math.random().toString(36).substring(2, 6),
     team: officialTeamName,
+    ourTeam: matchedMatch?.ourClubName,
+    matchId: matchedMatch?.id,
+    category: matchedMatch?.category || teamMatch.team?.category,
+    competition: matchedMatch?.competition,
     isWin: parsed.isWin ?? true,
     ourScore: parsed.ourScore,
     opponentScore: parsed.opponentScore,
-    opponent: parsed.opponent,
+    opponent: parsed.opponent || (matchedMatch
+      ? (matchedMatch.isHomeMatch ? matchedMatch.teamAway : matchedMatch.teamHome)
+      : undefined),
     customImageUrl: customImg,
     titleConfig: customTitleConfig,
     triggeredBy: 'telegram',
@@ -1897,8 +1939,10 @@ async function telegramTest(request: Request, env: Env): Promise<Response> {
     const raw = await env.AFFICHAGE_KV.get('alerts');
     const alerts = raw ? JSON.parse(raw) : [];
     const alertesValides = Array.isArray(alerts) ? alerts.filter((a: { expiresAt: number }) => a && a.expiresAt > now) : [];
-    alertesValides.unshift(newAlert);
-    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(alertesValides));
+    const newKey = getAlertDeduplicationKey(newAlert);
+    const deduped = alertesValides.filter((existing: any) => getAlertDeduplicationKey(existing) !== newKey);
+    deduped.unshift(newAlert);
+    await env.AFFICHAGE_KV.put('alerts', JSON.stringify(deduped));
   } catch (e) {}
 
   return new Response(
