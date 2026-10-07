@@ -1080,6 +1080,139 @@ function parseTelegramMatchMessage(text: string): {
   };
 }
 
+function hasConfirmedMatchResult(match: any): boolean {
+  return Boolean(
+    match &&
+    (
+      match.result === 'win' ||
+      match.result === 'loss' ||
+      (match.homeScore !== undefined && match.awayScore !== undefined)
+    )
+  );
+}
+
+function normalizeResultDate(date?: string): string {
+  if (!date) return '';
+  const clean = String(date).trim();
+  const iso = clean.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+  if (iso) return iso[0];
+  const euro = clean.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})/);
+  if (euro) return euro[3] + '-' + euro[2].padStart(2, '0') + '-' + euro[1].padStart(2, '0');
+  return '';
+}
+
+function getDateDistanceScore(date: string, now: number): number {
+  const normalized = normalizeResultDate(date);
+  if (!normalized) return Number.MAX_SAFE_INTEGER;
+  const parsed = Date.parse(normalized + 'T12:00:00');
+  if (!Number.isFinite(parsed)) return Number.MAX_SAFE_INTEGER;
+  return Math.abs(parsed - now) / 86400000;
+}
+
+function findTelegramMatch(appData: any, teamMatch: any, officialTeamName: string, opponent?: string, now = Date.now()): any | null {
+  const matches = Array.isArray(appData?.matches) ? appData.matches : [];
+  if (matches.length === 0) return null;
+
+  const teamKeys = new Set<string>();
+  const addTeamKey = (value?: string) => {
+    const normalized = normalizeCategoryKey(value);
+    if (normalized) teamKeys.add(normalized);
+    const raw = normalizeTeamString(value || '');
+    if (raw) teamKeys.add(raw);
+  };
+
+  addTeamKey(officialTeamName);
+  addTeamKey(teamMatch?.team?.name);
+  addTeamKey(teamMatch?.team?.category);
+
+  const candidates = matches
+    .filter((match: any) => match && match.selectedForWeekend !== false)
+    .filter((match: any) => {
+      if (teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id) return true;
+      return teamKeys.has(normalizeCategoryKey(match.category)) ||
+        teamKeys.has(normalizeTeamString(match.category || ''));
+    })
+    .map((match: any) => {
+      const opponentSide = match.isHomeMatch ? match.teamAway : match.teamHome;
+      const opponentNormalized = normalizeTeamString(opponent || '');
+      const sideNormalized = normalizeTeamString(opponentSide || '');
+      const opponentMatch = Boolean(opponentNormalized && sideNormalized) &&
+        (sideNormalized.includes(opponentNormalized) || opponentNormalized.includes(sideNormalized));
+      const dateDistance = getDateDistanceScore(match.date, now);
+      const ffbbIdentity = Boolean(teamMatch?.team?.id && match.ffbbTeamId === teamMatch.team.id);
+      return {
+        match,
+        score: (ffbbIdentity ? 1000 : 0) + (opponentMatch ? 500 : 0) - Math.min(dateDistance, 30),
+      };
+    })
+    .sort((a: any, b: any) => b.score - a.score);
+
+  return candidates[0]?.match || null;
+}
+
+function upsertResultMatch(results: any[], updatedMatch: any): any[] {
+  const next = Array.isArray(results) ? [...results] : [];
+  const byId = next.findIndex((item: any) => item?.id === updatedMatch.id);
+  const byFfbb = updatedMatch.ffbbMatchNumber
+    ? next.findIndex((item: any) => item?.ffbbMatchNumber === updatedMatch.ffbbMatchNumber)
+    : -1;
+  const index = byId >= 0 ? byId : byFfbb;
+  if (index >= 0) {
+    next[index] = updatedMatch;
+    return next;
+  }
+  next.unshift(updatedMatch);
+  return next;
+}
+
+async function persistTelegramMatchResult(
+  env: Env,
+  appData: any,
+  teamMatch: any,
+  officialTeamName: string,
+  parsed: { isWin: boolean | null; teamRaw: string; ourScore?: number; opponentScore?: number; opponent?: string },
+  now = Date.now()
+): Promise<{
+  status: 'created' | 'duplicate_ffbb' | 'duplicate_existing' | 'not_found';
+  match?: any;
+  appData: any;
+}> {
+  const match = findTelegramMatch(appData, teamMatch, officialTeamName, parsed.opponent, now);
+  if (!match) return { status: 'not_found', appData };
+
+  if (match.resultSource === 'ffbb' ||
+      (hasConfirmedMatchResult(match) && match.resultSource !== 'telegram' && match.resultSource !== 'manual')) {
+    return { status: 'duplicate_ffbb', match, appData };
+  }
+
+  if (hasConfirmedMatchResult(match) || match.resultSource) {
+    return { status: 'duplicate_existing', match, appData };
+  }
+
+  const isWin = parsed.isWin ?? true;
+  const homeScore = match.isHomeMatch ? parsed.ourScore : parsed.opponentScore;
+  const awayScore = match.isHomeMatch ? parsed.opponentScore : parsed.ourScore;
+  const updatedMatch = {
+    ...match,
+    status: 'finished',
+    result: isWin ? 'win' : 'loss',
+    resultSource: 'telegram',
+    resultReceivedAt: now,
+    finishedAt: now,
+    ...(homeScore !== undefined ? { homeScore } : {}),
+    ...(awayScore !== undefined ? { awayScore } : {}),
+  };
+
+  appData.matches = (Array.isArray(appData.matches) ? appData.matches : []).map((item: any) =>
+    item?.id === match.id ? updatedMatch : item
+  );
+  appData.results = upsertResultMatch(appData.results, updatedMatch);
+  appData.version = (typeof appData.version === 'number' ? appData.version : 0) + 1;
+  await env.AFFICHAGE_KV.put('app-data', JSON.stringify(appData));
+
+  return { status: 'created', match: updatedMatch, appData };
+}
+
 function getAlertDeduplicationKey(alert: any): string {
   const source = alert?.triggeredBy || 'manual';
   if (source === 'ffbb' || source === 'telegram') {
