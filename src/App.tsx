@@ -55,6 +55,7 @@ import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getPolledAppDataVersion, getPolledCollections, hasChangedJson } from './utils/appDataPollingHelpers';
 import { getMediaBlobUrl } from './utils/indexedDBStorage';
 import { applyAlertToCurrentWeekendMatches, applyAlertsToCurrentWeekendMatches } from './utils/weekendMatchResultHelpers';
+import { applyMatchTimingStatuses } from './utils/matchLifecycleHelpers';
 import {
   getBirthdayWeekState,
   getNextMondayDelayMs,
@@ -504,6 +505,22 @@ export default function App() {
       if (exactTimer !== null) window.clearTimeout(exactTimer);
     };
   }, [allMembers, currentWeekKey, simulatedDate]);
+
+  // Mise à jour persistante du cycle temporel des matchs :
+  // à l'heure annoncée -> en cours, après 2h sans résultat -> terminé.
+  useEffect(() => {
+    const refreshMatchStatuses = () => {
+      const referenceDate = simulatedDate || new Date();
+      setMatches((prev) => {
+        const next = applyMatchTimingStatuses(prev, referenceDate);
+        return hasChangedJson(prev, next) ? next : prev;
+      });
+    };
+
+    refreshMatchStatuses();
+    const interval = window.setInterval(refreshMatchStatuses, 30000);
+    return () => window.clearInterval(interval);
+  }, [simulatedDate]);
 
   // Synchronisation périodique des alertes victoire/défaite actives.
   useEffect(() => {
