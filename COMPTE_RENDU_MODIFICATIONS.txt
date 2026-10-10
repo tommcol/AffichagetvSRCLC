@@ -441,3 +441,26 @@ Vérifications :
   doit donc être considérée comme acquise tant que npm run lint et npm run build
   n'ont pas été relancés sur une machine/environnement disposant des dépendances.
 ================================================================================
+
+
+SECTION 14 : SYNCHRONISATION AUTOMATIQUE FFBB CÔTÉ CLOUDFLARE
+
+Objectif :
+- Détecter les résultats FFBB même lorsque la TV et l'application ne sont pas ouvertes.
+
+Modifications :
+- Ajout d'un Cron Trigger Cloudflare toutes les 5 minutes dans wrangler.json (*/5 * * * *).
+- Ajout du gestionnaire scheduled() dans worker/index.ts.
+- Le traitement planifié réutilise la récupération FFBB existante et synchronise les matchs/résultats avec app-data dans KV.
+- Les scores FFBB disponibles marquent le match terminé et renseignent resultSource='ffbb', resultReceivedAt et finishedAt.
+- Les résultats Telegram existants sont préservés si la FFBB n'a pas encore publié de score.
+- Les champs explicitement modifiés manuellement (date, horaire, gymnase, logo adverse et score) sont préservés lors de la fusion.
+- Ajout de la règle serveur de passage à finished après deux heures sans résultat, sans fabriquer de score.
+- Ajout de logs de début, fin et erreur pour le Cron.
+- Incrément de la version app-data après synchronisation.
+
+Déploiement et validation :
+- Le code et la configuration sont enregistrés sur main.
+- La tâche Cron ne sera active en production qu'après déploiement Cloudflare de cette version.
+- Aucun test en conditions réelles FFBB n'a été effectué dans cette session. À vérifier un samedi de match, TV éteinte : arrivée du score, persistance dans app-data et absence de doublon avec Telegram.
+- La compilation et les tests automatiques n'ont pas été exécutés depuis cet environnement.
