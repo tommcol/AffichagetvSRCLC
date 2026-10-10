@@ -2410,22 +2410,46 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    const [matchesData, clubData, teamsData] = await Promise.all([
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+    // Compatibilité avec les réponses récentes de l'API FFBB Desimone.
+    const apiJson = async (url: string): Promise<any> => {
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(12000),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        console.warn(`[FFBB API] HTTP ${response.status} sur ${new URL(url).pathname}`, body?.error?.message || body?.detail || '');
+        return null;
+      }
+      if (body?.error && !body?.matches && !body?.data) {
+        console.warn('[FFBB API] Réponse d’erreur:', body.error.message || body.error);
+        return null;
+      }
+      return body;
+    };
+    const [matchesData, clubDataRaw, teamsDataRaw] = await Promise.all([
+      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches?limit=500&offset=0`),
+      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`),
+      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`),
     ]);
-
-    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
-    const clubNom = clubData?.nom || 'Sports Réunis Clayettois';
-    const clubCommune = clubData?.commune?.libelle || 'La Clayette';
-    const defaultGym = clubData?.salle?.libelle || 'COSEC';
+    const matchesPayload = matchesData?.data ?? matchesData;
+    const rawMatches: any[] = Array.isArray(matchesPayload)
+      ? matchesPayload
+      : Array.isArray(matchesPayload?.matches)
+        ? matchesPayload.matches
+        : Array.isArray(matchesPayload?.items)
+          ? matchesPayload.items
+          : Array.isArray(matchesPayload?.results)
+            ? matchesPayload.results
+            : [];
+    const clubData = clubDataRaw?.data ?? clubDataRaw;
+    const teamsData = teamsDataRaw?.data ?? teamsDataRaw;
+    const clubNom = clubData?.nom || clubData?.name || 'Sports Réunis Clayettois';
+    const clubCommune = clubData?.commune?.libelle || clubData?.commune || clubData?.city || 'La Clayette';
+    const defaultGym = clubData?.salle?.libelle || clubData?.salle?.nom || clubData?.gymnasium || 'COSEC';
     const clubLogoUrl = clubData?.logo?.id
       ? `https://api.ffbb.com/assets/${clubData.logo.id}`
-      : (clubData?.logo_url || clubData?.logo || undefined);
+      : (clubData?.logo_url || (typeof clubData?.logo === 'string' ? clubData.logo : undefined));
     const todayStr = new Date().toISOString().slice(0, 10);
 
     // Extract unique poule IDs to query official match scores and finished state
