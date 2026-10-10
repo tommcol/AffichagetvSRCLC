@@ -31,5 +31,10 @@
     "required": [
       "TELEGRAM_BOT_TOKEN"
     ]
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
   }
 }
