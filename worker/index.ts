@@ -2410,16 +2410,42 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       );
     }
 
+    // Contrat REST documenté dans nickdesi/ffbb-data-client :
+    // GET /api/v1/club/{organisme_id}/matches renvoie { organisme_id, club, matches, count, total, pagination }.
+    // Ne jamais convertir une erreur HTTP en liste vide : le cron doit conserver les données déjà en KV.
+    const fetchApiJson = async (endpoint: string): Promise<any> => {
+      const response = await fetch(`https://ffbb-api.desimone.fr${endpoint}`, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'AffichageTV-SRC/1.0' },
+        signal: AbortSignal.timeout(20000),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = body?.error?.message || body?.detail || `HTTP ${response.status}`;
+        throw new Error(`API FFBB ${endpoint}: ${detail}`);
+      }
+      if (!body || typeof body !== 'object' || body.error) {
+        throw new Error(`Réponse invalide de l'API FFBB pour ${endpoint}`);
+      }
+      return body;
+    };
+
     const [matchesData, clubData, teamsData] = await Promise.all([
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, { headers: { 'Accept': 'application/json' } })
-        .then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+      fetchApiJson(`/api/v1/club/${encodeURIComponent(orgId)}/matches?limit=500&offset=0`),
+      fetchApiJson(`/api/v1/club/${encodeURIComponent(orgId)}`).catch((err) => {
+        console.warn('[FFBB API] Fiche club indisponible; utilisation des valeurs de secours.', err);
+        return null;
+      }),
+      fetchApiJson(`/api/v1/club/${encodeURIComponent(orgId)}/teams`).catch((err) => {
+        console.warn('[FFBB API] Liste des équipes indisponible; déduction depuis les matchs.', err);
+        return null;
+      }),
     ]);
 
-    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+    const rawMatches: any[] = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+    if (!Array.isArray(matchesData?.matches)) {
+      throw new Error('Réponse API FFBB inattendue : le champ matches est absent.');
+    }
+    console.log(`[FFBB API] Club ${orgId}: ${rawMatches.length}/${matchesData?.total ?? rawMatches.length} rencontres récupérées.`);
     const clubNom = clubData?.nom || 'Sports Réunis Clayettois';
     const clubCommune = clubData?.commune?.libelle || 'La Clayette';
     const defaultGym = clubData?.salle?.libelle || 'COSEC';
@@ -2504,13 +2530,15 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
       // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
       // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
-      const localScore = m.scoreLocal;
-      const opponentScore = m.scoreOpponent;
+      // Contrat de l'API actuelle : scoreLocal/scoreOpponent sont orientés club/adversaire.
+      // scoreEquipe1/scoreEquipe2 et resultatEquipe1/resultatEquipe2 sont orientés équipe 1/équipe 2.
+      const localScore = m.scoreLocal ?? m.score_local;
+      const opponentScore = m.scoreOpponent ?? m.score_opponent;
       const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
         && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
         && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
-      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1;
-      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2;
+      const directScore1 = m.resultatEquipe1 ?? m.resultat_equipe1 ?? m.scoreEquipe1 ?? m.score_equipe1 ?? m.score1;
+      const directScore2 = m.resultatEquipe2 ?? m.resultat_equipe2 ?? m.scoreEquipe2 ?? m.score_equipe2 ?? m.score2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
