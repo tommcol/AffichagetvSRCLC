@@ -2500,12 +2500,26 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         .map(normalizeMatchId).filter(Boolean);
       let pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
       // Certains flux embarquent directement les scores dans la rencontre du club.
+      // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
+      // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
+      // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
+      const localScore = m.scoreLocal;
+      const opponentScore = m.scoreOpponent;
+      const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
+        && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
+        && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
       const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1;
       const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
-      if (!pouleScore && hasDirectScore) {
+      if (!pouleScore && hasLocalScores) {
+        pouleScore = {
+          score1: Number(isHome ? localScore : opponentScore),
+          score2: Number(isHome ? opponentScore : localScore),
+          joue: true,
+        };
+      } else if (!pouleScore && hasDirectScore) {
         pouleScore = { score1: Number(directScore1), score2: Number(directScore2), joue: true };
       }
       const hasPouleScore = Boolean(pouleScore?.joue);
