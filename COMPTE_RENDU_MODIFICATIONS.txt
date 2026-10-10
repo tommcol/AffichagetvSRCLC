@@ -464,3 +464,34 @@ Déploiement et validation :
 - La tâche Cron ne sera active en production qu'après déploiement Cloudflare de cette version.
 - Aucun test en conditions réelles FFBB n'a été effectué dans cette session. À vérifier un samedi de match, TV éteinte : arrivée du score, persistance dans app-data et absence de doublon avec Telegram.
 - La compilation et les tests automatiques n'ont pas été exécutés depuis cet environnement.
+
+
+================================================================================
+SECTION 15 : MODE KIOSQUE TV SANS ACCÈS RAPIDE À LA CONFIGURATION
+================================================================================
+
+Objectif :
+- Fournir à Fully Kiosk une URL de diffusion qui ne présente pas les commandes
+  d'accès à l'administration, tout en conservant le fonctionnement habituel
+  du bouton « Lancer la diffusion » dans l'application.
+
+Modifications :
+- L'URL du guide Fully Kiosk utilise désormais ?mode=tv&kiosk=1.
+- En mode kiosk=1, le bouton « Configuration » est masqué dans les commandes
+  du carrousel.
+- Les raccourcis clavier C et A ne basculent plus vers la configuration dans
+  ce mode.
+- Le mode TV lancé depuis l'application sans le paramètre kiosk=1 conserve
+  ses commandes de configuration habituelles.
+
+Limite importante :
+- Il s'agit d'une protection contre les manipulations accidentelles via
+  l'interface du carrousel, pas d'une authentification ou d'une barrière
+  de sécurité serveur. Toute personne qui modifie volontairement l'URL peut
+  tenter d'ouvrir le mode normal. Une protection contre un accès volontaire
+  nécessiterait un contrôle d'accès séparé.
+
+Validation :
+- Modifications enregistrées sur main.
+- Compilation et test sur téléviseur non exécutés dans cette session.
+================================================================================
