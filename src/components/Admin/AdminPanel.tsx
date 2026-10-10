@@ -9076,12 +9076,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </p>
                     <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-700">
                       <code className="text-xs text-orange-400 font-mono flex-1 break-all select-all">
-                        {typeof window !== 'undefined' ? `${window.location.origin}?mode=tv` : '?mode=tv'}
+                        {typeof window !== 'undefined' ? `${window.location.origin}?mode=tv&kiosk=1` : '?mode=tv'}
                       </code>
                       <button
                         onClick={() => {
                           if (typeof navigator !== 'undefined') {
-                            navigator.clipboard.writeText(`${window.location.origin}?mode=tv`);
+                            navigator.clipboard.writeText(`${window.location.origin}?mode=tv&kiosk=1`);
                           }
                         }}
                         className="px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold shrink-0"
@@ -9090,7 +9090,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Avec le paramètre <code>?mode=tv</code>, la TV démarre directement sur le diaporama sans afficher le panneau d'administration.
+                      Avec les paramètres <code>?mode=tv&kiosk=1</code>, la TV démarre directement sur le diaporama et masque les commandes d'accès à la configuration. Le bouton « Lancer la diffusion » dans l'application reste inchangé.
                     </p>
                   </div>
 
