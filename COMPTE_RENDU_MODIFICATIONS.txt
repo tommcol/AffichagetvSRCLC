@@ -495,3 +495,33 @@ Validation :
 - Modifications enregistrées sur main.
 - Compilation et test sur téléviseur non exécutés dans cette session.
 ================================================================================
+
+
+================================================================================
+SECTION 16 : FIABILISATION DE LA REMONTÉE DES SCORES FFBB
+================================================================================
+
+Problème signalé :
+- Un match en retard des U11F1 avait son score publié sur FFBB, mais l'application
+  affichait encore « En attente du résultat ».
+
+Correctif appliqué dans worker/index.ts :
+- Normalisation des identifiants de rencontre FFBB (notamment les préfixes FFBB-).
+- Recherche du score à partir de plusieurs champs d'identifiant possibles :
+  id, ffbbMatchId, matchId, rencontreId, numero et numeroRencontre.
+- Validation des deux scores avant de déclarer une rencontre jouée.
+- Prise en charge de champs de score présents directement dans la réponse match,
+  lorsqu'ils sont fournis par l'API.
+- Le mécanisme existant de synchronisation planifiée toutes les 5 minutes est conservé.
+
+Commit :
+- 13153516619c83a9e4136df508828a48fa7a5a57
+
+Validation restante :
+- Le code est enregistré sur GitHub main.
+- Compilation, déploiement Cloudflare et vérification réelle du match U11F1 non
+  effectués dans cette session. Il faudra confirmer après déploiement que le score
+  remonte bien. Si ce match n'est pas présent dans la liste de rencontres renvoyée
+  par l'API du club, une adaptation supplémentaire sera nécessaire pour le retrouver
+  depuis sa poule FFBB.
+================================================================================
