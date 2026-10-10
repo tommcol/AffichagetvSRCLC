@@ -38,7 +38,7 @@ export default {
       if (path === '/api/telegram/config' || path === '/api/telegram/status') return await telegramConfig(request, env);
       if (path === '/api/telegram/connect') return await telegramConnect(request, env);
       if (path === '/api/telegram/disconnect') return await telegramDisconnect(request, env);
-      if (path === '/api/ffbb/matches') return await ffbbMatches(request);
+      if (path === '/api/ffbb/matches') return await ffbbMatches(request, env);
       if (path === '/api/ffbb/search') return await ffbbSearch(request);
       if (path === '/api/generate-caption') return await generateCaption(request, env);
       if (path === '/api/social/publish') return await socialPublish(request);
@@ -60,7 +60,7 @@ async function runScheduledFfbbSync(env: Env): Promise<void> {
   const startedAt = Date.now();
   console.log('[FFBB CRON] Début de la synchronisation automatique.');
   try {
-    const response = await ffbbMatches(new Request('https://worker.local/api/ffbb/matches?code=BFC0071024'));
+    const response = await ffbbMatches(new Request('https://worker.local/api/ffbb/matches?code=BFC0071024'), env);
     if (!response.ok) throw new Error(`FFBB HTTP ${response.status}`);
     const payload = await response.json() as any;
     if (!payload?.success || !Array.isArray(payload.matches)) {
@@ -2392,7 +2392,7 @@ function isTeamCategoryIgnored(category: string, ignoredCategories: string[] = [
   return ignoredCategories.some((item) => normalizeCategoryKey(item) === targetKey);
 }
 
-async function ffbbMatches(request: Request): Promise<Response> {
+async function ffbbMatches(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const clubCode = (url.searchParams.get('code') || 'BFC0071024').trim();
 
