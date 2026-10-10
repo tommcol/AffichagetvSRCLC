@@ -2525,42 +2525,44 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       // Selon les endpoints FFBB, l'identifiant peut être exposé sous plusieurs formes.
       const candidateIds = [m.ffbbMatchId, m.id, m.matchId, m.rencontreId, m.numero, m.numeroRencontre]
         .map(normalizeMatchId).filter(Boolean);
-      let pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
-      // Certains flux embarquent directement les scores dans la rencontre du club.
-      // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
-      // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
-      // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
-      // Contrat de l'API actuelle : scoreLocal/scoreOpponent sont orientés club/adversaire.
-      // scoreEquipe1/scoreEquipe2 et resultatEquipe1/resultatEquipe2 sont orientés équipe 1/équipe 2.
+      const pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
+      // Priorité aux scores renvoyés dans la rencontre du club : ils sont liés directement
+      // au match et évitent de réutiliser par erreur un score de poule associé à un ID ambigu.
+      // scoreLocal/scoreOpponent sont orientés club/adversaire; scoreEquipe1/2 sont orientés
+      // équipe 1/équipe 2 (domicile/extérieur dans le contrat REST FFBB).
       const localScore = m.scoreLocal ?? m.score_local;
       const opponentScore = m.scoreOpponent ?? m.score_opponent;
       const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
+        && localScore !== 'None' && localScore !== 'null'
         && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
+        && opponentScore !== 'None' && opponentScore !== 'null'
         && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
       const directScore1 = m.resultatEquipe1 ?? m.resultat_equipe1 ?? m.scoreEquipe1 ?? m.score_equipe1 ?? m.score1;
       const directScore2 = m.resultatEquipe2 ?? m.resultat_equipe2 ?? m.scoreEquipe2 ?? m.score_equipe2 ?? m.score2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
+        && directScore1 !== 'None' && directScore1 !== 'null'
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
+        && directScore2 !== 'None' && directScore2 !== 'null'
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
-      if (!pouleScore && hasLocalScores) {
-        pouleScore = {
-          score1: Number(isHome ? localScore : opponentScore),
-          score2: Number(isHome ? opponentScore : localScore),
-          joue: true,
-        };
-      } else if (!pouleScore && hasDirectScore) {
-        pouleScore = { score1: Number(directScore1), score2: Number(directScore2), joue: true };
-      }
-      const hasPouleScore = Boolean(pouleScore?.joue);
+      const matchScore = hasLocalScores
+        ? {
+            score1: Number(isHome ? localScore : opponentScore),
+            score2: Number(isHome ? opponentScore : localScore),
+            joue: true,
+          }
+        : hasDirectScore
+          ? { score1: Number(directScore1), score2: Number(directScore2), joue: true }
+          : pouleScore;
+      const hasPouleScore = Boolean(matchScore?.joue);
       const isPast = dateStr < todayStr || Boolean(hasPouleScore);
 
       let homeScore: number | undefined = undefined;
       let awayScore: number | undefined = undefined;
       let matchResult: 'win' | 'loss' | 'draw' | null = null;
 
-      if (hasPouleScore && pouleScore) {
-        homeScore = pouleScore.score1;
-        awayScore = pouleScore.score2;
+      if (hasPouleScore && matchScore) {
+        homeScore = matchScore.score1;
+        awayScore = matchScore.score2;
         const ourScore = isHome ? homeScore : awayScore;
         const oppScore = isHome ? awayScore : homeScore;
         matchResult = ourScore > oppScore ? 'win' : ourScore < oppScore ? 'loss' : 'draw';
