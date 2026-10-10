@@ -2430,6 +2430,16 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
     // Extract unique poule IDs to query official match scores and finished state
     const pouleIds = Array.from(new Set(rawMatches.map((m: any) => m.pouleId).filter(Boolean)));
     const scoreMap = new Map<string, { score1: number; score2: number; joue: boolean }>();
+    const normalizeMatchId = (value: unknown): string => {
+      if (value === undefined || value === null || String(value).trim() === '') return '';
+      return String(value).trim().replace(/^FFBB[-_]?/i, '').replace(/^ffbb-/i, '');
+    };
+    const storeScoreAliases = (match: any, score: { score1: number; score2: number; joue: boolean }) => {
+      for (const key of [match?.id, match?.ffbbMatchId, match?.matchId, match?.rencontreId, match?.numero, match?.numeroRencontre]) {
+        const normalized = normalizeMatchId(key);
+        if (normalized) scoreMap.set(normalized, score);
+      }
+    };
 
     if (pouleIds.length > 0) {
       try {
@@ -2444,16 +2454,20 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         for (const p of pouleResults) {
           if (p && Array.isArray(p.rencontres)) {
             for (const r of p.rencontres) {
-              if (r.id) {
-                const hasScore = r.resultatEquipe1 && r.resultatEquipe1 !== 'None' && r.resultatEquipe1 !== 'null';
-                const isPlayed = r.joue === 1 || hasScore;
-                if (isPlayed && hasScore) {
-                  scoreMap.set(String(r.id), {
-                    score1: parseInt(r.resultatEquipe1, 10) || 0,
-                    score2: parseInt(r.resultatEquipe2, 10) || 0,
-                    joue: true,
-                  });
-                }
+              const rawScore1 = r.resultatEquipe1;
+              const rawScore2 = r.resultatEquipe2;
+              const validScore = rawScore1 !== undefined && rawScore1 !== null && rawScore1 !== ''
+                && rawScore1 !== 'None' && rawScore1 !== 'null'
+                && rawScore2 !== undefined && rawScore2 !== null && rawScore2 !== ''
+                && rawScore2 !== 'None' && rawScore2 !== 'null'
+                && Number.isFinite(Number(rawScore1)) && Number.isFinite(Number(rawScore2));
+              const isPlayed = r.joue === 1 || r.joue === true || validScore;
+              if (isPlayed && validScore) {
+                storeScoreAliases(r, {
+                  score1: Number(rawScore1),
+                  score2: Number(rawScore2),
+                  joue: true,
+                });
               }
             }
           }
@@ -2480,9 +2494,21 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       }
       const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
       const normCat = normalizeFFBBCategory(m.team, m.competition);
-      const matchId = String(m.ffbbMatchId || idx);
-      const pouleScore = scoreMap.get(matchId);
-      const hasPouleScore = pouleScore && pouleScore.joue;
+      const matchId = String(m.ffbbMatchId || m.id || m.matchId || m.rencontreId || idx);
+      // Selon les endpoints FFBB, l'identifiant peut être exposé sous plusieurs formes.
+      const candidateIds = [m.ffbbMatchId, m.id, m.matchId, m.rencontreId, m.numero, m.numeroRencontre]
+        .map(normalizeMatchId).filter(Boolean);
+      let pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
+      // Certains flux embarquent directement les scores dans la rencontre du club.
+      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1;
+      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2;
+      const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
+        && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
+        && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
+      if (!pouleScore && hasDirectScore) {
+        pouleScore = { score1: Number(directScore1), score2: Number(directScore2), joue: true };
+      }
+      const hasPouleScore = Boolean(pouleScore?.joue);
       const isPast = dateStr < todayStr || Boolean(hasPouleScore);
 
       let homeScore: number | undefined = undefined;
