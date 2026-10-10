@@ -2410,46 +2410,22 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    // Compatibilité avec les réponses récentes de l'API FFBB Desimone.
-    const apiJson = async (url: string): Promise<any> => {
-      const response = await fetch(url, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(12000),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        console.warn(`[FFBB API] HTTP ${response.status} sur ${new URL(url).pathname}`, body?.error?.message || body?.detail || '');
-        return null;
-      }
-      if (body?.error && !body?.matches && !body?.data) {
-        console.warn('[FFBB API] Réponse d’erreur:', body.error.message || body.error);
-        return null;
-      }
-      return body;
-    };
-    const [matchesData, clubDataRaw, teamsDataRaw] = await Promise.all([
-      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches?limit=500&offset=0`),
-      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`),
-      apiJson(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`),
+    const [matchesData, clubData, teamsData] = await Promise.all([
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : { matches: [] }).catch(() => ({ matches: [] })),
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
     ]);
-    const matchesPayload = matchesData?.data ?? matchesData;
-    const rawMatches: any[] = Array.isArray(matchesPayload)
-      ? matchesPayload
-      : Array.isArray(matchesPayload?.matches)
-        ? matchesPayload.matches
-        : Array.isArray(matchesPayload?.items)
-          ? matchesPayload.items
-          : Array.isArray(matchesPayload?.results)
-            ? matchesPayload.results
-            : [];
-    const clubData = clubDataRaw?.data ?? clubDataRaw;
-    const teamsData = teamsDataRaw?.data ?? teamsDataRaw;
-    const clubNom = clubData?.nom || clubData?.name || 'Sports Réunis Clayettois';
-    const clubCommune = clubData?.commune?.libelle || clubData?.commune || clubData?.city || 'La Clayette';
-    const defaultGym = clubData?.salle?.libelle || clubData?.salle?.nom || clubData?.gymnasium || 'COSEC';
+
+    const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
+    const clubNom = clubData?.nom || 'Sports Réunis Clayettois';
+    const clubCommune = clubData?.commune?.libelle || 'La Clayette';
+    const defaultGym = clubData?.salle?.libelle || 'COSEC';
     const clubLogoUrl = clubData?.logo?.id
       ? `https://api.ffbb.com/assets/${clubData.logo.id}`
-      : (clubData?.logo_url || (typeof clubData?.logo === 'string' ? clubData.logo : undefined));
+      : (clubData?.logo_url || clubData?.logo || undefined);
     const todayStr = new Date().toISOString().slice(0, 10);
 
     // Extract unique poule IDs to query official match scores and finished state
@@ -2470,22 +2446,17 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       try {
         const pouleResults = await Promise.all(
           pouleIds.map((pid) =>
-            apiJson(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`)
+            fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
+              headers: { 'Accept': 'application/json' },
+            }).then(r => r.ok ? r.json() : null).catch(() => null)
           )
         );
 
-        for (const rawPoule of pouleResults) {
-          const p = rawPoule?.data ?? rawPoule;
-          const rencontres = Array.isArray(p?.rencontres) ? p.rencontres
-            : Array.isArray(p?.matches) ? p.matches
-              : Array.isArray(p?.items) ? p.items : [];
-          if (p && rencontres.length > 0) {
-            for (const r of rencontres) {
-              const nestedScore = r.scores ?? r.score ?? r.resultat ?? {};
-              const rawScore1 = r.resultatEquipe1 ?? r.resultat_equipe1 ?? r.scoreEquipe1 ?? r.score_equipe1 ?? r.score1 ?? r.score_team_1
-                ?? nestedScore.resultatEquipe1 ?? nestedScore.resultat_equipe1 ?? nestedScore.scoreEquipe1 ?? nestedScore.score_equipe1 ?? nestedScore.score1 ?? nestedScore.team1;
-              const rawScore2 = r.resultatEquipe2 ?? r.resultat_equipe2 ?? r.scoreEquipe2 ?? r.score_equipe2 ?? r.score2 ?? r.score_team_2
-                ?? nestedScore.resultatEquipe2 ?? nestedScore.resultat_equipe2 ?? nestedScore.scoreEquipe2 ?? nestedScore.score_equipe2 ?? nestedScore.score2 ?? nestedScore.team2;
+        for (const p of pouleResults) {
+          if (p && Array.isArray(p.rencontres)) {
+            for (const r of p.rencontres) {
+              const rawScore1 = r.resultatEquipe1;
+              const rawScore2 = r.resultatEquipe2;
               const validScore = rawScore1 !== undefined && rawScore1 !== null && rawScore1 !== ''
                 && rawScore1 !== 'None' && rawScore1 !== 'null'
                 && rawScore2 !== undefined && rawScore2 !== null && rawScore2 !== ''
@@ -2512,9 +2483,9 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
 
     for (let idx = 0; idx < rawMatches.length; idx++) {
       const m = rawMatches[idx];
-      const isHome = m.isHome ?? m.is_home ?? m.isHomeMatch ?? m.is_home_match ?? true;
+      const isHome = m.isHome ?? true;
       const ourClubName = clubNom;
-      const opp = m.opponent || m.opponentName || m.opponent_name || m.adversaire || m.teamOpponent || 'Adversaire Inconnu';
+      const opp = m.opponent || 'Adversaire Inconnu';
       const teamHome = isHome ? ourClubName : opp;
       const teamAway = isHome ? opp : ourClubName;
       let gym = defaultGym;
@@ -2522,32 +2493,24 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         const parts = m.location.split(',');
         if (parts[0] && parts[0].trim()) gym = parts[0].trim();
       }
-      const rawDate = m.dateISO ?? m.date_iso ?? m.date ?? m.date_rencontre ?? m.dateRencontre;
-      const dateStr = rawDate && String(rawDate).length >= 10 ? String(rawDate).slice(0, 10) : todayStr;
+      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
       const normCat = normalizeFFBBCategory(m.team, m.competition);
-      const matchId = String(m.ffbbMatchId ?? m.ffbb_match_id ?? m.id ?? m.matchId ?? m.match_id ?? m.rencontreId ?? m.rencontre_id ?? m.numero ?? m.numeroRencontre ?? idx);
-      // Selon les versions de l'API, les identifiants peuvent être camelCase ou snake_case.
-      const candidateIds = [m.ffbbMatchId, m.ffbb_match_id, m.id, m.matchId, m.match_id, m.rencontreId, m.rencontre_id, m.numero, m.numeroRencontre, m.matchNumber, m.match_number]
+      const matchId = String(m.ffbbMatchId || m.id || m.matchId || m.rencontreId || idx);
+      // Selon les endpoints FFBB, l'identifiant peut être exposé sous plusieurs formes.
+      const candidateIds = [m.ffbbMatchId, m.id, m.matchId, m.rencontreId, m.numero, m.numeroRencontre]
         .map(normalizeMatchId).filter(Boolean);
       let pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
       // Certains flux embarquent directement les scores dans la rencontre du club.
       // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
       // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
       // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
-      const scoreBlock = m.scores ?? m.score ?? m.resultat ?? m.result ?? {};
-      const localScore = m.scoreLocal ?? m.score_local ?? m.localScore ?? m.scoreFor ?? m.score_for
-        ?? scoreBlock.scoreLocal ?? scoreBlock.score_local ?? scoreBlock.local ?? scoreBlock.home;
-      const opponentScore = m.scoreOpponent ?? m.score_opponent ?? m.opponentScore ?? m.scoreAgainst ?? m.score_against
-        ?? scoreBlock.scoreOpponent ?? scoreBlock.score_opponent ?? scoreBlock.opponent ?? scoreBlock.away;
+      const localScore = m.scoreLocal;
+      const opponentScore = m.scoreOpponent;
       const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
-        && localScore !== 'None' && localScore !== 'null'
         && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
-        && opponentScore !== 'None' && opponentScore !== 'null'
         && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
-      const directScore1 = m.resultatEquipe1 ?? m.resultat_equipe1 ?? m.scoreEquipe1 ?? m.score_equipe1 ?? m.score1 ?? m.score_team_1
-        ?? scoreBlock.resultatEquipe1 ?? scoreBlock.resultat_equipe1 ?? scoreBlock.scoreEquipe1 ?? scoreBlock.score_equipe1 ?? scoreBlock.score1 ?? scoreBlock.team1;
-      const directScore2 = m.resultatEquipe2 ?? m.resultat_equipe2 ?? m.scoreEquipe2 ?? m.score_equipe2 ?? m.score2 ?? m.score_team_2
-        ?? scoreBlock.resultatEquipe2 ?? scoreBlock.resultat_equipe2 ?? scoreBlock.scoreEquipe2 ?? scoreBlock.score_equipe2 ?? scoreBlock.score2 ?? scoreBlock.team2;
+      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1;
+      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
@@ -2613,11 +2576,11 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         result: matchResult,
         homeScore,
         awayScore,
-        ffbbMatchNumber: (m.ffbbMatchId ?? m.ffbb_match_id) ? `FFBB-${m.ffbbMatchId ?? m.ffbb_match_id}` : undefined,
+        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
         teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
         opponentLogo: m.opponentLogo || undefined,
         poule: m.poule || undefined,
-        pouleId: m.pouleId ?? m.poule_id ?? m.idPoule ?? m.id_poule ?? undefined,
+        pouleId: m.pouleId || undefined,
       };
 
       // Le match reste dans le planning des matchs
