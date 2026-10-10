@@ -2446,17 +2446,19 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       try {
         const pouleResults = await Promise.all(
           pouleIds.map((pid) =>
-            fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
-              headers: { 'Accept': 'application/json' },
-            }).then(r => r.ok ? r.json() : null).catch(() => null)
+            apiJson(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`)
           )
         );
 
-        for (const p of pouleResults) {
-          if (p && Array.isArray(p.rencontres)) {
-            for (const r of p.rencontres) {
-              const rawScore1 = r.resultatEquipe1;
-              const rawScore2 = r.resultatEquipe2;
+        for (const rawPoule of pouleResults) {
+          const p = rawPoule?.data ?? rawPoule;
+          const rencontres = Array.isArray(p?.rencontres) ? p.rencontres
+            : Array.isArray(p?.matches) ? p.matches
+              : Array.isArray(p?.items) ? p.items : [];
+          if (p && rencontres.length > 0) {
+            for (const r of rencontres) {
+              const rawScore1 = r.resultatEquipe1 ?? r.scoreEquipe1 ?? r.score1 ?? r.score_team_1;
+              const rawScore2 = r.resultatEquipe2 ?? r.scoreEquipe2 ?? r.score2 ?? r.score_team_2;
               const validScore = rawScore1 !== undefined && rawScore1 !== null && rawScore1 !== ''
                 && rawScore1 !== 'None' && rawScore1 !== 'null'
                 && rawScore2 !== undefined && rawScore2 !== null && rawScore2 !== ''
@@ -2504,13 +2506,20 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
       // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
       // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
-      const localScore = m.scoreLocal;
-      const opponentScore = m.scoreOpponent;
+      const scoreBlock = m.scores ?? m.score ?? m.resultat ?? {};
+      const localScore = m.scoreLocal ?? m.score_local ?? m.localScore
+        ?? scoreBlock.scoreLocal ?? scoreBlock.score_local;
+      const opponentScore = m.scoreOpponent ?? m.score_opponent ?? m.opponentScore
+        ?? scoreBlock.scoreOpponent ?? scoreBlock.score_opponent;
       const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
+        && localScore !== 'None' && localScore !== 'null'
         && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
+        && opponentScore !== 'None' && opponentScore !== 'null'
         && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
-      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1;
-      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2;
+      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1 ?? m.score_team_1
+        ?? scoreBlock.resultatEquipe1 ?? scoreBlock.scoreEquipe1 ?? scoreBlock.score1;
+      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2 ?? m.score_team_2
+        ?? scoreBlock.resultatEquipe2 ?? scoreBlock.scoreEquipe2 ?? scoreBlock.score2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
