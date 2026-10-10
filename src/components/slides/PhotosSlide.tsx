@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Camera, Calendar, User, Sparkles } from 'lucide-react';
 import { ClubPhotoItem } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
@@ -48,15 +48,16 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950 flex items-center justify-center select-none">
-      {/* 1. Blurred Ambient Backdrop for non-16:9 images */}
+      {/* Fond d'ambiance flou : remplit le cadre 16:9 sans déformer l'original */}
       {!isVid && (
         <div
-          className="absolute inset-0 bg-cover bg-center blur-2xl opacity-40 scale-110"
-          style={{ backgroundImage: `url(${currentPhoto.imageUrl})` }}
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center blur-2xl opacity-50 scale-110"
+          style={{ backgroundImage: `url("${currentPhoto.imageUrl}")` }}
         />
       )}
 
-      {/* 2. Full-Screen High-Resolution Main Photo or Video */}
+      {/* L'original reste entièrement visible, quelles que soient ses proportions */}
       <div className="relative w-full h-full flex items-center justify-center z-10">
         {isVid ? (
           <video
@@ -81,25 +82,23 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
               console.warn('Erreur lecture vidéo photo, passage au suivant');
               if (onVideoEnded) onVideoEnded();
             }}
-            className="w-full h-full object-contain md:object-cover transition-all duration-1000 ease-out"
+            className="w-full h-full object-contain transition-all duration-1000 ease-out"
           />
         ) : (
           <img
             key={`photo-img-${currentPhoto.id || currentPhoto.imageUrl}`}
             src={currentPhoto.imageUrl}
             alt={currentPhoto.title}
-            className="w-full h-full object-contain md:object-cover transition-all duration-1000 ease-out"
+            className="w-full h-full object-contain transition-all duration-1000 ease-out"
             referrerPolicy="no-referrer"
           />
         )}
       </div>
 
-        {/* Subtle Vignette overlay only if text is enabled */}
-        {!hideTextOverlay && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 pointer-events-none" />
-        )}
+      {!hideTextOverlay && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 pointer-events-none" />
+      )}
 
-      {/* 3. Sleek Broadcast Caption Overlay (Hidden when hideTextOverlay is TRUE) */}
       {!hideTextOverlay && (
         <div className="absolute bottom-8 left-8 right-8 z-20 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 pointer-events-none">
           <div className="max-w-3xl">
@@ -134,7 +133,6 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
             </div>
           </div>
 
-          {/* Slide Counter Indicator */}
           <div className="self-end px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-xs text-slate-300 font-mono">
             Photo {currentIndex + 1} / {count}
           </div>
