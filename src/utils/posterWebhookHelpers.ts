@@ -12,7 +12,7 @@ export const buildPosterSocialWebhookPayload = ({
   totalPages,
   webhookUrl,
 }: {
-  platform: PosterSocialPlatform;
+  platform: PosterSocialPlatform | string;
   contentType: PosterContentType;
   badgeTitle: string;
   shortClubName: string;

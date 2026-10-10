@@ -596,7 +596,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   };
 
   // AI Caption Generation helper using /api/generate-caption (Single global text for the whole publication)
-  const handleGenerateAICaption = async (targetPlatform: 'all' | PosterAiCaptionPlatform = 'all') => {
+  const handleGenerateAICaption = async (targetPlatform: 'all' | PosterSocialPlatform = 'all') => {
     setAiGenerating(true);
     try {
       const { matches: publicationMatches, results: publicationResults } =

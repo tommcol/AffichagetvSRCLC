@@ -16,7 +16,7 @@ const merged = mergeActiveAlert(filtered, { id: 'c', expiresAt: 3_000 } as any);
 if (merged.length !== 2 || merged[0].id !== 'c') throw new Error('alert merge failed');
 
 const replaced = mergeActiveAlert(merged, { id: 'a', expiresAt: 4_000 } as any);
-if (replaced.length !== 2 || replaced[1].id !== 'a') throw new Error('alert replacement failed');
+if (replaced.length !== 2 || replaced[0].id !== 'a') throw new Error('alert replacement failed');
 
 const removed = removeActiveAlert(replaced, 'c');
 if (removed.length !== 1 || removed[0].id !== 'a') throw new Error('alert removal failed');

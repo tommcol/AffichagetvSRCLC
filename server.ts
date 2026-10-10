@@ -6,7 +6,6 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { matchTelegramTeam, DEFAULT_CANONICAL_TEAMS } from "./src/utils/telegramTeamMatcher";
 import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
-import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
 
 interface ActiveMatchAlert {
   id: string;
@@ -103,7 +102,6 @@ function cleanExpiredAlerts() {
 export function parseTelegramMatchMessage(text: string): {
   isWin: boolean | null;
   team: string;
-  teamRaw: string;
   teamRaw: string;
   ourScore?: number;
   opponentScore?: number;

@@ -1,10 +1,17 @@
 import type { ActiveMatchAlert, AppDataPayload, BirthdayItem, FFBBTeamItem } from '../types';
 
+const getStorage = (): Storage | null => {
+  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage;
+  if (typeof localStorage !== 'undefined') return localStorage;
+  return null;
+};
+
 const readJson = <T>(key: string): T | null => {
-  if (typeof window === 'undefined') return null;
+  const storage = getStorage();
+  if (!storage) return null;
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = storage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -12,10 +19,11 @@ const readJson = <T>(key: string): T | null => {
 };
 
 const writeJson = (key: string, value: unknown): void => {
-  if (typeof window === 'undefined') return;
+  const storage = getStorage();
+  if (!storage) return;
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    storage.setItem(key, JSON.stringify(value));
   } catch {
     // Local storage may be unavailable or full; callers already have server persistence.
   }
