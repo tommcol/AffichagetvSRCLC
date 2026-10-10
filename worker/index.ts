@@ -2509,9 +2509,9 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
 
     for (let idx = 0; idx < rawMatches.length; idx++) {
       const m = rawMatches[idx];
-      const isHome = m.isHome ?? true;
+      const isHome = m.isHome ?? m.is_home ?? m.isHomeMatch ?? m.is_home_match ?? true;
       const ourClubName = clubNom;
-      const opp = m.opponent || 'Adversaire Inconnu';
+      const opp = m.opponent || m.opponentName || m.opponent_name || m.adversaire || m.teamOpponent || 'Adversaire Inconnu';
       const teamHome = isHome ? ourClubName : opp;
       const teamAway = isHome ? opp : ourClubName;
       let gym = defaultGym;
@@ -2519,31 +2519,32 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         const parts = m.location.split(',');
         if (parts[0] && parts[0].trim()) gym = parts[0].trim();
       }
-      const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
+      const rawDate = m.dateISO ?? m.date_iso ?? m.date ?? m.date_rencontre ?? m.dateRencontre;
+      const dateStr = rawDate && String(rawDate).length >= 10 ? String(rawDate).slice(0, 10) : todayStr;
       const normCat = normalizeFFBBCategory(m.team, m.competition);
-      const matchId = String(m.ffbbMatchId || m.id || m.matchId || m.rencontreId || idx);
-      // Selon les endpoints FFBB, l'identifiant peut être exposé sous plusieurs formes.
-      const candidateIds = [m.ffbbMatchId, m.id, m.matchId, m.rencontreId, m.numero, m.numeroRencontre]
+      const matchId = String(m.ffbbMatchId ?? m.ffbb_match_id ?? m.id ?? m.matchId ?? m.match_id ?? m.rencontreId ?? m.rencontre_id ?? m.numero ?? m.numeroRencontre ?? idx);
+      // Selon les versions de l'API, les identifiants peuvent être camelCase ou snake_case.
+      const candidateIds = [m.ffbbMatchId, m.ffbb_match_id, m.id, m.matchId, m.match_id, m.rencontreId, m.rencontre_id, m.numero, m.numeroRencontre, m.matchNumber, m.match_number]
         .map(normalizeMatchId).filter(Boolean);
       let pouleScore = candidateIds.map((id: string) => scoreMap.get(id)).find(Boolean);
       // Certains flux embarquent directement les scores dans la rencontre du club.
       // L'API FFBB Data Client renvoie les scores du club sous scoreLocal/scoreOpponent
       // et parfois scoreEquipe1/scoreEquipe2. Les deux premiers sont orientés club/adversaire,
       // il faut donc les convertir en domicile/extérieur avant de construire le résultat.
-      const scoreBlock = m.scores ?? m.score ?? m.resultat ?? {};
-      const localScore = m.scoreLocal ?? m.score_local ?? m.localScore
-        ?? scoreBlock.scoreLocal ?? scoreBlock.score_local;
-      const opponentScore = m.scoreOpponent ?? m.score_opponent ?? m.opponentScore
-        ?? scoreBlock.scoreOpponent ?? scoreBlock.score_opponent;
+      const scoreBlock = m.scores ?? m.score ?? m.resultat ?? m.result ?? {};
+      const localScore = m.scoreLocal ?? m.score_local ?? m.localScore ?? m.scoreFor ?? m.score_for
+        ?? scoreBlock.scoreLocal ?? scoreBlock.score_local ?? scoreBlock.local ?? scoreBlock.home;
+      const opponentScore = m.scoreOpponent ?? m.score_opponent ?? m.opponentScore ?? m.scoreAgainst ?? m.score_against
+        ?? scoreBlock.scoreOpponent ?? scoreBlock.score_opponent ?? scoreBlock.opponent ?? scoreBlock.away;
       const hasLocalScores = localScore !== undefined && localScore !== null && localScore !== ''
         && localScore !== 'None' && localScore !== 'null'
         && opponentScore !== undefined && opponentScore !== null && opponentScore !== ''
         && opponentScore !== 'None' && opponentScore !== 'null'
         && Number.isFinite(Number(localScore)) && Number.isFinite(Number(opponentScore));
-      const directScore1 = m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1 ?? m.score_team_1
-        ?? scoreBlock.resultatEquipe1 ?? scoreBlock.scoreEquipe1 ?? scoreBlock.score1;
-      const directScore2 = m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2 ?? m.score_team_2
-        ?? scoreBlock.resultatEquipe2 ?? scoreBlock.scoreEquipe2 ?? scoreBlock.score2;
+      const directScore1 = m.resultatEquipe1 ?? m.resultat_equipe1 ?? m.scoreEquipe1 ?? m.score_equipe1 ?? m.score1 ?? m.score_team_1
+        ?? scoreBlock.resultatEquipe1 ?? scoreBlock.resultat_equipe1 ?? scoreBlock.scoreEquipe1 ?? scoreBlock.score_equipe1 ?? scoreBlock.score1 ?? scoreBlock.team1;
+      const directScore2 = m.resultatEquipe2 ?? m.resultat_equipe2 ?? m.scoreEquipe2 ?? m.score_equipe2 ?? m.score2 ?? m.score_team_2
+        ?? scoreBlock.resultatEquipe2 ?? scoreBlock.resultat_equipe2 ?? scoreBlock.scoreEquipe2 ?? scoreBlock.score_equipe2 ?? scoreBlock.score2 ?? scoreBlock.team2;
       const hasDirectScore = directScore1 !== undefined && directScore1 !== null && directScore1 !== ''
         && directScore2 !== undefined && directScore2 !== null && directScore2 !== ''
         && Number.isFinite(Number(directScore1)) && Number.isFinite(Number(directScore2));
@@ -2609,11 +2610,11 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         result: matchResult,
         homeScore,
         awayScore,
-        ffbbMatchNumber: m.ffbbMatchId ? `FFBB-${m.ffbbMatchId}` : undefined,
+        ffbbMatchNumber: (m.ffbbMatchId ?? m.ffbb_match_id) ? `FFBB-${m.ffbbMatchId ?? m.ffbb_match_id}` : undefined,
         teamLogo: m.teamLogo || (clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined),
         opponentLogo: m.opponentLogo || undefined,
         poule: m.poule || undefined,
-        pouleId: m.pouleId || undefined,
+        pouleId: m.pouleId ?? m.poule_id ?? m.idPoule ?? m.id_poule ?? undefined,
       };
 
       // Le match reste dans le planning des matchs
