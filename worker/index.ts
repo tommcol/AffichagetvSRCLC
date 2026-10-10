@@ -40,6 +40,7 @@ export default {
       if (path === '/api/telegram/disconnect') return await telegramDisconnect(request, env);
       if (path === '/api/ffbb/matches') return await ffbbMatches(request, env);
       if (path === '/api/ffbb/search') return await ffbbSearch(request);
+      if (path === '/api/ffbb/debug') return await ffbbDebug(request, env);
       if (path === '/api/generate-caption') return await generateCaption(request, env);
       if (path === '/api/social/publish') return await socialPublish(request);
     } catch (err: any) {
@@ -2886,4 +2887,38 @@ async function socialPublish(request: Request): Promise<Response> {
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
+}
+
+// Diagnostic en lecture seule : données brutes d'un match (FFBB + stockage local).
+async function ffbbDebug(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const code = (url.searchParams.get('code') || 'BFC0071024').trim();
+  const needle = (url.searchParams.get('opponent') || 'estr').toLowerCase();
+  const norm = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const hit = (obj: any) => norm(JSON.stringify(obj)).includes(norm(needle));
+  const out: any = { needle };
+  try {
+    const orgId = await resolveOrganismeId(code);
+    out.orgId = orgId;
+    const md = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(String(orgId))}/matches`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
+    const all = Array.isArray(md?.matches) ? md.matches : [];
+    out.clubMatches = all.filter(hit);
+    const pouleIds = Array.from(new Set(out.clubMatches.map((m: any) => m.pouleId).filter(Boolean)));
+    out.poules = [];
+    for (const pid of pouleIds) {
+      const p = await fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
+      out.poules.push({ pouleId: pid, rencontres: (Array.isArray(p?.rencontres) ? p.rencontres : []).filter(hit) });
+    }
+  } catch (e: any) {
+    out.error = String(e?.message || e);
+  }
+  try {
+    const raw = await env.AFFICHAGE_KV.get('app-data');
+    const data = raw ? JSON.parse(raw) : {};
+    out.storedMatches = (data.matches || []).filter(hit);
+    out.storedResults = (data.results || []).filter(hit);
+  } catch (e: any) {
+    out.kvError = String(e?.message || e);
+  }
+  return new Response(JSON.stringify(out, null, 2), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
 }
