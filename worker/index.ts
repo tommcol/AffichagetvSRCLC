@@ -10,6 +10,10 @@ interface Env {
 }
 
 export default {
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runScheduledFfbbSync(env));
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -51,6 +55,128 @@ export default {
 // STOCKAGE PARTAGÉ (réglages, matchs, sponsors, etc.)
 // Avec contrôle de concurrence optimiste et gestion de version
 // ============================================================
+
+async function runScheduledFfbbSync(env: Env): Promise<void> {
+  const startedAt = Date.now();
+  console.log('[FFBB CRON] Début de la synchronisation automatique.');
+  try {
+    const response = await ffbbMatches(new Request('https://worker.local/api/ffbb/matches?code=BFC0071024'));
+    if (!response.ok) throw new Error(`FFBB HTTP ${response.status}`);
+    const payload = await response.json() as any;
+    if (!payload?.success || !Array.isArray(payload.matches)) {
+      throw new Error(payload?.message || payload?.error || 'Réponse FFBB invalide; données conservées.');
+    }
+
+    const raw = await env.AFFICHAGE_KV.get('app-data');
+    if (!raw) {
+      console.warn('[FFBB CRON] Aucun app-data en KV; aucune donnée écrite.');
+      return;
+    }
+    const data = JSON.parse(raw);
+    const existingMatches = Array.isArray(data.matches) ? data.matches : [];
+    const existingResults = Array.isArray(data.results) ? data.results : [];
+    const now = Date.now();
+    let updatedResults = 0;
+
+    const matchKey = (match: any) => String(match?.ffbbMatchNumber || match?.id || '');
+    const mergeCollection = (existing: any[], incoming: any[], isResults = false) => {
+      const byKey = new Map<string, any>();
+      for (const item of existing) byKey.set(matchKey(item), item);
+      for (const fresh of incoming) {
+        const key = matchKey(fresh);
+        const previous = byKey.get(key);
+        const hasOfficialScore = (fresh.result === 'win' || fresh.result === 'loss' || fresh.result === 'draw')
+          && typeof fresh.homeScore === 'number' && typeof fresh.awayScore === 'number';
+        if (previous) {
+          const merged = { ...previous, ...fresh };
+          // Conserver les champs que l'utilisateur a explicitement modifiés dans l'interface.
+          for (const field of ['date', 'time', 'gymnasium', 'opponentLogo']) {
+            const manualFlag = field === 'date' ? 'isDateManual'
+              : field === 'time' ? 'isTimeManual'
+              : field === 'gymnasium' ? 'isGymnasiumManual'
+              : 'isOpponentLogoManual';
+            if (previous[manualFlag]) merged[field] = previous[field];
+          }
+          if (previous.isScoreManual) {
+            merged.homeScore = previous.homeScore;
+            merged.awayScore = previous.awayScore;
+            merged.result = previous.result;
+            merged.resultSource = previous.resultSource;
+            merged.resultReceivedAt = previous.resultReceivedAt;
+          } else if (hasOfficialScore) {
+            merged.status = 'finished';
+            merged.resultSource = 'ffbb';
+            merged.resultReceivedAt = previous.resultReceivedAt || now;
+            merged.finishedAt = previous.finishedAt || now;
+            updatedResults++;
+          } else if (previous.resultSource === 'telegram' && (previous.result === 'win' || previous.result === 'loss')) {
+            // Ne pas effacer un résultat Telegram valide si la FFBB n'a pas encore publié son score.
+            merged.result = previous.result;
+            merged.homeScore = previous.homeScore;
+            merged.awayScore = previous.awayScore;
+            merged.resultSource = previous.resultSource;
+            merged.resultReceivedAt = previous.resultReceivedAt;
+            merged.finishedAt = previous.finishedAt;
+            merged.status = 'finished';
+          }
+          byKey.set(key, merged);
+        } else {
+          const inserted = hasOfficialScore
+            ? { ...fresh, resultSource: 'ffbb', resultReceivedAt: now, finishedAt: now, status: 'finished' }
+            : fresh;
+          byKey.set(key, inserted);
+          if (hasOfficialScore) updatedResults++;
+        }
+      }
+      const merged = Array.from(byKey.values());
+      if (isResults) {
+        for (const item of merged) {
+          if ((item.result === 'win' || item.result === 'loss' || item.result === 'draw')
+            && typeof item.homeScore === 'number' && typeof item.awayScore === 'number') {
+            item.status = 'finished';
+          }
+        }
+      }
+      return merged;
+    };
+
+    data.matches = mergeCollection(existingMatches, payload.matches);
+    data.results = mergeCollection(existingResults, Array.isArray(payload.results) ? payload.results : [], true);
+
+    // Finalisation automatique des matchs commencés depuis plus de deux heures sans résultat.
+    const parseMatchStart = (match: any): number | null => {
+      if (!match?.date || !match?.time || !/^\\d{1,2}:\\d{2}$/.test(String(match.time))) return null;
+      const date = String(match.date);
+      const time = String(match.time).padStart(5, '0');
+      const parsed = Date.parse(`${date}T${time}:00`);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const finishWithoutScore = (match: any) => {
+      if (!match || match.status === 'finished' || (match.result === 'win' || match.result === 'loss' || match.result === 'draw')) return match;
+      const start = parseMatchStart(match);
+      if (start !== null && now >= start + 2 * 60 * 60 * 1000) return { ...match, status: 'finished' };
+      return match;
+    };
+    data.matches = data.matches.map(finishWithoutScore);
+
+    // Garantir que tout résultat existant avec score soit aussi présent dans la liste des résultats.
+    const resultKeys = new Set(data.results.map(matchKey));
+    for (const match of data.matches) {
+      if ((match.result === 'win' || match.result === 'loss' || match.result === 'draw')
+        && typeof match.homeScore === 'number' && typeof match.awayScore === 'number'
+        && !resultKeys.has(matchKey(match))) {
+        data.results.push({ ...match, status: 'finished' });
+        resultKeys.add(matchKey(match));
+      }
+    }
+
+    data.version = (typeof data.version === 'number' ? data.version : 0) + 1;
+    await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
+    console.log(`[FFBB CRON] Terminé: ${payload.matches.length} matchs FFBB, ${updatedResults} résultats mis à jour, durée ${Date.now() - startedAt} ms.`);
+  } catch (error) {
+    console.error('[FFBB CRON] Échec de synchronisation; données existantes conservées.', error);
+  }
+}
 
 async function getAppData(env: Env): Promise<Response> {
   const raw = await env.AFFICHAGE_KV.get('app-data');
