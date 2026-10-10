@@ -9076,7 +9076,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                     </p>
                     <div className="flex items-center gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-700">
                       <code className="text-xs text-orange-400 font-mono flex-1 break-all select-all">
-                        {typeof window !== 'undefined' ? `${window.location.origin}?mode=tv&kiosk=1` : '?mode=tv'}
+                        {typeof window !== 'undefined' ? `${window.location.origin}?mode=tv&kiosk=1` : '?mode=tv&kiosk=1'}
                       </code>
                       <button
                         onClick={() => {
