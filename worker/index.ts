@@ -2481,8 +2481,11 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
               : Array.isArray(p?.items) ? p.items : [];
           if (p && rencontres.length > 0) {
             for (const r of rencontres) {
-              const rawScore1 = r.resultatEquipe1 ?? r.scoreEquipe1 ?? r.score1 ?? r.score_team_1;
-              const rawScore2 = r.resultatEquipe2 ?? r.scoreEquipe2 ?? r.score2 ?? r.score_team_2;
+              const nestedScore = r.scores ?? r.score ?? r.resultat ?? {};
+              const rawScore1 = r.resultatEquipe1 ?? r.resultat_equipe1 ?? r.scoreEquipe1 ?? r.score_equipe1 ?? r.score1 ?? r.score_team_1
+                ?? nestedScore.resultatEquipe1 ?? nestedScore.resultat_equipe1 ?? nestedScore.scoreEquipe1 ?? nestedScore.score_equipe1 ?? nestedScore.score1 ?? nestedScore.team1;
+              const rawScore2 = r.resultatEquipe2 ?? r.resultat_equipe2 ?? r.scoreEquipe2 ?? r.score_equipe2 ?? r.score2 ?? r.score_team_2
+                ?? nestedScore.resultatEquipe2 ?? nestedScore.resultat_equipe2 ?? nestedScore.scoreEquipe2 ?? nestedScore.score_equipe2 ?? nestedScore.score2 ?? nestedScore.team2;
               const validScore = rawScore1 !== undefined && rawScore1 !== null && rawScore1 !== ''
                 && rawScore1 !== 'None' && rawScore1 !== 'null'
                 && rawScore2 !== undefined && rawScore2 !== null && rawScore2 !== ''
