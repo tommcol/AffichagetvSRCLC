@@ -88,6 +88,9 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  // Le mode kiosk est réservé à l'URL dédiée pour Fully Kiosk. Le mode TV lancé depuis l'application conserve les commandes normales.
+  const isKioskMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === '1';
+
   // Persistence state
   const [clubSettings, setClubSettings] = useState<ClubSettings>(DEFAULT_CLUB_SETTINGS);
   const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
@@ -807,14 +810,14 @@ export default function App() {
         setIsPlaying((p) => !p);
       } else if (e.key.toLowerCase() === 'f') {
         handleToggleFullscreen();
-      } else if (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'a') {
+      } else if (!isKioskMode && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'a')) {
         setViewMode((v) => (v === 'admin' ? 'tv' : 'admin'));
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextSlide, prevSlide]);
+  }, [nextSlide, prevSlide, isKioskMode]);
 
   // Synchronisation locale immédiate + persistance serveur des alertes.
   const handleAddAlert = useCallback(async (alert: ActiveMatchAlert) => {
@@ -981,18 +984,21 @@ export default function App() {
         }`}
       >
         <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white border border-slate-700/80 shadow-2xl backdrop-blur-xl">
-          {/* Open Configuration Panel */}
-          <button
-            onClick={() => setViewMode('admin')}
-            className="px-3.5 py-1.5 rounded-full bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all hover:scale-105"
-            title="Ouvrir l'application de configuration (Touche C ou A)"
-            id="btn-open-config"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Configuration</span>
-          </button>
-
-          <div className="w-px h-5 bg-slate-700 mx-0.5" />
+          {/* En mode kiosque, aucune commande d'accès à la configuration n'est affichée */}
+          {!isKioskMode && (
+            <>
+              <button
+                onClick={() => setViewMode('admin')}
+                className="px-3.5 py-1.5 rounded-full bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all hover:scale-105"
+                title="Ouvrir l'application de configuration (Touche C ou A)"
+                id="btn-open-config"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Configuration</span>
+              </button>
+              <div className="w-px h-5 bg-slate-700 mx-0.5" />
+            </>
+          )}
 
           {currentSlide?.type === 'alert' && currentSlide.alert && (
             <>
