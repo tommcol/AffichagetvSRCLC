@@ -65,6 +65,61 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 // Serve uploaded videos and images statically with proper caching and byte-range streaming
 app.use("/uploads", express.static(UPLOADS_DIR));
 
+// Historique persistant des résultats FFBB : évite de recréer une alerte après expiration/redémarrage.
+interface FfbbAlertMonitor {
+  processed: Record<string, { team: string; isWin: boolean; ourScore?: number; opponentScore?: number; detectedAt: number; alertCreatedAt?: number }>;
+  uniqueResults: number;
+  alertsCreated: number;
+  duplicatesIgnored: number;
+  lastResult?: { team: string; isWin: boolean; ourScore?: number; opponentScore?: number; detectedAt: number };
+  telegramChatId?: string | number;
+}
+const FFBB_MONITOR_FILE = path.join(DATA_DIR, "ffbb-alert-monitor.json");
+const readFfbbMonitor = (): FfbbAlertMonitor => {
+  try {
+    if (fs.existsSync(FFBB_MONITOR_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(FFBB_MONITOR_FILE, "utf-8"));
+      return {
+        processed: parsed?.processed && typeof parsed.processed === "object" ? parsed.processed : {},
+        uniqueResults: Number(parsed?.uniqueResults) || 0,
+        alertsCreated: Number(parsed?.alertsCreated) || 0,
+        duplicatesIgnored: Number(parsed?.duplicatesIgnored) || 0,
+        lastResult: parsed?.lastResult,
+        telegramChatId: parsed?.telegramChatId,
+      };
+    }
+  } catch (error) {
+    console.error("[FFBB MONITOR] Lecture historique impossible:", error);
+  }
+  return { processed: {}, uniqueResults: 0, alertsCreated: 0, duplicatesIgnored: 0 };
+};
+const writeFfbbMonitor = (monitor: FfbbAlertMonitor) => {
+  try {
+    fs.writeFileSync(FFBB_MONITOR_FILE, JSON.stringify(monitor, null, 2), "utf-8");
+    return true;
+  } catch (error) {
+    console.error("[FFBB MONITOR] Écriture historique impossible:", error);
+    return false;
+  }
+};
+const ffbbSignature = (matchId: unknown, ourScore: unknown, opponentScore: unknown) =>
+  `${String(matchId || "").trim()}:${String(ourScore ?? "")}-${String(opponentScore ?? "")}`;
+const sendTelegramText = async (chatId: string | number | undefined, text: string) => {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!botToken || !chatId) return false;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("[TELEGRAM FFBB] Envoi impossible:", error);
+    return false;
+  }
+};
+
 // In-memory active alerts (injected into the TV loop for 1 hour)
 let activeAlerts: ActiveMatchAlert[] = [];
 let localTelegramBotInfo: {
@@ -482,6 +537,18 @@ app.post("/api/verify-password", (_req, res) => {
   res.json({ ok: true, success: true });
 });
 
+// État de suivi FFBB consultable à distance depuis l'API ou Telegram (/ffbbstat).
+app.get("/api/ffbb/status", (_req, res) => {
+  const monitor = readFfbbMonitor();
+  res.json({
+    uniqueResults: monitor.uniqueResults,
+    alertsCreated: monitor.alertsCreated,
+    duplicatesIgnored: monitor.duplicatesIgnored,
+    lastResult: monitor.lastResult || null,
+    lastResultAt: monitor.lastResult?.detectedAt || null,
+  });
+});
+
 // 2. Active 1-hour alerts list (polled by the TV carousel)
 app.get(["/api/alerts", "/api/get-alerts", "/.netlify/functions/get-alerts"], (req, res) => {
   cleanExpiredAlerts();
@@ -497,6 +564,22 @@ app.post(["/api/alerts", "/api/add-alert", "/.netlify/functions/add-alert"], (re
 
   if (!team) {
     return res.status(400).json({ error: "L'équipe est requise" });
+  }
+
+  const isFfbbAlert = triggeredBy === "ffbb";
+  const monitor = isFfbbAlert ? readFfbbMonitor() : null;
+  const matchId = req.body?.matchId;
+  const signature = isFfbbAlert ? ffbbSignature(matchId, ourScore, opponentScore) : "";
+  if (isFfbbAlert && monitor) {
+    const prior = monitor.processed[signature];
+    if (prior) {
+      monitor.duplicatesIgnored += 1;
+      writeFfbbMonitor(monitor);
+      console.log(`[FFBB DÉDOUBLON] ${signature} ignoré`);
+      return res.json({ success: true, duplicate: true, alreadyProcessed: true, monitor: {
+        uniqueResults: monitor.uniqueResults, alertsCreated: monitor.alertsCreated, duplicatesIgnored: monitor.duplicatesIgnored
+      } });
+    }
   }
 
   const durationMs = (durationMinutes || 60) * 60 * 1000;
@@ -517,8 +600,30 @@ app.post(["/api/alerts", "/api/add-alert", "/.netlify/functions/add-alert"], (re
   activeAlerts.unshift(newAlert);
   cleanExpiredAlerts();
 
+  if (isFfbbAlert && monitor) {
+    const entry = {
+      team: newAlert.team,
+      isWin: newAlert.isWin,
+      ourScore: newAlert.ourScore,
+      opponentScore: newAlert.opponentScore,
+      detectedAt: newAlert.timestamp,
+      alertCreatedAt: newAlert.timestamp,
+    };
+    monitor.processed[signature] = entry;
+    monitor.uniqueResults += 1;
+    monitor.alertsCreated += 1;
+    monitor.lastResult = entry;
+    const signatures = Object.keys(monitor.processed);
+    for (const oldSignature of signatures.slice(0, Math.max(0, signatures.length - 500))) delete monitor.processed[oldSignature];
+    writeFfbbMonitor(monitor);
+    void sendTelegramText(monitor.telegramChatId,
+      `🏀 Résultat FFBB détecté\n${newAlert.isWin ? "🏆 VICTOIRE" : "🔴 DÉFAITE"} — ${newAlert.team}\nScore : ${newAlert.ourScore ?? "?"} - ${newAlert.opponentScore ?? "?"}\n\n📊 Résultats uniques : ${monitor.uniqueResults}\n📺 Alertes TV créées : ${monitor.alertsCreated}\n♻️ Doublons ignorés : ${monitor.duplicatesIgnored}\n⏱️ Visuel TV : 1 heure.`);
+  }
+
   console.log(`[ALERTE TV] ${newAlert.isWin ? "VICTOIRE" : "DÉFAITE"} pour ${newAlert.team} activée pour 60 min`);
-  res.json({ success: true, alert: newAlert });
+  res.json({ success: true, alert: newAlert, monitor: monitor ? {
+    uniqueResults: monitor.uniqueResults, alertsCreated: monitor.alertsCreated, duplicatesIgnored: monitor.duplicatesIgnored
+  } : undefined });
 });
 
 // 4. Delete an alert
@@ -553,6 +658,21 @@ app.post("/api/telegram-webhook", async (req, res) => {
 
     const text = message.text;
     const chatId = message.chat?.id;
+    if (chatId) {
+      const monitor = readFfbbMonitor();
+      monitor.telegramChatId = chatId;
+      writeFfbbMonitor(monitor);
+    }
+
+    if (/^\/ffbbstat(?:@\w+)?\b/i.test(text.trim())) {
+      const monitor = readFfbbMonitor();
+      const last = monitor.lastResult;
+      const lastText = last
+        ? `\nDernier résultat : ${last.team} — ${last.ourScore ?? "?"}-${last.opponentScore ?? "?"} (${new Date(last.detectedAt).toLocaleString("fr-FR")})`
+        : "\nAucun résultat FFBB traité pour le moment.";
+      await sendTelegramText(chatId, `📊 Suivi FFBB — Affichage TV\n\n🏀 Résultats uniques détectés : ${monitor.uniqueResults}\n📺 Alertes TV créées : ${monitor.alertsCreated}\n♻️ Doublons ignorés : ${monitor.duplicatesIgnored}${lastText}`);
+      return res.json({ success: true, command: "ffbbstat" });
+    }
     const now = Date.now();
     console.log(`[TELEGRAM INCOMING] ChatId: ${chatId} | Message: "${text}"`);
 
