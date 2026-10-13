@@ -74,8 +74,15 @@ async function runScheduledFfbbSync(env: Env): Promise<void> {
       return;
     }
     const data = JSON.parse(raw);
-    const existingMatches = Array.isArray(data.matches) ? data.matches : [];
-    const existingResults = Array.isArray(data.results) ? data.results : [];
+    // Respecter les équipes décochées dans « Sync FFBB », y compris lors du cron automatique.
+    const ignoredCategories: string[] = Array.isArray(data.clubSettings?.ignoredTeamCategories)
+      ? data.clubSettings.ignoredTeamCategories
+      : [];
+    const isIgnoredMatch = (match: any) => isTeamCategoryIgnored(String(match?.category || ''), ignoredCategories);
+    const existingMatches = (Array.isArray(data.matches) ? data.matches : []).filter((match: any) => !isIgnoredMatch(match));
+    const existingResults = (Array.isArray(data.results) ? data.results : []).filter((match: any) => !isIgnoredMatch(match));
+    const incomingMatches = (payload.matches as any[]).filter((match: any) => !isIgnoredMatch(match));
+    const incomingResults = (Array.isArray(payload.results) ? payload.results : []).filter((match: any) => !isIgnoredMatch(match));
     const now = Date.now();
     let updatedResults = 0;
 
@@ -144,8 +151,8 @@ async function runScheduledFfbbSync(env: Env): Promise<void> {
       return merged;
     };
 
-    data.matches = mergeCollection(existingMatches, payload.matches);
-    data.results = mergeCollection(existingResults, Array.isArray(payload.results) ? payload.results : [], true);
+    data.matches = mergeCollection(existingMatches, incomingMatches);
+    data.results = mergeCollection(existingResults, incomingResults, true);
 
     // Finalisation automatique des matchs commencés depuis plus de deux heures sans résultat.
     const parseMatchStart = (match: any): number | null => {
