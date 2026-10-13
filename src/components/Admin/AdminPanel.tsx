@@ -781,10 +781,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }).then((r) => r.json()).catch(() => null),
         ]);
 
+        const failedResponse = [resInsta, resTikTok, resFB].find((item) => !item?.success || !item?.caption);
+        if (failedResponse) {
+          window.alert(failedResponse.message || "La génération IA a échoué. Vérifiez la configuration de l'IA côté serveur.");
+          return;
+        }
         setAiCustomCaptions({
-          instagram: resInsta?.caption || undefined,
-          tiktok: resTikTok?.caption || undefined,
-          facebook: resFB?.caption || undefined,
+          instagram: resInsta.caption,
+          tiktok: resTikTok.caption,
+          facebook: resFB.caption,
         });
       } else {
         const res = await fetch('/api/generate-caption', {
@@ -805,10 +810,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         const data = await res.json();
         if (data.success && data.caption) {
           setAiCustomCaptions((prev) => ({ ...prev, [targetPlatform]: data.caption }));
+        } else {
+          window.alert(data.message || "La génération IA a échoué. Vérifiez la configuration de l'IA côté serveur.");
         }
       }
     } catch (err) {
       console.error('Erreur génération IA:', err);
+      window.alert("Impossible de contacter le service IA. Vérifiez votre connexion et réessayez.");
     } finally {
       setAiLoading(false);
     }
