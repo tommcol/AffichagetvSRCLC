@@ -2460,6 +2460,8 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
     // Extract unique poule IDs to query official match scores and finished state
     const pouleIds = Array.from(new Set(rawMatches.map((m: any) => m.pouleId).filter(Boolean)));
     const scoreMap = new Map<string, { score1: number; score2: number; joue: boolean }>();
+    // Rencontres brutes de chaque poule (toutes, avec ou sans score), pour retrouver aussi l'heure officielle.
+    const rencontreMap = new Map<string, any>();
     const normalizeMatchId = (value: unknown): string => {
       if (value === undefined || value === null || String(value).trim() === '') return '';
       return String(value).trim().replace(/^FFBB[-_]?/i, '').replace(/^ffbb-/i, '');
@@ -2484,6 +2486,10 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         for (const p of pouleResults) {
           if (p && Array.isArray(p.rencontres)) {
             for (const r of p.rencontres) {
+              for (const k of [r?.id, r?.ffbbMatchId, r?.matchId, r?.rencontreId, r?.numero, r?.numeroRencontre]) {
+                const nk = normalizeMatchId(k);
+                if (nk) rencontreMap.set(nk, r);
+              }
               const rawScore1 = r.resultatEquipe1;
               const rawScore2 = r.resultatEquipe2;
               const validScore = rawScore1 !== undefined && rawScore1 !== null && rawScore1 !== ''
@@ -2590,6 +2596,25 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
       for (const candidate of [m.time, m.heure, m.horaire, m.date_rencontre, m.dateISO, m.date_iso, m.datetime, m.dateTime]) {
         matchTime = normalizeTime(candidate);
         if (matchTime) break;
+      }
+      // Repli : l'heure officielle est parfois seulement dans la rencontre de la poule,
+      // ou sous un autre nom de champ. On cherche d'abord dans la poule, puis dans tous les champs texte.
+      if (!matchTime) {
+        const poulesRencontre = candidateIds.map((id: string) => rencontreMap.get(id)).find(Boolean);
+        for (const src of [poulesRencontre, m]) {
+          if (!src || matchTime) continue;
+          for (const key of ['heure', 'horaire', 'time', 'heureRencontre', 'heure_rencontre', 'date_rencontre', 'dateRencontre', 'dateHeure', 'date_heure', 'dateISO', 'datetime', 'date']) {
+            matchTime = normalizeTime((src as any)[key]);
+            if (matchTime) break;
+          }
+          if (!matchTime) {
+            for (const [key, value] of Object.entries(src as any)) {
+              if (typeof value !== 'string' || !/(heure|horaire|time|date)/i.test(key)) continue;
+              matchTime = normalizeTime(value);
+              if (matchTime) break;
+            }
+          }
+        }
       }
 
       // Ne jamais inventer une heure si la FFBB ne la fournit pas.
