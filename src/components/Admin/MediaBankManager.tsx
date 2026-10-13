@@ -107,31 +107,27 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
     }
   };
 
-  // Demande de suppression d'un média
+  // Toute suppression définitive se confirme depuis la banque, avec les usages listés.
   const handleDeleteMedia = (media: MediaBankItem) => {
-    const usages = getMediaUsages(media.url, visualTemplates);
-
-    if (usages.length > 0) {
-      // Blocage strict de la suppression si encore utilisé
-      setUsageBlockedModal({ media, usages });
-      return;
-    }
-
-    // Média libre de toute utilisation : confirmation de suppression définitive
     setDeleteConfirmModal(media);
   };
 
   const handleConfirmPermanentDelete = () => {
     if (!deleteConfirmModal) return;
     const media = deleteConfirmModal;
+    const usagesBeforeDelete = getMediaUsages(media.url, visualTemplates);
     const res = removeMediaFromBank(visualTemplates, media.id || media.url);
     if (res.success) {
       onUpdateVisualTemplates(res.visualTemplates);
-      showFeedback(`"${media.name}" a été définitivement supprimé de la Banque Médias.`, 'success');
+      const affected = usagesBeforeDelete.length
+        ? ` Références retirées : ${usagesBeforeDelete.join(', ')}.`
+        : ' Ce média n’était utilisé dans aucune composition.';
+      showFeedback(`"${media.name}" a été supprimé de la Banque Médias.${affected}`, 'success');
     } else {
       showFeedback(res.error || 'Erreur lors de la suppression.', 'error');
     }
     setDeleteConfirmModal(null);
+    setUsageBlockedModal(null);
   };
 
   // Application du média à une cible
@@ -421,10 +417,26 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
 
             <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
               <p className="text-xs text-slate-300">
-                Êtes-vous sûr de vouloir supprimer définitivement ce fichier de la Banque Médias ?
+                Confirmez-vous la suppression définitive de ce média de la Banque Médias ?
               </p>
-              <p className="text-[11px] text-rose-400 font-semibold">
-                ⚠️ Cette action est irréversible et supprimera le média de la bibliothèque.
+              {getMediaUsages(deleteConfirmModal.url, visualTemplates).length > 0 ? (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-300">
+                    ⚠️ Attention : ce média est utilisé dans les compositions suivantes. Sa suppression retirera le média de chacune d’elles.
+                  </p>
+                  <ul className="space-y-1 text-[11px] text-slate-200">
+                    {getMediaUsages(deleteConfirmModal.url, visualTemplates).map((usage, index) => (
+                      <li key={index}>• {usage}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-[11px] text-rose-400 font-semibold">
+                  ⚠️ Ce média n’est actuellement utilisé dans aucune composition. Il sera définitivement retiré de la bibliothèque.
+                </p>
+              )}
+              <p className="text-[11px] text-slate-400">
+                Cette action est irréversible. Les autres médias et réglages resteront inchangés.
               </p>
             </div>
 
