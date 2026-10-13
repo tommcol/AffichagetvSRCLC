@@ -2568,22 +2568,25 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         matchResult = ourScore > oppScore ? 'win' : ourScore < oppScore ? 'loss' : 'draw';
       }
 
-      // Extract accurate match time
+      // Extraire l'heure officielle depuis les champs possibles de l'API FFBB.
+      // Selon la réponse, l'heure peut être dans "time"/"heure"/"horaire"
+      // ou incluse dans un champ date ISO (dateISO/date_rencontre).
       let matchTime = '';
-      if (m.time && m.time !== 'Horaire à fixer' && String(m.time).trim() !== '') {
-        let t = String(m.time).trim().replace(/[hH]/g, ':');
-        if (/^\d{1,2}:\d{2}$/.test(t)) {
-          if (t.length === 4) t = '0' + t;
-          matchTime = t;
-        } else {
-          matchTime = t;
-        }
-      } else if (m.date_rencontre && String(m.date_rencontre).includes('T')) {
-        const parts = String(m.date_rencontre).split('T')[1];
-        if (parts && parts.length >= 5) {
-          const hhmm = parts.slice(0, 5);
-          if (hhmm !== '00:00') matchTime = hhmm;
-        }
+      const normalizeTime = (value: unknown): string => {
+        if (value === undefined || value === null) return '';
+        const raw = String(value).trim();
+        if (!raw || /^horaire\s+à\s+fixer$/i.test(raw) || /^(?:null|none|undefined)$/i.test(raw)) return '';
+        const candidate = raw.replace(/[hH]/g, ':');
+        const match = candidate.match(/(?:^|T|\s)(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/);
+        if (!match) return '';
+        const hour = Number(match[1]);
+        const minute = Number(match[2]);
+        if (hour > 23 || minute > 59 || (hour === 0 && minute === 0)) return '';
+        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      };
+      for (const candidate of [m.time, m.heure, m.horaire, m.date_rencontre, m.dateISO, m.date_iso, m.datetime, m.dateTime]) {
+        matchTime = normalizeTime(candidate);
+        if (matchTime) break;
       }
 
       // Ne jamais inventer une heure si la FFBB ne la fournit pas.
