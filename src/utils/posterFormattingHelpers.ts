@@ -5,7 +5,7 @@ import { formatMatchDayAndDate } from './matchDateHelper';
  * e.g. "Samedi 19 septembre | 13h30"
  */
 export function formatPosterMatchDate(dateStr?: string, timeStr?: string): string {
-  const formattedTime = timeStr ? timeStr.replace(':', 'h') : '14h00';
+  const formattedTime = timeStr ? timeStr.replace(':', 'h') : 'Horaire à confirmer';
 
   if (!dateStr || !dateStr.trim()) {
     return `Samedi | ${formattedTime}`;

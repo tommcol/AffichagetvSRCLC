@@ -38,7 +38,7 @@ export function isExemptItem(item?: { teamAway?: string; teamHome?: string; cate
 }
 
 function defaultFormatPosterMatchDate(dateStr?: string, timeStr?: string): string {
-  const formattedTime = timeStr ? timeStr.replace(':', 'h') : '14h00';
+  const formattedTime = timeStr ? timeStr.replace(':', 'h') : 'Horaire à confirmer';
 
   if (!dateStr || !dateStr.trim()) {
     return `Samedi | ${formattedTime}`;
@@ -108,7 +108,7 @@ export function generateSocialCaptions({
     const matchLinesHype = captionMatches.map((m) => {
       const isExempt = isExemptItem(m);
       if (isExempt) return `⏸️ ${m.category || 'Équipe'} : Repos (EXEMPT)`;
-      return `🔥 ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'A DOMICILE 🏠' : 'A L\'EXTERIEUR 🚌'} vs ${m.isHomeMatch ? (m.teamAway || 'Adversaire') : (m.teamHome || safeShortName)} à ${m.time || '20h30'} !`;
+      return `🔥 ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'A DOMICILE 🏠' : 'A L\'EXTERIEUR 🚌'} vs ${m.isHomeMatch ? (m.teamAway || 'Adversaire') : (m.teamHome || safeShortName)} ${m.time ? `à ${m.time}` : '(horaire à confirmer)'} !`;
     }).join('\n');
 
     let insta = '';
