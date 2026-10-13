@@ -2586,9 +2586,8 @@ async function ffbbMatches(request: Request, env: Env): Promise<Response> {
         }
       }
 
-      if (!matchTime) {
-        matchTime = '20:30';
-      }
+      // Ne jamais inventer une heure si la FFBB ne la fournit pas.
+      // Une heure vide pourra être complétée automatiquement lors d'une prochaine synchronisation.
 
       const matchItem = {
         id: `ffbb-${matchId}`,
