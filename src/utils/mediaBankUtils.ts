@@ -27,72 +27,47 @@ export function extractMediaName(url: string, fallbackName?: string): string {
  * Détermine les endroits exacts où un média est actuellement utilisé dans l'application
  */
 export function getMediaUsages(mediaUrl: string, visualTemplates?: VisualTemplatesConfig): string[] {
-  if (!mediaUrl || !visualTemplates) return [];
-  const normalizedTarget = mediaUrl.trim();
-  const usages: string[] = [];
+  if (!mediaUrl?.trim() || !visualTemplates) return [];
+  const target = mediaUrl.trim();
+  const usages = new Set<string>();
 
-  const checkMatch = (val?: string) => {
-    if (!val) return false;
-    return val.trim() === normalizedTarget;
+  const humanizePath = (path: string[]): string => {
+    const raw = path.join('.');
+    const category = /matches/i.test(raw) ? 'Matchs'
+      : /results/i.test(raw) ? 'Résultats'
+      : /birthdays/i.test(raw) ? 'Anniversaires'
+      : /victory/i.test(raw) ? 'Victoire'
+      : /defeat/i.test(raw) ? 'Défaite'
+      : /social|poster|network|reseau/i.test(raw) ? 'Passerelle Réseaux'
+      : 'Autres visuels';
+    const layer = raw.match(/layer([134])/i)?.[1];
+    const isBackground = /background(url)?|backgroundImage|defaultVictoryBackgroundUrl|defaultDefeatBackgroundUrl/i.test(raw);
+    const detail = isBackground ? 'Fond (calque 1)' : layer ? `Calque ${layer}`
+      : /commonVictoryVisuals/i.test(raw) ? 'Visuels Victoire'
+      : /commonDefeatVisuals/i.test(raw) ? 'Visuels Défaite'
+      : path[path.length - 1] || 'Média';
+    return `${category} — ${detail}`;
   };
 
-  // 1. MATCHS
-  if (
-    checkMatch(visualTemplates.matchesBackgroundUrl) ||
-    checkMatch(visualTemplates.matchesSettings?.backgroundUrl)
-  ) {
-    usages.push('Matchs — Fond');
-  }
-  if (checkMatch(visualTemplates.matchesSettings?.layer3?.mediaUrl)) {
-    usages.push('Matchs — Calque 3');
-  }
-  if (checkMatch(visualTemplates.matchesSettings?.layer4?.mediaUrl)) {
-    usages.push('Matchs — Calque 4');
-  }
+  const visit = (value: unknown, path: string[]) => {
+    if (typeof value === 'string') {
+      if (value.trim() === target) usages.add(humanizePath(path));
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => visit(entry, [...path, String(index + 1)]));
+      return;
+    }
+    Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+      // La banque elle-même n'est pas une utilisation du média.
+      if (path.length === 0 && key === 'mediaBank') return;
+      visit(child, [...path, key]);
+    });
+  };
 
-  // 2. RÉSULTATS
-  if (
-    checkMatch(visualTemplates.resultsBackgroundUrl) ||
-    checkMatch(visualTemplates.resultsSettings?.backgroundUrl)
-  ) {
-    usages.push('Résultats — Fond');
-  }
-  if (checkMatch(visualTemplates.resultsSettings?.layer3?.mediaUrl)) {
-    usages.push('Résultats — Calque 3');
-  }
-  if (checkMatch(visualTemplates.resultsSettings?.layer4?.mediaUrl)) {
-    usages.push('Résultats — Calque 4');
-  }
-
-  // 3. ANNIVERSAIRES
-  if (
-    checkMatch(visualTemplates.birthdaysBackgroundUrl) ||
-    checkMatch(visualTemplates.birthdaysSettings?.backgroundUrl)
-  ) {
-    usages.push('Anniversaires — Fond');
-  }
-  if (checkMatch(visualTemplates.birthdaysSettings?.layer3?.mediaUrl)) {
-    usages.push('Anniversaires — Calque 3');
-  }
-  if (checkMatch(visualTemplates.birthdaysSettings?.layer4?.mediaUrl)) {
-    usages.push('Anniversaires — Calque 4');
-  }
-
-  // 4. AUTRES FONDS & VISUELS DU CLUB
-  if (checkMatch(visualTemplates.defaultVictoryBackgroundUrl)) {
-    usages.push('Victoire — Fond');
-  }
-  if (checkMatch(visualTemplates.defaultDefeatBackgroundUrl)) {
-    usages.push('Défaite — Fond');
-  }
-  if (visualTemplates.commonVictoryVisuals?.some((u) => checkMatch(u))) {
-    usages.push('Visuels Victoire');
-  }
-  if (visualTemplates.commonDefeatVisuals?.some((u) => checkMatch(u))) {
-    usages.push('Visuels Défaite');
-  }
-
-  return usages;
+  visit(visualTemplates, []);
+  return Array.from(usages);
 }
 
 /**
@@ -197,7 +172,7 @@ export function addMediaToBank(
 }
 
 /**
- * Supprime un média de la banque UNIQUEMENT s'il n'est utilisé nulle part.
+ * Supprime un média depuis la banque après confirmation utilisateur et retire ses références actives.
  */
 export function removeMediaFromBank(
   visualTemplates: VisualTemplatesConfig,
@@ -205,28 +180,40 @@ export function removeMediaFromBank(
 ): { success: boolean; visualTemplates: VisualTemplatesConfig; error?: string; usages?: string[] } {
   const currentList = getConsolidatedMediaBank(visualTemplates);
   const item = currentList.find((m) => m.id === mediaIdOrUrl || m.url === mediaIdOrUrl);
+  if (!item) return { success: true, visualTemplates };
 
-  if (!item) {
-    return { success: true, visualTemplates };
-  }
-
-  // Vérification stricte des utilisations
   const usages = getMediaUsages(item.url, visualTemplates);
-  if (usages.length > 0) {
-    return {
-      success: false,
-      visualTemplates,
-      usages,
-      error: `Impossible de supprimer ce média. Utilisé dans :\n${usages.map((u) => `• ${u}`).join('\n')}`,
-    };
-  }
+  const targetUrl = item.url.trim();
 
-  const updatedList = currentList.filter((m) => m.url !== item.url && m.id !== item.id);
+  // La suppression explicite depuis la banque retire aussi les références actives,
+  // afin qu'aucune slide ni composition ne conserve une URL cassée.
+  const clearReferences = (value: unknown, root = false): unknown => {
+    if (typeof value === 'string') return value.trim() === targetUrl ? '' : value;
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) {
+      return value
+        .filter((entry) => !(typeof entry === 'string' && entry.trim() === targetUrl))
+        .map((entry) => clearReferences(entry));
+    }
+    const next: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+      if (root && key === 'mediaBank') {
+        next[key] = child;
+      } else {
+        next[key] = clearReferences(child);
+      }
+    });
+    return next;
+  };
+
+  const cleaned = clearReferences(visualTemplates, true) as VisualTemplatesConfig;
+  const updatedList = currentList.filter((m) => m.url.trim() !== targetUrl && m.id !== item.id);
 
   return {
     success: true,
+    usages,
     visualTemplates: {
-      ...visualTemplates,
+      ...cleaned,
       mediaBank: updatedList,
     },
   };
