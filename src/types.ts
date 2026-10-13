@@ -380,6 +380,7 @@ export interface ClubSettings {
   facebookPage?: string; // ex: "Nom du club"
   tiktokHandle?: string; // ex: "@votre_club"
   socialWebhookUrl?: string; // Webhook Zapier / Make / Meta Business / Discord
+  aiProvider?: 'mistral' | 'openai' | 'claude' | 'gemini'; // Fournisseur IA pour les légendes sociales
   purePhotoSlidesOnly?: boolean; // Mode 100% photo/image pur sans aucun texte superposé
   hideTextOverlays?: boolean; // Masquer le texte sur les diapos photos
   balancedLoopMode?: boolean; // Alternance équilibrée des catégories (1 match, 1 sponsor, 1 photo, 1 résultat...)
