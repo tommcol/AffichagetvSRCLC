@@ -1,10 +1,11 @@
-import { GoogleGenAI } from '@google/genai';
-
 interface Env {
   AFFICHAGE_KV: KVNamespace;
   AFFICHAGE_R2?: R2Bucket;
   ADMIN_PASSWORD?: string;
   GEMINI_API_KEY?: string;
+  MISTRAL_API_KEY?: string;
+  OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
   TELEGRAM_BOT_TOKEN?: string;
   ASSETS: { fetch: typeof fetch };
 }
@@ -2831,95 +2832,113 @@ async function ffbbSearch(request: Request): Promise<Response> {
 // ============================================================
 
 async function generateCaption(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') {
-    return new Response('Méthode non autorisée', { status: 405 });
-  }
+  if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
+  const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
+    status, headers: { 'Content-Type': 'application/json' },
+  });
+
   try {
-    const body = (await request.json()) as any;
+    const body = await request.json() as any;
     const {
       platform = 'instagram', type = 'matches', matches = [], results = [],
       clubName = 'Notre Club', shortClub = 'Club', gymnasium = 'Gymnase du Club',
-      tone = 'supporter', extraContext = '',
+      tone = 'supporter', extraContext = '', provider = 'gemini',
     } = body;
 
     const matchesSummary = (matches || []).map((m: any) =>
-      `- ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'à Domicile vs ' + (m.teamAway || 'Adversaire') : 'à l\'Extérieur @ ' + (m.teamHome || 'Adversaire')} le ${m.date || ''} à ${m.time || ''}`
-    ).join('\n');
+      `- ${m.category || 'Équipe'} : ${m.isHomeMatch ? 'à Domicile vs ' + (m.teamAway || 'Adversaire') : "à l'Extérieur @ " + (m.teamHome || 'Adversaire')} le ${m.date || ''} à ${m.time || ''}`
+    ).join('\\n');
     const resultsSummary = (results || []).map((r: any) =>
       `- ${r.category || 'Équipe'} : ${r.homeScore ?? 0} - ${r.awayScore ?? 0} (${r.result === 'win' ? 'Victoire 🏆' : 'Défaite ❌'}) vs ${r.isHomeMatch ? (r.teamAway || 'Adversaire') : (r.teamHome || 'Adversaire')}`
-    ).join('\n');
+    ).join('\\n');
 
-    const apiKey = env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "IA_NON_CONFIGUREE",
-        message: "La clé GEMINI_API_KEY n'est pas configurée dans Cloudflare Workers. Ajoutez-la comme secret pour activer l'IA."
-      }), { status: 503, headers: { 'Content-Type': 'application/json' } });
-    }
+    const prompt = `Tu es le Community Manager passionné et créatif du club de basketball "${clubName}" (aussi appelé ${shortClub}).
+Rédige une légende captivante, moderne et prête à publier sur "${String(platform).toUpperCase()}".
 
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Tu es le Community Manager passionné et créatif du club de basketball "${clubName}" (Aussi appelé ${shortClub}).
-Rédige une légende captivante, moderne et prête à être publiée sur le réseau social "${platform.toUpperCase()}".
+Contexte : ${type === 'matches' ? 'annonce des prochains matchs du week-end' : 'bilan et résultats des matchs passés'}.
+Ton : ${tone === 'supporter' ? "survolté, très enthousiaste, esprit d'équipe 🔥" : tone === 'officiel' ? 'professionnel, chaleureux et institutionnel' : tone === 'fun' ? 'dynamique, jeune, punchy avec emojis ⚡' : "centré sur la buvette, l'ambiance et les supporters 🍿"}.
 
-Contexte du post : ${type === 'matches' ? 'Annonce des prochains matchs du week-end' : 'Bilan et résultats des matchs passés'}.
-Ton souhaité : ${tone === 'supporter' ? "Survolté, très enthousiaste, esprit d'équipe 🔥" : tone === 'officiel' ? 'Professionnel, chaleureux et institutionnel 🏛️' : tone === 'fun' ? 'Dynamique, jeune, punchy avec emojis ⚡' : "Centré sur la buvette, l'ambiance et les supporters 🍿"}.
-
-${type === 'matches' ? `Matchs du week-end (${matches.length} rencontres retenues) :\n${matchesSummary || 'Matchs à venir du club'}\nLieu principal domicile : ${gymnasium}` : `Résultats des rencontres :\n${resultsSummary || 'Résultats récents du club'}`}
+${type === 'matches' ? `Matchs du week-end (${matches.length} rencontres retenues) :\\n${matchesSummary || 'Matchs à venir du club'}\\nLieu principal à domicile : ${gymnasium}` : `Résultats des rencontres :\\n${resultsSummary || 'Résultats récents du club'}`}
 ${extraContext ? `Instructions supplémentaires du club : ${extraContext}` : ''}
 
 Directives :
 1. Structurer clairement avec des sections lisibles et des emojis attrayants.
-2. Pour Instagram / Facebook, inclure une accroche percutante, la liste des rencontres/résultats, une incitation à venir encourager au gymnase / à la buvette.
-3. Pour TikTok, faire une version plus courte, dynamique et avec des hashtags tendance (#basketball #matchday #fyp etc.).
+2. Pour Instagram/Facebook, inclure une accroche, les rencontres/résultats et une incitation à venir encourager au gymnase ou à la buvette.
+3. Pour TikTok, faire une version plus courte, dynamique et avec des hashtags pertinents.
 4. Terminer par des hashtags pertinents pour le club.
-Restitue uniquement le texte de la légende rédigé, sans guillemets ni meta-commentaires.`;
+Restitue uniquement la légende, sans guillemets ni méta-commentaires.`;
 
-      const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-      const captionText = response.text?.trim();
-      if (!captionText) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: "REPONSE_IA_VIDE",
-          message: "L'IA a répondu sans fournir de texte. Réessayez."
-        }), { status: 502, headers: { 'Content-Type': 'application/json' } });
-      }
-      return new Response(JSON.stringify({ success: true, provider: 'gemini', caption: captionText }), {
-        status: 200, headers: { 'Content-Type': 'application/json' },
+    const providers: Record<string, { key?: string; label: string }> = {
+      mistral: { key: env.MISTRAL_API_KEY, label: 'Mistral' },
+      openai: { key: env.OPENAI_API_KEY, label: 'OpenAI / ChatGPT' },
+      claude: { key: env.ANTHROPIC_API_KEY, label: 'Anthropic / Claude' },
+      gemini: { key: env.GEMINI_API_KEY, label: 'Google / Gemini' },
+    };
+    const selected = providers[String(provider)];
+    if (!selected) return json({ success: false, error: 'FOURNISSEUR_INCONNU', message: "Fournisseur IA inconnu. Choisissez Mistral, ChatGPT, Claude ou Gemini." }, 400);
+    if (!selected.key) {
+      const secretName: Record<string, string> = {
+        mistral: 'MISTRAL_API_KEY', openai: 'OPENAI_API_KEY',
+        claude: 'ANTHROPIC_API_KEY', gemini: 'GEMINI_API_KEY',
+      };
+      return json({
+        success: false, error: 'IA_NON_CONFIGUREE',
+        message: `Le fournisseur ${selected.label} est sélectionné, mais son secret ${secretName[String(provider)]} n'est pas configuré dans Cloudflare Workers > Settings > Variables and Secrets.`,
+      }, 503);
+    }
+
+    let captionText = '';
+    if (provider === 'mistral' || provider === 'openai') {
+      const endpoint = provider === 'mistral'
+        ? 'https://api.mistral.ai/v1/chat/completions'
+        : 'https://api.openai.com/v1/chat/completions';
+      const model = provider === 'mistral' ? 'mistral-small-latest' : 'gpt-4o-mini';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${selected.key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.7 }),
       });
-    } catch (geminiErr: any) {
-      console.error('[GEMINI API ERROR]', geminiErr?.message || geminiErr);
-      return new Response(JSON.stringify({
-        success: false,
-        error: "ECHEC_GENERATION_IA",
-        message: "Impossible de joindre Gemini. Vérifiez la clé GEMINI_API_KEY, les autorisations et les limites d'utilisation dans Google AI Studio."
-      }), { status: 502, headers: { 'Content-Type': 'application/json' } });
-    }
-
-    let generatedCaption = '';
-    if (type === 'matches') {
-      const matchCount = (matches || []).length;
-      if (platform === 'tiktok') {
-        generatedCaption = `⚡ WEEK-END DE BASKET INTENSE POUR ${shortClub.toUpperCase()} ! 🏀🔥\n${matchCount} matchs au programme ce week-end ! Qui vient faire chauffer la salle ? 🥁💥\n\n#basketball #matchday #bball #fyp #pourtoi #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
-      } else if (tone === 'officiel') {
-        generatedCaption = `🏀 PROGRAMME OFFICIEL DES RENCONTRES • ${clubName.toUpperCase()} 🏀\n\nNous vous présentons l'ensemble des matchs programmés pour le week-end :\n\n${matchesSummary || 'Rencontres à venir'}\n\n📍 Gymnase : ${gymnasium}\nNous comptons sur votre présence pour soutenir nos joueuses et joueurs ! 🔴⚪\n\n#Basketball #FFBB #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
-      } else {
-        generatedCaption = `🔥 WEEK-END CHAUD BOUILLANT CHEZ LES ${shortClub.toUpperCase()} ! 🔥\n\nPréparez les tambours et les maillots, voici les ${matchCount} matchs clés sélectionnés du week-end !\n\n${matchesSummary || 'Prochaines rencontres'}\n\n🍿 Buvette & petite restauration assurées au ${gymnasium} !\nAllez ${shortClub} ! ❤️🤍\n\n#GameDay #MatchWeek #TeamBasket #FFBB #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      const data = await response.json() as any;
+      if (!response.ok) {
+        console.error(`[${selected.label} API ERROR]`, response.status, data?.error?.message || data?.message || '');
+        return json({ success: false, error: 'ECHEC_GENERATION_IA', message: `Impossible de générer le texte avec ${selected.label} (HTTP ${response.status}). Vérifiez la clé API, les autorisations et le quota.` }, 502);
       }
+      captionText = data?.choices?.[0]?.message?.content?.trim() || '';
+    } else if (provider === 'claude') {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': selected.key,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 900, messages: [{ role: 'user', content: prompt }] }),
+      });
+      const data = await response.json() as any;
+      if (!response.ok) {
+        console.error('[Anthropic API ERROR]', response.status, data?.error?.message || '');
+        return json({ success: false, error: 'ECHEC_GENERATION_IA', message: `Impossible de générer le texte avec Claude (HTTP ${response.status}). Vérifiez la clé API, les autorisations et le quota.` }, 502);
+      }
+      captionText = Array.isArray(data?.content) ? data.content.filter((part: any) => part.type === 'text').map((part: any) => part.text).join('').trim() : '';
     } else {
-      if (platform === 'tiktok') {
-        generatedCaption = `🏆 BILAN DU WEEK-END DE ${shortClub.toUpperCase()} ! 🏀\nVoici les scores de nos équipes ! Laisse un ❤️ pour féliciter nos joueurs !\n\n#resultats #basket #victoire #fyp #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
-      } else {
-        generatedCaption = `🏆 RÉSULTATS & BILAN DU WEEK-END — ${clubName.toUpperCase()} 🏆\n\nVoici le résumé complet des rencontres du week-end :\n\n${resultsSummary || 'Résultats récents'}\n\nUn grand bravo à toutes nos équipes, coachs et supporters pour leur ferveur ! 👏🔥\n\n#Résultats #Basket #TeamWork #${shortClub.replace(/[^a-zA-Z0-9]/g, '')}`;
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(selected.key)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 900 } }),
+      });
+      const data = await response.json() as any;
+      if (!response.ok) {
+        console.error('[Gemini API ERROR]', response.status, data?.error?.message || '');
+        return json({ success: false, error: 'ECHEC_GENERATION_IA', message: `Impossible de générer le texte avec Gemini (HTTP ${response.status}). Vérifiez la clé API, les autorisations et le quota.` }, 502);
       }
+      captionText = data?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || '').join('').trim() || '';
     }
 
-    return new Response(JSON.stringify({ success: true, provider: 'smart_local_generator', caption: generatedCaption }), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    });
+    if (!captionText) return json({ success: false, error: 'REPONSE_IA_VIDE', message: `L'IA ${selected.label} n'a pas fourni de texte. Réessayez.` }, 502);
+    return json({ success: true, provider, caption: captionText });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    console.error('[AI CAPTION ERROR]', err?.message || err);
+    return json({ success: false, error: 'ECHEC_GENERATION_IA', message: "Une erreur est survenue pendant la génération du texte. Vérifiez la configuration du fournisseur IA puis réessayez." }, 502);
   }
 }
 
