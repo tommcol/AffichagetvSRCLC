@@ -90,6 +90,9 @@ async function runScheduledFfbbSync(env: Env): Promise<void> {
           && typeof fresh.homeScore === 'number' && typeof fresh.awayScore === 'number';
         if (previous) {
           const merged = { ...previous, ...fresh };
+          // Si la FFBB ne fournit plus d'heure pour la même date, garder la dernière heure connue
+          // plutôt que de l'effacer (une heure vide ne doit jamais écraser une heure existante).
+          if (!fresh.time && previous.time && previous.date === fresh.date) merged.time = previous.time;
           // Conserver les champs que l'utilisateur a explicitement modifiés dans l'interface.
           for (const field of ['date', 'time', 'gymnasium', 'opponentLogo']) {
             const manualFlag = field === 'date' ? 'isDateManual'
