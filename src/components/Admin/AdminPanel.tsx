@@ -745,6 +745,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
+
+              provider: clubSettings.aiProvider || 'gemini',
             }),
           }).then((r) => r.json()).catch(() => null),
 
@@ -761,6 +763,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
+
+              provider: clubSettings.aiProvider || 'gemini',
             }),
           }).then((r) => r.json()).catch(() => null),
 
@@ -777,6 +781,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               gymnasium: safeGymnasium,
               tone: aiTone,
               extraContext: aiExtraContext.trim(),
+
+              provider: clubSettings.aiProvider || 'gemini',
             }),
           }).then((r) => r.json()).catch(() => null),
         ]);
@@ -805,6 +811,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             gymnasium: safeGymnasium,
             tone: aiTone,
             extraContext: aiExtraContext.trim(),
+
+            provider: clubSettings.aiProvider || 'gemini',
           }),
         });
         const data = await res.json();
@@ -838,6 +846,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           shortClub: clubSettings.shortName || clubSettings.name || 'Notre Club',
           gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
           tone: aiTone,
+          provider: clubSettings.aiProvider || 'gemini',
+
           extraContext: `RÉÉCRITURE DE TEXTE - IGNORE LES AUTRES INSTRUCTIONS ET LES MATCHS : Corrige les fautes, optimise la tournure, et applique ces consignes d'amélioration : "${customRewriteInstructions || 'Améliorer le style et corriger l\'orthographe'}".
 Voici le texte brut que tu dois améliorer et réécrire :
 "${customRewriteInput}"
@@ -6917,6 +6927,38 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 onUpdateVisualTemplates={onUpdateVisualTemplates}
                 embeddedInTab={true}
               />
+
+              {/* Configuration du fournisseur IA : les clés restent exclusivement dans les secrets Cloudflare */}
+              <div className="bg-slate-800/60 p-6 rounded-3xl border border-orange-500/30 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black text-white">FOURNISSEUR IA DES LÉGENDES</h4>
+                    <p className="text-xs text-slate-400">Choisissez le modèle utilisé pour les légendes et la réécriture de textes.</p>
+                  </div>
+                </div>
+                <label className="block space-y-2">
+                  <span className="text-xs font-bold text-slate-300">Intelligence artificielle</span>
+                  <select
+                    value={clubSettings.aiProvider || 'gemini'}
+                    onChange={(e) => onUpdateClubSettings({ ...clubSettings, aiProvider: e.target.value as ClubSettings['aiProvider'] })}
+                    className="w-full max-w-xl px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-sm focus:border-orange-500 focus:outline-none"
+                  >
+                    <option value="mistral">Mistral — Mistral Small</option>
+                    <option value="openai">ChatGPT — GPT-4o mini</option>
+                    <option value="claude">Claude — Haiku</option>
+                    <option value="gemini">Gemini — Gemini 2.5 Flash</option>
+                  </select>
+                </label>
+                <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-4 space-y-2 text-xs text-slate-300">
+                  <p className="font-bold text-orange-300">Clé API sécurisée côté serveur</p>
+                  <p>Pour activer le fournisseur choisi, ajoutez sa clé dans Cloudflare : Workers & Pages → affichagetvsrclc → Settings → Variables and Secrets → Add secret. Ne collez pas la clé ici et ne l'enregistrez pas dans les réglages du club.</p>
+                  <p className="font-mono text-[11px] text-slate-400">Mistral : MISTRAL_API_KEY · ChatGPT : OPENAI_API_KEY · Claude : ANTHROPIC_API_KEY · Gemini : GEMINI_API_KEY</p>
+                  <p className="text-amber-300">Chaque installation Cloudflare possède ses propres secrets. Les clés ne sont jamais envoyées au navigateur. Un seul secret est nécessaire pour le fournisseur sélectionné.</p>
+                </div>
+              </div>
 
               {/* Account Settings & Webhook Section */}
               <div className="bg-slate-800/60 p-6 rounded-3xl border border-slate-700/60 space-y-5">
