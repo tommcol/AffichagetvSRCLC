@@ -172,7 +172,7 @@ export function addMediaToBank(
 }
 
 /**
- * Supprime un média de la banque UNIQUEMENT s'il n'est utilisé nulle part.
+ * Supprime un média depuis la banque après confirmation utilisateur et retire ses références actives.
  */
 export function removeMediaFromBank(
   visualTemplates: VisualTemplatesConfig,
@@ -191,7 +191,9 @@ export function removeMediaFromBank(
     if (typeof value === 'string') return value.trim() === targetUrl ? '' : value;
     if (!value || typeof value !== 'object') return value;
     if (Array.isArray(value)) {
-      return value.map((entry) => clearReferences(entry));
+      return value
+        .filter((entry) => !(typeof entry === 'string' && entry.trim() === targetUrl))
+        .map((entry) => clearReferences(entry));
     }
     const next: Record<string, unknown> = {};
     Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
