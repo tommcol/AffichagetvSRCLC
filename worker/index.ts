@@ -2850,10 +2850,17 @@ async function generateCaption(request: Request, env: Env): Promise<Response> {
     ).join('\n');
 
     const apiKey = env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        const prompt = `Tu es le Community Manager passionné et créatif du club de basketball "${clubName}" (Aussi appelé ${shortClub}).
+    if (!apiKey) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "IA_NON_CONFIGUREE",
+        message: "La clé GEMINI_API_KEY n'est pas configurée dans Cloudflare Workers. Ajoutez-la comme secret pour activer l'IA."
+      }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Tu es le Community Manager passionné et créatif du club de basketball "${clubName}" (Aussi appelé ${shortClub}).
 Rédige une légende captivante, moderne et prête à être publiée sur le réseau social "${platform.toUpperCase()}".
 
 Contexte du post : ${type === 'matches' ? 'Annonce des prochains matchs du week-end' : 'Bilan et résultats des matchs passés'}.
@@ -2869,16 +2876,25 @@ Directives :
 4. Terminer par des hashtags pertinents pour le club.
 Restitue uniquement le texte de la légende rédigé, sans guillemets ni meta-commentaires.`;
 
-        const response = await ai.models.generateContent({ model: 'gemini-3.6-flash', contents: prompt });
-        const captionText = response.text?.trim();
-        if (captionText) {
-          return new Response(JSON.stringify({ success: true, provider: 'gemini', caption: captionText }), {
-            status: 200, headers: { 'Content-Type': 'application/json' },
-          });
-        }
-      } catch (geminiErr: any) {
-        console.warn('[GEMINI API WARNING] Fallback local utilisé :', geminiErr.message);
+      const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const captionText = response.text?.trim();
+      if (!captionText) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: "REPONSE_IA_VIDE",
+          message: "L'IA a répondu sans fournir de texte. Réessayez."
+        }), { status: 502, headers: { 'Content-Type': 'application/json' } });
       }
+      return new Response(JSON.stringify({ success: true, provider: 'gemini', caption: captionText }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (geminiErr: any) {
+      console.error('[GEMINI API ERROR]', geminiErr?.message || geminiErr);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "ECHEC_GENERATION_IA",
+        message: "Impossible de joindre Gemini. Vérifiez la clé GEMINI_API_KEY, les autorisations et les limites d'utilisation dans Google AI Studio."
+      }), { status: 502, headers: { 'Content-Type': 'application/json' } });
     }
 
     let generatedCaption = '';
