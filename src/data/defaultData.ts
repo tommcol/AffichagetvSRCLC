@@ -31,6 +31,7 @@ export const DEFAULT_CLUB_SETTINGS: ClubSettings = {
   facebookPage: '',
   tiktokHandle: '',
   socialWebhookUrl: '',
+  aiProvider: 'gemini',
   purePhotoSlidesOnly: true,
   hideTextOverlays: true,
   ignoredTeamCategories: [],
