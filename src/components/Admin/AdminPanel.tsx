@@ -102,7 +102,6 @@ import { MiniCalendarPicker, SingleDatePicker, formatDateToReadableFrench } from
 import { StudioGraphiqueWorkbench } from './StudioGraphiqueWorkbench';
 import { MediaBankManager } from './MediaBankManager';
 import { getConsolidatedMediaBank } from '../../utils/mediaBankUtils';
-import { VisualExporterModal } from '../VisualExporterModal';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../../utils/fontUtils';
 
 
@@ -6915,17 +6914,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'social' && (
             <div className="space-y-6">
-              {/* Studio Graphique & Exporteur Visuel Réseaux Sociaux Intégré Directement */}
-              <VisualExporterModal
-                isOpen={true}
-                onClose={() => {}}
-                type="matches"
-                matches={matches}
-                results={results}
-                clubSettings={clubSettings}
+                            {/* Studio Graphique Réseaux Sociaux (harmonisé avec Matchs / Résultats / Anniversaires) */}
+              <StudioGraphiqueWorkbench
                 visualTemplates={visualTemplates}
                 onUpdateVisualTemplates={onUpdateVisualTemplates}
-                embeddedInTab={true}
+                matches={matches}
+                results={results}
+                birthdays={birthdays}
+                clubSettings={clubSettings}
               />
 
               {/* Configuration du fournisseur IA : les clés restent exclusivement dans les secrets Cloudflare */}
