@@ -2142,7 +2142,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 }`}
               >
                 <Sliders className="w-4 h-4 text-amber-400" />
-                <span>🎨 Atelier graphique</span>
+                <span>🎨 Calques &amp; Design Studio</span>
               </button>
             </div>
 
