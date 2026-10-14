@@ -9,9 +9,6 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
   tests:
     name: Contrôle qualité (lint + tests)
@@ -33,13 +30,4 @@ jobs:
         run: npm run lint
 
       - name: Lancer les tests
-        run: npm test 2>&1 | tee ci-test-output.log
-
-      - name: Publier le journal des tests (diagnostic)
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-test-output.log
-          git commit -m "Journal des tests (diagnostic CI) [skip ci]" || echo "rien à committer"
-          git push
+        run: npm test
