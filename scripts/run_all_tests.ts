@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 
+// Durée maximale d'une suite de tests avant de la déclarer bloquante (secondes)
+const TIMEOUT_SECONDS = 45;
+
 // Lance tous les scripts de test du dossier scripts/ (fichiers test_*.ts)
 const files = readdirSync('scripts')
   .filter((f) => f.startsWith('test_') && f.endsWith('.ts'))
@@ -11,7 +14,7 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-console.log(`Lancement de ${files.length} suites de tests...\n`);
+console.log(`Lancement de ${files.length} suites de tests (max ${TIMEOUT_SECONDS}s par suite)...\n`);
 
 const failures: string[] = [];
 for (const file of files) {
@@ -20,20 +23,28 @@ for (const file of files) {
   const result = spawnSync('npx', ['tsx', `scripts/${file}`], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
+    timeout: TIMEOUT_SECONDS * 1000,
+    killSignal: 'SIGKILL',
   });
+  const err = result.error as any;
+  if (err && err.code === 'ETIMEDOUT') {
+    failures.push(file);
+    console.error('BLOQUÉ : ' + file + ' a dépassé ' + TIMEOUT_SECONDS + 's (test qui ne se termine jamais)');
+    continue;
+  }
   if (result.status !== 0) {
     failures.push(file);
-    console.error(`\u274C \u00c9CHEC : ${file}`);
+    console.error('ÉCHEC : ' + file);
   } else {
-    console.log(`\u2705 OK : ${file}`);
+    console.log('OK : ' + file);
   }
 }
 
 console.log('==================================================');
 if (failures.length > 0) {
-  console.error(`\nR\u00e9sultat : ${files.length - failures.length}/${files.length} suites OK`);
-  console.error('Suites en \u00e9chec :');
-  for (const f of failures) console.error(`  - ${f}`);
+  console.error('Résultat : ' + (files.length - failures.length) + '/' + files.length + ' suites OK');
+  console.error('Suites en échec ou bloquées :');
+  for (const f of failures) console.error('  - ' + f);
   process.exit(1);
 }
-console.log(`\nR\u00e9sultat : ${files.length}/${files.length} suites OK \ud83c\udf89`);
+console.log('Résultat : ' + files.length + '/' + files.length + ' suites OK 🎉');
