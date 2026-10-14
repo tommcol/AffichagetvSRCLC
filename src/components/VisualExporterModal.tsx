@@ -39,6 +39,7 @@ import {
   AlertCircle,
   Wand2,
   Loader2,
+  Film,
 } from 'lucide-react';
 import { safeExportPosterToDataUrl, PosterAspectRatio, POSTER_DIMENSIONS } from '../utils/posterExporter';
 import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption, CategorySlideTheme, SlideDesignTheme } from '../types';
