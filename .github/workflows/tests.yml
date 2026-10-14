@@ -6,24 +6,36 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   tests:
-    name: Contr\u00f4le qualit\u00e9 (lint + tests)
+    name: Contrôle qualité (lint + tests)
     runs-on: ubuntu-latest
     steps:
-      - name: R\u00e9cup\u00e9rer le code
+      - name: Récupérer le code
         uses: actions/checkout@v4
 
       - name: Installer Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
-      - name: Installer les d\u00e9pendances
+      - name: Installer les dépendances
         run: npm install
 
-      - name: V\u00e9rification TypeScript (lint)
+      - name: Vérification TypeScript (lint)
         run: npm run lint
 
       - name: Lancer les tests
-        run: npm test
+        run: npm test 2>&1 | tee ci-test-output.log
+
+      - name: Publier le journal des tests (diagnostic)
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-test-output.log
+          git commit -m "Journal des tests (diagnostic CI) [skip ci]" || echo "rien à committer"
+          git push
