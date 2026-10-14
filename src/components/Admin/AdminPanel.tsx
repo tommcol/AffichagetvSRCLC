@@ -6922,6 +6922,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                 type="matches"
                 matches={matches}
                 results={results}
+                birthdays={birthdays}
                 clubSettings={clubSettings}
                 visualTemplates={visualTemplates}
                 onUpdateVisualTemplates={onUpdateVisualTemplates}
