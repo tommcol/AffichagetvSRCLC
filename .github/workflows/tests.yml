@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Contr\u00f4le qualit\u00e9 (lint + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - name: R\u00e9cup\u00e9rer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les d\u00e9pendances
+        run: npm install
+
+      - name: V\u00e9rification TypeScript (lint)
+        run: npm run lint
+
+      - name: Lancer les tests
+        run: npm test
