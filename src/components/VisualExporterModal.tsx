@@ -135,7 +135,7 @@ interface VisualExporterModalProps {
   type: PosterInitialContentType;
   matches: MatchItem[];
   results: MatchItem[];
-  birthdays: BirthdayItem[];
+  birthdays?: BirthdayItem[];
   clubSettings: ClubSettings;
   specificNotification?: FinishedMatchNotification | null;
   visualTemplates?: VisualTemplatesConfig;
@@ -155,7 +155,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   type: initialType,
   matches,
   results,
-  birthdays,
+  birthdays = [],
   clubSettings,
   specificNotification,
   visualTemplates,
