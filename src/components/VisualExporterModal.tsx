@@ -42,7 +42,7 @@ import {
   Film,
 } from 'lucide-react';
 import { safeExportPosterToDataUrl, PosterAspectRatio, POSTER_DIMENSIONS } from '../utils/posterExporter';
-import { MatchItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption, CategorySlideTheme, SlideDesignTheme } from '../types';
+import { MatchItem, BirthdayItem, ClubSettings, FinishedMatchNotification, VisualTemplatesConfig, FontFamilyOption, CategorySlideTheme, SlideDesignTheme } from '../types';
 import { formatMatchDayAndDate, sortMatchesChronologically } from '../utils/matchDateHelper';
 import { getEffectiveCategoryConfig } from '../utils/themeUtils';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../utils/fontUtils';
@@ -78,6 +78,7 @@ import {
   formatTeamNameForBadge,
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
+import { StudioGraphiqueWorkbench } from './Admin/StudioGraphiqueWorkbench';
 import { MediaBankSelectorModal } from './Admin/MediaBankSelectorModal';
 import { getPosterBadgeTitle } from '../utils/posterBadgeHelpers';
 import {
@@ -134,6 +135,7 @@ interface VisualExporterModalProps {
   type: PosterInitialContentType;
   matches: MatchItem[];
   results: MatchItem[];
+  birthdays: BirthdayItem[];
   clubSettings: ClubSettings;
   specificNotification?: FinishedMatchNotification | null;
   visualTemplates?: VisualTemplatesConfig;
@@ -153,6 +155,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   type: initialType,
   matches,
   results,
+  birthdays,
   clubSettings,
   specificNotification,
   visualTemplates,
@@ -2139,7 +2142,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 }`}
               >
                 <Sliders className="w-4 h-4 text-amber-400" />
-                <span>🎨 Calques & Design Studio</span>
+                <span>🎨 Atelier graphique</span>
               </button>
             </div>
 
@@ -2691,6 +2694,19 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* OPTION 2: STUDIO GRAPHIQUE & CALQUES OPTIONS */}
             {/* ========================================================================= */}
             {rightPanelTab === 'layers' && (
+              <StudioGraphiqueWorkbench
+                visualTemplates={visualTemplates || ({} as VisualTemplatesConfig)}
+                onUpdateVisualTemplates={onUpdateVisualTemplates || (() => {})}
+                matches={matches}
+                results={results}
+                birthdays={birthdays}
+                clubSettings={clubSettings}
+                defaultCategory={contentType === 'results' ? 'results' : 'matches'}
+                hideCategorySelector={true}
+              />
+            )}
+
+            {rightPanelTab === 'layers' && false && (
               <div className="space-y-3.5">
                 <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">
