@@ -77,6 +77,7 @@ import {
   formatTeamNameForBadge,
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
+import { MediaBankSelectorModal } from './Admin/MediaBankSelectorModal';
 import { getPosterBadgeTitle } from '../utils/posterBadgeHelpers';
 import {
   getPosterItemKey,
@@ -181,6 +182,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Background image customization
   const [customBgImage, setCustomBgImage] = useState<string | null>(null);
+  const [mediaBankTarget, setMediaBankTarget] = useState<'background' | 'layer3' | 'layer4' | null>(null);
 
   // Calque 1 (Arrière-plan / Fond) visual settings
   const [layer1Brightness, setLayer1Brightness] = useState<number>(0.55); // 0.1 to 1.5 (default 55%)
@@ -899,6 +901,28 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         ? 'bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl'
         : 'h-full sm:h-[94vh] sm:max-h-[96vh] max-w-full sm:max-w-[96vw] xl:max-w-[94vw] 2xl:max-w-[1700px] bg-slate-900 sm:border border-slate-800 rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col'
     }`}>
+      {visualTemplates && mediaBankTarget && (
+        <MediaBankSelectorModal
+          isOpen={true}
+          onClose={() => setMediaBankTarget(null)}
+          visualTemplates={visualTemplates}
+          filterType="image"
+          title={mediaBankTarget === 'background' ? 'Choisir un fond ou une photo' : mediaBankTarget === 'layer3' ? 'Choisir le média du calque 3' : 'Choisir le média du calque 4'}
+          onSelect={(mediaUrl) => {
+            if (mediaBankTarget === 'background') {
+              setCustomBgImage(mediaUrl);
+              setBgSource('custom');
+            } else if (mediaBankTarget === 'layer3') {
+              setCustomLayer3Image(mediaUrl);
+              setShowStudioLayer3(true);
+            } else {
+              setCustomLayer4Image(mediaUrl);
+              setShowStudioLayer4(true);
+            }
+            setMediaBankTarget(null);
+          }}
+        />
+      )}
       {/* Modal Header */}
       <div className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -2733,6 +2757,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       >
                         🎨 Fond Studio
                       </button>
+                      {visualTemplates && onUpdateVisualTemplates && (
+                        <button
+                          type="button"
+                          onClick={() => setMediaBankTarget('background')}
+                          className="px-2 py-1 rounded-lg text-xs font-bold border border-emerald-700/70 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 transition-all"
+                          title="Choisir une photo ou un fond dans la Banque Médias commune"
+                        >
+                          🎞️ Banque Médias
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
@@ -3087,6 +3121,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                     {/* Layer 3 Media Selection & Upload */}
                     <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                      {visualTemplates && onUpdateVisualTemplates && (
+                        <button type="button" onClick={() => setMediaBankTarget('layer3')} className="w-full py-1.5 px-2 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 text-xs font-bold flex items-center justify-center gap-1.5 transition-all" title="Choisir un élément de la Banque Médias commune">
+                          <Film className="w-3.5 h-3.5" /> Choisir dans la Banque Médias
+                        </button>
+                      )}
                       <div className="flex items-center gap-2">
                         {effectiveLayer3Url ? (
                           <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-900 border border-slate-700/80 rounded-lg p-1.5">
@@ -3232,6 +3271,11 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                     {/* Layer 4 Media Selection & Upload */}
                     <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                      {visualTemplates && onUpdateVisualTemplates && (
+                        <button type="button" onClick={() => setMediaBankTarget('layer4')} className="w-full py-1.5 px-2 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 text-xs font-bold flex items-center justify-center gap-1.5 transition-all" title="Choisir un élément de la Banque Médias commune">
+                          <Film className="w-3.5 h-3.5" /> Choisir dans la Banque Médias
+                        </button>
+                      )}
                       <div className="flex items-center gap-2">
                         {effectiveLayer4Url ? (
                           <div className="flex items-center gap-2 flex-1 min-w-0 bg-slate-900 border border-slate-700/80 rounded-lg p-1.5">
