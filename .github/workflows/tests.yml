@@ -1,5 +1,8 @@
 name: Tests
 
+# Contrôle qualité automatique : lint TypeScript puis suite de tests.
+# Relancé à chaque push sur main et chaque pull request vers main.
+
 on:
   push:
     branches: [main]
@@ -13,6 +16,7 @@ jobs:
   tests:
     name: Contrôle qualité (lint + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
