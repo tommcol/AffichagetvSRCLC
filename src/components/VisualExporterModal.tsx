@@ -79,7 +79,6 @@ import {
 } from '../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from './AutoFitTeamName';
 import { MediaBankSelectorModal } from './Admin/MediaBankSelectorModal';
-import { StudioGraphiqueWorkbench } from './Admin/StudioGraphiqueWorkbench';
 import { getPosterBadgeTitle } from '../utils/posterBadgeHelpers';
 import {
   getPosterItemKey,
@@ -2692,28 +2691,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* OPTION 2: STUDIO GRAPHIQUE & CALQUES OPTIONS */}
             {/* ========================================================================= */}
             {rightPanelTab === 'layers' && (
-              embeddedInTab && visualTemplates && onUpdateVisualTemplates ? (
-                <div className="space-y-3.5">
-                  {/* Studio Graphique unifié : même outil que les onglets Matchs / Résultats / Anniversaires */}
-                  <StudioGraphiqueWorkbench
-                    visualTemplates={visualTemplates}
-                    onUpdateVisualTemplates={onUpdateVisualTemplates}
-                    matches={matches}
-                    results={results}
-                    birthdays={[]}
-                    clubSettings={clubSettings}
-                    defaultCategory={categoryType === 'results' ? 'results' : 'matches'}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRightPanelTab('social')}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-pink-600/20 transition-all"
-                  >
-                    <Radio className="w-4 h-4 text-white" />
-                    <span>💬 Revenir aux Textes & Propositions Réseaux</span>
-                  </button>
-                </div>
-              ) : (
               <div className="space-y-3.5">
                 <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -3426,7 +3403,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   <span>💬 Revenir aux Textes & Propositions Réseaux</span>
                 </button>
               </div>
-              )
             )}
 
             {/* Raccourci bas de page vers l'Aperçu sur smartphone */}
