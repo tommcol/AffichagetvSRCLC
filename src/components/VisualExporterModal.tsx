@@ -125,6 +125,13 @@ import type {
   PosterSocialPlatform,
 } from '../utils/posterTypes';
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
+import { ContentTypeResultsSection } from './posterSections/ContentTypeResultsSection';
+import { VisualThemePosterRedSection } from './posterSections/VisualThemePosterRedSection';
+import { VisualThemeBrickSection } from './posterSections/VisualThemeBrickSection';
+import { VisualThemeModernSection } from './posterSections/VisualThemeModernSection';
+import { RightPanelTabSocialSection } from './posterSections/RightPanelTabSocialSection';
+import { ContentTypeResultsSection2 } from './posterSections/ContentTypeResultsSection2';
+
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
 export { POSTER_DIMENSIONS } from '../utils/posterExporter';
@@ -1375,39 +1382,13 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </div>
 
               {contentType === 'results' && (
-                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/80">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Résultat :</span>
-                  <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'both' })}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                        resultDisplayMode === 'both' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Score + Mention
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'score' })}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                        resultDisplayMode === 'score' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Score seul
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateTemplateSetting({ resultDisplayMode: 'status' })}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                        resultDisplayMode === 'status' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Victoire / Défaite
-                    </button>
-                  </div>
-                </div>
-              )}
+            <ContentTypeResultsSection
+              text={text}
+              p={p}
+              updateTemplateSetting={updateTemplateSetting}
+              resultDisplayMode={resultDisplayMode}
+            />
+          )}
             </div>
 
             {/* Header info & Quick background / title customizer */}
@@ -1555,446 +1536,73 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 >
                   {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
                   {visualTheme === 'poster-red' && (
-                    <>
-                      {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
-                      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                        <img
-                          src={effectiveBgUrl}
-                          alt="Fond affiche basket"
-                          className="w-full h-full object-cover pointer-events-none transition-all duration-75"
-                          style={{
-                            filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
-                            transform: `scale(${layer1Scale})`,
-                          }}
-                        />
-                      </div>
-
-                      {/* Radial vignette overlay for maximum readability & high contrast */}
-                      <div
-                        className="absolute inset-0 pointer-events-none"
-                        style={{
-                          background: 'radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%)',
-                        }}
-                      />
-
-                      {/* Subtle sports lighting accent */}
-                      <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-[600px] h-[300px] bg-red-600/20 blur-3xl pointer-events-none" />
-
-                      {/* STUDIO LAYER 3: ÉLÉMENT LIBRE / DÉCOR GRAPHISME */}
-                      {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
-                        <div
-                          className={`absolute pointer-events-none z-10 transition-all ${getLayer3PositionClass(studioLayer3Pos)}`}
-                          style={{
-                            opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
-                            transform: getLayer3Transform(
-                              studioLayer3Scale,
-                              effectiveCategoryConfig.layer3?.flipHorizontal
-                            ),
-                            transformOrigin: getLayer3TransformOrigin(studioLayer3Pos),
-                            maxHeight: '38%',
-                            maxWidth: '38%',
-                          }}
-                        >
-                          <img
-                            src={effectiveLayer3Url}
-                            alt="Calque 3"
-                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_8px_24px_rgba(0,0,0,0.85)]"
-                          />
-                        </div>
-                      )}
-
-                      {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
-                      {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
-                        <div
-                          className={`absolute pointer-events-none z-10 transition-all ${getLayer4PositionClass(studioLayer4Pos)}`}
-                          style={{
-                            opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
-                            transform: `scale(${studioLayer4Scale})`,
-                            transformOrigin: getLayer4TransformOrigin(studioLayer4Pos),
-                            maxHeight: '22%',
-                            maxWidth: '28%',
-                          }}
-                        >
-                          <img
-                            src={effectiveLayer4Url}
-                            alt="Calque 4"
-                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.75)]"
-                          />
-                        </div>
-                      )}
-
-                      {/* 3 Zebra White Stripes in Bottom Right (Positioned at background layer z-10, behind pastilles and content) */}
-                      <div
-                        className={`absolute pointer-events-none z-10 flex flex-col -rotate-45 ${
-                          aspectRatio === '16:9'
-                            ? '-bottom-8 -right-8 gap-4'
-                            : '-bottom-10 -right-10 gap-6'
-                        }`}
-                      >
-                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
-                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
-                        <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
-                      </div>
-
-                      {/* CONTENT WRAPPER */}
-                      <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
-                        
-                        {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
-                        <div className="w-full flex flex-col items-center">
-                          
-                          {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
-                          <div className={`flex gap-3.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-2' : 'mb-3.5'} z-10`}>
-                            {[...Array(6)].map((_, i) => (
-                              <div
-                                key={i}
-                                className={`${aspectRatio === '16:9' ? 'w-4 h-7' : 'w-5 h-10'} rounded-[2px] shadow-[0_4px_8px_rgba(0,0,0,0.6)]`}
-                                style={{ backgroundColor: layer2PrimaryColor }}
-                              />
-                            ))}
-                          </div>
-
-                          {/* Header Badge: DOMICILE / EXTÉRIEUR / EXEMPT / RÉSULTATS */}
-                          <div
-                            className={`font-black uppercase tracking-wider text-center border-t-2 border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
-                            style={{
-                              background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                              color: layer2BadgeTextColor,
-                              fontSize: aspectRatio === '16:9' ? '44px' : (aspectRatio === '1:1' ? '50px' : (displayedMatches.length >= 6 ? '54px' : '62px')),
-                              padding: aspectRatio === '16:9' ? '8px 56px' : (displayedMatches.length >= 6 ? '10px 70px' : '14px 84px'),
-                              borderRadius: '26px',
-                              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.25)',
-                              marginBottom: aspectRatio === '16:9' ? '12px' : (displayedMatches.length >= 6 ? '20px' : (aspectRatio === '1:1' ? '24px' : '32px')),
-                              lineHeight: '1.2',
-                            }}
-                          >
-                            {badgeTitle}
-                          </div>
-                        </div>
-
-                        {/* MATCHES LIST BODY */}
-                        {contentType === 'matches' && (
-                          <div
-                            className={`w-full flex-1 ${
-                              aspectRatio === '16:9' && displayedMatches.length >= 4
-                                ? 'grid grid-cols-2 gap-x-8 gap-y-3 items-center my-auto px-2'
-                                : `flex flex-col justify-center my-1 ${
-                                    aspectRatio === '16:9'
-                                      ? 'max-w-[88%] mx-auto pr-16 gap-3'
-                                      : displayedMatches.length >= 6
-                                      ? 'gap-2.5'
-                                      : displayedMatches.length === 5
-                                      ? 'gap-3.5'
-                                      : displayedMatches.length === 4
-                                      ? 'gap-5'
-                                      : 'gap-7'
-                                  }`
-                            }`}
-                          >
-                            {displayedMatches.map((m) => {
-                              const isExempt = posterFilter === 'exempt' || isExemptItem(m);
-                              const isHome = Boolean(m.isHomeMatch);
-
-                              const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
-                              const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
-                              const count = displayedMatches.length;
-
-                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '80px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
-                              const headerFontSize = aspectRatio === '16:9' ? '26px' : (count >= 6 ? '27px' : count === 5 ? '29px' : count === 4 ? '31px' : (aspectRatio === '1:1' ? '29px' : '33px'));
-                              const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
-                              const vsBadgeSize = aspectRatio === '16:9' ? 'w-14 h-14 text-lg' : (count >= 6 ? 'w-15 h-15 text-lg' : count === 5 ? 'w-16 h-16 text-xl' : 'w-18 h-18 text-2xl');
-
-                              const isLive = isMatchLive(m);
-                              const isFinished = isMatchFinished(m);
-                              const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
-
-                              return (
-                                <div key={m.id} className="w-full flex flex-col items-center">
-                                  {/* Match Date Header: Samedi 19 septembre | 13h30 + Statut DIRECT */}
-                                  <div
-                                    className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] flex items-center justify-center gap-3`}
-                                    style={{
-                                      fontSize: headerFontSize,
-                                      color: layer2TextColor,
-                                      letterSpacing: '0.8px',
-                                    }}
-                                  >
-                                    <span>{formatPosterMatchDate(m.date, m.time)}</span>
-                                    {isLive && (
-                                      <span className="px-4 py-1 rounded-full bg-red-600 text-white font-black text-lg uppercase tracking-wider animate-pulse shadow-md flex items-center gap-2">
-                                        <span className="w-3 h-3 rounded-full bg-white animate-ping" />
-                                        EN COURS
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Match Row: [Team Left Pill] (vs) [Team Right Pill] */}
-                                  <div className="w-full flex items-center justify-between gap-4">
-                                    
-                                    {/* Home / Category Pill with Auto-adaptive font */}
-                                    <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
-                                      }}
-                                    >
-                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                    </div>
-
-                                    {/* Center Round VS Badge / Live / Score */}
-                                    {isLive ? (
-                                      <div
-                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] select-none bg-red-600 text-white uppercase text-sm animate-pulse border-2 border-red-300`}
-                                        title="Match en cours"
-                                      >
-                                        {hasScore ? `${m.homeScore}-${m.awayScore}` : 'en cours'}
-                                      </div>
-                                    ) : isFinished && hasScore ? (
-                                      <div
-                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] select-none bg-white text-slate-900 border-2 border-slate-300 text-base font-mono`}
-                                      >
-                                        {m.homeScore}-{m.awayScore}
-                                      </div>
-                                    ) : (
-                                      <div
-                                        className={`${vsBadgeSize} rounded-full font-black flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.5)] lowercase select-none ${getFontFamilyClass(layer2FontBody)}`}
-                                        style={{
-                                          backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                          color: layer2BadgeBgColor || '#111111',
-                                        }}
-                                      >
-                                        vs
-                                      </div>
-                                    )}
-
-                                    {/* Away / Opponent Pill with Auto-adaptive font */}
-                                    <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.2)',
-                                      }}
-                                    >
-                                      <AutoFitTeamName name={teamRight} isExempt={isExempt} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* RESULTS LIST BODY */}
-                        {contentType === 'results' && (
-                          <div
-                            className={`w-full flex-1 ${
-                              aspectRatio === '16:9' && displayedResults.length >= 4
-                                ? 'grid grid-cols-2 gap-x-8 gap-y-3 items-center my-auto px-2'
-                                : `flex flex-col justify-center my-1 ${
-                                    aspectRatio === '16:9'
-                                      ? 'max-w-[88%] mx-auto pr-16 gap-3'
-                                      : displayedResults.length >= 6
-                                      ? 'gap-2.5'
-                                      : displayedResults.length === 5
-                                      ? 'gap-3.5'
-                                      : displayedResults.length === 4
-                                      ? 'gap-5'
-                                      : 'gap-7'
-                                  }`
-                            }`}
-                          >
-                            {displayedResults.map((r) => {
-                              const isWin = isMatchWin(r, safeClubName, safeShortName);
-                              const isHomeClub = isClubHomeMatch(r, safeClubName, safeShortName);
-                              const teamLeft = isHomeClub ? r.category : (r.teamHome || 'Notre Club');
-                              const teamRight = isHomeClub ? (r.teamAway || 'Adversaire') : r.category;
-                              const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
-
-                              const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
-                              const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
-                              const count = displayedResults.length;
-
-                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '80px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
-                              const headerFontSize = aspectRatio === '16:9' ? '26px' : (count >= 6 ? '27px' : count === 5 ? '29px' : count === 4 ? '31px' : (aspectRatio === '1:1' ? '29px' : '33px'));
-                              const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
-
-                              return (
-                                <div key={r.id} className="w-full flex flex-col items-center">
-                                  {/* Date / Category */}
-                                  <div
-                                    className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] flex items-center justify-center gap-3`}
-                                    style={{
-                                      fontSize: headerFontSize,
-                                      color: layer2TextColor,
-                                      letterSpacing: '0.8px',
-                                    }}
-                                  >
-                                    <span>{matchDateText || r.category}</span>
-                                    {resultDisplayMode !== 'score' && (
-                                      <>
-                                        <span>•</span>
-                                        <span className={isWin ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
-                                          {isWin ? 'VICTOIRE' : 'DÉFAITE'}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-
-                                  {/* Row */}
-                                  <div className="w-full flex items-center justify-between gap-4">
-                                    <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
-                                      }}
-                                    >
-                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                    </div>
-
-                                    <div
-                                      className={`px-6 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
-                                        count >= 6 ? 'h-18 text-2xl' : 'h-20 text-3xl'
-                                      } ${resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider text-xl font-black' : 'font-mono font-black'}`}
-                                      style={{
-                                        backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                        color: (resultDisplayMode === 'status' || !hasScore)
-                                          ? (isWin ? '#047857' : '#be123c')
-                                          : (layer2BadgeBgColor || '#111111'),
-                                      }}
-                                    >
-                                      {resultDisplayMode === 'status' || !hasScore
-                                        ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
-                                        : scoreDisplay}
-                                    </div>
-
-                                    <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
-                                      }}
-                                    >
-                                      <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* NOTIFICATION BODY */}
-                        {contentType === 'notification' && specificNotification && (
-                          <div className="w-full flex-1 flex flex-col items-center justify-center text-center my-4">
-                            <div
-                              className={`w-28 h-28 rounded-3xl flex items-center justify-center mb-4 shadow-xl ${
-                                specificNotification.isWin ? 'bg-emerald-500' : 'bg-red-600'
-                              }`}
-                            >
-                              <Trophy className="w-16 h-16 text-white" />
-                            </div>
-                            <h4 className="font-montserrat font-black text-5xl tracking-wider text-white uppercase drop-shadow-md">
-                              {specificNotification.isWin ? 'VICTOIRE DU CLUB !' : 'COUP DE SIFFLET FINAL'}
-                            </h4>
-                            <div className="font-montserrat font-bold text-slate-300 text-2xl mt-2">
-                              {specificNotification.category || specificNotification.team}
-                            </div>
-
-                            <div className="w-full max-w-[920px] bg-black/60 rounded-3xl border-2 border-white/20 p-8 my-6 flex items-center justify-center gap-6 backdrop-blur-md">
-                              <div className="flex-1 font-montserrat font-extrabold text-2xl text-right truncate">
-                                {specificNotification.ourTeam || safeShortName}
-                              </div>
-                              <div className="px-8 py-2 bg-red-600 rounded-2xl text-6xl font-black font-teko text-white border-2 border-red-500 shadow-md">
-                                {specificNotification.ourScore} : {specificNotification.opponentScore}
-                              </div>
-                              <div className="flex-1 font-montserrat font-extrabold text-2xl text-left truncate text-slate-300">
-                                {specificNotification.opponent || 'Adversaire'}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                      </div>
-                    </>
-                  )}
+            <VisualThemePosterRedSection
+              effectiveBgUrl={effectiveBgUrl}
+              layer1Grayscale={layer1Grayscale}
+              layer1Contrast={layer1Contrast}
+              layer1Brightness={layer1Brightness}
+              layer1Blur={layer1Blur}
+              layer1Scale={layer1Scale}
+              showStudioLayer3={showStudioLayer3}
+              effectiveLayer3Url={effectiveLayer3Url}
+              studioLayer3Pos={studioLayer3Pos}
+              effectiveCategoryConfig={effectiveCategoryConfig}
+              studioLayer3Scale={studioLayer3Scale}
+              showStudioLayer4={showStudioLayer4}
+              effectiveLayer4Url={effectiveLayer4Url}
+              studioLayer4Pos={studioLayer4Pos}
+              studioLayer4Scale={studioLayer4Scale}
+              content={content}
+              aspectRatio={aspectRatio}
+              key={key}
+              layer2PrimaryColor={layer2PrimaryColor}
+              text={text}
+              layer2FontHeader={layer2FontHeader}
+              layer2BadgeBgColor={layer2BadgeBgColor}
+              layer2BadgeTextColor={layer2BadgeTextColor}
+              displayedMatches={displayedMatches}
+              badgeTitle={badgeTitle}
+              contentType={contentType}
+              matches={matches}
+              posterFilter={posterFilter}
+              layer2FontBody={layer2FontBody}
+              layer2TextColor={layer2TextColor}
+              name={name}
+              title={title}
+              results={results}
+              displayedResults={displayedResults}
+              safeClubName={safeClubName}
+              safeShortName={safeShortName}
+              resultDisplayMode={resultDisplayMode}
+              specificNotification={specificNotification}
+              p={p}
+            />
+          )}
 
                   {/* THEME 2: BRICK WALL & MASCOT */}
                   {visualTheme === 'brick' && (
-                    <>
-                      <svg className="absolute inset-0 w-full h-full opacity-35 pointer-events-none" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                          <pattern id="brick-pat-modal" width="100" height="50" patternUnits="userSpaceOnUse">
-                            <rect width="100" height="50" fill="#4a1610" />
-                            <path d="M 0 0 L 100 0 M 0 25 L 100 25 M 0 50 L 100 50 M 50 0 L 50 25 M 0 25 L 0 50 M 100 25 L 100 50" stroke="#1f0704" strokeWidth="4" fill="none" />
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#brick-pat-modal)" />
-                      </svg>
-                      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
-
-                      <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                        <div className="flex items-center justify-between border-b-2 border-white/20 pb-4">
-                          <div className="font-bebas text-4xl font-black text-white">{clubSettings.name}</div>
-                          <span className="px-6 py-1.5 rounded-full bg-red-600 text-white text-2xl font-black uppercase font-bebas">
-                            {badgeTitle}
-                          </span>
-                        </div>
-
-                        <div className="my-auto space-y-4">
-                          {displayedMatches.map((m) => (
-                            <div key={m.id} className="flex items-center justify-between gap-4 py-1">
-                              <div className="bg-white text-black font-black px-6 py-3 rounded-xl text-2xl uppercase truncate w-[42%] text-center shadow-md">
-                                <AutoFitTeamName name={m.category} />
-                              </div>
-                              <span className="bg-red-600 text-white font-black italic px-4 py-1.5 rounded text-xl transform -skew-x-12">
-                                VS
-                              </span>
-                              <div className="bg-white text-black font-black px-6 py-3 rounded-xl text-2xl uppercase truncate w-[42%] text-center shadow-md">
-                                <AutoFitTeamName name={m.isHomeMatch ? m.teamAway : m.teamHome} />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
+            <VisualThemeBrickSection
+              text={text}
+              clubSettings={clubSettings}
+              name={name}
+              badgeTitle={badgeTitle}
+              displayedMatches={displayedMatches}
+              key={key}
+            />
+          )}
 
                   {/* THEME 3: DARK MODERN */}
                   {visualTheme === 'modern' && (
-                    <>
-                      <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-[450px] h-[450px] bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
-                      <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                        <div className="flex items-center justify-between border-b-2 border-white/10 pb-4">
-                          <div className="font-bebas text-4xl font-black text-amber-400">{clubSettings.name}</div>
-                          <span className="px-6 py-1.5 rounded-full bg-slate-800 text-white text-2xl font-bold border border-slate-700">
-                            {badgeTitle}
-                          </span>
-                        </div>
-
-                        <div className="my-auto space-y-4">
-                          {displayedMatches.map((m) => (
-                            <div key={m.id} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex items-center justify-between gap-4 shadow-sm">
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xl text-orange-400 font-bold uppercase">{m.category}</div>
-                                <div className="font-bebas text-3xl font-black text-white truncate">
-                                  {m.teamHome} <span className="text-slate-500 font-normal">vs</span> {m.teamAway}
-                                </div>
-                              </div>
-                              <div className="text-2xl font-mono font-bold text-amber-300 bg-slate-950 px-4 py-1.5 rounded-lg border border-slate-800">
-                                {m.time}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
+            <VisualThemeModernSection
+              text={text}
+              clubSettings={clubSettings}
+              name={name}
+              badgeTitle={badgeTitle}
+              displayedMatches={displayedMatches}
+              key={key}
+              p={p}
+            />
+          )}
                 </div>
               </div>
             </div>
@@ -2150,545 +1758,61 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* OPTION 1: TEXTES RÉSEAUX SOCIAUX & PROPOSITIONS */}
             {/* ========================================================================= */}
             {rightPanelTab === 'social' && (
-              <>
-                {/* Social Platform Tabs */}
-                <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Radio className="w-3.5 h-3.5 text-pink-500" />
-                      <span>Passerelle de diffusion réseaux sociaux</span>
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      1-Clic Copie & Partage
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <button
-                      onClick={() => setSelectedSocialTab('instagram')}
-                      className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                        selectedSocialTab === 'instagram'
-                          ? 'bg-gradient-to-tr from-pink-600 to-rose-600 text-white shadow-md'
-                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Instagram className="w-4 h-4" />
-                      <span>Instagram</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedSocialTab('tiktok');
-                        setAspectRatio('9:16');
-                      }}
-                      className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                        selectedSocialTab === 'tiktok'
-                          ? 'bg-gradient-to-tr from-cyan-600 via-slate-900 to-pink-600 text-white shadow-md'
-                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Flame className="w-4 h-4 text-cyan-300" />
-                      <span>TikTok</span>
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedSocialTab('facebook')}
-                      className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                        selectedSocialTab === 'facebook'
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Facebook className="w-4 h-4" />
-                      <span>Facebook</span>
-                    </button>
-
-                    <button
-                      onClick={() => setSelectedSocialTab('webhook')}
-                      className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                        selectedSocialTab === 'webhook'
-                          ? 'bg-amber-600 text-white shadow-md'
-                          : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      <Zap className="w-4 h-4" />
-                      <span>Webhook</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* PLATFORM SPECIFIC PANEL */}
-                <div className="flex-1 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-3">
-                  
-                  {/* PROPOSITIONS DE STYLE & SÉLECTION DES MATCHS À INCLURE DANS LE TEXTE */}
-                  {selectedSocialTab !== 'webhook' && (
-                    <div className="bg-slate-950/90 p-2.5 rounded-xl border border-slate-800 space-y-2">
-                      {/* Global Publication Header */}
-                      <div className="flex items-center justify-between gap-2 px-1 pb-1.5 border-b border-slate-800/80">
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-md bg-pink-950/80 text-pink-300 border border-pink-700/50 text-[10px] font-black uppercase tracking-wider">
-                            PUBLICATION GLOBALE
-                          </span>
-                          <span className="text-[11px] text-slate-300 font-bold">
-                            1 seul texte pour les {allCurrentCaptionItems.length} {contentType === 'matches' ? 'matchs' : 'résultats'}
-                          </span>
-                        </div>
-                        {totalPages > 1 && (
-                          <span className="text-[10px] text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-800/50 font-medium">
-                            {totalPages} affiches générées
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Style Proposals Bar & AI Generation */}
-                      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                          <span className="text-xs font-bold text-slate-300">Style du texte :</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCaptionStyleProposal('standard');
-                              setIsCustomCaptionEdited((prev) => ({ ...prev, [selectedSocialTab]: false }));
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                              captionStyleProposal === 'standard' && !isCustomCaptionEdited[selectedSocialTab]
-                                ? 'bg-orange-600 text-white shadow-sm'
-                                : 'bg-slate-900 text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            📌 Standard
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCaptionStyleProposal('short');
-                              setIsCustomCaptionEdited((prev) => ({ ...prev, [selectedSocialTab]: false }));
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                              captionStyleProposal === 'short' && !isCustomCaptionEdited[selectedSocialTab]
-                                ? 'bg-orange-600 text-white shadow-sm'
-                                : 'bg-slate-900 text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            ⚡ Court
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCaptionStyleProposal('hype');
-                              setIsCustomCaptionEdited((prev) => ({ ...prev, [selectedSocialTab]: false }));
-                            }}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                              captionStyleProposal === 'hype' && !isCustomCaptionEdited[selectedSocialTab]
-                                ? 'bg-orange-600 text-white shadow-sm'
-                                : 'bg-slate-900 text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            🔥 Hype
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Match / Result Selection Checkboxes */}
-                      {allCurrentCaptionItems.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                              <span>Rencontres incluses dans le texte global :</span>
-                              <span className="text-[10px] text-amber-400 font-mono">
-                                ({captionMatches.length || captionResults.length}/{allCurrentCaptionItems.length})
-                              </span>
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={selectAllCaptionItems}
-                                className="text-[10px] text-blue-400 hover:underline font-bold"
-                              >
-                                Tout inclure
-                              </button>
-                              <span className="text-slate-600">•</span>
-                              <button
-                                type="button"
-                                onClick={deselectAllCaptionItems}
-                                className="text-[10px] text-rose-400 hover:underline font-bold"
-                              >
-                                Tout décocher
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
-                            {allCurrentCaptionItems.map((item: any, idx: number) => {
-                              const key = getPosterItemKey(item, idx);
-                              const isSelected = selectedItemKeysForCaption === null || selectedItemKeysForCaption.includes(key);
-                              const teamOpp = item.isHomeMatch ? item.teamAway : item.teamHome;
-                              const label = `${item.category || 'Match'}${teamOpp ? ` vs ${teamOpp}` : ''}`;
-
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => toggleCaptionItemKey(key, allCurrentCaptionItemKeys)}
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 transition-all border ${
-                                    isSelected
-                                      ? 'bg-orange-950/80 border-orange-600/80 text-orange-200'
-                                      : 'bg-slate-900/60 border-slate-800 text-slate-500 line-through hover:text-slate-300'
-                                  }`}
-                                >
-                                  <span>{isSelected ? '✓' : '✗'}</span>
-                                  <span className="truncate max-w-[150px]">{label}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ✨ TEXTE IA DE LA PUBLICATION (INSTAGRAM / TIKTOK / FACEBOOK) */}
-                  {selectedSocialTab !== 'webhook' && (() => {
-                    const targetPlatform = selectedSocialTab as 'instagram' | 'tiktok' | 'facebook';
-                    const currentCaptionValue = customCaptions[targetPlatform] || generatedCaptions[targetPlatform] || '';
-                    const platformTitle =
-                      targetPlatform === 'instagram'
-                        ? 'Instagram'
-                        : targetPlatform === 'tiktok'
-                        ? 'TikTok'
-                        : 'Facebook';
-                    const platformIcon =
-                      targetPlatform === 'instagram' ? (
-                        <Instagram className="w-4 h-4 text-pink-400" />
-                      ) : targetPlatform === 'tiktok' ? (
-                        <Flame className="w-4 h-4 text-cyan-400" />
-                      ) : (
-                        <Facebook className="w-4 h-4 text-blue-400" />
-                      );
-                    const openLink =
-                      targetPlatform === 'instagram'
-                        ? 'https://www.instagram.com/'
-                        : targetPlatform === 'tiktok'
-                        ? 'https://www.tiktok.com/upload'
-                        : 'https://www.facebook.com/';
-                    const copyKey = targetPlatform === 'instagram' ? 'insta' : targetPlatform === 'tiktok' ? 'tiktok' : 'fb';
-
-                    return (
-                      <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-3 flex-1 flex flex-col">
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-purple-600 via-pink-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-purple-600/25 shrink-0">
-                              <Sparkles className="w-3.5 h-3.5" />
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 font-montserrat">
-                                <span>✨ TEXTE IA DE LA PUBLICATION</span>
-                                <span className="text-[10px] text-pink-400 font-bold">({platformTitle})</span>
-                              </h4>
-                              <p className="text-[10px] text-slate-400">
-                                1 seul texte global pour les {allCurrentCaptionItems.length} {contentType === 'matches' ? 'matchs' : 'résultats'} • Modifiable librement
-                              </p>
-                            </div>
-                          </div>
-
-                          <a
-                            href={openLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] text-slate-300 hover:text-white hover:underline flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-800 transition-colors shrink-0"
-                          >
-                            {platformIcon}
-                            <span>Ouvrir {platformTitle}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-500" />
-                          </a>
-                        </div>
-
-                        {/* Textarea pour le texte de la publication */}
-                        <div className="relative flex-1 min-h-[140px]">
-                          <textarea
-                            value={currentCaptionValue}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setCustomCaptions((prev) => ({ ...prev, [targetPlatform]: val }));
-                              setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: true }));
-                            }}
-                            rows={8}
-                            className="w-full h-full bg-slate-900/90 border border-slate-700/80 focus:border-pink-500 rounded-xl p-3 text-xs text-slate-100 font-mono resize-none focus:outline-none transition-colors shadow-inner leading-relaxed"
-                            placeholder="Le texte de la publication apparaîtra ici..."
-                          />
-                        </div>
-
-                        {isCustomCaptionEdited[targetPlatform] && (
-                          <div className="flex items-center justify-between text-[10px] text-amber-400 px-1">
-                            <span>✏️ Texte personnalisé</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsCustomCaptionEdited((prev) => ({ ...prev, [targetPlatform]: false }));
-                                setCustomCaptions((prev) => {
-                                  const next = { ...prev };
-                                  delete next[targetPlatform];
-                                  return next;
-                                });
-                              }}
-                              className="hover:underline text-rose-400 font-bold"
-                            >
-                              🔄 Réinitialiser la proposition
-                            </button>
-                          </div>
-                        )}
-
-                        {/* ZONE DE MODIFICATION PAR L'IA (Bouton 2) */}
-                        {showAiRewriteBox && (
-                          <div className="p-3 bg-purple-950/40 border border-purple-800/60 rounded-xl space-y-2 animate-fadeIn">
-                            <div className="flex items-center justify-between text-xs text-purple-300 font-bold">
-                              <span className="flex items-center gap-1.5">
-                                <Wand2 className="w-3.5 h-3.5 text-purple-400" />
-                                <span>Demander une retouche à l'IA sur le texte actuel :</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setShowAiRewriteBox(false)}
-                                className="text-[10px] text-slate-400 hover:text-white"
-                              >
-                                ✕ Fermer
-                              </button>
-                            </div>
-                            <textarea
-                              value={customRewriteInstructions}
-                              onChange={(e) => setCustomRewriteInstructions(e.target.value)}
-                              placeholder="Ex : Fais plus court, plus dynamique et parle de la buvette."
-                              rows={3}
-                              className="w-full bg-slate-950 border border-purple-700/50 rounded-lg p-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 font-sans"
-                            />
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setShowAiRewriteBox(false)}
-                                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold"
-                              >
-                                Annuler
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleApplyAiRewrite(targetPlatform)}
-                                disabled={isRewriting || !customRewriteInstructions.trim()}
-                                className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-50 transition-all"
-                              >
-                                {isRewriting ? (
-                                  <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                                    <span>Modification en cours...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                                    <span>✨ APPLIQUER AVEC L'IA</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ACTIONS BAR : BOUTONS 1, 2, 3 + COPIER */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {/* BOUTON 1 : RÉGÉNÉRER AVEC L'IA */}
-                            <button
-                              type="button"
-                              onClick={() => handleRegenerateWithAI(targetPlatform)}
-                              disabled={aiGenerating}
-                              className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 active:bg-purple-700/60 text-purple-200 border border-purple-500/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                              title="Générer une nouvelle proposition avec l'IA"
-                            >
-                              {aiGenerating ? (
-                                <>
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-300" />
-                                  <span>✨ Génération en cours...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                                  <span>✨ Régénérer avec l'IA</span>
-                                </>
-                              )}
-                            </button>
-
-                            {/* BOUTON 2 : MODIFIER AVEC L'IA */}
-                            <button
-                              type="button"
-                              onClick={() => setShowAiRewriteBox((prev) => !prev)}
-                              className={`flex-1 sm:flex-initial px-3 py-2 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                                showAiRewriteBox
-                                  ? 'bg-purple-600 text-white border-purple-500 shadow-md'
-                                  : 'bg-slate-900 hover:bg-slate-800 text-purple-300 border-purple-900/60'
-                              }`}
-                              title="Demander à l'IA d'ajuster le texte actuel"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-purple-400" />
-                              <span>✏️ Modifier avec l'IA</span>
-                            </button>
-
-                            {/* BOUTON 3 : ANNULER LA DERNIÈRE MODIFICATION */}
-                            {previousAiCaption && (
-                              <button
-                                type="button"
-                                onClick={() => handleUndoAiCaption(targetPlatform)}
-                                className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
-                                title="Revenir à la version précédente du texte"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                                <span>↩ Annuler la modif</span>
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Bouton Copier */}
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(currentCaptionValue, copyKey)}
-                            className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 active:bg-pink-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
-                          >
-                            {copiedKey === copyKey ? (
-                              <>
-                                <Check className="w-4 h-4 text-emerald-300" />
-                                <span>Légende copiée !</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4" />
-                                <span>Copier la Légende</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* WEBHOOK / AUTOMATION PANEL */}
-                  {selectedSocialTab === 'webhook' && (
-                    <div className="space-y-3 flex-1 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 text-amber-400 text-xs font-bold mb-1">
-                          <Zap className="w-4 h-4" />
-                          <span>Passerelle Webhook & Automatisation (Zapier / Make / Meta)</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400">
-                          Diffusez automatiquement l'affiche {badgeTitle} vers vos réseaux ou Discord via Webhook.
-                        </p>
-                      </div>
-
-                      <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                        <label className="text-[11px] text-slate-400 block font-medium">
-                          URL du Webhook configuré :
-                        </label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={clubSettings.socialWebhookUrl || 'Non configuré (optionnel dans Réglages)'}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-mono"
-                        />
-                      </div>
-
-                      {webhookStatus.message && (
-                        <div
-                          className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
-                            webhookStatus.success
-                              ? 'bg-emerald-950/40 border border-emerald-500/40 text-emerald-300'
-                              : 'bg-rose-950/40 border border-rose-500/40 text-rose-300'
-                          }`}
-                        >
-                          <CheckCircle2 className="w-4 h-4 shrink-0" />
-                          <span>{webhookStatus.message}</span>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={handleSendToWebhook}
-                        disabled={webhookStatus.loading}
-                        className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 transition-all disabled:opacity-50"
-                      >
-                        <Send className="w-4 h-4" />
-                        <span>
-                          {webhookStatus.loading ? 'Envoi en cours...' : 'Déclencher la Passerelle Webhook'}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* ACTION BUTTONS: NATIVE SHARE & HIGH RES DOWNLOAD */}
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleNativeShare}
-                      disabled={isSharing || isExporting}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-600/30 transition-all hover:scale-105 disabled:opacity-50"
-                      id="btn-native-social-share"
-                      title="Partage direct dans Instagram, Facebook ou WhatsApp"
-                    >
-                      <Share2 className="w-4 h-4" />
-                      <span>{isSharing ? 'Préparation...' : 'Partager Directement (App / Mobile)'}</span>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {exportError && (
-                      <span className="text-amber-400 text-xs font-semibold flex items-center gap-1 bg-amber-950/60 px-2 py-1 rounded-lg border border-amber-800/60">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>{exportError}</span>
-                      </span>
-                    )}
-
-                    {totalPages > 1 && (
-                      <button
-                        onClick={handleDownloadAllPages}
-                        disabled={isExporting || isExportingAll}
-                        className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-600 hover:to-rose-600 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-md shadow-red-700/20 disabled:opacity-50"
-                        title={`Télécharger les ${totalPages} affiches de cette publication`}
-                      >
-                        <Layers className="w-4 h-4 text-white" />
-                        <span>{isExportingAll ? (exportProgress || 'Génération...') : `Télécharger les ${totalPages} affiches`}</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={handleDownloadImage}
-                      disabled={isExporting || isExportingAll}
-                      className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 transition-all hover:scale-105 disabled:opacity-50 shadow-md shadow-red-600/20"
-                      id="btn-download-social-image"
-                    >
-                      {downloadSuccess ? (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-300" />
-                          <span>Téléchargé (Haute Définition) !</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4 text-white" />
-                          <span>{isExporting ? 'Génération...' : totalPages > 1 ? `Télécharger l'affiche ${currentPage}/${totalPages}` : `Télécharger l'Affiche (${aspectRatio})`}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Link to Layer Customization */}
-                <button
-                  type="button"
-                  onClick={() => setRightPanelTab('layers')}
-                  className="w-full py-2 px-3 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-amber-300 border border-slate-800 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  <span>🎨 Personnaliser le style de l'affiche (couleurs, polices, logo, fond...)</span>
-                </button>
-              </>
-            )}
+            <RightPanelTabSocialSection
+              p={p}
+              text={text}
+              setSelectedSocialTab={setSelectedSocialTab}
+              selectedSocialTab={selectedSocialTab}
+              setAspectRatio={setAspectRatio}
+              allCurrentCaptionItems={allCurrentCaptionItems}
+              contentType={contentType}
+              matches={matches}
+              totalPages={totalPages}
+              setCaptionStyleProposal={setCaptionStyleProposal}
+              setIsCustomCaptionEdited={setIsCustomCaptionEdited}
+              captionStyleProposal={captionStyleProposal}
+              isCustomCaptionEdited={isCustomCaptionEdited}
+              captionMatches={captionMatches}
+              captionResults={captionResults}
+              selectAllCaptionItems={selectAllCaptionItems}
+              deselectAllCaptionItems={deselectAllCaptionItems}
+              selectedItemKeysForCaption={selectedItemKeysForCaption}
+              toggleCaptionItemKey={toggleCaptionItemKey}
+              allCurrentCaptionItemKeys={allCurrentCaptionItemKeys}
+              customCaptions={customCaptions}
+              generatedCaptions={generatedCaptions}
+              setCustomCaptions={setCustomCaptions}
+              showAiRewriteBox={showAiRewriteBox}
+              setShowAiRewriteBox={setShowAiRewriteBox}
+              customRewriteInstructions={customRewriteInstructions}
+              setCustomRewriteInstructions={setCustomRewriteInstructions}
+              handleApplyAiRewrite={handleApplyAiRewrite}
+              isRewriting={isRewriting}
+              handleRegenerateWithAI={handleRegenerateWithAI}
+              aiGenerating={aiGenerating}
+              title={title}
+              previousAiCaption={previousAiCaption}
+              handleUndoAiCaption={handleUndoAiCaption}
+              handleCopyText={handleCopyText}
+              copiedKey={copiedKey}
+              badgeTitle={badgeTitle}
+              clubSettings={clubSettings}
+              webhookStatus={webhookStatus}
+              handleSendToWebhook={handleSendToWebhook}
+              handleNativeShare={handleNativeShare}
+              isSharing={isSharing}
+              isExporting={isExporting}
+              exportError={exportError}
+              handleDownloadAllPages={handleDownloadAllPages}
+              isExportingAll={isExportingAll}
+              exportProgress={exportProgress}
+              handleDownloadImage={handleDownloadImage}
+              downloadSuccess={downloadSuccess}
+              currentPage={currentPage}
+              aspectRatio={aspectRatio}
+              setRightPanelTab={setRightPanelTab}
+            />
+          )}
 
             {/* ========================================================================= */}
             {/* OPTION 2: STUDIO GRAPHIQUE & CALQUES OPTIONS */}
@@ -3023,50 +2147,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                     {/* Option d'Affichage du Résultat (Score / Victoire-Défaite / Les 2) */}
                     {contentType === 'results' && (
-                      <div className="bg-slate-900 p-2 rounded-xl border border-slate-800 space-y-1.5">
-                        <div className="text-[10px] font-bold text-slate-300 uppercase flex items-center justify-between">
-                          <span>Affichage du Résultat :</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'both' })}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
-                              resultDisplayMode === 'both'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-800 text-slate-400 hover:text-white'
-                            }`}
-                            title="Afficher le score au centre ET la mention Victoire / Défaite"
-                          >
-                            Score + Mention
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'score' })}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
-                              resultDisplayMode === 'score'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-800 text-slate-400 hover:text-white'
-                            }`}
-                            title="Afficher uniquement le score (ex: 68 - 59)"
-                          >
-                            Score Seul
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateTemplateSetting({ resultDisplayMode: 'status' })}
-                            className={`py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all text-center ${
-                              resultDisplayMode === 'status'
-                                ? 'bg-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-800 text-slate-400 hover:text-white'
-                            }`}
-                            title="Afficher uniquement la mention (Victoire / Défaite)"
-                          >
-                            Victoire / Défaite
-                          </button>
-                        </div>
-                      </div>
-                    )}
+            <ContentTypeResultsSection2
+              p={p}
+              text={text}
+              updateTemplateSetting={updateTemplateSetting}
+              resultDisplayMode={resultDisplayMode}
+              title={title}
+            />
+          )}
 
                     {/* Polices Titres & Corps */}
                     <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
