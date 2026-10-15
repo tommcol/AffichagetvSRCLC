@@ -95,8 +95,8 @@ async function runTests() {
   }
   console.log('✅ Test 4 réussi : server.ts sécurisé à l\'identique de Cloudflare avec suivi du dernier message.');
 
-  console.log('\n--- TEST 5 : Vérification des instructions et de l\'interface dans AdminPanel.tsx ---');
-  const adminPanelContent = readFileSync(path.join(process.cwd(), 'src', 'components', 'Admin', 'AdminPanel.tsx'), 'utf-8');
+  console.log('\n--- TEST 5 : Vérification des instructions et de l\'interface dans sections/TelegramTab.tsx ---');
+  const adminPanelContent = readFileSync(path.join(process.cwd(), 'src', 'components', 'Admin', 'sections', 'TelegramTab.tsx'), 'utf-8');
 
   // 1. Suppression des étapes 1 & 2 et du bouton Copier l'URL Webhook
   if (adminPanelContent.includes("Copier l'URL Webhook") || adminPanelContent.includes("handleCopyWebhook")) {
@@ -108,7 +108,7 @@ async function runTests() {
 
   // 2. Présence de la section "Exemples de messages à envoyer au bot"
   if (!adminPanelContent.includes("EXEMPLES DE MESSAGES À ENVOYER AU BOT")) {
-    throw new Error("AdminPanel.tsx doit contenir la section « EXEMPLES DE MESSAGES À ENVOYER AU BOT »");
+    throw new Error("TelegramTab.tsx doit contenir la section « EXEMPLES DE MESSAGES À ENVOYER AU BOT »");
   }
 
   // 3. Statut « Configuration active — en attente du premier message »
@@ -135,7 +135,7 @@ async function runTests() {
   if (adminPanelContent.includes('placeholder="Entrez votre token Telegram"') || 
       adminPanelContent.includes('placeholder="Tapez le bot token"') ||
       adminPanelContent.includes('telegramBotToken')) {
-    throw new Error("AdminPanel.tsx ne doit contenir AUCUN champ pour saisir le token dans l'application");
+    throw new Error("TelegramTab.tsx ne doit contenir AUCUN champ pour saisir le token dans l'application");
   }
   console.log('✅ Test 5 réussi : Instructions mises à jour, étapes supprimées, statuts dynamiques et commandes préservées.');
 
