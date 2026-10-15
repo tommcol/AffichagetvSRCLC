@@ -65,7 +65,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           alt="Fond affiche basket"
                           className="w-full h-full object-cover pointer-events-none transition-all duration-75"
                           style={{
-                            filter: `${layer1Grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} contrast(${layer1Contrast}) brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
+                            filter: `brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
                             transform: `scale(${layer1Scale})`,
                           }}
                         />
