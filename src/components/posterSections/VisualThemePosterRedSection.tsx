@@ -3,6 +3,7 @@
 
 import { Trophy, Home, Plane, CheckCircle2, XCircle } from 'lucide-react';
 import { getFontFamilyClass } from '../../utils/fontUtils';
+import { getAdaptivePosterCardSizing } from '../../utils/posterAdaptiveSizing';
 import { isMatchWin, isClubHomeMatch, isMatchLive, isMatchFinished } from '../../utils/matchStatus';
 import { isExemptItem } from '../../utils/socialCaptionGenerator';
 import { getLayer3PositionClass, getLayer3TransformOrigin, getLayer3Transform, getLayer4PositionClass, getLayer4TransformOrigin } from '../../utils/posterLayerHelpers';
@@ -176,9 +177,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                         {contentType === 'matches' &&
                           (() => {
                             const sortedMatches = [...displayedMatches];
+                            const sizing0 = getAdaptivePosterCardSizing(sortedMatches.length, aspectRatio);
                             const half = Math.ceil(sortedMatches.length / 2);
-                            const leftMatches = sortedMatches.length <= 2 ? sortedMatches : sortedMatches.slice(0, half);
-                            const rightMatches = sortedMatches.length <= 2 ? [] : sortedMatches.slice(half);
+                            const leftMatches = sizing0.columns === 1 ? sortedMatches : sortedMatches.slice(0, half);
+                            const rightMatches = sizing0.columns === 1 ? [] : sortedMatches.slice(half);
                             const count = sortedMatches.length;
 
                             const renderPosterCard = (m) => {
@@ -193,9 +195,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
                               const dateText = formatPosterMatchDate(m.date, m.time);
 
-                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '84px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
-                              const headerFontSize = aspectRatio === '16:9' ? '22px' : (count >= 6 ? '24px' : count === 5 ? '26px' : count === 4 ? '28px' : (aspectRatio === '1:1' ? '26px' : '30px'));
-                              const centerFontSize = aspectRatio === '16:9' ? (count >= 4 ? '17px' : '20px') : (count >= 6 ? '19px' : '22px');
+                              const sizing = getAdaptivePosterCardSizing(count, aspectRatio);
+                              const pillHeight = sizing.pillHeight + 'px';
+                              const headerFontSize = sizing.headerFontSize + 'px';
+                              const centerFontSize = sizing.centerFontSize + 'px';
 
                               return (
                                 <div key={m.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0">
@@ -337,20 +340,22 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               <div
                                 className={
                                   'w-full flex-1 flex my-auto min-h-0 overflow-hidden ' +
-                                  (rightMatches.length > 0 ? 'flex-row gap-3 px-2' : 'flex-col justify-center gap-3')
+                                  (rightMatches.length > 0 ? 'flex-row px-2' : 'flex-col justify-center')
                                 }
+                              style={{ gap: sizing0.gapY + 'px' }}
                               >
                                 <div
                                   className={
                                     rightMatches.length > 0
-                                      ? 'flex-1 min-w-0 flex flex-col justify-between gap-2 min-h-0'
-                                      : 'w-full flex flex-col justify-center gap-3 min-h-0'
+                                      ? 'flex-1 min-w-0 flex flex-col justify-between min-h-0'
+                                      : 'w-full flex flex-col justify-center min-h-0'
                                   }
+                                style={{ gap: sizing0.gapY + 'px' }}
                                 >
                                   {leftMatches.map(renderPosterCard)}
                                 </div>
                                 {rightMatches.length > 0 && (
-                                  <div className="flex-1 min-w-0 flex flex-col justify-between gap-2 min-h-0">
+                                  <div className="flex-1 min-w-0 flex flex-col justify-between min-h-0" style={{ gap: sizing0.gapY + 'px' }}>
                                     {rightMatches.map(renderPosterCard)}
                                   </div>
                                 )}

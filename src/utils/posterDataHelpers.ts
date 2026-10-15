@@ -56,11 +56,11 @@ export function getMaxDisplayMatches(
     return matchesLimit;
   }
 
-  if (aspectRatio === '9:16') return 6;
-  if (aspectRatio === '4:5') return 6;
-  if (aspectRatio === '1:1') return 4;
+  if (aspectRatio === '9:16') return 8;
+  if (aspectRatio === '4:5') return 8;
+  if (aspectRatio === '1:1') return 6;
 
-  return 6;
+  return 8;
 }
 
 export function getTotalPages(
