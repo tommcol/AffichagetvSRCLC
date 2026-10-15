@@ -130,8 +130,6 @@ import { VisualThemePosterRedSection } from './posterSections/VisualThemePosterR
 import { VisualThemeBrickSection } from './posterSections/VisualThemeBrickSection';
 import { VisualThemeModernSection } from './posterSections/VisualThemeModernSection';
 import { RightPanelTabSocialSection } from './posterSections/RightPanelTabSocialSection';
-import { ContentTypeResultsSection2 } from './posterSections/ContentTypeResultsSection2';
-import { LegacyLayersOptionsSection } from './posterSections/LegacyLayersOptionsSection';
 
 
 export type { PosterAspectRatio } from '../utils/posterExporter';
@@ -1384,8 +1382,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
               {contentType === 'results' && (
             <ContentTypeResultsSection
-              text={text}
-              p={p}
               updateTemplateSetting={updateTemplateSetting}
               resultDisplayMode={resultDisplayMode}
             />
@@ -1553,11 +1549,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               effectiveLayer4Url={effectiveLayer4Url}
               studioLayer4Pos={studioLayer4Pos}
               studioLayer4Scale={studioLayer4Scale}
-              content={content}
               aspectRatio={aspectRatio}
-              key={key}
               layer2PrimaryColor={layer2PrimaryColor}
-              text={text}
               layer2FontHeader={layer2FontHeader}
               layer2BadgeBgColor={layer2BadgeBgColor}
               layer2BadgeTextColor={layer2BadgeTextColor}
@@ -1568,40 +1561,30 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               posterFilter={posterFilter}
               layer2FontBody={layer2FontBody}
               layer2TextColor={layer2TextColor}
-              name={name}
-              title={title}
               results={results}
               displayedResults={displayedResults}
               safeClubName={safeClubName}
               safeShortName={safeShortName}
               resultDisplayMode={resultDisplayMode}
               specificNotification={specificNotification}
-              p={p}
             />
           )}
 
                   {/* THEME 2: BRICK WALL & MASCOT */}
                   {visualTheme === 'brick' && (
             <VisualThemeBrickSection
-              text={text}
               clubSettings={clubSettings}
-              name={name}
               badgeTitle={badgeTitle}
               displayedMatches={displayedMatches}
-              key={key}
             />
           )}
 
                   {/* THEME 3: DARK MODERN */}
                   {visualTheme === 'modern' && (
             <VisualThemeModernSection
-              text={text}
               clubSettings={clubSettings}
-              name={name}
               badgeTitle={badgeTitle}
               displayedMatches={displayedMatches}
-              key={key}
-              p={p}
             />
           )}
                 </div>
@@ -1760,8 +1743,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* ========================================================================= */}
             {rightPanelTab === 'social' && (
             <RightPanelTabSocialSection
-              p={p}
-              text={text}
               setSelectedSocialTab={setSelectedSocialTab}
               selectedSocialTab={selectedSocialTab}
               setAspectRatio={setAspectRatio}
@@ -1791,7 +1772,6 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               isRewriting={isRewriting}
               handleRegenerateWithAI={handleRegenerateWithAI}
               aiGenerating={aiGenerating}
-              title={title}
               previousAiCaption={previousAiCaption}
               handleUndoAiCaption={handleUndoAiCaption}
               handleCopyText={handleCopyText}
@@ -1831,79 +1811,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               />
             )}
 
-            {rightPanelTab === 'layers' && false && (
-            <LegacyLayersOptionsSection
-              p={p}
-              text={text}
-              setLayer1Brightness={setLayer1Brightness}
-              setLayer1Blur={setLayer1Blur}
-              setLayer1Scale={setLayer1Scale}
-              setLayer1Grayscale={setLayer1Grayscale}
-              setLayer1Contrast={setLayer1Contrast}
-              title={title}
-              setBgSource={setBgSource}
-              setCustomBgImage={setCustomBgImage}
-              bgSource={bgSource}
-              customBgImage={customBgImage}
-              effectiveCategoryConfig={effectiveCategoryConfig}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              setMediaBankTarget={setMediaBankTarget}
-              fileInputRef={fileInputRef}
-              current={current}
-              layer1Brightness={layer1Brightness}
-              layer1Blur={layer1Blur}
-              layer1Scale={layer1Scale}
-              layer1Grayscale={layer1Grayscale}
-              layer1Contrast={layer1Contrast}
-              setLayer2PrimaryColor={setLayer2PrimaryColor}
-              setLayer2TextColor={setLayer2TextColor}
-              setLayer2BadgeBgColor={setLayer2BadgeBgColor}
-              setLayer2BadgeTextColor={setLayer2BadgeTextColor}
-              setLayer2FontHeader={setLayer2FontHeader}
-              setLayer2FontBody={setLayer2FontBody}
-              setCustomBadgeTitle={setCustomBadgeTitle}
-              customBadgeTitle={customBadgeTitle}
-              posterFilter={posterFilter}
-              layer2PrimaryColor={layer2PrimaryColor}
-              handleColorChange={handleColorChange}
-              layer2TextColor={layer2TextColor}
-              layer2BadgeBgColor={layer2BadgeBgColor}
-              layer2BadgeTextColor={layer2BadgeTextColor}
-              contentType={contentType}
-              results={results}
-              updateTemplateSetting={updateTemplateSetting}
-              resultDisplayMode={resultDisplayMode}
-              layer2FontHeader={layer2FontHeader}
-              name={name}
-              layer2FontBody={layer2FontBody}
-              file={file}
-              layer3FileInputRef={layer3FileInputRef}
-              handleLayer3Upload={handleLayer3Upload}
-              showStudioLayer3={showStudioLayer3}
-              setShowStudioLayer3={setShowStudioLayer3}
-              effectiveLayer3Url={effectiveLayer3Url}
-              customLayer3Image={customLayer3Image}
-              setCustomLayer3Image={setCustomLayer3Image}
-              clubSettings={clubSettings}
-              studioLayer3Pos={studioLayer3Pos}
-              setStudioLayer3Pos={setStudioLayer3Pos}
-              studioLayer3Scale={studioLayer3Scale}
-              setStudioLayer3Scale={setStudioLayer3Scale}
-              layer4FileInputRef={layer4FileInputRef}
-              handleLayer4Upload={handleLayer4Upload}
-              showStudioLayer4={showStudioLayer4}
-              setShowStudioLayer4={setShowStudioLayer4}
-              effectiveLayer4Url={effectiveLayer4Url}
-              customLayer4Image={customLayer4Image}
-              setCustomLayer4Image={setCustomLayer4Image}
-              studioLayer4Pos={studioLayer4Pos}
-              setStudioLayer4Pos={setStudioLayer4Pos}
-              studioLayer4Scale={studioLayer4Scale}
-              setStudioLayer4Scale={setStudioLayer4Scale}
-              setRightPanelTab={setRightPanelTab}
-            />
-          )}
+            {/* Panneau calques legacy retire (code mort) : remplace par le Studio Graphique ci-dessus */}
 
             {/* Raccourci bas de page vers l'Aperçu sur smartphone */}
             <div className="block lg:hidden pt-2">
