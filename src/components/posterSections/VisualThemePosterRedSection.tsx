@@ -82,45 +82,44 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                       {/* Subtle sports lighting accent */}
                       <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-[600px] h-[300px] bg-red-600/20 blur-3xl pointer-events-none" />
 
-                      {/* STUDIO LAYER 3: ÉLÉMENT LIBRE / DÉCOR GRAPHISME */}
+                      {/* STUDIO LAYER 3: position libre identique à l'aperçu TV (x/y/scale du Studio) */}
                       {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
                         <div
-                          className={`absolute pointer-events-none z-10 transition-all ${getLayer3PositionClass(studioLayer3Pos)}`}
+                          className="absolute pointer-events-none z-10"
                           style={{
+                            left: `${effectiveCategoryConfig.layer3?.x ?? 50}%`,
+                            top: `${effectiveCategoryConfig.layer3?.y ?? 50}%`,
+                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
                             opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
-                            transform: getLayer3Transform(
-                              studioLayer3Scale,
-                              effectiveCategoryConfig.layer3?.flipHorizontal
-                            ),
-                            transformOrigin: getLayer3TransformOrigin(studioLayer3Pos),
-                            maxHeight: '38%',
-                            maxWidth: '38%',
+                            width: `${16 * (effectiveCategoryConfig.layer3?.scale ?? 1)}rem`,
+                            maxWidth: '96%',
                           }}
                         >
                           <img
                             src={effectiveLayer3Url}
                             alt="Calque 3"
-                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_8px_24px_rgba(0,0,0,0.85)]"
+                            className="w-full h-auto object-contain filter drop-shadow-[0_8px_24px_rgba(0,0,0,0.85)]"
                           />
                         </div>
                       )}
 
-                      {/* STUDIO LAYER 4: SPONSOR / PARTENAIRE DU CLUB */}
+                      {/* STUDIO LAYER 4: position libre identique à l'aperçu TV (x/y/scale du Studio) */}
                       {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
                         <div
-                          className={`absolute pointer-events-none z-10 transition-all ${getLayer4PositionClass(studioLayer4Pos)}`}
+                          className="absolute pointer-events-none z-10"
                           style={{
+                            left: `${effectiveCategoryConfig.layer4?.x ?? 50}%`,
+                            top: `${effectiveCategoryConfig.layer4?.y ?? 50}%`,
+                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer4?.flipHorizontal ? 'scaleX(-1)' : ''}`,
                             opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
-                            transform: `scale(${studioLayer4Scale})`,
-                            transformOrigin: getLayer4TransformOrigin(studioLayer4Pos),
-                            maxHeight: '22%',
-                            maxWidth: '28%',
+                            width: `${16 * (effectiveCategoryConfig.layer4?.scale ?? 1)}rem`,
+                            maxWidth: '96%',
                           }}
                         >
                           <img
                             src={effectiveLayer4Url}
                             alt="Calque 4"
-                            className="max-h-full max-w-full object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.75)]"
+                            className="w-full h-auto object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.75)]"
                           />
                         </div>
                       )}
