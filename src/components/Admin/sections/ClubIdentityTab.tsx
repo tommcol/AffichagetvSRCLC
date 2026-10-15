@@ -11,7 +11,7 @@ export interface ClubIdentityTabProps {
 }
 
 export function ClubIdentityTab(props: ClubIdentityTabProps) {
-  const {
+    const {
     clubSettings,
     ffbbTeams,
     handleLogoFileUpload,
@@ -21,6 +21,7 @@ export function ClubIdentityTab(props: ClubIdentityTabProps) {
     setActiveTab,
     setIsDraggingLogo,
     setSocialForm,
+    isDraggingLogo,
   } = props;
 
   return (

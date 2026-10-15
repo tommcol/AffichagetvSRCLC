@@ -12,7 +12,7 @@ export interface FfbbTabProps {
 }
 
 export function FfbbTab(props: FfbbTabProps) {
-  const {
+    const {
     clubSettings,
     ffbbTeams,
     handleSyncFFBB,
@@ -31,6 +31,7 @@ export function FfbbTab(props: FfbbTabProps) {
     syncIsError,
     syncMessage,
     syncStartDate,
+    matches,
   } = props;
 
   return (

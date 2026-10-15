@@ -12,7 +12,7 @@ export interface SocialTabProps {
 }
 
 export function SocialTab(props: SocialTabProps) {
-  const {
+    const {
     birthdays,
     clubSettings,
     handleTestSocialWebhook,
@@ -26,6 +26,8 @@ export function SocialTab(props: SocialTabProps) {
     socialForm,
     socialWebhookStatus,
     visualTemplates,
+    isOpen,
+    onClose,
   } = props;
 
   return (

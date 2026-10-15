@@ -3215,6 +3215,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               syncMessage={syncMessage}
               syncStartDate={syncStartDate}
               visualTemplates={visualTemplates}
+              newMatchIsHome={newMatchIsHome}
             />
           )}
 
@@ -3341,6 +3342,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               uploadMultipleFiles={uploadMultipleFiles}
               visualTemplates={visualTemplates}
               widestTeamInfo={widestTeamInfo}
+              isDraggingPhotos={isDraggingPhotos}
+              isDraggingSponsors={isDraggingSponsors}
+              isDraggingLogos={isDraggingLogos}
+              isDraggingEvents={isDraggingEvents}
+              currentPreviewFont={currentPreviewFont}
+              currentPreviewScale={currentPreviewScale}
             />
           )}
 
@@ -3362,6 +3369,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               socialForm={socialForm}
               socialWebhookStatus={socialWebhookStatus}
               visualTemplates={visualTemplates}
+              isOpen={isOpen}
+              onClose={onClose}
             />
           )}
 
@@ -3415,6 +3424,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               handleDurationChange={handleDurationChange}
               handleToggleCategory={handleToggleCategory}
               onUpdateClubSettings={onUpdateClubSettings}
+              photos={photos}
             />
           )}
 
@@ -3480,6 +3490,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setActiveTab={setActiveTab}
               setIsDraggingLogo={setIsDraggingLogo}
               setSocialForm={setSocialForm}
+              isDraggingLogo={isDraggingLogo}
             />
           )}
 
@@ -3506,6 +3517,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               syncIsError={syncIsError}
               syncMessage={syncMessage}
               syncStartDate={syncStartDate}
+              matches={matches}
             />
           )}
 

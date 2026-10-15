@@ -15,7 +15,7 @@ export interface ImageBanksTabProps {
 }
 
 export function ImageBanksTab(props: ImageBanksTabProps) {
-  const {
+    const {
     activeEditingConfig,
     alertPreviewTeam,
     alertPreviewType,
@@ -72,6 +72,12 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
     uploadMultipleFiles,
     visualTemplates,
     widestTeamInfo,
+    isDraggingPhotos,
+    isDraggingSponsors,
+    isDraggingLogos,
+    isDraggingEvents,
+    currentPreviewFont,
+    currentPreviewScale,
   } = props;
 
   return (

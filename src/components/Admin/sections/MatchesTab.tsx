@@ -15,7 +15,7 @@ export interface MatchesTabProps {
 }
 
 export function MatchesTab(props: MatchesTabProps) {
-  const {
+    const {
     autoFetchOpponentLogos,
     birthdays,
     clubSettings,
@@ -65,6 +65,7 @@ export function MatchesTab(props: MatchesTabProps) {
     syncMessage,
     syncStartDate,
     visualTemplates,
+    newMatchIsHome,
   } = props;
 
   return (
