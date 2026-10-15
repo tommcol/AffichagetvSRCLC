@@ -49,34 +49,34 @@ async function runTests() {
   }
   console.log('✅ Test 2 réussi : Les requêtes non signées ou avec un faux secret sont bloquées (403).');
 
-  console.log('\n--- TEST 3 : Vérification dans worker/index.ts ---');
-  const workerContent = readFileSync(path.join(process.cwd(), 'worker', 'index.ts'), 'utf-8');
+  console.log('\n--- TEST 3 : Vérification dans worker/telegram.ts ---');
+  const workerContent = readFileSync(path.join(process.cwd(), 'worker', 'telegram.ts'), 'utf-8');
 
   // Vérifier que le secret TELEGRAM_BOT_TOKEN est lu depuis env
   if (!workerContent.includes('env.TELEGRAM_BOT_TOKEN')) {
-    throw new Error("worker/index.ts doit utiliser env.TELEGRAM_BOT_TOKEN");
+    throw new Error("worker/telegram.ts doit utiliser env.TELEGRAM_BOT_TOKEN");
   }
 
   // Vérifier que le webhook vérifie X-Telegram-Bot-Api-Secret-Token
   if (!workerContent.includes("X-Telegram-Bot-Api-Secret-Token")) {
-    throw new Error("worker/index.ts doit vérifier le header X-Telegram-Bot-Api-Secret-Token");
+    throw new Error("worker/telegram.ts doit vérifier le header X-Telegram-Bot-Api-Secret-Token");
   }
 
   // Vérifier la protection par ADMIN_PASSWORD
   if (!workerContent.includes('env.ADMIN_PASSWORD')) {
-    throw new Error("worker/index.ts doit protéger l'action par ADMIN_PASSWORD");
+    throw new Error("worker/telegram.ts doit protéger l'action par ADMIN_PASSWORD");
   }
 
   // Vérifier le suivi du dernier message
   if (!workerContent.includes('telegram-last-message')) {
-    throw new Error("worker/index.ts doit persister telegram-last-message");
+    throw new Error("worker/telegram.ts doit persister telegram-last-message");
   }
 
   // Vérifier qu'aucune route ne renvoie le token
   if (workerContent.includes('botToken: env.TELEGRAM_BOT_TOKEN') || workerContent.includes('token: env.TELEGRAM_BOT_TOKEN')) {
-    throw new Error("worker/index.ts ne doit jamais renvoyer la valeur du token");
+    throw new Error("worker/telegram.ts ne doit jamais renvoyer la valeur du token");
   }
-  console.log('✅ Test 3 réussi : worker/index.ts applique la sécurité complète et le suivi des messages réels.');
+  console.log('✅ Test 3 réussi : worker/telegram.ts applique la sécurité complète et le suivi des messages réels.');
 
   console.log('\n--- TEST 4 : Vérification dans server.ts ---');
   const serverContent = readFileSync(path.join(process.cwd(), 'server.ts'), 'utf-8');

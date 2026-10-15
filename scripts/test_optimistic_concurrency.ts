@@ -10,7 +10,7 @@ console.log('================================================================');
 console.log('TEST SUITE : CONTRÔLE DE CONCURRENCE OPTIMISTE & VERSIONNAGE');
 console.log('================================================================');
 
-// 1. Simulation de la logique serveur (identique à worker/index.ts et server.ts)
+// 1. Simulation de la logique serveur (identique à worker/storage.ts et server.ts)
 interface StorageDocument {
   version?: number;
   [key: string]: any;
@@ -155,19 +155,19 @@ if (clientB_validSave.status !== 200 || clientB_validSave.version !== 3) {
 console.log('✓ Réussi : Après rechargement, la sauvegarde est acceptée et passe à version 3.');
 
 // -------------------------------------------------------------
-// TEST 7 : Vérification statique dans worker/index.ts et server.ts
+// TEST 7 : Vérification statique dans worker/storage.ts et server.ts
 // -------------------------------------------------------------
-console.log('\n--- TEST 7 : Vérification de conformité dans worker/index.ts et server.ts ---');
-const workerContent = fs.readFileSync(path.join(process.cwd(), 'worker', 'index.ts'), 'utf-8');
+console.log('\n--- TEST 7 : Vérification de conformité dans worker/storage.ts et server.ts ---');
+const workerContent = fs.readFileSync(path.join(process.cwd(), 'worker', 'storage.ts'), 'utf-8');
 const serverContent = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf-8');
 
 if (!workerContent.includes('CONCURRENCY_CONFLICT') || !workerContent.includes('status: 409')) {
-  throw new Error('worker/index.ts doit contenir la gestion CONCURRENCY_CONFLICT avec statut 409');
+  throw new Error('worker/storage.ts doit contenir la gestion CONCURRENCY_CONFLICT avec statut 409');
 }
 if (!serverContent.includes('CONCURRENCY_CONFLICT') || !serverContent.includes('status(409)')) {
   throw new Error('server.ts doit contenir la gestion CONCURRENCY_CONFLICT avec statut 409');
 }
-console.log('✓ Réussi : worker/index.ts et server.ts appliquent la vérification stricte 409.');
+console.log('✓ Réussi : worker/storage.ts et server.ts appliquent la vérification stricte 409.');
 
 console.log('\n================================================================');
 console.log('🎉 TOUS LES TESTS DE CONCURRENCE OPTIMISTE SONT PASSÉS ! (7/7)');
