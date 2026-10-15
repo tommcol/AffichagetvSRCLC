@@ -3168,7 +3168,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             <MatchesTab
               setMatchesSubTab={setMatchesSubTab}
               matchesSubTab={matchesSubTab}
-              w={w}
               matches={matches}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
@@ -3183,16 +3182,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setSyncStartDate={setSyncStartDate}
               setSyncEndDate={setSyncEndDate}
               setMatchesFilterMode={setMatchesFilterMode}
-              title={title}
-              base={base}
               handleSelectOnlyFilteredMatchesForTV={handleSelectOnlyFilteredMatchesForTV}
-              d={d}
               handleSyncFFBB={handleSyncFFBB}
               isSyncingFFBB={isSyncingFFBB}
               handleFetchOpponentLogos={handleFetchOpponentLogos}
               isFetchingOpponentLogos={isFetchingOpponentLogos}
               logos={logos}
-              label={label}
               autoFetchOpponentLogos={autoFetchOpponentLogos}
               setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
               syncMessage={syncMessage}
@@ -3213,16 +3208,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               handleAddMatchManual={handleAddMatchManual}
               matchesFilterMode={matchesFilterMode}
               editingMatch={editingMatch}
-              homeScore={homeScore}
-              awayScore={awayScore}
-              result={result}
               setEditingMatch={setEditingMatch}
               handleQuickMatchOutcome={handleQuickMatchOutcome}
               quickScoreMatchId={quickScoreMatchId}
               setQuickScoreMatchId={setQuickScoreMatchId}
               setQuickHomeScore={setQuickHomeScore}
               setQuickAwayScore={setQuickAwayScore}
-              score={score}
               quickHomeScore={quickHomeScore}
               quickAwayScore={quickAwayScore}
             />
@@ -3235,7 +3226,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             <ResultsTab
               setResultsSubTab={setResultsSubTab}
               resultsSubTab={resultsSubTab}
-              w={w}
               results={results}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
@@ -3246,45 +3236,37 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               showCalendarInResults={showCalendarInResults}
               setResultsFilterToCurrentWeekend={setResultsFilterToCurrentWeekend}
               setResultsFilterToLastWeekend={setResultsFilterToLastWeekend}
-              title={title}
               resultsStartDate={resultsStartDate}
               resultsEndDate={resultsEndDate}
               setResultsStartDate={setResultsStartDate}
               setResultsEndDate={setResultsEndDate}
               setResultsFilterMode={setResultsFilterMode}
-              base={base}
               handleSelectOnlyFilteredResultsForTV={handleSelectOnlyFilteredResultsForTV}
-              d={d}
               handleSyncFFBB={handleSyncFFBB}
               isSyncingFFBB={isSyncingFFBB}
-              label={label}
               autoFetchOpponentLogos={autoFetchOpponentLogos}
               setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
               logos={logos}
               onUpdateResults={onUpdateResults}
               setShowAddManualResult={setShowAddManualResult}
               showAddManualResult={showAddManualResult}
-              cat={cat}
               selectedScheduledMatchId={selectedScheduledMatchId}
               handleSelectScheduledMatch={handleSelectScheduledMatch}
               setNewResultIsHome={setNewResultIsHome}
               newResultIsHome={newResultIsHome}
               newResultErrorMsg={newResultErrorMsg}
               newResultSuccessMsg={newResultSuccessMsg}
-              club={club}
               newResultIsCustomCategory={newResultIsCustomCategory}
               newResultCategory={newResultCategory}
               setNewResultIsCustomCategory={setNewResultIsCustomCategory}
               setNewResultCategory={setNewResultCategory}
               availableFfbbTeams={availableFfbbTeams}
-              name={name}
               newResultOpponent={newResultOpponent}
               setNewResultOpponent={setNewResultOpponent}
               setNewResultErrorMsg={setNewResultErrorMsg}
               newResultDate={newResultDate}
               setNewResultDate={setNewResultDate}
               setNewResultMode={setNewResultMode}
-              score={score}
               newResultMode={newResultMode}
               newResultHomeScore={newResultHomeScore}
               setNewResultHomeScore={setNewResultHomeScore}
@@ -3293,9 +3275,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setNewResultStatusOutcome={setNewResultStatusOutcome}
               newResultStatusOutcome={newResultStatusOutcome}
               handleAddResultManual={handleAddResultManual}
-              result={result}
-              homeScore={homeScore}
-              awayScore={awayScore}
               setEditingResult={setEditingResult}
               editingResult={editingResult}
               handleSaveEditedResult={handleSaveEditedResult}
@@ -3307,8 +3286,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'image_banks' && (
             <ImageBanksTab
-              d={d}
-              w={w}
               photos={photos}
               logos={logos}
               setImageBankSubTab={setImageBankSubTab}
@@ -3318,19 +3295,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               events={events}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
-              club={club}
               setIsDraggingPhotos={setIsDraggingPhotos}
               handleBatchPhotosUpload={handleBatchPhotosUpload}
               isDraggingPhotos={isDraggingPhotos}
-              label={label}
               newPhotoTitle={newPhotoTitle}
               setNewPhotoTitle={setNewPhotoTitle}
               newPhotoFolder={newPhotoFolder}
               setNewPhotoFolder={setNewPhotoFolder}
-              file={file}
-              isVideo={isVideo}
-              data={data}
-              title={title}
               onUpdatePhotos={onUpdatePhotos}
               setIsDraggingSponsors={setIsDraggingSponsors}
               handleBatchSponsorsUpload={handleBatchSponsorsUpload}
@@ -3339,8 +3310,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setNewSponsorName={setNewSponsorName}
               newSponsorTier={newSponsorTier}
               setNewSponsorTier={setNewSponsorTier}
-              logoUrl={logoUrl}
-              name={name}
               onUpdateSponsors={onUpdateSponsors}
               setIsDraggingLogos={setIsDraggingLogos}
               handleBatchLogosUpload={handleBatchLogosUpload}
@@ -3350,7 +3319,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               newLogoCategory={newLogoCategory}
               setNewLogoCategory={setNewLogoCategory}
               onUpdateLogos={onUpdateLogos}
-              logo={logo}
               setIsDraggingEvents={setIsDraggingEvents}
               handleBatchEventsUpload={handleBatchEventsUpload}
               isDraggingEvents={isDraggingEvents}
@@ -3359,10 +3327,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               newEventDate={newEventDate}
               setNewEventDate={setNewEventDate}
               onUpdateEvents={onUpdateEvents}
-              score={score}
               teamVisuals={teamVisuals}
               uploadMultipleFiles={uploadMultipleFiles}
-              x={x}
               setSelectedAlertVisualUrl={setSelectedAlertVisualUrl}
               setSelectedAlertVisualType={setSelectedAlertVisualType}
               setAlertPreviewType={setAlertPreviewType}
@@ -3370,12 +3336,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               selectedAlertVisualType={selectedAlertVisualType}
               updateActiveConfig={updateActiveConfig}
               activeEditingConfig={activeEditingConfig}
-              base={base}
               alertPreviewType={alertPreviewType}
               setAlertPreviewTeam={setAlertPreviewTeam}
               alertPreviewTeam={alertPreviewTeam}
               widestTeamInfo={widestTeamInfo}
-              team={team}
               allCandidateTeams={allCandidateTeams}
               teamsMeasureRef={teamsMeasureRef}
               currentPreviewFont={currentPreviewFont}
@@ -3383,7 +3347,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               currentPreviewTitleTemplate={currentPreviewTitleTemplate}
               currentPreviewIsWin={currentPreviewIsWin}
               effectivePreviewTeam={effectivePreviewTeam}
-              now={now}
               clubSettings={clubSettings}
             />
           )}
@@ -3401,12 +3364,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               clubSettings={clubSettings}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
-              w={w}
-              label={label}
               onUpdateClubSettings={onUpdateClubSettings}
-              club={club}
               setActiveTab={setActiveTab}
-              d={d}
               socialForm={socialForm}
               setSocialForm={setSocialForm}
               handleTestSocialWebhook={handleTestSocialWebhook}
@@ -3420,19 +3379,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'telegram' && (
             <TelegramTab
-              w={w}
-              distance={distance}
-              score={score}
               telegramStatusLoading={telegramStatusLoading}
               telegramStatus={telegramStatus}
               effectiveLastTelegramMessage={effectiveLastTelegramMessage}
               fetchTelegramStatus={fetchTelegramStatus}
-              title={title}
               formatTelegramDate={formatTelegramDate}
-              d={d}
               activeAlerts={activeAlerts}
-              team={team}
-              isWin={isWin}
               onRemoveAlert={onRemoveAlert}
               telegramActionMsg={telegramActionMsg}
               setTelegramActionMsg={setTelegramActionMsg}
@@ -3458,14 +3410,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {activeTab === 'alerts' && (
             <AlertsTab
               activeAlerts={activeAlerts}
-              w={w}
-              d={d}
-              now={now}
-              isWin={isWin}
-              team={team}
-              ourScore={ourScore}
               onRemoveAlert={onRemoveAlert}
-              title={title}
             />
           )}
 
@@ -3474,15 +3419,10 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'categories' && (
             <CategoriesTab
-              w={w}
-              base={base}
-              d={d}
               onUpdateClubSettings={onUpdateClubSettings}
               clubSettings={clubSettings}
-              cat={cat}
               photos={photos}
               categories={categories}
-              label={label}
               handleToggleCategory={handleToggleCategory}
               handleDurationChange={handleDurationChange}
             />
@@ -3495,7 +3435,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             <ExcelTab
               setBirthdaysSubTab={setBirthdaysSubTab}
               birthdaysSubTab={birthdaysSubTab}
-              w={w}
               birthdays={birthdays}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
@@ -3504,15 +3443,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               clubSettings={clubSettings}
               setIsAddingManualBday={setIsAddingManualBday}
               isAddingManualBday={isAddingManualBday}
-              title={title}
-              d={d}
               handleAddManualBirthday={handleAddManualBirthday}
-              label={label}
               manualBdayFirstName={manualBdayFirstName}
               setManualBdayFirstName={setManualBdayFirstName}
               manualBdayCategory={manualBdayCategory}
               setManualBdayCategory={setManualBdayCategory}
-              cat={cat}
               manualBdayDate={manualBdayDate}
               setManualBdayDate={setManualBdayDate}
               birthdayWeekOffset={birthdayWeekOffset}
@@ -3522,15 +3457,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               onUpdateBirthdays={onUpdateBirthdays}
               isParsingExcel={isParsingExcel}
               excelInputRef={excelInputRef}
-              file={file}
               handleExcelFileUpload={handleExcelFileUpload}
               excelSuccessMsg={excelSuccessMsg}
               saveStatus={saveStatus}
-              saved={saved}
               saveErrorMessage={saveErrorMessage}
               excelErrors={excelErrors}
               editingBirthdayId={editingBirthdayId}
-              firstName={firstName}
               handleCancelEditBirthday={handleCancelEditBirthday}
               editBdayFirstName={editBdayFirstName}
               setEditBdayFirstName={setEditBdayFirstName}
@@ -3539,7 +3471,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               editBdayDate={editBdayDate}
               setEditBdayDate={setEditBdayDate}
               handleSaveEditBirthday={handleSaveEditBirthday}
-              base={base}
               handleStartEditBirthday={handleStartEditBirthday}
               handleDeleteBirthday={handleDeleteBirthday}
             />
@@ -3550,14 +3481,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'club_identity' && (
             <ClubIdentityTab
-              w={w}
-              logo={logo}
-              d={d}
-              club={club}
               clubSettings={clubSettings}
-              logoUrl={logoUrl}
-              name={name}
-              label={label}
               onUpdateClubSettings={onUpdateClubSettings}
               setActiveTab={setActiveTab}
               ffbbTeams={ffbbTeams}
@@ -3566,9 +3490,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               isDraggingLogo={isDraggingLogo}
               isUploadingLogo={isUploadingLogo}
               logoFileInputRef={logoFileInputRef}
-              file={file}
-              current={current}
-              title={title}
               setSocialForm={setSocialForm}
             />
           )}
@@ -3578,19 +3499,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'ffbb' && (
             <FfbbTab
-              label={label}
               clubSettings={clubSettings}
               onUpdateClubSettings={onUpdateClubSettings}
-              w={w}
               handleSyncFFBB={handleSyncFFBB}
               isSyncingFFBB={isSyncingFFBB}
-              d={d}
               setFilterToCurrentWeekend={setFilterToCurrentWeekend}
               syncStartDate={syncStartDate}
               syncEndDate={syncEndDate}
               setSyncStartDate={setSyncStartDate}
               setSyncEndDate={setSyncEndDate}
-              title={title}
               syncMessage={syncMessage}
               syncIsError={syncIsError}
               setActiveTab={setActiveTab}
@@ -3599,11 +3516,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               ffbbTeams={ffbbTeams}
               handleTrackAllTeams={handleTrackAllTeams}
               handleUntrackAllTeams={handleUntrackAllTeams}
-              base={base}
-              team={team}
-              customName={customName}
               handleToggleTrackTeam={handleToggleTrackTeam}
-              name={name}
               handleUpdateTeamCustomName={handleUpdateTeamCustomName}
             />
           )}
@@ -3613,8 +3526,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'fullykiosk' && (
             <FullykioskTab
-              w={w}
-              d={d}
             />
           )}
         </div>
