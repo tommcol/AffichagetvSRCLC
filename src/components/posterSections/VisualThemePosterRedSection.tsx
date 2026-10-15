@@ -15,6 +15,9 @@ export interface VisualThemePosterRedSectionProps {
 }
 
 export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionProps) {
+  const bgGrayscale = effectiveCategoryConfig?.categoryTheme?.backgroundGrayscale ?? false;
+  const bgContrast = effectiveCategoryConfig?.categoryTheme?.backgroundContrast ?? 1;
+  const bgVignette = effectiveCategoryConfig?.categoryTheme?.backgroundVignette;
   const {
     effectiveBgUrl,
     layer1Grayscale,
@@ -66,7 +69,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           alt="Fond affiche basket"
                           className="w-full h-full object-cover pointer-events-none transition-all duration-75"
                           style={{
-                            filter: `brightness(${layer1Brightness}) blur(${layer1Blur}px)`,
+                            filter: `brightness(${layer1Brightness}) blur(${layer1Blur}px) grayscale(${bgGrayscale ? 100 : 0}%) contrast(${bgContrast})`,
                             transform: `scale(${layer1Scale})`,
                           }}
                         />
@@ -76,7 +79,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                       <div
                         className="absolute inset-0 pointer-events-none"
                         style={{
-                          background: 'radial-gradient(circle at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.8) 100%)',
+                          background: `radial-gradient(circle at center, rgba(0,0,0,${(bgVignette ?? 0.8) * 0.25}) 0%, rgba(0,0,0,${bgVignette ?? 0.8}) 100%)`,
                         }}
                       />
 

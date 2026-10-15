@@ -135,6 +135,10 @@ export interface SlideDesignTheme {
   resultDisplayMode?: 'both' | 'score' | 'status';
   backgroundBrightness: number; // 0.1 à 1.0 (défaut 0.35)
   backgroundBlur: number; // 0 à 20px (défaut 0)
+  backgroundGrayscale?: boolean;
+  backgroundContrast?: number;
+  backgroundScale?: number;
+  backgroundVignette?: number;
   backgroundMediaType?: 'image' | 'video';
   customHeaderTitle?: string;
   customHeaderTitleHome?: string;
@@ -178,6 +182,10 @@ export interface CategorySlideTheme {
   backgroundMediaType?: 'image' | 'video'; // Type explicite du média de fond
   backgroundBrightness?: number; // 0.05 à 2.0 (5% à 200%)
   backgroundBlur?: number; // 0 à 20px
+  backgroundGrayscale?: boolean; // Noir et blanc forcé du fond (défaut : couleur)
+  backgroundContrast?: number; // 0.5 à 2.0 (défaut 1.0)
+  backgroundScale?: number; // 1.0 à 2.0 zoom du fond (défaut 1.0)
+  backgroundVignette?: number; // 0 à 0.9 assombrissement des bords (défaut 0 = aucun)
   showClubLogoWatermark?: boolean; // Filigrane central du logo du club
 
   // Calque 2 : Cartes & Données

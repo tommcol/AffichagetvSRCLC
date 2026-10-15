@@ -845,6 +845,89 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 />
               </div>
 
+              {/* Noir et blanc du fond */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
+                <ToggleSwitch
+                  checked={currentEffective.categoryTheme.backgroundGrayscale ?? false}
+                  onChange={(val) => updateCurrentCategoryTheme({ backgroundGrayscale: val })}
+                  label="Fond en Noir et Blanc"
+                  sublabel="Convertit le fond en nuances de gris (sinon couleur)."
+                  accent="orange"
+                />
+              </div>
+
+              {/* Contraste du fond */}
+              <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-300">
+                    <Contrast className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Contraste du Fond</span>
+                  </span>
+                  <span className="font-mono text-orange-400">
+                    {Math.round((currentEffective.categoryTheme.backgroundContrast ?? 1) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.05"
+                  value={currentEffective.categoryTheme.backgroundContrast ?? 1}
+                  onChange={(e) =>
+                    updateCurrentCategoryTheme({ backgroundContrast: parseFloat(e.target.value) })
+                  }
+                  className="w-full accent-orange-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Zoom du fond */}
+              <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-300">
+                    <Maximize2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Zoom du Fond</span>
+                  </span>
+                  <span className="font-mono text-orange-400">
+                    {Math.round((currentEffective.categoryTheme.backgroundScale ?? 1) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1.0"
+                  max="2.0"
+                  step="0.05"
+                  value={currentEffective.categoryTheme.backgroundScale ?? 1}
+                  onChange={(e) =>
+                    updateCurrentCategoryTheme({ backgroundScale: parseFloat(e.target.value) })
+                  }
+                  className="w-full accent-orange-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Assombrissement des bords (vignette) */}
+              <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5 text-slate-300">
+                    <Sun className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Assombrissement des bords</span>
+                  </span>
+                  <span className="font-mono text-orange-400">
+                    {Math.round((currentEffective.categoryTheme.backgroundVignette ?? 0) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="0.9"
+                  step="0.05"
+                  value={currentEffective.categoryTheme.backgroundVignette ?? 0}
+                  onChange={(e) =>
+                    updateCurrentCategoryTheme({ backgroundVignette: parseFloat(e.target.value) })
+                  }
+                  className="w-full accent-orange-500 cursor-pointer"
+                />
+              </div>
+
               {/* Filigrane Logo du Club au centre */}
               <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
                 <ToggleSwitch

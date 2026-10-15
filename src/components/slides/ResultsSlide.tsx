@@ -100,6 +100,10 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   const scoreFont = theme?.fontFamilyScore || 'Teko';
   const bodyFont = theme?.fontFamilyBody || 'Montserrat';
   const bgBrightness = theme?.backgroundBrightness ?? 0.35;
+  const bgGrayscale = theme?.backgroundGrayscale ?? false;
+  const bgContrast = theme?.backgroundContrast ?? 1;
+  const bgScale = theme?.backgroundScale ?? 1;
+  const bgVignette = theme?.backgroundVignette ?? 0;
   const bgBlur = theme?.backgroundBlur ?? 0;
   const titleAlign = theme?.headerTitleAlignment || 'left';
 
@@ -355,18 +359,24 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   if (bgHasControl && onVideoEnded) onVideoEnded();
                 }}
                 className="w-full h-full object-cover"
-                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px) grayscale(${bgGrayscale ? 100 : 0}%) contrast(${bgContrast})`, transform: `scale(${bgScale})` }}
               />
             ) : (
               <img
                 src={backgroundUrl}
                 alt="Fond visuel"
                 className="w-full h-full object-cover"
-                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px)` }}
+                style={{ filter: `brightness(${bgBrightness}) blur(${bgBlur}px) grayscale(${bgGrayscale ? 100 : 0}%) contrast(${bgContrast})`, transform: `scale(${bgScale})` }}
                 referrerPolicy="no-referrer"
               />
             )}
             <div className="absolute inset-0 bg-slate-950/70 pointer-events-none" />
+            {bgVignette > 0 && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: `radial-gradient(circle at center, rgba(0,0,0,0) 45%, rgba(0,0,0,${bgVignette}) 100%)` }}
+              />
+            )}
           </div>
         )}
 

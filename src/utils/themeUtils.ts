@@ -187,6 +187,10 @@ export function getEffectiveCategoryConfig(
     globalTheme?.backgroundBrightness ??
     (category === 'birthdays' ? 0.5 : 0.4);
   const backgroundBlur = specific.backgroundBlur ?? globalTheme?.backgroundBlur ?? 0;
+  const backgroundGrayscale = specific.backgroundGrayscale ?? globalTheme?.backgroundGrayscale ?? false;
+  const backgroundContrast = specific.backgroundContrast ?? globalTheme?.backgroundContrast ?? 1;
+  const backgroundScale = specific.backgroundScale ?? globalTheme?.backgroundScale ?? 1;
+  const backgroundVignette = specific.backgroundVignette ?? globalTheme?.backgroundVignette ?? 0;
 
   // Rétrocompatibilité Mascotte
   const showMascot =
@@ -259,6 +263,10 @@ export function getEffectiveCategoryConfig(
     badgeTextColor: specific.badgeTextColor || globalTheme?.badgeTextColor,
     backgroundBrightness,
     backgroundBlur,
+    backgroundGrayscale,
+    backgroundContrast,
+    backgroundScale,
+    backgroundVignette,
     backgroundMediaType,
     customHeaderTitle: specific.customHeaderTitle,
     customHeaderTitleHome: specific.customHeaderTitleHome,
@@ -293,6 +301,10 @@ export function getEffectiveCategoryConfig(
     backgroundMediaType,
     backgroundBrightness,
     backgroundBlur,
+    backgroundGrayscale,
+    backgroundContrast,
+    backgroundScale,
+    backgroundVignette,
     showClubLogoWatermark,
     primaryColor,
     textColor: specific.textColor || globalTheme?.textColor || '#ffffff',
