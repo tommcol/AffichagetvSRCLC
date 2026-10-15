@@ -735,10 +735,11 @@ export default function App() {
     setProgressPercent(0);
   }, [carouselPlaylist.length]);
 
-  // Carousel timer loop - Strictly respects elapsed time and resets on slide change
+  // Les visuels fixes suivent la durée configurée. Une slide contenant une vidéo
+  // est pilotée exclusivement par l'événement de fin de lecture de sa vidéo.
   useEffect(() => {
-    if (!isPlaying || carouselPlaylist.length <= 1) {
-      setProgressPercent(0);
+    if (!isPlaying || carouselPlaylist.length <= 1 || isCurrentSlideVideo) {
+      if (!isCurrentSlideVideo) setProgressPercent(0);
       return;
     }
 
