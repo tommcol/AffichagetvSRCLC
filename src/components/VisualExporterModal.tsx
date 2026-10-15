@@ -425,6 +425,20 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   }, [effectiveCategoryConfig]);
 
+  // Calque 1 : synchronisation des réglages du fond depuis le Studio
+  // (luminosité et flou choisis dans StudioGraphiqueWorkbench -> Calque 1)
+  useEffect(() => {
+    if (!effectiveCategoryConfig?.categoryTheme) return;
+
+    if (effectiveCategoryConfig.categoryTheme.backgroundBrightness !== undefined) {
+      setLayer1Brightness(effectiveCategoryConfig.categoryTheme.backgroundBrightness);
+    }
+
+    if (effectiveCategoryConfig.categoryTheme.backgroundBlur !== undefined) {
+      setLayer1Blur(effectiveCategoryConfig.categoryTheme.backgroundBlur);
+    }
+  }, [effectiveCategoryConfig]);
+
   // Calque 3 (Élément libre 1) controls
   const [customLayer3Image, setCustomLayer3Image] = useState<string | null>(null);
   const [showStudioLayer3, setShowStudioLayer3] = useState<boolean>(true);
