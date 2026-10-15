@@ -15,9 +15,6 @@ export interface VisualThemePosterRedSectionProps {
 }
 
 export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionProps) {
-  const bgGrayscale = effectiveCategoryConfig?.categoryTheme?.backgroundGrayscale ?? false;
-  const bgContrast = effectiveCategoryConfig?.categoryTheme?.backgroundContrast ?? 1;
-  const bgVignette = effectiveCategoryConfig?.categoryTheme?.backgroundVignette;
   const {
     effectiveBgUrl,
     layer1Grayscale,
@@ -59,6 +56,9 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
     specificNotification,
     p,
   } = props;
+  const bgGrayscale = effectiveCategoryConfig?.categoryTheme?.backgroundGrayscale ?? false;
+  const bgContrast = effectiveCategoryConfig?.categoryTheme?.backgroundContrast ?? 1;
+  const bgVignette = effectiveCategoryConfig?.categoryTheme?.backgroundVignette;
 
   return (
                     <>
