@@ -3166,56 +3166,55 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'matches' && (
             <MatchesTab
-              setMatchesSubTab={setMatchesSubTab}
-              matchesSubTab={matchesSubTab}
-              matches={matches}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              results={results}
+              autoFetchOpponentLogos={autoFetchOpponentLogos}
               birthdays={birthdays}
               clubSettings={clubSettings}
-              setShowCalendarInMatches={setShowCalendarInMatches}
-              showCalendarInMatches={showCalendarInMatches}
-              setFilterToCurrentWeekend={setFilterToCurrentWeekend}
-              syncStartDate={syncStartDate}
-              syncEndDate={syncEndDate}
-              setSyncStartDate={setSyncStartDate}
-              setSyncEndDate={setSyncEndDate}
-              setMatchesFilterMode={setMatchesFilterMode}
+              editingMatch={editingMatch}
+              handleAddMatchManual={handleAddMatchManual}
+              handleFetchOpponentLogos={handleFetchOpponentLogos}
+              handleQuickMatchOutcome={handleQuickMatchOutcome}
               handleSelectOnlyFilteredMatchesForTV={handleSelectOnlyFilteredMatchesForTV}
               handleSyncFFBB={handleSyncFFBB}
-              isSyncingFFBB={isSyncingFFBB}
-              handleFetchOpponentLogos={handleFetchOpponentLogos}
               isFetchingOpponentLogos={isFetchingOpponentLogos}
+              isSyncingFFBB={isSyncingFFBB}
               logos={logos}
-              autoFetchOpponentLogos={autoFetchOpponentLogos}
-              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
-              syncMessage={syncMessage}
-              syncIsError={syncIsError}
-              onUpdateMatches={onUpdateMatches}
-              setShowAddManualMatch={setShowAddManualMatch}
-              showAddManualMatch={showAddManualMatch}
-              newMatchCategory={newMatchCategory}
-              setNewMatchCategory={setNewMatchCategory}
-              newMatchOpponent={newMatchOpponent}
-              setNewMatchOpponent={setNewMatchOpponent}
-              newMatchDate={newMatchDate}
-              setNewMatchDate={setNewMatchDate}
-              newMatchTime={newMatchTime}
-              setNewMatchTime={setNewMatchTime}
-              setNewMatchIsHome={setNewMatchIsHome}
-              newMatchIsHome={newMatchIsHome}
-              handleAddMatchManual={handleAddMatchManual}
+              matches={matches}
               matchesFilterMode={matchesFilterMode}
-              editingMatch={editingMatch}
-              setEditingMatch={setEditingMatch}
-              handleQuickMatchOutcome={handleQuickMatchOutcome}
-              quickScoreMatchId={quickScoreMatchId}
-              setQuickScoreMatchId={setQuickScoreMatchId}
-              setQuickHomeScore={setQuickHomeScore}
-              setQuickAwayScore={setQuickAwayScore}
-              quickHomeScore={quickHomeScore}
+              matchesSubTab={matchesSubTab}
+              newMatchCategory={newMatchCategory}
+              newMatchDate={newMatchDate}
+              newMatchOpponent={newMatchOpponent}
+              newMatchTime={newMatchTime}
+              onUpdateMatches={onUpdateMatches}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
               quickAwayScore={quickAwayScore}
+              quickHomeScore={quickHomeScore}
+              quickScoreMatchId={quickScoreMatchId}
+              results={results}
+              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
+              setEditingMatch={setEditingMatch}
+              setFilterToCurrentWeekend={setFilterToCurrentWeekend}
+              setMatchesFilterMode={setMatchesFilterMode}
+              setMatchesSubTab={setMatchesSubTab}
+              setNewMatchCategory={setNewMatchCategory}
+              setNewMatchDate={setNewMatchDate}
+              setNewMatchIsHome={setNewMatchIsHome}
+              setNewMatchOpponent={setNewMatchOpponent}
+              setNewMatchTime={setNewMatchTime}
+              setQuickAwayScore={setQuickAwayScore}
+              setQuickHomeScore={setQuickHomeScore}
+              setQuickScoreMatchId={setQuickScoreMatchId}
+              setShowAddManualMatch={setShowAddManualMatch}
+              setShowCalendarInMatches={setShowCalendarInMatches}
+              setSyncEndDate={setSyncEndDate}
+              setSyncStartDate={setSyncStartDate}
+              showAddManualMatch={showAddManualMatch}
+              showCalendarInMatches={showCalendarInMatches}
+              syncEndDate={syncEndDate}
+              syncIsError={syncIsError}
+              syncMessage={syncMessage}
+              syncStartDate={syncStartDate}
+              visualTemplates={visualTemplates}
             />
           )}
 
@@ -3224,60 +3223,60 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'results' && (
             <ResultsTab
-              setResultsSubTab={setResultsSubTab}
-              resultsSubTab={resultsSubTab}
-              results={results}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              matches={matches}
+              autoFetchOpponentLogos={autoFetchOpponentLogos}
+              availableFfbbTeams={availableFfbbTeams}
               birthdays={birthdays}
               clubSettings={clubSettings}
-              setShowCalendarInResults={setShowCalendarInResults}
-              showCalendarInResults={showCalendarInResults}
-              setResultsFilterToCurrentWeekend={setResultsFilterToCurrentWeekend}
-              setResultsFilterToLastWeekend={setResultsFilterToLastWeekend}
-              resultsStartDate={resultsStartDate}
-              resultsEndDate={resultsEndDate}
-              setResultsStartDate={setResultsStartDate}
-              setResultsEndDate={setResultsEndDate}
-              setResultsFilterMode={setResultsFilterMode}
+              editingResult={editingResult}
+              handleAddResultManual={handleAddResultManual}
+              handleSaveEditedResult={handleSaveEditedResult}
               handleSelectOnlyFilteredResultsForTV={handleSelectOnlyFilteredResultsForTV}
+              handleSelectScheduledMatch={handleSelectScheduledMatch}
               handleSyncFFBB={handleSyncFFBB}
               isSyncingFFBB={isSyncingFFBB}
-              autoFetchOpponentLogos={autoFetchOpponentLogos}
-              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
               logos={logos}
-              onUpdateResults={onUpdateResults}
-              setShowAddManualResult={setShowAddManualResult}
-              showAddManualResult={showAddManualResult}
-              selectedScheduledMatchId={selectedScheduledMatchId}
-              handleSelectScheduledMatch={handleSelectScheduledMatch}
-              setNewResultIsHome={setNewResultIsHome}
-              newResultIsHome={newResultIsHome}
-              newResultErrorMsg={newResultErrorMsg}
-              newResultSuccessMsg={newResultSuccessMsg}
-              newResultIsCustomCategory={newResultIsCustomCategory}
-              newResultCategory={newResultCategory}
-              setNewResultIsCustomCategory={setNewResultIsCustomCategory}
-              setNewResultCategory={setNewResultCategory}
-              availableFfbbTeams={availableFfbbTeams}
-              newResultOpponent={newResultOpponent}
-              setNewResultOpponent={setNewResultOpponent}
-              setNewResultErrorMsg={setNewResultErrorMsg}
-              newResultDate={newResultDate}
-              setNewResultDate={setNewResultDate}
-              setNewResultMode={setNewResultMode}
-              newResultMode={newResultMode}
-              newResultHomeScore={newResultHomeScore}
-              setNewResultHomeScore={setNewResultHomeScore}
+              matches={matches}
               newResultAwayScore={newResultAwayScore}
-              setNewResultAwayScore={setNewResultAwayScore}
-              setNewResultStatusOutcome={setNewResultStatusOutcome}
+              newResultCategory={newResultCategory}
+              newResultDate={newResultDate}
+              newResultErrorMsg={newResultErrorMsg}
+              newResultHomeScore={newResultHomeScore}
+              newResultIsCustomCategory={newResultIsCustomCategory}
+              newResultIsHome={newResultIsHome}
+              newResultMode={newResultMode}
+              newResultOpponent={newResultOpponent}
               newResultStatusOutcome={newResultStatusOutcome}
-              handleAddResultManual={handleAddResultManual}
+              newResultSuccessMsg={newResultSuccessMsg}
+              onUpdateResults={onUpdateResults}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
+              results={results}
+              resultsEndDate={resultsEndDate}
+              resultsStartDate={resultsStartDate}
+              resultsSubTab={resultsSubTab}
+              selectedScheduledMatchId={selectedScheduledMatchId}
+              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
               setEditingResult={setEditingResult}
-              editingResult={editingResult}
-              handleSaveEditedResult={handleSaveEditedResult}
+              setNewResultAwayScore={setNewResultAwayScore}
+              setNewResultCategory={setNewResultCategory}
+              setNewResultDate={setNewResultDate}
+              setNewResultErrorMsg={setNewResultErrorMsg}
+              setNewResultHomeScore={setNewResultHomeScore}
+              setNewResultIsCustomCategory={setNewResultIsCustomCategory}
+              setNewResultIsHome={setNewResultIsHome}
+              setNewResultMode={setNewResultMode}
+              setNewResultOpponent={setNewResultOpponent}
+              setNewResultStatusOutcome={setNewResultStatusOutcome}
+              setResultsEndDate={setResultsEndDate}
+              setResultsFilterMode={setResultsFilterMode}
+              setResultsFilterToCurrentWeekend={setResultsFilterToCurrentWeekend}
+              setResultsFilterToLastWeekend={setResultsFilterToLastWeekend}
+              setResultsStartDate={setResultsStartDate}
+              setResultsSubTab={setResultsSubTab}
+              setShowAddManualResult={setShowAddManualResult}
+              setShowCalendarInResults={setShowCalendarInResults}
+              showAddManualResult={showAddManualResult}
+              showCalendarInResults={showCalendarInResults}
+              visualTemplates={visualTemplates}
             />
           )}
 
@@ -3286,68 +3285,62 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'image_banks' && (
             <ImageBanksTab
-              photos={photos}
-              logos={logos}
-              setImageBankSubTab={setImageBankSubTab}
-              imageBankSubTab={imageBankSubTab}
-              consolidatedMediaBank={consolidatedMediaBank}
-              sponsors={sponsors}
-              events={events}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              setIsDraggingPhotos={setIsDraggingPhotos}
-              handleBatchPhotosUpload={handleBatchPhotosUpload}
-              isDraggingPhotos={isDraggingPhotos}
-              newPhotoTitle={newPhotoTitle}
-              setNewPhotoTitle={setNewPhotoTitle}
-              newPhotoFolder={newPhotoFolder}
-              setNewPhotoFolder={setNewPhotoFolder}
-              onUpdatePhotos={onUpdatePhotos}
-              setIsDraggingSponsors={setIsDraggingSponsors}
-              handleBatchSponsorsUpload={handleBatchSponsorsUpload}
-              isDraggingSponsors={isDraggingSponsors}
-              newSponsorName={newSponsorName}
-              setNewSponsorName={setNewSponsorName}
-              newSponsorTier={newSponsorTier}
-              setNewSponsorTier={setNewSponsorTier}
-              onUpdateSponsors={onUpdateSponsors}
-              setIsDraggingLogos={setIsDraggingLogos}
-              handleBatchLogosUpload={handleBatchLogosUpload}
-              isDraggingLogos={isDraggingLogos}
-              newLogoName={newLogoName}
-              setNewLogoName={setNewLogoName}
-              newLogoCategory={newLogoCategory}
-              setNewLogoCategory={setNewLogoCategory}
-              onUpdateLogos={onUpdateLogos}
-              setIsDraggingEvents={setIsDraggingEvents}
-              handleBatchEventsUpload={handleBatchEventsUpload}
-              isDraggingEvents={isDraggingEvents}
-              newEventTitle={newEventTitle}
-              setNewEventTitle={setNewEventTitle}
-              newEventDate={newEventDate}
-              setNewEventDate={setNewEventDate}
-              onUpdateEvents={onUpdateEvents}
-              teamVisuals={teamVisuals}
-              uploadMultipleFiles={uploadMultipleFiles}
-              setSelectedAlertVisualUrl={setSelectedAlertVisualUrl}
-              setSelectedAlertVisualType={setSelectedAlertVisualType}
-              setAlertPreviewType={setAlertPreviewType}
-              selectedAlertVisualUrl={selectedAlertVisualUrl}
-              selectedAlertVisualType={selectedAlertVisualType}
-              updateActiveConfig={updateActiveConfig}
               activeEditingConfig={activeEditingConfig}
-              alertPreviewType={alertPreviewType}
-              setAlertPreviewTeam={setAlertPreviewTeam}
               alertPreviewTeam={alertPreviewTeam}
-              widestTeamInfo={widestTeamInfo}
+              alertPreviewType={alertPreviewType}
               allCandidateTeams={allCandidateTeams}
-              teamsMeasureRef={teamsMeasureRef}
-              currentPreviewFont={currentPreviewFont}
-              currentPreviewScale={currentPreviewScale}
-              currentPreviewTitleTemplate={currentPreviewTitleTemplate}
-              currentPreviewIsWin={currentPreviewIsWin}
-              effectivePreviewTeam={effectivePreviewTeam}
               clubSettings={clubSettings}
+              consolidatedMediaBank={consolidatedMediaBank}
+              currentPreviewIsWin={currentPreviewIsWin}
+              currentPreviewTitleTemplate={currentPreviewTitleTemplate}
+              effectivePreviewTeam={effectivePreviewTeam}
+              events={events}
+              handleBatchEventsUpload={handleBatchEventsUpload}
+              handleBatchLogosUpload={handleBatchLogosUpload}
+              handleBatchPhotosUpload={handleBatchPhotosUpload}
+              handleBatchSponsorsUpload={handleBatchSponsorsUpload}
+              imageBankSubTab={imageBankSubTab}
+              logos={logos}
+              newEventDate={newEventDate}
+              newEventTitle={newEventTitle}
+              newLogoCategory={newLogoCategory}
+              newLogoName={newLogoName}
+              newPhotoFolder={newPhotoFolder}
+              newPhotoTitle={newPhotoTitle}
+              newSponsorName={newSponsorName}
+              newSponsorTier={newSponsorTier}
+              onUpdateEvents={onUpdateEvents}
+              onUpdateLogos={onUpdateLogos}
+              onUpdatePhotos={onUpdatePhotos}
+              onUpdateSponsors={onUpdateSponsors}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
+              photos={photos}
+              selectedAlertVisualType={selectedAlertVisualType}
+              selectedAlertVisualUrl={selectedAlertVisualUrl}
+              setAlertPreviewTeam={setAlertPreviewTeam}
+              setAlertPreviewType={setAlertPreviewType}
+              setImageBankSubTab={setImageBankSubTab}
+              setIsDraggingEvents={setIsDraggingEvents}
+              setIsDraggingLogos={setIsDraggingLogos}
+              setIsDraggingPhotos={setIsDraggingPhotos}
+              setIsDraggingSponsors={setIsDraggingSponsors}
+              setNewEventDate={setNewEventDate}
+              setNewEventTitle={setNewEventTitle}
+              setNewLogoCategory={setNewLogoCategory}
+              setNewLogoName={setNewLogoName}
+              setNewPhotoFolder={setNewPhotoFolder}
+              setNewPhotoTitle={setNewPhotoTitle}
+              setNewSponsorName={setNewSponsorName}
+              setNewSponsorTier={setNewSponsorTier}
+              setSelectedAlertVisualType={setSelectedAlertVisualType}
+              setSelectedAlertVisualUrl={setSelectedAlertVisualUrl}
+              sponsors={sponsors}
+              teamVisuals={teamVisuals}
+              teamsMeasureRef={teamsMeasureRef}
+              updateActiveConfig={updateActiveConfig}
+              uploadMultipleFiles={uploadMultipleFiles}
+              visualTemplates={visualTemplates}
+              widestTeamInfo={widestTeamInfo}
             />
           )}
 
@@ -3356,21 +3349,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'social' && (
             <SocialTab
-              isOpen={isOpen}
-              onClose={onClose}
-              matches={matches}
-              results={results}
               birthdays={birthdays}
               clubSettings={clubSettings}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              onUpdateClubSettings={onUpdateClubSettings}
-              setActiveTab={setActiveTab}
-              socialForm={socialForm}
-              setSocialForm={setSocialForm}
               handleTestSocialWebhook={handleTestSocialWebhook}
-              socialWebhookStatus={socialWebhookStatus}
+              matches={matches}
+              onUpdateClubSettings={onUpdateClubSettings}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
+              results={results}
+              setActiveTab={setActiveTab}
+              setSocialForm={setSocialForm}
               setSocialSaveSuccess={setSocialSaveSuccess}
+              socialForm={socialForm}
+              socialWebhookStatus={socialWebhookStatus}
+              visualTemplates={visualTemplates}
             />
           )}
 
@@ -3379,28 +3370,28 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'telegram' && (
             <TelegramTab
-              telegramStatusLoading={telegramStatusLoading}
-              telegramStatus={telegramStatus}
+              activeAlerts={activeAlerts}
+              adminPasswordInput={adminPasswordInput}
+              adminPasswordPrompt={adminPasswordPrompt}
               effectiveLastTelegramMessage={effectiveLastTelegramMessage}
               fetchTelegramStatus={fetchTelegramStatus}
               formatTelegramDate={formatTelegramDate}
-              activeAlerts={activeAlerts}
-              onRemoveAlert={onRemoveAlert}
-              telegramActionMsg={telegramActionMsg}
-              setTelegramActionMsg={setTelegramActionMsg}
-              adminPasswordPrompt={adminPasswordPrompt}
-              adminPasswordInput={adminPasswordInput}
-              setAdminPasswordInput={setAdminPasswordInput}
               handleConnectTelegram={handleConnectTelegram}
-              telegramConnecting={telegramConnecting}
-              setAdminPasswordPrompt={setAdminPasswordPrompt}
               handleDisconnectTelegram={handleDisconnectTelegram}
-              telegramDisconnecting={telegramDisconnecting}
-              setTelegramSimText={setTelegramSimText}
-              telegramSimText={telegramSimText}
               handleTestTelegramMessage={handleTestTelegramMessage}
-              telegramSimLoading={telegramSimLoading}
+              onRemoveAlert={onRemoveAlert}
+              setAdminPasswordInput={setAdminPasswordInput}
+              setAdminPasswordPrompt={setAdminPasswordPrompt}
+              setTelegramActionMsg={setTelegramActionMsg}
+              setTelegramSimText={setTelegramSimText}
+              telegramActionMsg={telegramActionMsg}
+              telegramConnecting={telegramConnecting}
+              telegramDisconnecting={telegramDisconnecting}
               telegramSimFeedback={telegramSimFeedback}
+              telegramSimLoading={telegramSimLoading}
+              telegramSimText={telegramSimText}
+              telegramStatus={telegramStatus}
+              telegramStatusLoading={telegramStatusLoading}
             />
           )}
 
@@ -3419,12 +3410,11 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'categories' && (
             <CategoriesTab
-              onUpdateClubSettings={onUpdateClubSettings}
-              clubSettings={clubSettings}
-              photos={photos}
               categories={categories}
-              handleToggleCategory={handleToggleCategory}
+              clubSettings={clubSettings}
               handleDurationChange={handleDurationChange}
+              handleToggleCategory={handleToggleCategory}
+              onUpdateClubSettings={onUpdateClubSettings}
             />
           )}
 
@@ -3433,46 +3423,46 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'excel' && (
             <ExcelTab
-              setBirthdaysSubTab={setBirthdaysSubTab}
-              birthdaysSubTab={birthdaysSubTab}
-              birthdays={birthdays}
-              visualTemplates={visualTemplates}
-              onUpdateVisualTemplates={onUpdateVisualTemplates}
-              matches={matches}
-              results={results}
-              clubSettings={clubSettings}
-              setIsAddingManualBday={setIsAddingManualBday}
-              isAddingManualBday={isAddingManualBday}
-              handleAddManualBirthday={handleAddManualBirthday}
-              manualBdayFirstName={manualBdayFirstName}
-              setManualBdayFirstName={setManualBdayFirstName}
-              manualBdayCategory={manualBdayCategory}
-              setManualBdayCategory={setManualBdayCategory}
-              manualBdayDate={manualBdayDate}
-              setManualBdayDate={setManualBdayDate}
-              birthdayWeekOffset={birthdayWeekOffset}
-              handleSelectWeekOffset={handleSelectWeekOffset}
               allMembers={allMembers}
               allMembersPool={allMembersPool}
-              onUpdateBirthdays={onUpdateBirthdays}
-              isParsingExcel={isParsingExcel}
-              excelInputRef={excelInputRef}
-              handleExcelFileUpload={handleExcelFileUpload}
-              excelSuccessMsg={excelSuccessMsg}
-              saveStatus={saveStatus}
-              saveErrorMessage={saveErrorMessage}
-              excelErrors={excelErrors}
-              editingBirthdayId={editingBirthdayId}
-              handleCancelEditBirthday={handleCancelEditBirthday}
-              editBdayFirstName={editBdayFirstName}
-              setEditBdayFirstName={setEditBdayFirstName}
+              birthdayWeekOffset={birthdayWeekOffset}
+              birthdays={birthdays}
+              birthdaysSubTab={birthdaysSubTab}
+              clubSettings={clubSettings}
               editBdayCategory={editBdayCategory}
-              setEditBdayCategory={setEditBdayCategory}
               editBdayDate={editBdayDate}
-              setEditBdayDate={setEditBdayDate}
-              handleSaveEditBirthday={handleSaveEditBirthday}
-              handleStartEditBirthday={handleStartEditBirthday}
+              editBdayFirstName={editBdayFirstName}
+              editingBirthdayId={editingBirthdayId}
+              excelErrors={excelErrors}
+              excelInputRef={excelInputRef}
+              excelSuccessMsg={excelSuccessMsg}
+              handleAddManualBirthday={handleAddManualBirthday}
+              handleCancelEditBirthday={handleCancelEditBirthday}
               handleDeleteBirthday={handleDeleteBirthday}
+              handleExcelFileUpload={handleExcelFileUpload}
+              handleSaveEditBirthday={handleSaveEditBirthday}
+              handleSelectWeekOffset={handleSelectWeekOffset}
+              handleStartEditBirthday={handleStartEditBirthday}
+              isAddingManualBday={isAddingManualBday}
+              isParsingExcel={isParsingExcel}
+              manualBdayCategory={manualBdayCategory}
+              manualBdayDate={manualBdayDate}
+              manualBdayFirstName={manualBdayFirstName}
+              matches={matches}
+              onUpdateBirthdays={onUpdateBirthdays}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
+              results={results}
+              saveErrorMessage={saveErrorMessage}
+              saveStatus={saveStatus}
+              setBirthdaysSubTab={setBirthdaysSubTab}
+              setEditBdayCategory={setEditBdayCategory}
+              setEditBdayDate={setEditBdayDate}
+              setEditBdayFirstName={setEditBdayFirstName}
+              setIsAddingManualBday={setIsAddingManualBday}
+              setManualBdayCategory={setManualBdayCategory}
+              setManualBdayDate={setManualBdayDate}
+              setManualBdayFirstName={setManualBdayFirstName}
+              visualTemplates={visualTemplates}
             />
           )}
 
@@ -3482,14 +3472,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {activeTab === 'club_identity' && (
             <ClubIdentityTab
               clubSettings={clubSettings}
-              onUpdateClubSettings={onUpdateClubSettings}
-              setActiveTab={setActiveTab}
               ffbbTeams={ffbbTeams}
-              setIsDraggingLogo={setIsDraggingLogo}
               handleLogoFileUpload={handleLogoFileUpload}
-              isDraggingLogo={isDraggingLogo}
               isUploadingLogo={isUploadingLogo}
               logoFileInputRef={logoFileInputRef}
+              onUpdateClubSettings={onUpdateClubSettings}
+              setActiveTab={setActiveTab}
+              setIsDraggingLogo={setIsDraggingLogo}
               setSocialForm={setSocialForm}
             />
           )}
@@ -3500,24 +3489,23 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {activeTab === 'ffbb' && (
             <FfbbTab
               clubSettings={clubSettings}
-              onUpdateClubSettings={onUpdateClubSettings}
-              handleSyncFFBB={handleSyncFFBB}
-              isSyncingFFBB={isSyncingFFBB}
-              setFilterToCurrentWeekend={setFilterToCurrentWeekend}
-              syncStartDate={syncStartDate}
-              syncEndDate={syncEndDate}
-              setSyncStartDate={setSyncStartDate}
-              setSyncEndDate={setSyncEndDate}
-              syncMessage={syncMessage}
-              syncIsError={syncIsError}
-              setActiveTab={setActiveTab}
-              onOpenVisualExporter={onOpenVisualExporter}
-              matches={matches}
               ffbbTeams={ffbbTeams}
+              handleSyncFFBB={handleSyncFFBB}
+              handleToggleTrackTeam={handleToggleTrackTeam}
               handleTrackAllTeams={handleTrackAllTeams}
               handleUntrackAllTeams={handleUntrackAllTeams}
-              handleToggleTrackTeam={handleToggleTrackTeam}
               handleUpdateTeamCustomName={handleUpdateTeamCustomName}
+              isSyncingFFBB={isSyncingFFBB}
+              onOpenVisualExporter={onOpenVisualExporter}
+              onUpdateClubSettings={onUpdateClubSettings}
+              setActiveTab={setActiveTab}
+              setFilterToCurrentWeekend={setFilterToCurrentWeekend}
+              setSyncEndDate={setSyncEndDate}
+              setSyncStartDate={setSyncStartDate}
+              syncEndDate={syncEndDate}
+              syncIsError={syncIsError}
+              syncMessage={syncMessage}
+              syncStartDate={syncStartDate}
             />
           )}
 
@@ -3525,8 +3513,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* TAB 9: GUIDE FULLY KIOSK BROWSER */}
           {/* ========================================================================= */}
           {activeTab === 'fullykiosk' && (
-            <FullykioskTab
-            />
+            <FullykioskTab />
           )}
         </div>
       </div>

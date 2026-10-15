@@ -12,25 +12,14 @@ export interface ClubIdentityTabProps {
 
 export function ClubIdentityTab(props: ClubIdentityTabProps) {
   const {
-    w,
-    logo,
-    d,
-    club,
     clubSettings,
-    logoUrl,
-    name,
-    label,
-    onUpdateClubSettings,
-    setActiveTab,
     ffbbTeams,
-    setIsDraggingLogo,
     handleLogoFileUpload,
-    isDraggingLogo,
     isUploadingLogo,
     logoFileInputRef,
-    file,
-    current,
-    title,
+    onUpdateClubSettings,
+    setActiveTab,
+    setIsDraggingLogo,
     setSocialForm,
   } = props;
 

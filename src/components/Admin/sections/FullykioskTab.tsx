@@ -10,11 +10,6 @@ export interface FullykioskTabProps {
 }
 
 export function FullykioskTab(props: FullykioskTabProps) {
-  const {
-    w,
-    d,
-  } = props;
-
   return (
             <div className="space-y-6">
               <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700/60 space-y-4">

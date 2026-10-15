@@ -11,17 +11,11 @@ export interface CategoriesTabProps {
 
 export function CategoriesTab(props: CategoriesTabProps) {
   const {
-    w,
-    base,
-    d,
-    onUpdateClubSettings,
-    clubSettings,
-    cat,
-    photos,
     categories,
-    label,
-    handleToggleCategory,
+    clubSettings,
     handleDurationChange,
+    handleToggleCategory,
+    onUpdateClubSettings,
   } = props;
 
   return (

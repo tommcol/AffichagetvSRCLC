@@ -13,25 +13,19 @@ export interface SocialTabProps {
 
 export function SocialTab(props: SocialTabProps) {
   const {
-    isOpen,
-    onClose,
-    matches,
-    results,
     birthdays,
     clubSettings,
-    visualTemplates,
-    onUpdateVisualTemplates,
-    w,
-    label,
-    onUpdateClubSettings,
-    club,
-    setActiveTab,
-    d,
-    socialForm,
-    setSocialForm,
     handleTestSocialWebhook,
-    socialWebhookStatus,
+    matches,
+    onUpdateClubSettings,
+    onUpdateVisualTemplates,
+    results,
+    setActiveTab,
+    setSocialForm,
     setSocialSaveSuccess,
+    socialForm,
+    socialWebhookStatus,
+    visualTemplates,
   } = props;
 
   return (

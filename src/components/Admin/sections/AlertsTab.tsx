@@ -12,14 +12,7 @@ export interface AlertsTabProps {
 export function AlertsTab(props: AlertsTabProps) {
   const {
     activeAlerts,
-    w,
-    d,
-    now,
-    isWin,
-    team,
-    ourScore,
     onRemoveAlert,
-    title,
   } = props;
 
   return (
