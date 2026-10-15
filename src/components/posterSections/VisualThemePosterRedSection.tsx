@@ -93,7 +93,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           style={{
                             left: `${effectiveCategoryConfig.layer3?.x ?? 50}%`,
                             top: `${effectiveCategoryConfig.layer3?.y ?? 50}%`,
-                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''}`,
+                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer3?.flipHorizontal ? 'scaleX(-1)' : ''} ${effectiveCategoryConfig.layer3?.rotation ? `rotate(${effectiveCategoryConfig.layer3.rotation}deg)` : ''}`,
                             opacity: effectiveCategoryConfig.layer3?.opacity ?? 0.9,
                             width: `${16 * (effectiveCategoryConfig.layer3?.scale ?? 1)}rem`,
                             maxWidth: '96%',
@@ -102,7 +102,12 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           <img
                             src={effectiveLayer3Url}
                             alt="Calque 3"
-                            className="w-full h-auto object-contain filter drop-shadow-[0_8px_24px_rgba(0,0,0,0.85)]"
+                            className="w-full h-auto object-contain"
+                            style={
+                              effectiveCategoryConfig.layer3?.shadowIntensity !== undefined
+                                ? { filter: `drop-shadow(0 ${Math.round(8 + 16 * (effectiveCategoryConfig.layer3?.shadowIntensity ?? 0))}px ${Math.round(12 + 20 * (effectiveCategoryConfig.layer3?.shadowIntensity ?? 0))}px rgba(0,0,0,${(0.3 + 0.55 * (effectiveCategoryConfig.layer3?.shadowIntensity ?? 0)).toFixed(2)}))` }
+                                : undefined
+                            }
                           />
                         </div>
                       )}
@@ -114,7 +119,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           style={{
                             left: `${effectiveCategoryConfig.layer4?.x ?? 50}%`,
                             top: `${effectiveCategoryConfig.layer4?.y ?? 50}%`,
-                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer4?.flipHorizontal ? 'scaleX(-1)' : ''}`,
+                            transform: `translate(-50%, -50%) ${effectiveCategoryConfig.layer4?.flipHorizontal ? 'scaleX(-1)' : ''} ${effectiveCategoryConfig.layer4?.rotation ? `rotate(${effectiveCategoryConfig.layer4.rotation}deg)` : ''}`,
                             opacity: effectiveCategoryConfig.layer4?.opacity ?? 0.95,
                             width: `${16 * (effectiveCategoryConfig.layer4?.scale ?? 1)}rem`,
                             maxWidth: '96%',
@@ -123,7 +128,12 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           <img
                             src={effectiveLayer4Url}
                             alt="Calque 4"
-                            className="w-full h-auto object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.75)]"
+                            className="w-full h-auto object-contain"
+                            style={
+                              effectiveCategoryConfig.layer4?.shadowIntensity !== undefined
+                                ? { filter: `drop-shadow(0 ${Math.round(8 + 16 * (effectiveCategoryConfig.layer4?.shadowIntensity ?? 0))}px ${Math.round(12 + 20 * (effectiveCategoryConfig.layer4?.shadowIntensity ?? 0))}px rgba(0,0,0,${(0.3 + 0.55 * (effectiveCategoryConfig.layer4?.shadowIntensity ?? 0)).toFixed(2)}))` }
+                                : undefined
+                            }
                           />
                         </div>
                       )}

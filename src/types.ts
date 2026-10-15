@@ -173,6 +173,8 @@ export interface OverlayLayerItem {
   motionTrajectory?: 'none' | 'right-to-left' | 'left-to-right';
   motionDuration?: number; // Durée de la traversée en secondes (défaut 12)
   flipHorizontal?: boolean; // Effet miroir horizontal pour ajuster l'orientation
+  rotation?: number; // -180 à 180 degrés (défaut 0)
+  shadowIntensity?: number; // 0 à 1 intensité de l'ombre portée (défaut 0.75, undefined = ombre d'origine)
 }
 
 // Paramétrage visuel dédié pour chaque catégorie (Matchs, Résultats, Anniversaires)

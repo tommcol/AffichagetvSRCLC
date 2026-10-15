@@ -630,6 +630,42 @@ export const OverlayLayerEditor: React.FC<OverlayLayerEditorProps> = ({
             className={`w-full cursor-pointer ${layerNumber === 3 ? 'accent-emerald-500' : 'accent-purple-500'}`}
           />
         </div>
+
+        <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+            <span>Rotation</span>
+            <span className={`font-mono text-xs font-bold ${layerNumber === 3 ? 'text-emerald-400' : 'text-purple-400'}`}>
+              {Math.round(layer.rotation ?? 0)}°
+            </span>
+          </div>
+          <input
+            type="range"
+            min="-180"
+            max="180"
+            step="1"
+            value={layer.rotation ?? 0}
+            onChange={(e) => onChange({ ...layer, rotation: parseInt(e.target.value, 10) })}
+            className={`w-full cursor-pointer ${layerNumber === 3 ? 'accent-emerald-500' : 'accent-purple-500'}`}
+          />
+        </div>
+
+        <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+            <span>Ombre portée</span>
+            <span className={`font-mono text-xs font-bold ${layerNumber === 3 ? 'text-emerald-400' : 'text-purple-400'}`}>
+              {Math.round((layer.shadowIntensity ?? 0.75) * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={layer.shadowIntensity ?? 0.75}
+            onChange={(e) => onChange({ ...layer, shadowIntensity: parseFloat(e.target.value) })}
+            className={`w-full cursor-pointer ${layerNumber === 3 ? 'accent-emerald-500' : 'accent-purple-500'}`}
+          />
+        </div>
       </div>
 
       {/* Découpe Fond Vert (Chroma Key) */}

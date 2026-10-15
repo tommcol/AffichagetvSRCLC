@@ -279,6 +279,12 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
   const currentOpacity = layer.opacity ?? 1.0;
   const motionDuration = actualDuration && isVideo ? actualDuration : (layer.motionDuration ?? 12);
   const isFlipped = Boolean(layer.flipHorizontal);
+  const currentRotation = layer.rotation ?? 0;
+  const shadowIntensity = layer.shadowIntensity;
+  const shadowFilter =
+    shadowIntensity !== undefined
+      ? `drop-shadow(0 ${Math.round(8 + 16 * shadowIntensity)}px ${Math.round(12 + 20 * shadowIntensity)}px rgba(0,0,0,${(0.3 + 0.55 * shadowIntensity).toFixed(2)}))`
+      : undefined;
 
   // Calcul de la largeur en fonction de l'échelle (de 10rem à toute la largeur)
   const baseWidthRem = 16 * currentScale;
@@ -294,7 +300,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
       height: '100%',
       opacity: currentOpacity,
       zIndex: layerNumber === 4 ? 35 : 30,
-      transform: isFlipped ? 'scaleX(-1)' : undefined,
+      transform: isFlipped || currentRotation ? `${isFlipped ? 'scaleX(-1) ' : ''}${currentRotation ? `rotate(${currentRotation}deg)` : ''}`.trim() || undefined : undefined,
     };
   } else if (isMotionActive) {
     containerStyle = {
@@ -305,7 +311,7 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
       animation: `${
         layer.motionTrajectory === 'right-to-left' ? 'traverseRightToLeft' : 'traverseLeftToRight'
       } ${motionDuration}s linear infinite`,
-      transform: `translate(-50%, -50%) ${isFlipped ? 'scaleX(-1)' : ''}`,
+      transform: `translate(-50%, -50%) ${isFlipped ? 'scaleX(-1)' : ''} ${currentRotation ? `rotate(${currentRotation}deg)` : ''}`,
       willChange: 'left',
     };
   } else {
@@ -477,6 +483,8 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
                     height: '100%',
                     objectFit: layer.objectFit || 'cover',
                   }
+                : shadowFilter
+                ? { filter: shadowFilter }
                 : undefined
             }
             className={
