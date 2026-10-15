@@ -11,6 +11,7 @@ import {
   ActiveMatchAlert,
   VisualTemplatesConfig,
 } from '../src/types';
+import { getCurrentWeekendBounds } from '../src/utils/matchDateHelper';
 
 async function runTests() {
   console.log('================================================================');
@@ -43,6 +44,19 @@ async function runTests() {
     matchesSettings: { matchDisplayScope: 'all' },
     resultsSettings: { matchDisplayScope: 'all' },
   };
+
+  // Dates dynamiques du week-end en cours (vendredi -> dimanche) :
+  // buildCarouselPlaylist ne garde que les matchs du week-end courant,
+  // donc les matchs fictifs doivent être datés du vrai week-end au moment du test.
+  const weekendStartRef = getCurrentWeekendBounds().start;
+  const toIsoDate = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const currentSaturday = toIsoDate(new Date(weekendStartRef.getFullYear(), weekendStartRef.getMonth(), weekendStartRef.getDate() + 1));
+  const currentSunday = toIsoDate(new Date(weekendStartRef.getFullYear(), weekendStartRef.getMonth(), weekendStartRef.getDate() + 2));
 
   // TEST 1 : Fallback standby en l'absence de contenu
   console.log('\n--- TEST 1 : Fallback standby quand aucun contenu ---');
@@ -103,7 +117,7 @@ async function runTests() {
   // TEST 3 : Génération des matchs en mode 'all'
   console.log('\n--- TEST 3 : Génération des matchs (mode "all") ---');
   const mockMatches: MatchItem[] = [
-    { id: 'm1', date: '2026-10-03', time: '20:00', category: 'SG1', competition: 'R2', teamHome: 'SRC', teamAway: 'Opponent', isHomeMatch: true, ourClubName: 'SRC', gymnasium: 'COSEC', city: 'La Clayette', status: 'upcoming' },
+    { id: 'm1', date: currentSaturday, time: '20:00', category: 'SG1', competition: 'R2', teamHome: 'SRC', teamAway: 'Opponent', isHomeMatch: true, ourClubName: 'SRC', gymnasium: 'COSEC', city: 'La Clayette', status: 'upcoming' },
   ];
 
   const playlistMatchesAll = buildCarouselPlaylist({
@@ -130,8 +144,8 @@ async function runTests() {
   // TEST 4 : Génération des matchs en mode 'split'
   console.log('\n--- TEST 4 : Génération des matchs (mode "split") ---');
   const mockSplitMatches: MatchItem[] = [
-    { id: 'm1', date: '2026-10-03', time: '20:00', category: 'SG1', competition: 'R2', teamHome: 'SRC', teamAway: 'Opponent1', isHomeMatch: true, ourClubName: 'SRC', gymnasium: 'COSEC', city: 'La Clayette', status: 'upcoming' },
-    { id: 'm2', date: '2026-10-04', time: '15:00', category: 'SF1', competition: 'R3', teamHome: 'Opponent2', teamAway: 'SRC', isHomeMatch: false, ourClubName: 'SRC', gymnasium: 'Autre', city: 'Autre Ville', status: 'upcoming' },
+    { id: 'm1', date: currentSaturday, time: '20:00', category: 'SG1', competition: 'R2', teamHome: 'SRC', teamAway: 'Opponent1', isHomeMatch: true, ourClubName: 'SRC', gymnasium: 'COSEC', city: 'La Clayette', status: 'upcoming' },
+    { id: 'm2', date: currentSunday, time: '15:00', category: 'SF1', competition: 'R3', teamHome: 'Opponent2', teamAway: 'SRC', isHomeMatch: false, ourClubName: 'SRC', gymnasium: 'Autre', city: 'Autre Ville', status: 'upcoming' },
   ];
 
   const playlistMatchesSplit = buildCarouselPlaylist({
