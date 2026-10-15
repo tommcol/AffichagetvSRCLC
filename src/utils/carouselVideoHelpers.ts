@@ -15,7 +15,7 @@ const hasThemeVideo = (theme?: CategorySlideTheme): boolean => {
     hasVideoMedia(theme?.backgroundUrl, theme?.backgroundMediaType) ||
     (theme?.layer3?.enabled && hasVideoMedia(theme.layer3.mediaUrl, theme.layer3.mediaType)) ||
     (theme?.layer4?.enabled && hasVideoMedia(theme.layer4.mediaUrl, theme.layer4.mediaType)) ||
-    (themeMascot?.enabled && themeMascot.mediaType === 'video' && themeMascot.mediaUrl)
+    (!theme?.layer3 && themeMascot?.enabled && themeMascot.mediaType === 'video' && themeMascot.mediaUrl)
   );
 };
 
