@@ -36,3 +36,4 @@ Sports Réunis Clayettois (SRC Basket), La Clayette, code FFBB BFC0071024, numé
 - Toujours vérifier ce fichier en le comparant à la structure réelle du projet avant de s'y fier aveuglément.
 - Le mot de passe admin se configure dans la section "Exécution" des variables Cloudflare, pas "Build" — c'est une source d'erreur fréquente.
 - Le secret Telegram `TELEGRAM_BOT_TOKEN` est également dans la section "Exécution" de Cloudflare et ne doit jamais être exposé.
+<!-- Relance CI suite a panne infra GitHub (etape Installer Node.js) 15/10/2026 -->
