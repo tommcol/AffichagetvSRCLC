@@ -341,7 +341,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Background source selection
-  const [bgSource, setBgSource] = useState<'default' | 'studio' | 'custom'>('default');
+  const [bgSource, setBgSource] = useState<'default' | 'studio' | 'custom'>('studio');
 
   // Studio Graphique effective category config (Layer 1, Layer 3, Layer 4)
   const categoryType = contentType === 'results' ? 'results' : 'matches';
