@@ -209,9 +209,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               const dateText = formatPosterMatchDate(m.date, m.time);
 
                               const sizing = getAdaptivePosterCardSizing(count, aspectRatio);
-                              const pillHeight = sizing.pillHeight + 'px';
-                              const headerFontSize = sizing.headerFontSize + 'px';
-                              const centerFontSize = sizing.centerFontSize + 'px';
+                              const pillH = sizing.pillHeight;
+                              const pillHeight = pillH + 'px';
+                              const headerFontSize = Math.max(sizing.headerFontSize, Math.min(Math.round(pillH * 0.36), 46)) + 'px';
+                              const centerFontSize = Math.max(sizing.centerFontSize, Math.round(pillH * 0.42)) + 'px';
 
                               return (
                                 <div key={m.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0">
@@ -289,6 +290,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         count={count}
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
+                                        pillHeight={pillH}
                                         textColor={isHome ? '#ffffff' : '#e2e8f0'}
                                       />
                                     </div>
@@ -341,6 +343,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         count={count}
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
+                                        pillHeight={pillH}
                                         textColor={!isHome ? '#ffffff' : '#e2e8f0'}
                                       />
                                     </div>
@@ -405,8 +408,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
                               const count = displayedResults.length;
 
-                              const pillHeight = aspectRatio === '16:9' ? (count >= 4 ? '70px' : '80px') : (count >= 6 ? '80px' : count === 5 ? '90px' : count === 4 ? '102px' : '112px');
-                              const headerFontSize = aspectRatio === '16:9' ? '26px' : (count >= 6 ? '27px' : count === 5 ? '29px' : count === 4 ? '31px' : (aspectRatio === '1:1' ? '29px' : '33px'));
+                              const pillH = aspectRatio === '16:9' ? (count >= 4 ? 70 : 80) : (count >= 6 ? 80 : count === 5 ? 90 : count === 4 ? 102 : 112);
+                              const pillHeight = pillH + 'px';
+                              const scoreFontSize = Math.round(pillH * 0.52) + 'px';
+                              const headerFontSize = aspectRatio === '16:9' ? '30px' : (count >= 6 ? '34px' : count === 5 ? '38px' : count === 4 ? '42px' : (aspectRatio === '1:1' ? '36px' : '46px'));
                               const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
 
                               return (
@@ -441,14 +446,16 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
                                       }}
                                     >
-                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} pillHeight={pillH} textColor={layer2BadgeTextColor} />
                                     </div>
 
                                     <div
                                       className={`px-6 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
-                                        count >= 6 ? 'h-18 text-2xl' : 'h-20 text-3xl'
-                                      } ${resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider text-xl font-black' : 'font-mono font-black'}`}
+                                        resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider' : 'font-mono font-black'
+                                      }`}
                                       style={{
+                                        height: pillHeight,
+                                        fontSize: (resultDisplayMode === 'status' || !hasScore) ? Math.round(pillH * 0.34) + 'px' : scoreFontSize,
                                         backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
                                         color: (resultDisplayMode === 'status' || !hasScore)
                                           ? (isWin ? '#047857' : '#be123c')
@@ -468,7 +475,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
                                       }}
                                     >
-                                      <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} textColor={layer2BadgeTextColor} />
+                                      <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} pillHeight={pillH} textColor={layer2BadgeTextColor} />
                                     </div>
                                   </div>
                                 </div>
