@@ -379,114 +379,168 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               </div>
                             );
                           })()}
-{/* RESULTS LIST BODY */}
-                        {contentType === 'results' && (
-                          <div
-                            className={`w-full flex-1 ${
-                              aspectRatio === '16:9' && displayedResults.length >= 4
-                                ? 'grid grid-cols-2 gap-x-8 gap-y-3 items-center my-auto px-2'
-                                : `flex flex-col justify-center my-1 ${
-                                    aspectRatio === '16:9'
-                                      ? 'max-w-[88%] mx-auto pr-16 gap-3'
-                                      : displayedResults.length >= 6
-                                      ? 'gap-2.5'
-                                      : displayedResults.length === 5
-                                      ? 'gap-3.5'
-                                      : displayedResults.length === 4
-                                      ? 'gap-5'
-                                      : 'gap-7'
-                                  }`
-                            }`}
-                          >
-                            {displayedResults.map((r) => {
+{/* RESULTS LIST BODY — cartes identiques à l'aperçu TV (ResultsSlide poster-red) */}
+                        {contentType === 'results' &&
+                          (() => {
+                            const sortedResults = [...displayedResults];
+                            const sizing0 = getAdaptivePosterCardSizing(sortedResults.length, aspectRatio);
+                            const half = Math.ceil(sortedResults.length / 2);
+                            const leftResults = sortedResults.length <= 2 ? sortedResults : sortedResults.slice(0, half);
+                            const rightResults = sortedResults.length <= 2 ? [] : sortedResults.slice(half);
+                            const count = sortedResults.length;
+
+                            const renderPosterCard = (r) => {
                               const isWin = isMatchWin(r, safeClubName, safeShortName);
-                              const isHomeClub = isClubHomeMatch(r, safeClubName, safeShortName);
-                              const teamLeft = isHomeClub ? r.category : (r.teamHome || 'Notre Club');
-                              const teamRight = isHomeClub ? (r.teamAway || 'Adversaire') : r.category;
+                              const isHome = isClubHomeMatch(r, safeClubName, safeShortName);
+                              const teamLeft = isHome ? r.category : (r.teamHome || 'Notre Club');
+                              const teamRight = isHome ? (r.teamAway || 'Adversaire') : r.category;
                               const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
 
                               const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
-                              const scoreDisplay = hasScore ? `${r.homeScore} - ${r.awayScore}` : (isWin ? 'VICTOIRE' : 'DÉFAITE');
-                              const count = displayedResults.length;
+                              const scoreDisplay = hasScore ? (r.homeScore + ' - ' + r.awayScore) : (isWin ? 'VICTOIRE' : 'DÉFAITE');
 
-                              const pillH = aspectRatio === '16:9' ? (count >= 4 ? 70 : 80) : (count >= 6 ? 80 : count === 5 ? 90 : count === 4 ? 102 : 112);
+                              const sizing = getAdaptivePosterCardSizing(count, aspectRatio);
+                              const pillH = sizing.pillHeight;
                               const pillHeight = pillH + 'px';
                               const canvasW = aspectRatio === '16:9' ? 1920 : 1080;
+                              const headerFontSize = Math.max(sizing.headerFontSize, Math.min(Math.round(pillH * 0.36), 46)) + 'px';
                               const scoreFontSize = Math.min(Math.round(pillH * 0.52), Math.round(canvasW * 0.06)) + 'px';
-                              const headerFontSize = aspectRatio === '16:9' ? '30px' : (count >= 6 ? '34px' : count === 5 ? '38px' : count === 4 ? '42px' : (aspectRatio === '1:1' ? '36px' : '46px'));
-                              const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
+                              const statusFontSize = Math.round(pillH * 0.34) + 'px';
 
                               return (
-                                <div key={r.id} className="w-full flex flex-col items-center">
-                                  {/* Date / Category */}
-                                  <div
-                                    className={`${getFontFamilyClass(layer2FontBody)} font-bold text-center ${headerMb} drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] flex items-center justify-center gap-3`}
-                                    style={{
-                                      fontSize: headerFontSize,
-                                      color: layer2TextColor,
-                                      letterSpacing: '0.8px',
-                                    }}
-                                  >
-                                    <span>{matchDateText || r.category}</span>
-                                    {resultDisplayMode !== 'score' && (
-                                      <>
-                                        <span>•</span>
-                                        <span className={isWin ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
-                                          {isWin ? 'VICTOIRE' : 'DÉFAITE'}
+                                <div key={r.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0 min-w-0">
+                                  {/* Intitulé : Date dorée • VICTOIRE/DÉFAITE • Badge Domicile/Extérieur */}
+                                  <div className="flex items-center justify-between gap-2 px-1 w-full min-w-0">
+                                    <div
+                                      className={
+                                        'flex items-center gap-2 font-black uppercase tracking-wider text-white min-w-0 truncate ' +
+                                        getFontFamilyClass(layer2FontBody)
+                                      }
+                                      style={{ fontSize: headerFontSize }}
+                                    >
+                                      <span className="text-amber-400 tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate">
+                                        {matchDateText || r.category}
+                                      </span>
+
+                                      {resultDisplayMode !== 'score' && (
+                                        <span
+                                          className={
+                                            'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shrink-0 ' +
+                                            (isWin ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white')
+                                          }
+                                          style={{ fontSize: statusFontSize }}
+                                        >
+                                          {isWin ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                          <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
                                         </span>
-                                      </>
+                                      )}
+                                    </div>
+
+                                    {isHome ? (
+                                      <span
+                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 shadow-md shrink-0"
+                                        title="Match à Domicile"
+                                      >
+                                        <Home className="w-5 h-5 text-emerald-400" />
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 shadow-md shrink-0"
+                                        title="Match à l'Extérieur"
+                                      >
+                                        <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
+                                      </span>
                                     )}
                                   </div>
 
-                                  {/* Row */}
-                                  <div className="w-full flex items-center justify-between gap-4">
+                                  {/* Rangée de Pilules : club en ROUGE, adversaire en ANTHRACITE, score au centre */}
+                                  <div className="flex items-center justify-between gap-3 w-full min-w-0">
                                     <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
-                                      }}
+                                      className={
+                                        'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
+                                        getFontFamilyClass(layer2FontHeader) +
+                                        (isHome
+                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
+                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                      }
+                                      style={{ height: pillHeight }}
                                     >
-                                      <AutoFitTeamName name={teamLeft} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} pillHeight={pillH} textColor={layer2BadgeTextColor} />
+                                      <AutoFitTeamName
+                                        name={teamLeft}
+                                        count={count}
+                                        aspectRatio={aspectRatio}
+                                        fontHeader={layer2FontHeader}
+                                        pillHeight={pillH}
+                                        textColor={isHome ? '#ffffff' : '#e2e8f0'}
+                                      />
                                     </div>
 
                                     <div
-                                      className={`px-6 rounded-full font-black flex items-center justify-center shrink-0 shadow-md ${
-                                        resultDisplayMode === 'status' || !hasScore ? 'font-sans uppercase tracking-wider' : 'font-mono font-black'
-                                      }`}
+                                      className={
+                                        'shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full px-3 ' +
+                                        (resultDisplayMode === 'status' || !hasScore ? getFontFamilyClass(layer2FontBody) : '')
+                                      }
                                       style={{
                                         height: pillHeight,
-                                        fontSize: (resultDisplayMode === 'status' || !hasScore) ? Math.round(pillH * 0.34) + 'px' : scoreFontSize,
-                                        backgroundColor: layer2BadgeTextColor === '#000000' ? '#f8fafc' : '#ffffff',
-                                        color: (resultDisplayMode === 'status' || !hasScore)
-                                          ? (isWin ? '#047857' : '#be123c')
-                                          : (layer2BadgeBgColor || '#111111'),
+                                        fontSize: (resultDisplayMode === 'status' || !hasScore) ? statusFontSize : scoreFontSize,
+                                        color: (resultDisplayMode === 'status' || !hasScore) ? (isWin ? '#047857' : '#be123c') : (layer2BadgeBgColor || '#111111'),
                                       }}
                                     >
-                                      {resultDisplayMode === 'status' || !hasScore
-                                        ? (isWin ? 'VICTOIRE' : 'DÉFAITE')
-                                        : scoreDisplay}
+                                      {resultDisplayMode === 'status' || !hasScore ? (isWin ? 'VICTOIRE' : 'DÉFAITE') : scoreDisplay}
                                     </div>
 
                                     <div
-                                      className="flex-1 rounded-full flex items-center justify-center border-t-2 border-white/25"
-                                      style={{
-                                        height: pillHeight,
-                                        background: `linear-gradient(180deg, ${layer2BadgeBgColor || '#c80815'} 0%, ${layer2BadgeBgColor || '#c80815'}dd 100%)`,
-                                        boxShadow: '0 8px 18px rgba(0, 0, 0, 0.4)',
-                                      }}
+                                      className={
+                                        'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
+                                        getFontFamilyClass(layer2FontHeader) +
+                                        (!isHome
+                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
+                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                      }
+                                      style={{ height: pillHeight }}
                                     >
-                                      <AutoFitTeamName name={teamRight} count={count} aspectRatio={aspectRatio} fontHeader={layer2FontHeader} pillHeight={pillH} textColor={layer2BadgeTextColor} />
+                                      <AutoFitTeamName
+                                        name={teamRight}
+                                        count={count}
+                                        aspectRatio={aspectRatio}
+                                        fontHeader={layer2FontHeader}
+                                        pillHeight={pillH}
+                                        textColor={!isHome ? '#ffffff' : '#e2e8f0'}
+                                      />
                                     </div>
                                   </div>
                                 </div>
                               );
-                            })}
-                          </div>
-                        )}
+                            };
 
-                        {/* NOTIFICATION BODY */}
+                            return (
+                              <div
+                                className={
+                                  'w-full flex-1 flex my-auto min-h-0 overflow-hidden ' +
+                                  (rightResults.length > 0 ? 'flex-row px-2' : 'flex-col justify-center')
+                                }
+                                style={{ gap: sizing0.gapY + 'px' }}
+                              >
+                                <div
+                                  className={
+                                    rightResults.length > 0
+                                      ? 'flex-1 min-w-0 flex flex-col justify-between min-h-0'
+                                      : 'w-full flex flex-col justify-center min-h-0'
+                                  }
+                                  style={{ gap: sizing0.gapY + 'px' }}
+                                >
+                                  {leftResults.map(renderPosterCard)}
+                                </div>
+                                {rightResults.length > 0 && (
+                                  <div className="flex-1 min-w-0 flex flex-col justify-between min-h-0" style={{ gap: sizing0.gapY + 'px' }}>
+                                    {rightResults.map(renderPosterCard)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+{/* NOTIFICATION BODY */}
                         {contentType === 'notification' && specificNotification && (
                           <div className="w-full flex-1 flex flex-col items-center justify-center text-center my-4">
                             <div
