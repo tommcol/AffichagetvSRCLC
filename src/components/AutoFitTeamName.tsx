@@ -39,13 +39,22 @@ export const AutoFitTeamName: React.FC<{
 
   // Dynamic font sizing optimized for high legibility in 1080p pastilles
   const compactMode = isCompact || count >= 6 || (aspectRatio === '16:9' && count >= 3);
-  // Dimensionnement base sur la hauteur reelle de la pastille : le texte remplit presque toute la pastille
+  // Regle : le texte remplit au maximum la pastille SANS JAMAIS la deborder.
+  // Double contrainte : hauteur (lignes x interligne) et largeur estimee de la pastille.
   const sizeFromPillHeight = (h: number, nameLength: number): { fontSize: number; lineHeight: string } => {
-    if (nameLength <= 10) return { fontSize: Math.round(h * 0.72), lineHeight: '1.0' };
-    if (nameLength <= 16) return { fontSize: Math.round(h * 0.62), lineHeight: '1.0' };
-    if (nameLength <= 22) return { fontSize: Math.round(h * 0.53), lineHeight: '0.98' };
-    if (nameLength <= 28) return { fontSize: Math.round(h * 0.46), lineHeight: '0.96' };
-    return { fontSize: Math.round(h * 0.42), lineHeight: '0.94' };
+    const canvasWidth = aspectRatio === '16:9' ? 1920 : 1080;
+    // Largeur estimee d'une demi-pastille (les 2 pastilles partagent la largeur de la carte autour de la pastille centrale)
+    const estPillWidth = Math.round(canvasWidth * 0.32);
+    const availH = Math.max(24, h - 12); // marge verticale de securite
+    const lines = nameLength <= 8 ? 1 : 2;
+    const lh = lines === 1 ? 1.0 : 0.95;
+    // Contrainte verticale : toutes les lignes doivent tenir dans la hauteur disponible
+    let fs = availH / (lines * lh);
+    // Contrainte horizontale : les caracteres d'une ligne doivent tenir dans la largeur estimee
+    const charsPerLine = Math.ceil(nameLength / lines);
+    const fsWidth = (estPillWidth * 0.9) / (0.62 * charsPerLine);
+    fs = Math.min(fs, fsWidth);
+    return { fontSize: Math.max(14, Math.floor(fs)), lineHeight: String(lh) };
   };
 
   let fontSize = '36px';
@@ -123,7 +132,7 @@ export const AutoFitTeamName: React.FC<{
           lineHeight,
           color: textColor,
           wordBreak: 'break-word',
-          overflowWrap: 'break-word',
+          overflowWrap: 'anywhere',
           maxHeight,
           display: '-webkit-box',
           WebkitLineClamp: 2,

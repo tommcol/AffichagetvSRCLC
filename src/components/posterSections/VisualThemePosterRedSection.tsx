@@ -212,7 +212,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               const pillH = sizing.pillHeight;
                               const pillHeight = pillH + 'px';
                               const headerFontSize = Math.max(sizing.headerFontSize, Math.min(Math.round(pillH * 0.36), 46)) + 'px';
-                              const centerFontSize = Math.max(sizing.centerFontSize, Math.round(pillH * 0.42)) + 'px';
+                              const canvasW = aspectRatio === '16:9' ? 1920 : 1080;
+                              const centerFontSize = Math.max(sizing.centerFontSize, Math.min(Math.round(pillH * 0.42), Math.round(canvasW * 0.055))) + 'px';
 
                               return (
                                 <div key={m.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0">
@@ -410,7 +411,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                               const pillH = aspectRatio === '16:9' ? (count >= 4 ? 70 : 80) : (count >= 6 ? 80 : count === 5 ? 90 : count === 4 ? 102 : 112);
                               const pillHeight = pillH + 'px';
-                              const scoreFontSize = Math.round(pillH * 0.52) + 'px';
+                              const canvasW = aspectRatio === '16:9' ? 1920 : 1080;
+                              const scoreFontSize = Math.min(Math.round(pillH * 0.52), Math.round(canvasW * 0.06)) + 'px';
                               const headerFontSize = aspectRatio === '16:9' ? '30px' : (count >= 6 ? '34px' : count === 5 ? '38px' : count === 4 ? '42px' : (aspectRatio === '1:1' ? '36px' : '46px'));
                               const headerMb = aspectRatio === '16:9' ? 'mb-1' : (count >= 5 ? 'mb-1.5' : 'mb-2.5');
 
