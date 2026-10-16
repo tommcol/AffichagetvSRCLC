@@ -398,6 +398,11 @@ export interface ClubSettings {
   autoSyncIntervalMinutes?: number; // Fréquence de synchronisation en minutes (défaut 3 min)
   ignoredTeamCategories?: string[]; // Catégories normalisées ignorées (ex: ["U18 F1"]). Par défaut vide = toutes suivies.
   customTeamNames?: Record<string, string>; // Noms personnalisés par équipe FFBB (clé: teamId ou catégorie normalisée -> valeur: nom affiché)
+  // Périodes sélectionnées dans les calendriers des onglets Matchs et Résultats (partagées entre tous les appareils)
+  matchesFilterStart?: string; // YYYY-MM-DD début période calendrier Matchs
+  matchesFilterEnd?: string; // YYYY-MM-DD fin période calendrier Matchs
+  resultsFilterStart?: string; // YYYY-MM-DD début période calendrier Résultats
+  resultsFilterEnd?: string; // YYYY-MM-DD fin période calendrier Résultats
 }
 
 export interface CarouselSlide {

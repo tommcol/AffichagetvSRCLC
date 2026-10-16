@@ -528,7 +528,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [resultsEndDate, setResultsEndDate] = useState<string>(() => {
     try { return localStorage.getItem('src_results_filter_end') || ''; } catch (e) { return ''; }
   });
-  // Sauvegarde automatique des periodes selectionnees (calendrier Matchs et Resultats)
+  // Périodes des calendriers : partagées entre tous les appareils via clubSettings (sauvegarde en ligne)
+  // + fallback localStorage hors-ligne.
+  const periodSyncDoneRef = useRef<boolean>(false);
+
+  // Restauration depuis le serveur : la période sélectionnée suit l'utilisateur sur n'importe quel appareil
+  useEffect(() => {
+    if (
+      clubSettings.matchesFilterStart !== undefined ||
+      clubSettings.matchesFilterEnd !== undefined ||
+      clubSettings.resultsFilterStart !== undefined ||
+      clubSettings.resultsFilterEnd !== undefined
+    ) {
+      periodSyncDoneRef.current = true;
+      if (
+        (clubSettings.matchesFilterStart || '') !== syncStartDate ||
+        (clubSettings.matchesFilterEnd || '') !== syncEndDate ||
+        (clubSettings.resultsFilterStart || '') !== resultsStartDate ||
+        (clubSettings.resultsFilterEnd || '') !== resultsEndDate
+      ) {
+        setSyncStartDate(clubSettings.matchesFilterStart || '');
+        setSyncEndDate(clubSettings.matchesFilterEnd || '');
+        setResultsStartDate(clubSettings.resultsFilterStart || '');
+        setResultsEndDate(clubSettings.resultsFilterEnd || '');
+      }
+    }
+  }, [clubSettings]);
+
+  // Sauvegarde : localStorage (hors-ligne) + clubSettings (partage tous appareils)
   useEffect(() => {
     try {
       if (syncStartDate) localStorage.setItem('src_matches_filter_start', syncStartDate);
@@ -540,7 +567,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       if (resultsEndDate) localStorage.setItem('src_results_filter_end', resultsEndDate);
       else localStorage.removeItem('src_results_filter_end');
     } catch (e) {}
-  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate]);
+
+    if (!periodSyncDoneRef.current) return; // attendre la restauration serveur avant d'écraser
+    const nextMStart = syncStartDate || undefined;
+    const nextMEnd = syncEndDate || undefined;
+    const nextRStart = resultsStartDate || undefined;
+    const nextREnd = resultsEndDate || undefined;
+    if (
+      clubSettings.matchesFilterStart !== nextMStart ||
+      clubSettings.matchesFilterEnd !== nextMEnd ||
+      clubSettings.resultsFilterStart !== nextRStart ||
+      clubSettings.resultsFilterEnd !== nextREnd
+    ) {
+      onUpdateClubSettings({
+        ...clubSettings,
+        matchesFilterStart: nextMStart,
+        matchesFilterEnd: nextMEnd,
+        resultsFilterStart: nextRStart,
+        resultsFilterEnd: nextREnd,
+      });
+    }
+  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate, clubSettings]);
 
   const [showCalendarInResults, setShowCalendarInResults] = useState<boolean>(true);
   const [resultsFilterMode, setResultsFilterMode] = useState<'all' | 'range'>('all');
