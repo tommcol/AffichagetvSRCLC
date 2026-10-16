@@ -1416,7 +1416,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             
             {/* MINI BARRE MOBILE : CONTRÔLES EXPRESS AU-DESSUS DE L'AFFICHE (< lg) */}
             <div className="w-full flex lg:hidden flex-col gap-1.5 bg-slate-900/95 p-2 rounded-xl border border-slate-800 mb-2.5 shadow-md">
-              <div className="flex items-center justify-between gap-1">
+              <div className="flex flex-wrap items-center justify-between gap-1">
                 {/* Type de contenu */}
                 <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
                   <button
