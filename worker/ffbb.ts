@@ -730,6 +730,22 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         return forms;
       };
 
+      // Nom complet de l équipe pour le titre TV (VICTOIRE DES {team}) :
+      // on privilégie le nom FFBB (renommage personnalisé éventuel), pas le badge court (ex U13 M1).
+      const customTeamNames = (data.clubSettings?.customTeamNames as Record<string, string>) || {};
+      const ffbbTeamsForAlert = Array.isArray(data.ffbbTeams) ? data.ffbbTeams : [];
+      const resolveTeamDisplayName = (category: string): string => {
+        if (!category) return '';
+        const team = ffbbTeamsForAlert.find((t: any) =>
+          normalizeCategoryKey(t?.category) === normalizeCategoryKey(category)
+        );
+        if (team) {
+          const custom = customTeamNames[team.id] || customTeamNames[team.category] || team.customName;
+          return custom || team.name || category;
+        }
+        return category;
+      };
+
       let alertsChanged = false;
       for (const { match } of newlyScoredMatches) {
         const keyForms = matchIdForms(match);
@@ -747,7 +763,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         const opponent = match.isHomeMatch ? match.teamAway : match.teamHome;
         const newAlert = {
           id: 'alert-ffbb-' + String(match.id || match.ffbbMatchNumber || 'unknown') + '-' + nowAlert,
-          team: match.category || match.ourClubName || 'SRC Basket',
+          team: resolveTeamDisplayName(match.category) || match.category || match.ourClubName || 'SRC Basket',
           isWin,
           ourScore: typeof ourScore === 'number' ? ourScore : undefined,
           opponentScore: typeof opponentScore === 'number' ? opponentScore : undefined,
