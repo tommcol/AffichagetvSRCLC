@@ -191,6 +191,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           (() => {
                             const sortedMatches = [...displayedMatches];
                             const sizing0 = getAdaptivePosterCardSizing(sortedMatches.length, aspectRatio);
+                            // 4:5 portrait : matchs empiles de HAUT en BAS en 1 colonne (ordre chronologique lisible)
+                            if (aspectRatio === '4:5') { sizing0.columns = 1; }
                             const half = Math.ceil(sortedMatches.length / 2);
                             const leftMatches = sizing0.columns === 1 ? sortedMatches : sortedMatches.slice(0, half);
                             const rightMatches = sizing0.columns === 1 ? [] : sortedMatches.slice(half);
@@ -384,9 +386,11 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           (() => {
                             const sortedResults = [...displayedResults];
                             const sizing0 = getAdaptivePosterCardSizing(sortedResults.length, aspectRatio);
+                            // 4:5 portrait : resultats empiles de HAUT en BAS en 1 colonne (ordre chronologique lisible)
+                            if (aspectRatio === '4:5') { sizing0.columns = 1; }
                             const half = Math.ceil(sortedResults.length / 2);
-                            const leftResults = sortedResults.length <= 2 ? sortedResults : sortedResults.slice(0, half);
-                            const rightResults = sortedResults.length <= 2 ? [] : sortedResults.slice(half);
+                            const leftResults = sizing0.columns === 1 ? sortedResults : sortedResults.slice(0, half);
+                            const rightResults = sizing0.columns === 1 ? [] : sortedResults.slice(half);
                             const count = sortedResults.length;
 
                             const renderPosterCard = (r) => {
