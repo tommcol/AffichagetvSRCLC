@@ -115,9 +115,15 @@ export function parseMatchTimestamp(dateStr?: string, timeStr?: string): number 
     else if (s.includes('dimanche')) dayScore = 3000;
     else if (s.includes('lundi')) dayScore = 4000;
 
-    // DD/MM ou DD-MM
-    const dateMatch = s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
-    if (dateMatch) {
+    // ISO YYYY-MM-DD en PRIORITE : sinon le motif DD/MM ci-dessous le detourne
+    // (ex "2026-09-19" -> jour 26, mois 9, annee 2019 -> tri chronologique faux)
+    const isoFirstMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const dateMatch = isoFirstMatch ? null : s.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+    if (isoFirstMatch) {
+      yearNum = parseInt(isoFirstMatch[1], 10);
+      monthNum = parseInt(isoFirstMatch[2], 10);
+      dayNum = parseInt(isoFirstMatch[3], 10);
+    } else if (dateMatch) {
       dayNum = parseInt(dateMatch[1], 10);
       monthNum = parseInt(dateMatch[2], 10);
       if (dateMatch[3]) {
