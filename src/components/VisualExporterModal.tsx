@@ -1369,7 +1369,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
                 {/* Ratios rapides */}
                 <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-                  {(['4:5', '9:16', '1:1'] as const).map((r) => (
+                  {(['4:5', '9:16', '1:1', '16:9'] as const).map((r) => (
                     <button
                       key={r}
                       type="button"
