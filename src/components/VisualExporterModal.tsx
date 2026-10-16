@@ -16,6 +16,7 @@ import {
   Zap,
   Radio,
   Flame,
+  Users,
   CheckCircle2,
   Image as ImageIcon,
   Home,
@@ -186,6 +187,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   
   // Filter for matches poster: Domicile, Extérieur, Exempt, or All
   const [posterFilter, setPosterFilter] = useState<PosterFilterType>('home');
+
+  // Filtre "Par équipe" : une équipe + une période (bypass la sélection week-end)
+  const [teamFilterEnabled, setTeamFilterEnabled] = useState<boolean>(false);
+  const [teamFilter, setTeamFilter] = useState<string>('');
+  const [teamPeriodStart, setTeamPeriodStart] = useState<string>('');
+  const [teamPeriodEnd, setTeamPeriodEnd] = useState<string>('');
   
   // Optional custom badge title override
   const [customBadgeTitle, setCustomBadgeTitle] = useState<string>('');
@@ -309,16 +316,55 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   }, [posterFilter, contentType, matchCounts.home, matchCounts.away, matchCounts.exempt, resultCounts.home, resultCounts.away, resultCounts.exempt]);
 
+  // Liste des équipes disponibles (catégories uniques des matchs + résultats)
+  const availableTeams = useMemo(() => {
+    const set = new Set<string>();
+    matches.forEach((m) => { if (m.category) set.add(m.category); });
+    results.forEach((r) => { if (r.category) set.add(r.category); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [matches, results]);
+
+  // Tous les matchs de l'équipe sélectionnée sur la période choisie (hors filtre week-end)
+  const teamPeriodFilteredMatches = useMemo(() => {
+    if (!teamFilterEnabled || !teamFilter) return [];
+    return [...matches]
+      .filter((m) => m.category === teamFilter)
+      .filter((m) => (!teamPeriodStart || m.date >= teamPeriodStart) && (!teamPeriodEnd || m.date <= teamPeriodEnd))
+      .sort(sortMatchesChronologically);
+  }, [matches, teamFilterEnabled, teamFilter, teamPeriodStart, teamPeriodEnd]);
+
+  // Tous les résultats de l'équipe sélectionnée sur la période choisie (hors filtre week-end)
+  const teamPeriodFilteredResults = useMemo(() => {
+    if (!teamFilterEnabled || !teamFilter) return [];
+    return [...results]
+      .filter((r) => r.category === teamFilter)
+      .filter((r) => (!teamPeriodStart || r.date >= teamPeriodStart) && (!teamPeriodEnd || r.date <= teamPeriodEnd))
+      .sort(sortMatchesChronologically);
+  }, [results, teamFilterEnabled, teamFilter, teamPeriodStart, teamPeriodEnd]);
+
+  // Réinitialise l'équipe sélectionnée si elle n'existe plus
+  useEffect(() => {
+    if (teamFilter && availableTeams.length > 0 && !availableTeams.includes(teamFilter)) {
+      setTeamFilter('');
+    }
+  }, [availableTeams, teamFilter]);
+
   // Filter matches based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
   const filteredMatches = useMemo(
-    () => filterPosterItems(weekendMatches, posterFilter, isExemptItem),
-    [weekendMatches, posterFilter]
+    () =>
+      teamFilterEnabled
+        ? teamPeriodFilteredMatches
+        : filterPosterItems(weekendMatches, posterFilter, isExemptItem),
+    [teamFilterEnabled, teamPeriodFilteredMatches, weekendMatches, posterFilter]
   );
 
   // Filter results based on posterFilter (DOMICILE / EXTÉRIEUR / EXEMPT / ALL)
   const filteredResults = useMemo(
-    () => filterPosterItems(weekendResults, posterFilter, isExemptItem),
-    [weekendResults, posterFilter]
+    () =>
+      teamFilterEnabled
+        ? teamPeriodFilteredResults
+        : filterPosterItems(weekendResults, posterFilter, isExemptItem),
+    [teamFilterEnabled, teamPeriodFilteredResults, weekendResults, posterFilter]
   );
 
   // Compute effective header badge title
@@ -1068,6 +1114,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       if (!isDisabled) {
                         setPosterFilter('home');
                         setCustomBadgeTitle('');
+                        setTeamFilterEnabled(false);
                       }
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
@@ -1103,6 +1150,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       if (!isDisabled) {
                         setPosterFilter('away');
                         setCustomBadgeTitle('');
+                        setTeamFilterEnabled(false);
                       }
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
@@ -1138,6 +1186,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       if (!isDisabled) {
                         setPosterFilter('exempt');
                         setCustomBadgeTitle('');
+                        setTeamFilterEnabled(false);
                       }
                     }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
@@ -1165,6 +1214,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 onClick={() => {
                   setPosterFilter('all');
                   setCustomBadgeTitle('');
+                  setTeamFilterEnabled(false);
                 }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   posterFilter === 'all'
@@ -1179,6 +1229,63 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   ({contentType === 'results' ? weekendResults.length : weekendMatches.length})
                 </span>
               </button>
+
+              {/* PAR ÉQUIPE : équipe + période */}
+              <button
+                onClick={() => {
+                  const next = !teamFilterEnabled;
+                  setTeamFilterEnabled(next);
+                  if (next && !teamFilter && availableTeams.length > 0) {
+                    setTeamFilter(availableTeams[0]);
+                  }
+                }}
+                className={'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ' + (teamFilterEnabled ? 'bg-sky-700 text-white shadow-sm' : 'text-slate-400 hover:text-white')}
+                title="Affiche tous les matchs ou résultats d'une équipe sur une période choisie"
+              >
+                <Users className="w-3 h-3" />
+                <span>PAR ÉQUIPE</span>
+              </button>
+            </div>
+          )}
+
+          {/* Sélection équipe + période (mode PAR ÉQUIPE) */}
+          {teamFilterEnabled && (contentType === 'matches' || contentType === 'results') && (
+            <div className="w-full flex flex-wrap items-center gap-2 bg-sky-950/40 border border-sky-800/50 rounded-xl px-2.5 py-2">
+              <span className="text-[10px] font-bold text-sky-300 px-1 uppercase">Équipe :</span>
+              <select
+                value={teamFilter}
+                onChange={(e) => {
+                  setTeamFilter(e.target.value);
+                  setCustomBadgeTitle('');
+                }}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-white focus:border-sky-500 focus:outline-none max-w-[220px]"
+              >
+                {availableTeams.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+
+              <span className="text-[10px] font-bold text-sky-300 px-1 uppercase ml-1">Période :</span>
+              <input
+                type="date"
+                value={teamPeriodStart}
+                onChange={(e) => setTeamPeriodStart(e.target.value)}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none"
+                title="Début de période (vide = depuis le début)"
+              />
+              <span className="text-[10px] text-slate-400">&#8594;</span>
+              <input
+                type="date"
+                value={teamPeriodEnd}
+                onChange={(e) => setTeamPeriodEnd(e.target.value)}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none"
+                title="Fin de période (vide = jusqu'à la fin)"
+              />
+
+              <span className="text-[10px] text-slate-300 ml-auto font-bold">
+                {contentType === 'results' ? teamPeriodFilteredResults.length : teamPeriodFilteredMatches.length}{' '}
+                {contentType === 'results' ? 'résultat(s)' : 'match(s)'}
+              </span>
             </div>
           )}
 
@@ -1336,7 +1443,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
                   <button
                     type="button"
-                    onClick={() => { setPosterFilter('home'); setCustomBadgeTitle(''); }}
+                    onClick={() => { setPosterFilter('home'); setCustomBadgeTitle(''); setTeamFilterEnabled(false); }}
                     className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
                       posterFilter === 'home'
                         ? contentType === 'results' ? 'bg-emerald-700 text-white' : 'bg-red-700 text-white'
@@ -1347,7 +1454,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setPosterFilter('away'); setCustomBadgeTitle(''); }}
+                    onClick={() => { setPosterFilter('away'); setCustomBadgeTitle(''); setTeamFilterEnabled(false); }}
                     className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
                       posterFilter === 'away'
                         ? contentType === 'results' ? 'bg-emerald-700 text-white' : 'bg-red-700 text-white'
@@ -1358,12 +1465,26 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setPosterFilter('all'); setCustomBadgeTitle(''); }}
+                    onClick={() => { setPosterFilter('all'); setCustomBadgeTitle(''); setTeamFilterEnabled(false); }}
                     className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${
                       posterFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     Tout
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !teamFilterEnabled;
+                      setTeamFilterEnabled(next);
+                      if (next && !teamFilter && availableTeams.length > 0) {
+                        setTeamFilter(availableTeams[0]);
+                      }
+                    }}
+                    className={'px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ' + (teamFilterEnabled ? 'bg-sky-700 text-white font-black' : 'text-slate-400 hover:text-slate-200')}
+                    title="Mode Par équipe : choisissez l'équipe et la période dans Options"
+                  >
+                    Éq.
                   </button>
                 </div>
 
