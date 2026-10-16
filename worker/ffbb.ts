@@ -747,7 +747,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         const opponent = match.isHomeMatch ? match.teamAway : match.teamHome;
         const newAlert = {
           id: 'alert-ffbb-' + String(match.id || match.ffbbMatchNumber || 'unknown') + '-' + nowAlert,
-          team: match.ourClubName || 'SRC Basket',
+          team: match.category || match.ourClubName || 'SRC Basket',
           isWin,
           ourScore: typeof ourScore === 'number' ? ourScore : undefined,
           opponentScore: typeof opponentScore === 'number' ? opponentScore : undefined,
