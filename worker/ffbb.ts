@@ -720,13 +720,24 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       }
       const nowAlert = Date.now();
       const activeAlerts = existingAlerts.filter((a: any) => a && a.expiresAt > nowAlert);
-      const matchKeyStr = (m: any) => String(m?.ffbbMatchNumber || m?.id || '');
-      const alertKey = (a: any) => String(a?.matchId || a?.id || '');
+      // Un match est identifié par son id (ex. ffbb-123) ET par son numéro FFBB (FFBB-123) :
+      // les alertes Telegram stockent matchId = id du match, on compare donc sur les deux formes.
+      const matchIdForms = (m: any) => {
+        const forms = new Set<string>();
+        if (m?.id) forms.add(String(m.id));
+        if (m?.ffbbMatchNumber) forms.add(String(m.ffbbMatchNumber));
+        if (m?.ffbbMatchNumber) forms.add(String(m.ffbbMatchNumber).replace(/^FFBB-/i, 'ffbb-'));
+        return forms;
+      };
 
       let alertsChanged = false;
       for (const { match } of newlyScoredMatches) {
-        const key = matchKeyStr(match);
-        const alreadyAlerted = activeAlerts.some((a: any) => alertKey(a) === key);
+        const keyForms = matchIdForms(match);
+        const alreadyAlerted = activeAlerts.some((a: any) => {
+          const aMatch = String(a?.matchId || '');
+          if (!aMatch) return false;
+          return keyForms.has(aMatch) || keyForms.has(aMatch.replace(/^FFBB-/i, 'ffbb-'));
+        });
         if (alreadyAlerted) continue;
         const isWin = match.result === 'win';
         const isLoss = match.result === 'loss';
@@ -735,7 +746,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         const opponentScore = match.isHomeMatch ? match.awayScore : match.homeScore;
         const opponent = match.isHomeMatch ? match.teamAway : match.teamHome;
         const newAlert = {
-          id: 'alert-ffbb-' + key + '-' + nowAlert,
+          id: 'alert-ffbb-' + String(match.id || matchKeyStr(match)) + '-' + nowAlert,
           team: match.ourClubName || 'SRC Basket',
           isWin,
           ourScore: typeof ourScore === 'number' ? ourScore : undefined,
