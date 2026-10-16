@@ -145,8 +145,8 @@ async function runTests() {
   const limit169 = getMaxDisplayMatches('16:9', 'auto');
   const limitManual = getMaxDisplayMatches('4:5', 3);
 
-  if (limit916 === 8 && limit45 === 8 && limit11 === 6 && limit169 === 8 && limitManual === 3) {
-    console.log('✓ Réussi : Limites par ratio (9:16 -> 8, 4:5 -> 8, 1:1 -> 6, 16:9 -> 8, Manuel 3 -> 3)');
+  if (limit916 === 8 && limit45 === 6 && limit11 === 6 && limit169 === 8 && limitManual === 3) {
+    console.log('✓ Réussi : Limites par ratio (9:16 -> 8, 4:5 -> 6 (1 colonne portrait), 1:1 -> 6, 16:9 -> 8, Manuel 3 -> 3)');
   } else {
     console.error('❌ Échec : Limites incorrectes', { limit916, limit45, limit11, limit169, limitManual });
     process.exit(1);
