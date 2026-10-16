@@ -380,6 +380,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return DEFAULT_REAL_FFBB_TEAMS;
   });
 
+  // Sauvegarde automatique des periodes selectionnees (calendrier Matchs et Resultats)
+  useEffect(() => {
+    try {
+      if (syncStartDate) localStorage.setItem('src_matches_filter_start', syncStartDate);
+      else localStorage.removeItem('src_matches_filter_start');
+      if (syncEndDate) localStorage.setItem('src_matches_filter_end', syncEndDate);
+      else localStorage.removeItem('src_matches_filter_end');
+      if (resultsStartDate) localStorage.setItem('src_results_filter_start', resultsStartDate);
+      else localStorage.removeItem('src_results_filter_start');
+      if (resultsEndDate) localStorage.setItem('src_results_filter_end', resultsEndDate);
+      else localStorage.removeItem('src_results_filter_end');
+    } catch (e) {}
+  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate]);
+
   const ffbbTeams = externalFfbbTeams && externalFfbbTeams.length > 0 ? externalFfbbTeams : internalFfbbTeams;
   const setFfbbTeams = (teams: FFBBTeamItem[]) => {
     setInternalFfbbTeams(teams);
@@ -515,10 +529,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [customRewriteInstructions, setCustomRewriteInstructions] = useState<string>('');
   const [customRewriteOutput, setCustomRewriteOutput] = useState<string>('');
   const [isRewriting, setIsRewriting] = useState<boolean>(false);
-  const [syncStartDate, setSyncStartDate] = useState<string>('');
-  const [syncEndDate, setSyncEndDate] = useState<string>('');
-  const [resultsStartDate, setResultsStartDate] = useState<string>('');
-  const [resultsEndDate, setResultsEndDate] = useState<string>('');
+  // Periodes du calendrier persistees : restaurees a la reouverture de l'appli
+  const [syncStartDate, setSyncStartDate] = useState<string>(() => {
+    try { return localStorage.getItem('src_matches_filter_start') || ''; } catch (e) { return ''; }
+  });
+  const [syncEndDate, setSyncEndDate] = useState<string>(() => {
+    try { return localStorage.getItem('src_matches_filter_end') || ''; } catch (e) { return ''; }
+  });
+  const [resultsStartDate, setResultsStartDate] = useState<string>(() => {
+    try { return localStorage.getItem('src_results_filter_start') || ''; } catch (e) { return ''; }
+  });
+  const [resultsEndDate, setResultsEndDate] = useState<string>(() => {
+    try { return localStorage.getItem('src_results_filter_end') || ''; } catch (e) { return ''; }
+  });
   const [showCalendarInResults, setShowCalendarInResults] = useState<boolean>(true);
   const [resultsFilterMode, setResultsFilterMode] = useState<'all' | 'range'>('all');
   const [showAddManualResult, setShowAddManualResult] = useState<boolean>(false);
