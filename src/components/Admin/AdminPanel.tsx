@@ -380,20 +380,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return DEFAULT_REAL_FFBB_TEAMS;
   });
 
-  // Sauvegarde automatique des periodes selectionnees (calendrier Matchs et Resultats)
-  useEffect(() => {
-    try {
-      if (syncStartDate) localStorage.setItem('src_matches_filter_start', syncStartDate);
-      else localStorage.removeItem('src_matches_filter_start');
-      if (syncEndDate) localStorage.setItem('src_matches_filter_end', syncEndDate);
-      else localStorage.removeItem('src_matches_filter_end');
-      if (resultsStartDate) localStorage.setItem('src_results_filter_start', resultsStartDate);
-      else localStorage.removeItem('src_results_filter_start');
-      if (resultsEndDate) localStorage.setItem('src_results_filter_end', resultsEndDate);
-      else localStorage.removeItem('src_results_filter_end');
-    } catch (e) {}
-  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate]);
-
   const ffbbTeams = externalFfbbTeams && externalFfbbTeams.length > 0 ? externalFfbbTeams : internalFfbbTeams;
   const setFfbbTeams = (teams: FFBBTeamItem[]) => {
     setInternalFfbbTeams(teams);
@@ -542,6 +528,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [resultsEndDate, setResultsEndDate] = useState<string>(() => {
     try { return localStorage.getItem('src_results_filter_end') || ''; } catch (e) { return ''; }
   });
+  // Sauvegarde automatique des periodes selectionnees (calendrier Matchs et Resultats)
+  useEffect(() => {
+    try {
+      if (syncStartDate) localStorage.setItem('src_matches_filter_start', syncStartDate);
+      else localStorage.removeItem('src_matches_filter_start');
+      if (syncEndDate) localStorage.setItem('src_matches_filter_end', syncEndDate);
+      else localStorage.removeItem('src_matches_filter_end');
+      if (resultsStartDate) localStorage.setItem('src_results_filter_start', resultsStartDate);
+      else localStorage.removeItem('src_results_filter_start');
+      if (resultsEndDate) localStorage.setItem('src_results_filter_end', resultsEndDate);
+      else localStorage.removeItem('src_results_filter_end');
+    } catch (e) {}
+  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate]);
+
   const [showCalendarInResults, setShowCalendarInResults] = useState<boolean>(true);
   const [resultsFilterMode, setResultsFilterMode] = useState<'all' | 'range'>('all');
   const [showAddManualResult, setShowAddManualResult] = useState<boolean>(false);
