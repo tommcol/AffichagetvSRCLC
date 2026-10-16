@@ -1940,9 +1940,9 @@ async function runBackgroundFFBBSync() {
 
       lastSyncResult = {
         success: true,
-        message: `Synchronisation réussie : ${filteredFfbbMatches.length} matchs, ${combinedResults.length} résultats (${filteredFfbbResults.length} officiels FFBB)`,
+        message: `Synchronisation réussie : ${filteredFfbbMatches.length} matchs, ${mergedResults.length} résultats (${filteredFfbbResults.length} officiels FFBB)`,
         matchesCount: filteredFfbbMatches.length,
-        resultsCount: combinedResults.length,
+        resultsCount: mergedResults.length,
       };
       console.log(`[AUTO-SYNC FFBB] ${lastSyncResult.message}`);
     }
