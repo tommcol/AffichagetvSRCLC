@@ -52,7 +52,7 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
       {!isVid && (
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-cover bg-center blur-2xl opacity-50 scale-110"
+          className="absolute inset-0 bg-cover bg-center blur-lg opacity-50 scale-105"
           style={{ backgroundImage: `url("${currentPhoto.imageUrl}")` }}
         />
       )}
@@ -82,14 +82,14 @@ export const PhotosSlide: React.FC<PhotosSlideProps> = ({
               console.warn('Erreur lecture vidéo photo, passage au suivant');
               if (onVideoEnded) onVideoEnded();
             }}
-            className="w-full h-full object-contain transition-all duration-1000 ease-out"
+            className="w-full h-full object-contain"
           />
         ) : (
           <img
             key={`photo-img-${currentPhoto.id || currentPhoto.imageUrl}`}
             src={currentPhoto.imageUrl}
             alt={currentPhoto.title}
-            className="w-full h-full object-contain transition-all duration-1000 ease-out"
+            className="w-full h-full object-contain"
             referrerPolicy="no-referrer"
           />
         )}

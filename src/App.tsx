@@ -930,7 +930,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.99 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.01 }}
-              transition={{ duration: 0.6, ease: 'easeInOut' }}
+              transition={{ duration: 0 }}
               className="w-full h-full flex items-center justify-center"
             >
               <TVSlideRenderer
