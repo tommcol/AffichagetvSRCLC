@@ -587,6 +587,14 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
     const now = Date.now();
     let updatedResults = 0;
 
+    // Détection des nouveaux scores officiels FFBB (pour déclencher la boucle victoire/défaite TV)
+    const hasConfirmedScore = (m: any) =>
+      (m?.result === 'win' || m?.result === 'loss' || m?.result === 'draw')
+      && typeof m?.homeScore === 'number' && typeof m?.awayScore === 'number';
+    const isNewlyScored = (m: any) => hasConfirmedScore(m);
+    const alreadyScoredKeys = new Map<string, boolean>();
+    const newlyScoredMatches: { match: any; previousSource: string | null }[] = [];
+
     const matchKey = (match: any) => String(match?.ffbbMatchNumber || match?.id || '');
     const mergeCollection = (existing: any[], incoming: any[], isResults = false) => {
       const byKey = new Map<string, any>();
@@ -596,6 +604,21 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         const previous = byKey.get(key);
         const hasOfficialScore = (fresh.result === 'win' || fresh.result === 'loss' || fresh.result === 'draw')
           && typeof fresh.homeScore === 'number' && typeof fresh.awayScore === 'number';
+        // Nouveau score officiel FFBB détecté : programmer la boucle victoire/défaite d'une heure.
+        // Uniquement à la PREMIÈRE publication du score (previous sans résultat confirmé) : les crons
+        // suivants ne relancent pas la boucle, et un score déjà couvert par Telegram n'est pas retraité.
+        if (hasOfficialScore && previous && !isNewlyScored(previous)) {
+          const keyCat = String(fresh.category || previous.category || '');
+          const keyMatch = String(fresh.id || previous.id || matchKey(fresh));
+          if (!alreadyScoredKeys.has(keyMatch)) {
+            alreadyScoredKeys.set(keyMatch, true);
+            newlyScoredMatches.push({
+              match: fresh,
+              previousSource: previous.resultSource || null,
+            });
+          }
+        }
+
         if (previous) {
           const merged = { ...previous, ...fresh };
           // Si la FFBB ne fournit plus d'heure pour la même date, garder la dernière heure connue
@@ -682,6 +705,58 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       }
     }
 
+
+    // Déclencher la boucle victoire/défaite (1 h) pour chaque nouveau score officiel FFBB,
+    // SAUF si une alerte Telegram/manuelle existe déjà pour ce match (pas de double boucle).
+    if (newlyScoredMatches.length > 0) {
+      let alertsRaw: string | null = null;
+      let existingAlerts: any[] = [];
+      try {
+        alertsRaw = await env.AFFICHAGE_KV.get('alerts');
+        existingAlerts = alertsRaw ? JSON.parse(alertsRaw) : [];
+        if (!Array.isArray(existingAlerts)) existingAlerts = [];
+      } catch (e) {
+        existingAlerts = [];
+      }
+      const nowAlert = Date.now();
+      const activeAlerts = existingAlerts.filter((a: any) => a && a.expiresAt > nowAlert);
+      const matchKeyStr = (m: any) => String(m?.ffbbMatchNumber || m?.id || '');
+      const alertKey = (a: any) => String(a?.matchId || a?.id || '');
+
+      let alertsChanged = false;
+      for (const { match } of newlyScoredMatches) {
+        const key = matchKeyStr(match);
+        const alreadyAlerted = activeAlerts.some((a: any) => alertKey(a) === key);
+        if (alreadyAlerted) continue;
+        const isWin = match.result === 'win';
+        const isLoss = match.result === 'loss';
+        if (!isWin && !isLoss) continue; // match nul : pas de boucle
+        const ourScore = match.isHomeMatch ? match.homeScore : match.awayScore;
+        const opponentScore = match.isHomeMatch ? match.awayScore : match.homeScore;
+        const opponent = match.isHomeMatch ? match.teamAway : match.teamHome;
+        const newAlert = {
+          id: 'alert-ffbb-' + key + '-' + nowAlert,
+          team: match.ourClubName || 'SRC Basket',
+          isWin,
+          ourScore: typeof ourScore === 'number' ? ourScore : undefined,
+          opponentScore: typeof opponentScore === 'number' ? opponentScore : undefined,
+          opponent,
+          customImageUrl: undefined,
+          titleConfig: undefined,
+          triggeredBy: 'ffbb',
+          matchId: match.id,
+          category: match.category,
+          timestamp: nowAlert,
+          expiresAt: nowAlert + 60 * 60 * 1000,
+        };
+        activeAlerts.unshift(newAlert);
+        alertsChanged = true;
+        console.log('[FFBB CRON] Nouveau score officiel: boucle ' + (isWin ? 'VICTOIRE' : 'DÉFAITE') + ' programmée 1 h pour ' + match.category + '.');
+      }
+      if (alertsChanged) {
+        await env.AFFICHAGE_KV.put('alerts', JSON.stringify(activeAlerts));
+      }
+    }
     data.version = (typeof data.version === 'number' ? data.version : 0) + 1;
     await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
     console.log(`[FFBB CRON] Terminé: ${payload.matches.length} matchs FFBB, ${updatedResults} résultats mis à jour, durée ${Date.now() - startedAt} ms.`);
