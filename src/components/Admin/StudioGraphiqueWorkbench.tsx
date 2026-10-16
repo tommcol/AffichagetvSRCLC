@@ -108,6 +108,29 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     title?: string;
   }>({ isOpen: false, target: 'bg' });
 
+  // Mode Compact : réduit les marges des panneaux de réglages (persisté par appareil)
+  const [compactMode, setCompactMode] = useState<boolean>(() => {
+    try { return localStorage.getItem('src_studio_compact_mode') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('src_studio_compact_mode', compactMode ? '1' : '0'); } catch {}
+  }, [compactMode]);
+
+  // Aperçu taille réelle : canevas rendu à 1920px (zoom 100%, défilement horizontal)
+  const [realSizeMode, setRealSizeMode] = useState<boolean>(false);
+
+  // Réglages par défaut réutilisables : sauvegarde locale du thème courant de la catégorie
+  const defaultThemeStorageKey = 'src_studio_default_theme_' + activeCategory;
+  const [defaultThemeExists, setDefaultThemeExists] = useState<boolean>(false);
+  const [defaultSavedFlash, setDefaultSavedFlash] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      setDefaultThemeExists(Boolean(localStorage.getItem(defaultThemeStorageKey)));
+    } catch {
+      setDefaultThemeExists(false);
+    }
+  }, [defaultThemeStorageKey]);
+
   const handleRegisterMediaInBank = (media: { name?: string; url: string; mediaType?: 'image' | 'video'; size?: number }) => {
     const updated = addMediaToBank(visualTemplates, media);
     onUpdateVisualTemplates(updated);
@@ -151,6 +174,26 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
     const merged = { ...currentTheme, ...partial };
     nextTemplates[settingsKey] = merged;
     onUpdateVisualTemplates(nextTemplates);
+  };
+
+  // Sauvegarde les réglages actuels de la catégorie comme réglages par défaut réutilisables
+  const handleSaveDefaultTheme = () => {
+    try {
+      localStorage.setItem(defaultThemeStorageKey, JSON.stringify(currentEffective.categoryTheme));
+      setDefaultThemeExists(true);
+      setDefaultSavedFlash(true);
+      window.setTimeout(() => setDefaultSavedFlash(false), 1500);
+    } catch {}
+  };
+
+  // Applique les réglages par défaut sauvegardés à la catégorie courante
+  const handleApplyDefaultTheme = () => {
+    try {
+      const raw = localStorage.getItem(defaultThemeStorageKey);
+      if (raw) {
+        updateCurrentCategoryTheme(JSON.parse(raw) as Partial<CategorySlideTheme>);
+      }
+    } catch {}
   };
 
   const displayedMatches = useMemo(() => {
@@ -437,13 +480,25 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 </button>
               </div>
             )}
+
+            {/* Aperçu taille réelle (zoom 100%, défilement) */}
+            <button
+              type="button"
+              onClick={() => setRealSizeMode(!realSizeMode)}
+              className={'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ' + (realSizeMode ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white bg-slate-950 border border-slate-800')}
+              title="Afficher le canevas à sa taille réelle 1920px (défilement horizontal pour tout voir)"
+            >
+              <Monitor className="w-3.5 h-3.5" />
+              <span>Taille réelle</span>
+            </button>
           </div>
 
           {/* CANEVAS 16:9 AVEC GESTION INTERACTIVE DU GLISSER-DÉPOSER */}
           <div
             ref={previewCanvasRef}
-            className="relative w-full aspect-video rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-black select-none"
+            className={'relative w-full rounded-3xl overflow-auto border-2 border-slate-800 shadow-2xl bg-black select-none' + (realSizeMode ? '' : ' aspect-video')}
           >
+            <div style={realSizeMode ? { width: '1920px' } : undefined}>
             <FixedCanvas169>
               {previewMode === 'matches' ? (
                 <MatchesSlide
@@ -504,6 +559,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 />
               )}
             </FixedCanvas169>
+            </div>
 
             {/* Indicateur de calques interactifs */}
             <div className="absolute top-3 left-3 z-40 flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white pointer-events-none">
@@ -537,6 +593,43 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
 
         {/* COLONNE DROITE (5 colonnes sur desktop) : SÉLECTION DES CALQUES & RÉGLAGES */}
         <div className={`xl:col-span-5 space-y-4 ${mobileStudioTab === 'controls' ? 'block' : 'hidden'} xl:block`}>
+
+          {/* BARRE OUTILS STUDIO : Mode Compact + Réglages par défaut réutilisables */}
+          <div className="flex items-center justify-between gap-2 flex-wrap bg-slate-900/90 px-3 py-2 rounded-2xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setCompactMode(!compactMode)}
+              className={'px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ' + (compactMode ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white bg-slate-950 border border-slate-800')}
+              title="Réduit les marges des panneaux de réglages pour tout voir sans défiler"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>{compactMode ? 'Compact ✓' : 'Compact'}</span>
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleSaveDefaultTheme}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Enregistrer les réglages actuels de cette catégorie comme réglages par défaut réutilisables"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{defaultSavedFlash ? 'Sauvegardé !' : 'Sauver défauts'}</span>
+              </button>
+              {defaultThemeExists && (
+                <button
+                  type="button"
+                  onClick={handleApplyDefaultTheme}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-800 text-sky-300 border border-sky-500/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Appliquer les réglages par défaut sauvegardés à cette catégorie"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Appliquer</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* SÉLECTEUR DES 4 CALQUES */}
           <div className="grid grid-cols-4 gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
             <button
@@ -597,7 +690,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
 
           {/* ONGLET CALQUE 1 : FOND & AMBIANCE */}
           {activeLayerTab === 1 && (
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-4">
+            <div className={'bg-slate-900/80 border border-slate-800 rounded-3xl ' + (compactMode ? 'p-3 space-y-2.5' : 'p-5 space-y-4')}>
               <div className="pb-3 border-b border-slate-800">
                 <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                   <Layers className="w-4 h-4 text-orange-400" />
@@ -943,7 +1036,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
 
           {/* ONGLET CALQUE 2 : CARTES, TYPOGRAPHIE & DONNÉES */}
           {activeLayerTab === 2 && (
-            <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-4">
+            <div className={'bg-slate-900/80 border border-slate-800 rounded-3xl ' + (compactMode ? 'p-3 space-y-2.5' : 'p-5 space-y-4')}>
               <div className="pb-3 border-b border-slate-800">
                 <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
