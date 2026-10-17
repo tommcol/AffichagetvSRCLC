@@ -87,6 +87,18 @@ import {
   Trash2,
 } from 'lucide-react';
 
+// Identifiants du contenu de démonstration d'origine (plus aucun item fictif ne doit s'afficher au club)
+const DEMO_DATA_ITEM_IDS = new Set([
+  'sp-1', 'sp-2', 'sp-3', 'sp-4', 'sp-5', 'sp-6',
+  'ph-1', 'ph-2', 'ph-3', 'ph-4',
+  'ev-1', 'ev-2', 'ev-3',
+  'logo-1', 'logo-2', 'logo-3',
+  'bd-1', 'bd-2', 'bd-3', 'bd-4', 'bd-5', 'bd-6', 'bd-7', 'bd-8',
+  'bd-b1', 'bd-b2', 'bd-b3', 'bd-b4', 'bd-b5', 'bd-b6', 'bd-b7',
+  'demo-cw-1', 'demo-cw-2', 'demo-cw-3', 'demo-cw-4', 'demo-cw-5', 'demo-cw-6', 'demo-cw-7',
+  'demo-nw-1', 'demo-nw-2', 'demo-nw-3', 'demo-nw-4', 'demo-nw-5', 'demo-nw-6', 'demo-nw-7',
+]);
+
 export default function App() {
   // Le mode kiosk est réservé à l'URL dédiée pour Fully Kiosk. Le mode TV lancé depuis l'application conserve les commandes normales.
   const isKioskMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('kiosk') === '1';
@@ -175,6 +187,17 @@ export default function App() {
   // Application en mémoire des données chargées
   const applyLoadedData = useCallback((d: AppDataPayload) => {
     if (!d) return;
+
+    // Migration : retire le contenu de démonstration d'origine éventuellement resté enregistré côté serveur
+    const isDemoItemId = (id?: string) => !!id && DEMO_DATA_ITEM_IDS.has(id);
+    const cleaned: AppDataPayload = { ...d };
+    if (cleaned.sponsors) cleaned.sponsors = cleaned.sponsors.filter((s) => !isDemoItemId(s.id));
+    if (cleaned.logos) cleaned.logos = cleaned.logos.filter((l) => !isDemoItemId(l.id));
+    if (cleaned.photos) cleaned.photos = cleaned.photos.filter((p) => !isDemoItemId(p.id));
+    if (cleaned.events) cleaned.events = cleaned.events.filter((e) => !isDemoItemId(e.id));
+    if (cleaned.allMembers) cleaned.allMembers = cleaned.allMembers.filter((m) => !isDemoItemId(m.id));
+    if (cleaned.birthdays) cleaned.birthdays = cleaned.birthdays.filter((m) => !isDemoItemId(m.id));
+    d = cleaned;
     if (d.clubSettings) {
       setClubSettings({
         ...d.clubSettings,
