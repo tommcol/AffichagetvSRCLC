@@ -128,8 +128,6 @@ import type {
 import defaultPosterBg from '../assets/images/poster_basketball_court_bg_1789586468398.jpg';
 import { ContentTypeResultsSection } from './posterSections/ContentTypeResultsSection';
 import { VisualThemePosterRedSection } from './posterSections/VisualThemePosterRedSection';
-import { VisualThemeBrickSection } from './posterSections/VisualThemeBrickSection';
-import { VisualThemeModernSection } from './posterSections/VisualThemeModernSection';
 import { RightPanelTabSocialSection } from './posterSections/RightPanelTabSocialSection';
 
 
@@ -1304,28 +1302,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               >
                 <span>🔴 Affiche Rouge</span>
               </button>
-              <button
-                onClick={() => setVisualTheme('brick')}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  visualTheme === 'brick'
-                    ? 'bg-orange-700 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Visuels Briques & Éléments Graphiques"
-              >
-                <span>🧱 Briques</span>
-              </button>
-              <button
-                onClick={() => setVisualTheme('modern')}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  visualTheme === 'modern'
-                    ? 'bg-slate-700 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title="Style Élite Dark Modern"
-              >
-                <span>✨ Dark</span>
-              </button>
+              
             </div>
 
             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
@@ -1705,23 +1682,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             />
           )}
 
-                  {/* THEME 2: BRICK WALL & MASCOT */}
-                  {visualTheme === 'brick' && (
-            <VisualThemeBrickSection
-              clubSettings={clubSettings}
-              badgeTitle={badgeTitle}
-              displayedMatches={displayedMatches}
-            />
-          )}
-
-                  {/* THEME 3: DARK MODERN */}
-                  {visualTheme === 'modern' && (
-            <VisualThemeModernSection
-              clubSettings={clubSettings}
-              badgeTitle={badgeTitle}
-              displayedMatches={displayedMatches}
-            />
-          )}
+                  
                 </div>
               </div>
             </div>
