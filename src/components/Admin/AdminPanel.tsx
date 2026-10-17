@@ -3049,18 +3049,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
-              onClick={(e) => handleSelectTab('image_banks', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'image_banks'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Camera className="w-4 h-4 text-amber-400" />
-              <span>Banques d'images</span>
-            </button>
-
-            <button
               onClick={(e) => handleSelectTab('excel', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                 activeTab === 'excel'
@@ -3082,6 +3070,37 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             >
               <Share2 className="w-4 h-4 text-pink-400" />
               <span>Passerelle Réseaux</span>
+            </button>
+
+            <div className="w-px h-6 bg-slate-700/70 mx-1.5 shrink-0" />
+
+            <button
+              onClick={(e) => handleSelectTab('image_banks', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'image_banks'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Camera className="w-4 h-4 text-amber-400" />
+              <span>Banques d'images</span>
+            </button>
+
+            <div className="w-px h-6 bg-slate-700/70 mx-1.5 shrink-0" />
+
+            <button
+              onClick={(e) => handleSelectTab('ffbb', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'ffbb'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <RefreshCw className="w-4 h-4 text-blue-400" />
+              <span>Sync FFBB</span>
+              {identityProposal && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400" title="Proposition FFBB disponible" />
+              )}
             </button>
 
             <button
@@ -3111,6 +3130,18 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
+              onClick={(e) => handleSelectTab('categories', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'categories'
+                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Sliders className="w-4 h-4 text-amber-400" />
+              <span>Paramètres Carrousel & TV</span>
+            </button>
+
+            <button
               onClick={(e) => handleSelectTab('club_identity', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                 activeTab === 'club_identity'
@@ -3126,33 +3157,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             </button>
 
             <button
-              onClick={(e) => handleSelectTab('ffbb', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'ffbb'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <RefreshCw className="w-4 h-4 text-blue-400" />
-              <span>Sync FFBB</span>
-              {identityProposal && (
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400" title="Proposition FFBB disponible" />
-              )}
-            </button>
-
-            <button
-              onClick={(e) => handleSelectTab('categories', e)}
-              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                activeTab === 'categories'
-                  ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Sliders className="w-4 h-4 text-amber-400" />
-              <span>Paramètres Carrousel & TV</span>
-            </button>
-
-            <button
               onClick={(e) => handleSelectTab('fullykiosk', e)}
               className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                 activeTab === 'fullykiosk'
@@ -3163,6 +3167,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <Tv className="w-4 h-4 text-amber-300" />
               <span>Guide Fully Kiosk</span>
             </button>
+          
           </div>
 
           {/* Right Slide Button */}
