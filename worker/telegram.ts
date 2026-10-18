@@ -851,6 +851,54 @@ export async function persistTelegramMatchResult(
   return { status: 'created', match: updatedMatch, appData };
 }
 
+// Réversion d'un résultat injecté par Telegram (commande "supprimer").
+// Règle club : si le message Telegram est supprimé, c'est qu'il y a eu erreur →
+// on efface AUSSI le résultat persisté (score + victoire/défaite) sur la slide Matchs.
+// Les résultats FFBB (resultSource 'ffbb') et manuels ('manual') ne sont JAMAIS touchés.
+export async function revertTelegramMatchResult(
+  env: Env,
+  matchId?: string
+): Promise<{ reverted: boolean; match?: any }> {
+  const raw = await env.AFFICHAGE_KV.get('app-data');
+  if (!raw) return { reverted: false };
+  let appData: any = null;
+  try {
+    appData = JSON.parse(raw);
+  } catch (e) {
+    return { reverted: false };
+  }
+
+  const matches = Array.isArray(appData?.matches) ? appData.matches : [];
+  let target = matchId
+    ? matches.find((m: any) => m?.id === matchId && m?.resultSource === 'telegram')
+    : undefined;
+  if (!target) {
+    // Pas d'alerte active en mémoire : retirer le résultat Telegram le plus récent.
+    target = matches
+      .filter((m: any) => m?.resultSource === 'telegram')
+      .sort((a: any, b: any) => (b.resultReceivedAt || 0) - (a.resultReceivedAt || 0))[0];
+  }
+  if (!target) return { reverted: false };
+
+  const restored: any = { ...target };
+  delete restored.status;
+  delete restored.result;
+  delete restored.resultSource;
+  delete restored.resultReceivedAt;
+  delete restored.finishedAt;
+  delete restored.homeScore;
+  delete restored.awayScore;
+
+  appData.matches = matches.map((m: any) => (m?.id === target.id ? restored : m));
+  const results = Array.isArray(appData.results) ? appData.results : [];
+  appData.results = results.filter(
+    (r: any) => !(r?.id === target.id && r?.resultSource === 'telegram')
+  );
+  appData.version = (typeof appData.version === 'number' ? appData.version : 0) + 1;
+  await env.AFFICHAGE_KV.put('app-data', JSON.stringify(appData));
+  return { reverted: true, match: restored };
+}
+
 export async function getTelegramSecretToken(botToken: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(botToken.trim() + ':src-basket-telegram-secret');
@@ -970,24 +1018,44 @@ export async function telegramWebhook(request: Request, env: Env): Promise<Respo
     const chatId = message.chat?.id;
     const now = Date.now();
 
-    // Suppression de la dernière alerte injectée par Telegram.
-    const isDeleteCommand = /^(\/supprimer|\/delete|\/annuler)\b/i.test(text.trim());
+    // Suppression de la dernière alerte injectée par Telegram (+ réversion du résultat).
+    // "supprimer" est accepté avec ou sans slash (règle club : je me suis trompé → on efface).
+    const isDeleteCommand = /^(?:\/)?(?:supprimer|delete|annuler)\b/i.test(text.trim());
     if (isDeleteCommand) {
       const rawAlerts = await env.AFFICHAGE_KV.get('alerts');
       const alerts = rawAlerts ? JSON.parse(rawAlerts) : [];
       const telegramAlerts = Array.isArray(alerts) ? alerts.filter((a: any) => a?.triggeredBy === 'telegram') : [];
       const latestTelegramAlert = telegramAlerts[0];
-      if (!latestTelegramAlert) {
-        if (chatId) await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: 'ℹ️ Aucune alerte Telegram active à supprimer.' }) }).catch(() => null);
-        return new Response(JSON.stringify({ success: true, deleted: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+      // 1. Supprimer l'alerte de la boucle TV (si encore active)
+      let alertDeleted = false;
+      if (latestTelegramAlert) {
+        const remainingAlerts = alerts.filter((a: any) => a?.id !== latestTelegramAlert.id);
+        await env.AFFICHAGE_KV.put('alerts', JSON.stringify(remainingAlerts));
+        if (latestTelegramAlert.telegramChatId && latestTelegramAlert.telegramMessageId) {
+          await fetch('https://api.telegram.org/bot' + botToken + '/deleteMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: latestTelegramAlert.telegramChatId, message_id: latestTelegramAlert.telegramMessageId }) }).catch(() => null);
+        }
+        alertDeleted = true;
       }
-      const remainingAlerts = alerts.filter((a: any) => a?.id !== latestTelegramAlert.id);
-      await env.AFFICHAGE_KV.put('alerts', JSON.stringify(remainingAlerts));
-      if (latestTelegramAlert.telegramChatId && latestTelegramAlert.telegramMessageId) {
-        await fetch('https://api.telegram.org/bot' + botToken + '/deleteMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: latestTelegramAlert.telegramChatId, message_id: latestTelegramAlert.telegramMessageId }) }).catch(() => null);
+
+      // 2. Réversion du résultat persisté (score + victoire/défaite sur la slide Matchs),
+      //    uniquement si ce résultat vient de Telegram. FFBB et manuels sont protégés.
+      const revert = await revertTelegramMatchResult(env, latestTelegramAlert?.matchId);
+
+      let replyText: string;
+      if (!alertDeleted && !revert.reverted) {
+        replyText = 'ℹ️ Aucune alerte Telegram ni résultat à supprimer.';
+      } else {
+        replyText = (alertDeleted
+          ? '🗑️ Alerte ' + (latestTelegramAlert.isWin ? 'VICTOIRE' : 'DÉFAITE') + ' de *' + latestTelegramAlert.team + '* supprimée de la boucle TV.'
+          : 'ℹ️ Aucune alerte Telegram active (déjà expirée).')
+          + (revert.reverted
+            ? '\n✅ Résultat retiré de la slide Matchs : score et victoire/défaite effacés.'
+            : '\nℹ️ Aucun résultat Telegram à retirer de la slide Matchs.');
       }
-      if (chatId) await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: '🗑️ Alerte ' + (latestTelegramAlert.isWin ? 'VICTOIRE' : 'DÉFAITE') + ' de *' + latestTelegramAlert.team + '* supprimée de la boucle TV.', parse_mode: 'Markdown' }) }).catch(() => null);
-      return new Response(JSON.stringify({ success: true, deleted: true, alertId: latestTelegramAlert.id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+      if (chatId) await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: 'Markdown' }) }).catch(() => null);
+      return new Response(JSON.stringify({ success: true, deleted: alertDeleted, resultReverted: revert.reverted, alertId: latestTelegramAlert?.id }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     // Gestion des commandes d'aide Telegram (/start, /help, /aide)
     const isStartOrHelp = /^(\/start|\/help|\/aide)/i.test(text.trim());

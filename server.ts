@@ -7,7 +7,7 @@ import { GoogleGenAI } from "@google/genai";
 import { matchTelegramTeam, DEFAULT_CANONICAL_TEAMS } from "./src/utils/telegramTeamMatcher";
 import { mergeMatchItems } from "./src/utils/ffbbMergeUtils";
 import { normalizeCategoryKey, isTeamCategoryIgnored, fetchOfficialClubData } from "./server/ffbbDataHelpers";
-import { getSavedAppData, saveAppDataToFile, normalizeLocalResultText, hasLocalMatchResult, persistLocalTelegramMatchResult } from "./server/appDataHelpers";
+import { getSavedAppData, saveAppDataToFile, normalizeLocalResultText, hasLocalMatchResult, persistLocalTelegramMatchResult, revertLocalTelegramMatchResult } from "./server/appDataHelpers";
 import { getTelegramSecretToken, parseTelegramMatchMessage, formatEuropeanDate } from "./server/telegramHelpers";
 import { readFfbbMonitor, writeFfbbMonitor, ffbbSignature, sendTelegramText } from "./server/ffbbMonitorHelpers";
 
@@ -406,6 +406,42 @@ app.post("/api/telegram-webhook", async (req, res) => {
       await sendTelegramText(chatId, `📊 Suivi FFBB — Affichage TV\n\n🏀 Résultats uniques détectés : ${monitor.uniqueResults}\n📺 Alertes TV créées : ${monitor.alertsCreated}\n♻️ Doublons ignorés : ${monitor.duplicatesIgnored}${lastText}`);
       return res.json({ success: true, command: "ffbbstat" });
     }
+
+    // Règle club : "supprimer" = je me suis trompé → on efface l'alerte ET le résultat
+    // (score + victoire/défaite) enregistré sur la slide Matchs.
+    // Les résultats FFBB et manuels ne sont jamais touchés.
+    const isDeleteCommand = /^(?:\/)?(?:supprimer|delete|annuler)\b/i.test(text.trim());
+    if (isDeleteCommand) {
+      const telegramAlerts = activeAlerts.filter((a) => a.triggeredBy === "telegram");
+      const latestTelegramAlert = telegramAlerts[0];
+      if (latestTelegramAlert) {
+        activeAlerts = activeAlerts.filter((a) => a.id !== latestTelegramAlert.id);
+      }
+      const savedData = getSavedAppData() || {};
+      const revert = revertLocalTelegramMatchResult(savedData, latestTelegramAlert?.matchId);
+
+      let replyText: string;
+      if (!latestTelegramAlert && !revert.reverted) {
+        replyText = "ℹ️ Aucune alerte Telegram ni résultat à supprimer.";
+      } else {
+        replyText = (latestTelegramAlert
+          ? `🗑️ Alerte ${latestTelegramAlert.isWin ? "VICTOIRE" : "DÉFAITE"} de *${latestTelegramAlert.team}* supprimée de la boucle TV.`
+          : "ℹ️ Aucune alerte Telegram active (déjà expirée).")
+          + (revert.reverted
+            ? "\n✅ Résultat retiré de la slide Matchs : score et victoire/défaite effacés."
+            : "\nℹ️ Aucun résultat Telegram à retirer de la slide Matchs.");
+      }
+
+      if (botToken && chatId) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text: replyText, parse_mode: "Markdown" }),
+        }).catch(() => null);
+      }
+      return res.json({ success: true, deleted: Boolean(latestTelegramAlert), resultReverted: revert.reverted });
+    }
+
     const now = Date.now();
     console.log(`[TELEGRAM INCOMING] ChatId: ${chatId} | Message: "${text}"`);
 

@@ -140,5 +140,43 @@ export function persistLocalTelegramMatchResult(
   return { status: 'created', match: updatedMatch };
 }
 
+// Réversion d'un résultat injecté par Telegram (commande "supprimer").
+// Règle club : le message Telegram supprimé = erreur de saisie → on efface AUSSI
+// le résultat persisté (score + victoire/défaite) sur la slide Matchs.
+// Les résultats FFBB et manuels ne sont JAMAIS touchés.
+export function revertLocalTelegramMatchResult(
+  savedData: any,
+  matchId?: string
+): { reverted: boolean; match?: any } {
+  const matches = Array.isArray(savedData?.matches) ? savedData.matches : [];
+  let target = matchId
+    ? matches.find((m: any) => m?.id === matchId && m?.resultSource === 'telegram')
+    : undefined;
+  if (!target) {
+    target = matches
+      .filter((m: any) => m?.resultSource === 'telegram')
+      .sort((a: any, b: any) => (b.resultReceivedAt || 0) - (a.resultReceivedAt || 0))[0];
+  }
+  if (!target) return { reverted: false };
+
+  const restored: any = { ...target };
+  delete restored.status;
+  delete restored.result;
+  delete restored.resultSource;
+  delete restored.resultReceivedAt;
+  delete restored.finishedAt;
+  delete restored.homeScore;
+  delete restored.awayScore;
+
+  savedData.matches = matches.map((m: any) => (m?.id === target.id ? restored : m));
+  savedData.results = (Array.isArray(savedData.results) ? savedData.results : []).filter(
+    (r: any) => !(r?.id === target.id && r?.resultSource === 'telegram')
+  );
+  savedData.version = (typeof savedData.version === 'number' ? savedData.version : 0) + 1;
+  saveAppDataToFile(savedData);
+  return { reverted: true, match: restored };
+}
+
+
 
 
