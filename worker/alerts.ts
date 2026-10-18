@@ -68,6 +68,7 @@ export async function addAlert(request: Request, env: Env): Promise<Response> {
     id: inputId,
     team, isWin, ourScore, opponentScore, opponent, customImageUrl,
     triggeredBy = 'manual', durationMinutes = 60, expiresAt: inputExpiresAt, timestamp: inputTimestamp,
+    matchId: inputMatchId,
   } = body;
   const durationMs = (durationMinutes || 60) * 60 * 1000;
 
@@ -101,6 +102,31 @@ export async function addAlert(request: Request, env: Env): Promise<Response> {
   }
 
   const now = Date.now();
+
+  // Garde anti-relance : une alerte automatique FFBB pour un résultat déjà connu
+  // depuis plus de 3 heures est refusée (elle a déjà été diffusée en boucle 1h).
+  // Les alertes manuelles et Telegram ne sont pas concernées.
+  if (triggeredBy === 'ffbb' && inputMatchId) {
+    try {
+      const rawAppData = await env.AFFICHAGE_KV.get('app-data');
+      if (rawAppData) {
+        const appData = JSON.parse(rawAppData);
+        const knownMatch = (Array.isArray(appData.matches) ? appData.matches : [])
+          .find((m: any) => m && m.id === inputMatchId);
+        const finishedAt = knownMatch?.resultReceivedAt || knownMatch?.finishedAt;
+        if (knownMatch && finishedAt && now - finishedAt > 3 * 60 * 60 * 1000) {
+          return new Response(JSON.stringify({
+            success: false,
+            rejected: 'stale_ffbb_result',
+            message: 'Résultat FFBB publié depuis plus de 3h : alerte non recréée.',
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+    } catch (e) {
+      // Erreur de lecture KV : ne pas bloquer la création d'alerte.
+    }
+  }
+
   const alertId = inputId || ('alert-' + now + '-' + Math.random().toString(36).substring(2, 6));
   const newAlert = {
     id: alertId,
@@ -111,6 +137,7 @@ export async function addAlert(request: Request, env: Env): Promise<Response> {
     opponent: opponent || undefined,
     customImageUrl: finalCustomImageUrl,
     titleConfig: customTitleConfig,
+    matchId: inputMatchId || undefined,
     triggeredBy,
     timestamp: inputTimestamp || now,
     expiresAt: inputExpiresAt || (now + durationMs),

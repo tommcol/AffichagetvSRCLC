@@ -315,6 +315,19 @@ app.post(["/api/alerts", "/api/add-alert", "/.netlify/functions/add-alert"], (re
     }
   }
 
+  // Garde anti-relance : une alerte automatique FFBB pour un résultat déjà connu
+  // depuis plus de 3 heures est refusée (elle a déjà été diffusée en boucle 1h).
+  if (isFfbbAlert && matchId) {
+    const savedForGuard = getSavedAppData();
+    const knownMatch = (Array.isArray(savedForGuard?.matches) ? savedForGuard.matches : [])
+      .find((m: any) => m && m.id === matchId);
+    const finishedAt = knownMatch?.resultReceivedAt || knownMatch?.finishedAt;
+    if (knownMatch && finishedAt && Date.now() - finishedAt > 3 * 60 * 60 * 1000) {
+      console.log(`[FFBB ANTI-RELANCE] Résultat ${matchId} publié depuis plus de 3h : alerte non recréée.`);
+      return res.json({ success: false, rejected: "stale_ffbb_result", message: "Résultat FFBB publié depuis plus de 3h : alerte non recréée." });
+    }
+  }
+
   const durationMs = (durationMinutes || 60) * 60 * 1000;
   const newAlert: ActiveMatchAlert = {
     id: "alert-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
@@ -324,6 +337,7 @@ app.post(["/api/alerts", "/api/add-alert", "/.netlify/functions/add-alert"], (re
     opponentScore: opponentScore ? Number(opponentScore) : undefined,
     opponent,
     customImageUrl,
+    matchId: matchId || undefined,
     triggeredBy,
     timestamp: Date.now(),
     expiresAt: Date.now() + durationMs, // Exactly 1 hour
