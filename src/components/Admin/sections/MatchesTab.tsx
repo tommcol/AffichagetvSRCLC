@@ -66,6 +66,7 @@ export function MatchesTab(props: MatchesTabProps) {
   } = props;
 
   const periodItems = matches.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'matches'));
+  const visibleMatches = matchesFilterMode === 'all' ? matches : periodItems;
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
@@ -159,8 +160,6 @@ export function MatchesTab(props: MatchesTabProps) {
                         <button
                           type="button"
                           onClick={() => {
-                            setSyncStartDate('');
-                            setSyncEndDate('');
                             setMatchesFilterMode('all');
                           }}
                           className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all cursor-pointer"
@@ -176,6 +175,7 @@ export function MatchesTab(props: MatchesTabProps) {
                     <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
                       <div className="shrink-0 flex justify-center">
                         <MiniCalendarPicker
+                            emptyRangeLabel="Diffusion automatique : week-end courant ; historique conservé"
                           startDate={syncStartDate}
                           endDate={syncEndDate}
                           onChangeRange={(start, end) => {
@@ -193,7 +193,7 @@ export function MatchesTab(props: MatchesTabProps) {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                              Filtre actif :
+                              {syncStartDate || syncEndDate ? 'Période consultée :' : 'Historique consultable :'}
                             </span>
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">
                               {
@@ -221,7 +221,7 @@ export function MatchesTab(props: MatchesTabProps) {
                               </span>
                             ) : (
                               <span className="text-xs text-slate-400 italic">
-                                Aucun filtre : toute la saison ({matches.length} matchs) est affichée.
+                                Diffusion automatique : week-end courant. Les matchs des autres semaines restent dans l’historique.
                               </span>
                             )}
                           </div>
@@ -259,23 +259,12 @@ export function MatchesTab(props: MatchesTabProps) {
                           {syncStartDate && syncEndDate ? (
                             <>Période filtrée : <strong>{formatDateToReadableFrench(syncStartDate)}</strong> au <strong>{formatDateToReadableFrench(syncEndDate)}</strong></>
                           ) : (
-                            <span className="text-slate-400 italic">Aucune période filtrée (Toute la saison : {matches.length} matchs)</span>
+                            <span className="text-slate-400 italic">Diffusion : week-end courant · historique : {matches.length} matchs</span>
                           )}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const list = (syncStartDate || syncEndDate)
-                              ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
-                              : matches;
-                            handleSelectOnlyFilteredMatchesForTV(list);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer"
-                        >
-                          Cocher pour la TV
-                        </button>
+
 
                         <button
                           type="button"
@@ -480,13 +469,7 @@ export function MatchesTab(props: MatchesTabProps) {
                     }`}
                   >
                     Période du calendrier ({
-                      syncStartDate || syncEndDate
-                        ? matches.filter(
-                            (m) =>
-                              (!syncStartDate || m.date >= syncStartDate) &&
-                              (!syncEndDate || m.date <= syncEndDate)
-                          ).length
-                        : matches.length
+                      periodItems.length
                     })
                   </button>
                 </div>
@@ -497,13 +480,7 @@ export function MatchesTab(props: MatchesTabProps) {
               </div>
 
               {/* Liste des matchs */}
-              {matches.filter((m) => {
-                if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
-                  if (syncStartDate && m.date < syncStartDate) return false;
-                  if (syncEndDate && m.date > syncEndDate) return false;
-                }
-                return true;
-              }).length === 0 && (
+              {visibleMatches.length === 0 && (
                 <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 space-y-2">
                   <Calendar className="w-7 h-7 text-slate-500 mx-auto opacity-60" />
                   <p className="text-xs font-bold text-slate-300">
@@ -516,8 +493,6 @@ export function MatchesTab(props: MatchesTabProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setSyncStartDate('');
-                          setSyncEndDate('');
                           setMatchesFilterMode('all');
                         }}
                         className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
@@ -537,14 +512,7 @@ export function MatchesTab(props: MatchesTabProps) {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {matches
-                  .filter((m) => {
-                    if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
-                      if (syncStartDate && m.date < syncStartDate) return false;
-                      if (syncEndDate && m.date > syncEndDate) return false;
-                    }
-                    return true;
-                  })
+                {visibleMatches
                   .map((m) => {
                   const isEditing = editingMatch?.id === m.id;
                   const isSelected = m.selectedForWeekend !== false;
@@ -717,7 +685,7 @@ export function MatchesTab(props: MatchesTabProps) {
                           }`}
                           title={
                             isSelected
-                              ? 'Match coché pour la TV du week-end (cliquer pour masquer)'
+                              ? isInDisplayPeriod(m, clubSettings, 'matches') ? 'Sélectionné sur la période TV (cliquer pour masquer)' : 'Sélection conservée dans l’historique, hors de la période TV'
                               : 'Match masqué de la TV (cliquer pour cocher et afficher)'
                           }
                         >
@@ -731,7 +699,7 @@ export function MatchesTab(props: MatchesTabProps) {
                             {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
                           <span className="hidden sm:inline font-mono text-[11px]">
-                            {isSelected ? 'Ce week-end' : 'Masqué'}
+                            {!isSelected ? 'Non sélectionné' : isInDisplayPeriod(m, clubSettings, 'matches') ? 'Sélection TV' : 'Hors période TV'}
                           </span>
                         </button>
 

@@ -7,6 +7,7 @@ interface MiniCalendarPickerProps {
   onChangeRange: (start: string, end: string) => void;
   onClose?: () => void;
   title?: string;
+  emptyRangeLabel?: string;
 }
 
 const MONTHS_FR = [
@@ -40,6 +41,7 @@ export const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({
   endDate,
   onChangeRange,
   title = 'Sélectionnez vos dates',
+  emptyRangeLabel = 'Aucune restriction (Tous les matchs de la saison)',
 }) => {
   // Determine initial month/year based on startDate, or current date
   const initialDate = useMemo(() => {
@@ -391,7 +393,7 @@ export const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({
             </span>
           )}
         </div>
-        <div className="font-medium text-slate-200 truncate">
+        <div className="font-medium text-slate-200 whitespace-normal">
           {startDate && endDate ? (
             <span>
               Du <strong className="text-orange-400">{formatDateToReadableFrench(startDate)}</strong> au{' '}
@@ -403,7 +405,7 @@ export const MiniCalendarPicker: React.FC<MiniCalendarPickerProps> = ({
             </span>
           ) : (
             <span className="text-slate-500 italic">
-              Aucune restriction (Tous les matchs de la saison)
+              {emptyRangeLabel}
             </span>
           )}
         </div>

@@ -1,5 +1,7 @@
 # Corrections validées avec le responsable du club — 23 octobre 2026
 
+> État après les essais réels et la seconde passe : voir [VALIDATION_REPRISE_2026-10-23.md](VALIDATION_REPRISE_2026-10-23.md). L’accès navigateur à une copie isolée est désormais obtenu ; les anciennes limites et résultats ci-dessous décrivent la première passe, pas la validation finale.
+
 Branche : `fix/audit-src-2026-10-23`. Base : `0922561c1994e8ccca58dcb9e61f58fd0b15879c`.
 Aucun changement de production ou déploiement n'est réalisé par ce chantier.
 

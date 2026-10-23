@@ -9,8 +9,8 @@ if (!fs.existsSync(file)) {
   const date = (days: number) => { const d = new Date(today); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
   const visual = (label: string, color: string) => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><rect width="1920" height="1080" fill="${color}"/><text x="960" y="540" fill="white" text-anchor="middle" font-size="100" font-family="sans-serif">${label}</text></svg>`);
   const background = visual('CLUB DÉMONSTRATION', '#172554');
-  const matches = [0, 1, 2, 7, 8].map((days, i) => ({ id: `fixture-senior-${i}`, category: i % 2 ? 'Seniors F1' : 'Seniors M1',
-    date: date(days), time: '20:00', teamHome: i % 2 ? 'Équipe Démo A' : 'Club Démonstration', teamAway: i % 2 ? 'Club Démonstration' : 'Équipe Démo B',
+  const matches = [0, 1, 1, 2, 7, 8].map((days, i) => ({ id: `fixture-senior-${i}`, category: i % 2 ? 'Seniors F1' : 'Seniors M1',
+    date: date(days), time: '20:00', teamHome: i % 2 ? 'ASSOCIATION DÉMONSTRATION SAINT-MARTIN BASKET - 2' : 'Club Démonstration', teamAway: i % 2 ? 'Club Démonstration' : 'ENTENTE SPORTIVE DÉMONSTRATION DU GRAND VILLAGE - 1',
     isHomeMatch: i % 2 === 0, selectedForWeekend: true, gymnasium: 'Salle de démonstration' }));
   fs.writeFileSync(file, JSON.stringify({ version: 0, clubSettings: { name: 'Club Démonstration', shortName: 'DÉMO', codeFFBB: '',
     primaryColor: '#c8102e', secondaryColor: '#0f172a', city: 'Ville fictive', logoUrl: visual('DÉMO', '#991b1b'), autoPlayCarousel: true,

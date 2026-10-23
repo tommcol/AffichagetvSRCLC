@@ -432,7 +432,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
               <Trophy className="w-10 h-10 text-emerald-400/60 mx-auto mb-2" />
               <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-                AUCUN RÉSULTAT ENREGISTRÉ
+                AUCUN RÉSULTAT POUR CETTE PÉRIODE
               </h3>
               <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
                 Les résultats apparaîtront dès la fin des rencontres du week-end.
@@ -598,7 +598,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           <div className="my-auto text-center py-16 bg-slate-900/60 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto backdrop-blur-sm">
             <Trophy className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
             <h3 className={`text-2xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-              AUCUN RÉSULTAT ENREGISTRÉ
+              AUCUN RÉSULTAT POUR CETTE PÉRIODE
             </h3>
             <p className="text-slate-400 text-sm mt-1">
               Les résultats apparaîtront dès la fin des rencontres du week-end.

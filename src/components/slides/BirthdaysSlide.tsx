@@ -203,7 +203,7 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
               <Cake className="w-12 h-12 text-pink-400 mb-2" />
               <h3 className="text-2xl font-bold font-bebas">Aucun anniversaire cette semaine</h3>
               <p className="text-sm text-slate-300 mt-1">
-                Importez votre fichier d'adhérents dans l'onglet Anniversaires pour générer cette affiche automatiquement.
+                Les anniversaires s’afficheront automatiquement lors de la prochaine semaine concernée.
               </p>
             </div>
           ) : (

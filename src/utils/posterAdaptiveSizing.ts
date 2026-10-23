@@ -53,6 +53,7 @@ export function getAdaptivePosterCardSizing(
     headerFontSize: Math.round(h * headerFactor(safeCount)),
     centerFontSize: Math.round(h * centerFactor(safeCount)),
     gapY: Math.round(h * 0.013),
-    columns: safeCount <= 2 ? 1 : 2,
+    // Portrait, Story and square cards need the full width for readable names.
+    columns: aspectRatio === '16:9' && safeCount > 2 ? 2 : 1,
   };
 }

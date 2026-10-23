@@ -4,9 +4,12 @@ import {
   FinishedMatchNotification,
 } from '../types';
 import { isMatchWin } from './matchStatus';
+import { isMatchInCurrentWeekend } from './matchDateHelper';
+import { clubCalendarDate } from './clubTime';
 
 export interface GenerateSocialCaptionsParams {
   contentType: 'matches' | 'results' | 'notification';
+  isPeriodSelection?: boolean;
   badgeTitle: string;
   captionMatches: MatchItem[];
   captionResults: MatchItem[];
@@ -72,6 +75,7 @@ function defaultFormatPosterMatchDate(dateStr?: string, timeStr?: string): strin
 
 export function generateSocialCaptions({
   contentType,
+  isPeriodSelection = false,
   badgeTitle,
   captionMatches,
   captionResults,
@@ -89,6 +93,11 @@ export function generateSocialCaptions({
   tiktok: string;
   facebook: string;
 } {
+  const selectedItems = contentType === 'results' ? captionResults : captionMatches;
+  const outsideCurrentPeriod = selectedItems.some(item => item.date && !isMatchInCurrentWeekend(item.date, clubCalendarDate()));
+  const adaptPeriod = (text: string) => (isPeriodSelection || outsideCurrentPeriod)
+    ? text.replace(/#[^\s#]*week-end/gi, contentType === 'results' ? '#Resultats' : '#Matchs').replace(/sur les terrains ce week-end/gi, 'sur les terrains pendant la période sélectionnée').replace(/ce week-end/gi, 'sur la période sélectionnée').replace(/du week-end/gi, 'de la période sélectionnée').replace(/week-end/gi, 'période')
+    : text;
   const clubTag = clubSettings?.instagramHandle || '';
   const fbTag = clubSettings?.facebookPage || '';
 
@@ -130,9 +139,9 @@ export function generateSocialCaptions({
     }
 
     return {
-      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
     };
   }
 
@@ -168,26 +177,26 @@ export function generateSocialCaptions({
     }
 
     return {
-      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
     };
   }
 
   const alert = specificNotification;
   const isWin = alert ? alert.isWin : true;
   const team = alert?.team || 'Seniors 1';
-  const ourScore = alert?.ourScore ?? 78;
-  const oppScore = alert?.opponentScore ?? 72;
+  const hasScore = typeof alert?.ourScore === 'number' && typeof alert?.opponentScore === 'number';
+  const score = hasScore ? `${alert!.ourScore} - ${alert!.opponentScore}` : 'Score non communiqué';
   const opp = alert?.opponent || 'Adversaire';
 
-  const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} ${ourScore} - ${oppScore} ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
-  const tiktok = `${isWin ? '🏆 VICTOIRE !!' : '🏀 Fin de match !'} ${team} l'emporte ${ourScore}-${oppScore} contre ${opp} ! 🔥⚡ #fyp #pourtoi #basketball #victoire`;
-  const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} ${ourScore} - ${oppScore} ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
+  const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} : ${score}, contre ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
+  const tiktok = `${isWin ? '🏆 VICTOIRE !!' : '🏀 Fin de match !'} ${team} ${isWin ? 'remporte la rencontre' : 'termine la rencontre'} contre ${opp} (${score}) ! 🔥⚡ #fyp #pourtoi #basketball #victoire`;
+  const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} : ${score}, contre ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
 
   return {
-    instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-    tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-    facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+    instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+    tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+    facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
   };
 }

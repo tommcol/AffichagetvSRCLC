@@ -94,17 +94,20 @@ export function ExcelTab(props: ExcelTabProps) {
               </div>
 
               {birthdaysSubTab === 'calques' ? (
+                <>
+                <p className="text-sm text-sky-300">Aperçu de la diffusion TV : semaine courante. La consultation des autres semaines ne change pas cet aperçu.</p>
                 <StudioGraphiqueWorkbench
                   visualTemplates={visualTemplates}
                   onUpdateVisualTemplates={onUpdateVisualTemplates}
                   matches={matches}
                   results={results}
-                  birthdays={birthdays}
+                  birthdays={props.tvBirthdays || []}
                   clubSettings={clubSettings}
                   defaultCategory="birthdays"
                   hideCategorySelector={true}
                   onNavigateToCategoryTab={() => setBirthdaysSubTab('list')}
                 />
+                </>
               ) : (
                 <>
               {/* Header & Description */}
@@ -289,7 +292,7 @@ export function ExcelTab(props: ExcelTabProps) {
                   <span className="text-[11px] text-slate-400">Raccourcis :</span>
                   {[
                     { offset: -1, label: 'Semaine -1' },
-                    { offset: 0, label: 'Semaine actuelle (0)' },
+                    { offset: 0, label: 'Semaine actuelle' },
                     { offset: 1, label: 'Semaine +1' },
                     { offset: 2, label: 'Semaine +2' },
                     { offset: 3, label: 'Semaine +3' },

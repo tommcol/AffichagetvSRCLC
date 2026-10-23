@@ -964,6 +964,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       const custom = clubSettings.customTeamNames?.[team.id] || clubSettings.customTeamNames?.[team.category];
       names.set(normalizeCategoryKey(team.category || team.name), custom || team.customName || team.category || team.name);
     }
+    // With official teams available, visual aliases must not become extra teams.
+    if (names.size > 0) return [...new Set(names.values())];
     for (const item of [...teamVisuals.map(t => ({ category: t.category, name: t.teamName })), ...matches.map(m => ({ category: m.rawFfbbCategory || m.category, name: m.category }))]) {
       const key = normalizeCategoryKey(item.category || item.name);
       if (!names.has(key)) names.set(key, item.name);
@@ -3225,6 +3227,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setNewResultOpponent={setNewResultOpponent}
               setNewResultStatusOutcome={setNewResultStatusOutcome}
               setResultsEndDate={setResultsEndDate}
+              resultsFilterMode={resultsFilterMode}
               setResultsFilterMode={setResultsFilterMode}
               setResultsFilterToCurrentWeekend={setResultsFilterToCurrentWeekend}
               setResultsFilterToLastWeekend={setResultsFilterToLastWeekend}
@@ -3394,6 +3397,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               allMembersPool={allMembersPool}
               birthdayWeekOffset={birthdayWeekOffset}
               birthdays={showAllBirthdays ? allMembersPool : filterAndSortBirthdaysForWeek(allMembersPool, simulatedDate || clubCalendarDate(), birthdayWeekOffset)}
+              tvBirthdays={birthdays}
               onShowAllMembers={() => setShowAllBirthdays(true)}
               birthdaysSubTab={birthdaysSubTab}
               clubSettings={clubSettings}

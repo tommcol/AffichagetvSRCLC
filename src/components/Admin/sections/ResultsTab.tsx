@@ -42,6 +42,7 @@ export function ResultsTab(props: ResultsTabProps) {
     onUpdateResults,
     onUpdateVisualTemplates,
     results,
+    resultsFilterMode,
     resultsEndDate,
     resultsStartDate,
     resultsSubTab,
@@ -71,6 +72,7 @@ export function ResultsTab(props: ResultsTabProps) {
   } = props;
 
   const periodItems = results.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'results'));
+  const visibleResults = resultsFilterMode === 'all' ? results : periodItems;
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
@@ -172,8 +174,6 @@ export function ResultsTab(props: ResultsTabProps) {
                         <button
                           type="button"
                           onClick={() => {
-                            setResultsStartDate('');
-                            setResultsEndDate('');
                             setResultsFilterMode('all');
                           }}
                           className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all cursor-pointer"
@@ -189,6 +189,7 @@ export function ResultsTab(props: ResultsTabProps) {
                     <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
                       <div className="shrink-0 flex justify-center">
                         <MiniCalendarPicker
+                            emptyRangeLabel="Diffusion automatique : week-end courant ; historique conservé"
                           startDate={resultsStartDate}
                           endDate={resultsEndDate}
                           onChangeRange={(start, end) => {
@@ -206,7 +207,7 @@ export function ResultsTab(props: ResultsTabProps) {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                              Filtre actif :
+                              {resultsStartDate || resultsEndDate ? 'Période consultée :' : 'Historique consultable :'}
                             </span>
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">
                               {
@@ -234,7 +235,7 @@ export function ResultsTab(props: ResultsTabProps) {
                               </span>
                             ) : (
                               <span className="text-xs text-slate-400 italic">
-                                Aucun filtre : toute la saison ({results.length} résultats) est affichée.
+                                Diffusion automatique : week-end courant. Les résultats des autres semaines restent dans l’historique.
                               </span>
                             )}
                           </div>
@@ -272,23 +273,12 @@ export function ResultsTab(props: ResultsTabProps) {
                           {resultsStartDate && resultsEndDate ? (
                             <>Période filtrée : <strong>{formatDateToReadableFrench(resultsStartDate)}</strong> au <strong>{formatDateToReadableFrench(resultsEndDate)}</strong></>
                           ) : (
-                            <span className="text-slate-400 italic">Aucune période filtrée (Toute la saison : {results.length} résultats)</span>
+                            <span className="text-slate-400 italic">Diffusion : week-end courant · historique : {results.length} résultats</span>
                           )}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const list = (resultsStartDate || resultsEndDate)
-                              ? results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate)))
-                              : results;
-                            handleSelectOnlyFilteredResultsForTV(list);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer"
-                        >
-                          Cocher pour la TV
-                        </button>
+
                         <button
                           type="button"
                           onClick={handleSyncFFBB}
@@ -681,10 +671,8 @@ export function ResultsTab(props: ResultsTabProps) {
                 <div className="flex items-center justify-between px-1">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <span>
-                      {resultsStartDate || resultsEndDate ? (
-                        <>Résultats filtrés ({
-                          results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate))).length
-                        } / {results.length}) :</>
+                      {resultsFilterMode !== 'all' ? (
+                        <>Résultats de la période ({visibleResults.length} / {results.length}) :</>
                       ) : (
                         <>Tous les résultats enregistrés ({results.length}) :</>
                       )}
@@ -711,9 +699,7 @@ export function ResultsTab(props: ResultsTabProps) {
                   </div>
                 ) : (
                   (() => {
-                    const filteredList = (resultsStartDate || resultsEndDate)
-                      ? results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate)))
-                      : results;
+                    const filteredList = visibleResults;
 
                     if (filteredList.length === 0) {
                       return (
@@ -725,8 +711,7 @@ export function ResultsTab(props: ResultsTabProps) {
                           <button
                             type="button"
                             onClick={() => {
-                              setResultsStartDate('');
-                              setResultsEndDate('');
+                              setResultsFilterMode('all');
                             }}
                             className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
                           >
@@ -795,10 +780,10 @@ export function ResultsTab(props: ResultsTabProps) {
                                       ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/30'
                                       : 'bg-slate-900 text-slate-500 border-slate-800 hover:text-slate-300'
                                   }`}
-                                  title={r.selectedForWeekend !== false ? 'Diffusé sur la TV (cliquez pour masquer)' : 'Masqué de la TV (cliquez pour diffuser)'}
+                                  title={r.selectedForWeekend === false ? 'Non sélectionné pour la TV' : isInDisplayPeriod(r, clubSettings, 'results') ? 'Sélectionné sur la période TV' : 'Sélection conservée dans l’historique, hors de la période TV'}
                                 >
                                   <CheckCircle2 className={`w-3.5 h-3.5 ${r.selectedForWeekend !== false ? 'text-emerald-400' : 'text-slate-600'}`} />
-                                  <span className="text-[11px]">{r.selectedForWeekend !== false ? 'Coché TV' : 'Non diffusé'}</span>
+                                  <span className="text-[11px]">{r.selectedForWeekend === false ? 'Non sélectionné' : isInDisplayPeriod(r, clubSettings, 'results') ? 'Sélection TV' : 'Hors période TV'}</span>
                                 </button>
 
                                 <button

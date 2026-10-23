@@ -628,6 +628,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     () =>
       generateSocialCaptions({
         contentType,
+        isPeriodSelection: teamFilterEnabled,
         badgeTitle,
         captionMatches,
         captionResults,
@@ -647,6 +648,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       captionMatches,
       captionResults,
       captionStyleProposal,
+      teamFilterEnabled,
       customCaptions,
       isCustomCaptionEdited,
       specificNotification,

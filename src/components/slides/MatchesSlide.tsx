@@ -509,7 +509,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
             <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
               <Calendar className="w-10 h-10 text-orange-400/60 mx-auto mb-2" />
               <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-                AUCUNE RENCONTRE CE WEEK-END
+                AUCUNE RENCONTRE POUR CETTE PÉRIODE
               </h3>
               <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
                 Le calendrier sera mis à jour dès la programmation des prochains matchs.

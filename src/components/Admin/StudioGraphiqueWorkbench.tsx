@@ -610,19 +610,13 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
             </FixedCanvas169>
             </div>
 
-            {/* Indicateur de calques interactifs */}
-            <div className="absolute top-3 left-3 z-40 flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white pointer-events-none">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>
-                Glissez les calques 3 & 4 à la souris sur l'écran
-              </span>
-            </div>
+
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-slate-400 px-2">
             <div className="flex items-center gap-1.5">
               <Tv className="w-3.5 h-3.5 text-orange-400" />
-              <span>Repositionnement interactif en direct sur l'écran.</span>
+              <span>Glissez les calques 3 et 4 dans l’aperçu pour les repositionner.</span>
             </div>
             <span className="font-mono text-emerald-400">Aperçu actualisé · réglages enregistrés automatiquement</span>
           </div>
