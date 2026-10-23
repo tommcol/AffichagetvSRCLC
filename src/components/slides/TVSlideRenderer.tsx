@@ -1,3 +1,4 @@
+import { getDisplayItems } from '../../utils/displayPeriod';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CarouselSlide,
@@ -125,129 +126,7 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
   onDownloadVisual,
   hideShareButton = true,
 }) => {
-  const [ffbbResults, setFfbbResults] = useState<MatchItem[]>([]);
-  const ffbbAlertSignaturesRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const syncFfbbResults = async () => {
-      try {
-        const data = await FFBBService.fetchClubData(clubSettings.codeFFBB);
-        if (cancelled) return;
-
-        const weekendResults = data.results.filter(
-          (result) =>
-            isCurrentWeekendResult(result) &&
-            result.result !== null &&
-            result.result !== undefined &&
-            result.homeScore !== undefined &&
-            result.awayScore !== undefined
-        );
-
-        setFfbbResults(weekendResults);
-
-        let activeAlerts: Array<{ matchId?: string; triggeredBy?: string; ourScore?: number; opponentScore?: number }> = [];
-        try {
-          const alertResponse = await fetch('/api/get-alerts');
-          if (alertResponse.ok) {
-            const alertData = await alertResponse.json();
-            activeAlerts = Array.isArray(alertData?.alerts) ? alertData.alerts : [];
-          }
-        } catch {
-          // Le résultat FFBB reste affichable même si la lecture des alertes échoue.
-        }
-
-        for (const ffbbResult of weekendResults) {
-          const signature = `${ffbbResult.ffbbMatchNumber || ffbbResult.id}:${ffbbResult.homeScore}-${ffbbResult.awayScore}`;
-          if (ffbbAlertSignaturesRef.current.has(signature)) continue;
-
-          // Une même rencontre ne doit produire qu'une seule alerte TV, même après
-          // expiration de l'alerte d'une heure et remontage du composant.
-          let alreadyDisplayed = false;
-          try {
-            const rawDisplayed = localStorage.getItem('ffbb_tv_alert_signatures');
-            const displayed = rawDisplayed ? JSON.parse(rawDisplayed) : [];
-            if (Array.isArray(displayed) && displayed.includes(signature)) {
-              alreadyDisplayed = true;
-            }
-          } catch {
-            // Le stockage local n'est pas bloquant.
-          }
-
-          if (alreadyDisplayed) {
-            ffbbAlertSignaturesRef.current.add(signature);
-            continue;
-          }
-
-          const alreadyActive = activeAlerts.some(
-            (alert) =>
-              alert.triggeredBy === 'ffbb' &&
-              alert.matchId &&
-              alert.matchId === ffbbResult.id &&
-              alert.ourScore !== undefined &&
-              alert.opponentScore !== undefined &&
-              ((ffbbResult.isHomeMatch && alert.ourScore === ffbbResult.homeScore && alert.opponentScore === ffbbResult.awayScore) ||
-                (!ffbbResult.isHomeMatch && alert.ourScore === ffbbResult.awayScore && alert.opponentScore === ffbbResult.homeScore))
-          );
-
-          if (alreadyActive) {
-            ffbbAlertSignaturesRef.current.add(signature);
-            continue;
-          }
-
-          const ourScore = ffbbResult.isHomeMatch ? ffbbResult.homeScore! : ffbbResult.awayScore!;
-          const opponentScore = ffbbResult.isHomeMatch ? ffbbResult.awayScore! : ffbbResult.homeScore!;
-          const alert = FFBBService.createFinishedNotification(
-            ffbbResult,
-            ourScore,
-            opponentScore,
-            60
-          );
-
-          try {
-            const response = await fetch('/api/add-alert', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(alert),
-            });
-            if (response.ok) {
-              ffbbAlertSignaturesRef.current.add(signature);
-              try {
-                const rawDisplayed = localStorage.getItem('ffbb_tv_alert_signatures');
-                const displayed = rawDisplayed ? JSON.parse(rawDisplayed) : [];
-                const nextDisplayed = Array.isArray(displayed) ? displayed.filter((item) => item !== signature) : [];
-                nextDisplayed.push(signature);
-                localStorage.setItem('ffbb_tv_alert_signatures', JSON.stringify(nextDisplayed.slice(-100)));
-              } catch {
-                // Le stockage local n'est pas bloquant.
-              }
-            }
-          } catch {
-            // Le prochain cycle retentera l'injection de l'alerte FFBB.
-          }
-        }
-      } catch (error) {
-        console.warn('Synchronisation automatique FFBB TV impossible:', error);
-      }
-    };
-
-    void syncFfbbResults();
-    const interval = window.setInterval(() => {
-      void syncFfbbResults();
-    }, 30000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [clubSettings.codeFFBB]);
-
-  const matchesWithFfbbResults = useMemo(
-    () => applyFfbbResultsToMatches(matches, ffbbResults),
-    [matches, ffbbResults]
-  );
-
+  const matchesWithFfbbResults = getDisplayItems(matches, clubSettings, 'matches');
   const matchesEffective = useMemo(
     () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
     [visualTemplates, clubSettings]
@@ -360,7 +239,7 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
     }
 
     if (slide.categoryId === 'results') {
-      const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+      const activeResults = getDisplayItems(results, clubSettings, 'results');
       const resultsToUse = activeResults;
       const filteredResults = slide.filterScope === 'home'
         ? resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))

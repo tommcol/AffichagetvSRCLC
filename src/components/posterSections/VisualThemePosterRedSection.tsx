@@ -9,6 +9,7 @@ import { isExemptItem } from '../../utils/socialCaptionGenerator';
 import { getLayer3PositionClass, getLayer3TransformOrigin, getLayer3Transform, getLayer4PositionClass, getLayer4TransformOrigin } from '../../utils/posterLayerHelpers';
 import { formatPosterMatchDate } from '../../utils/posterFormattingHelpers';
 import { AutoFitTeamName } from '../AutoFitTeamName';
+import { PosterMedia } from './PosterMedia';
 
 export interface VisualThemePosterRedSectionProps {
   [key: string]: any;
@@ -59,12 +60,14 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
   const bgGrayscale = effectiveCategoryConfig?.categoryTheme?.backgroundGrayscale ?? false;
   const bgContrast = effectiveCategoryConfig?.categoryTheme?.backgroundContrast ?? 1;
   const bgVignette = effectiveCategoryConfig?.categoryTheme?.backgroundVignette;
+  const victoryContext = contentType === 'notification' ? Boolean(specificNotification?.isWin)
+    : contentType === 'results' && displayedResults.some(r => isMatchWin(r, safeClubName, safeShortName));
 
   return (
                     <>
                       {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
                       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                        <img
+                        <PosterMedia
                           src={effectiveBgUrl}
                           alt="Fond affiche basket"
                           className="w-full h-full object-cover pointer-events-none transition-all duration-75"
@@ -87,7 +90,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                       <div className="absolute -top-20 left-1/2 transform -translate-x-1/2 w-[600px] h-[300px] bg-red-600/20 blur-3xl pointer-events-none" />
 
                       {/* STUDIO LAYER 3: position libre identique à l'aperçu TV (x/y/scale du Studio) */}
-                      {showStudioLayer3 && Boolean(effectiveLayer3Url) && (
+                      {showStudioLayer3 && effectiveCategoryConfig.layer3?.enabled !== false && (!effectiveCategoryConfig.layer3?.onlyOnVictory || victoryContext) && Boolean(effectiveLayer3Url) && (
                         <div
                           className="absolute pointer-events-none z-10"
                           style={{
@@ -99,7 +102,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                             maxWidth: '96%',
                           }}
                         >
-                          <img
+                          <PosterMedia
                             src={effectiveLayer3Url}
                             alt="Calque 3"
                             className="w-full h-auto object-contain"
@@ -113,7 +116,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                       )}
 
                       {/* STUDIO LAYER 4: position libre identique à l'aperçu TV (x/y/scale du Studio) */}
-                      {showStudioLayer4 && Boolean(effectiveLayer4Url) && (
+                      {showStudioLayer4 && effectiveCategoryConfig.layer4?.enabled !== false && (!effectiveCategoryConfig.layer4?.onlyOnVictory || victoryContext) && Boolean(effectiveLayer4Url) && (
                         <div
                           className="absolute pointer-events-none z-10"
                           style={{
@@ -125,7 +128,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                             maxWidth: '96%',
                           }}
                         >
-                          <img
+                          <PosterMedia
                             src={effectiveLayer4Url}
                             alt="Calque 4"
                             className="w-full h-auto object-contain"
@@ -153,10 +156,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                       {/* CONTENT WRAPPER */}
                       <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
-                        
+
                         {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
                         <div className="w-full flex flex-col items-center">
-                          
+
                           {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
                           <div className={`flex gap-3.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-2' : 'mb-3.5'} z-10`}>
                             {[...Array(6)].map((_, i) => (
@@ -172,6 +175,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           <div
                             className={`font-black uppercase tracking-wider text-center border-t-2 border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
                             style={{
+                              maxWidth: '90%',
+                              overflowWrap: 'anywhere',
                               background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                               color: layer2BadgeTextColor,
                               fontSize: aspectRatio === '16:9' ? '44px' : (aspectRatio === '1:1' ? '50px' : (displayedMatches.length >= 6 ? '54px' : '62px')),
@@ -191,8 +196,6 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           (() => {
                             const sortedMatches = [...displayedMatches];
                             const sizing0 = getAdaptivePosterCardSizing(sortedMatches.length, aspectRatio);
-                            // 4:5 portrait : matchs empiles de HAUT en BAS en 1 colonne (ordre chronologique lisible)
-                            if (aspectRatio === '4:5') { sizing0.columns = 1; }
                             const half = Math.ceil(sortedMatches.length / 2);
                             const leftMatches = sizing0.columns === 1 ? sortedMatches : sortedMatches.slice(0, half);
                             const rightMatches = sizing0.columns === 1 ? [] : sortedMatches.slice(half);
@@ -387,7 +390,6 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                             const sortedResults = [...displayedResults];
                             const sizing0 = getAdaptivePosterCardSizing(sortedResults.length, aspectRatio);
                             // 4:5 portrait : resultats empiles de HAUT en BAS en 1 colonne (ordre chronologique lisible)
-                            if (aspectRatio === '4:5') { sizing0.columns = 1; }
                             const half = Math.ceil(sortedResults.length / 2);
                             const leftResults = sizing0.columns === 1 ? sortedResults : sortedResults.slice(0, half);
                             const rightResults = sizing0.columns === 1 ? [] : sortedResults.slice(half);

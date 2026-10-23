@@ -1,3 +1,6 @@
+import { useAdminViewState } from '../../utils/useAdminViewState';
+import { clubCalendarDate } from '../../utils/clubTime';
+import { isInDisplayPeriod } from '../../utils/displayPeriod';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
@@ -211,7 +214,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onManualSave,
   onReloadFromServer,
 }) => {
-  const [activeTab, setActiveTab] = useState<
+  const [activeTab, setActiveTab] = useAdminViewState<
     | 'club_identity'
     | 'matches'
     | 'results'
@@ -229,18 +232,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'fullykiosk'
     | 'settings'
     | 'image_banks'
-  >('matches');
+  >('src_admin_tab', 'matches');
 
-  const [imageBankSubTab, setImageBankSubTab] = useState<'media_bank' | 'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('media_bank');
+  const [imageBankSubTab, setImageBankSubTab] = useAdminViewState<'media_bank' | 'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('src_admin_bank_subtab', 'media_bank');
   const consolidatedMediaBank = useMemo(() => getConsolidatedMediaBank(visualTemplates), [visualTemplates]);
 
   const [selectedFolderCategory, setSelectedFolderCategory] = useState<'photos' | 'sponsors' | 'events' | 'opponent_logos'>('photos');
   const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
 
   // Sous-onglets par catégorie pour intégrer directement le Studio Calques sur place
-  const [matchesSubTab, setMatchesSubTab] = useState<'list' | 'calques'>('list');
-  const [resultsSubTab, setResultsSubTab] = useState<'list' | 'calques'>('list');
-  const [birthdaysSubTab, setBirthdaysSubTab] = useState<'list' | 'calques'>('list');
+  const [matchesSubTab, setMatchesSubTab] = useAdminViewState<'list' | 'calques'>('src_admin_matches_subtab', 'list');
+  const [resultsSubTab, setResultsSubTab] = useAdminViewState<'list' | 'calques'>('src_admin_results_subtab', 'list');
+  const [birthdaysSubTab, setBirthdaysSubTab] = useAdminViewState<'list' | 'calques'>('src_admin_birthdays_subtab', 'list');
 
   // État de simulation et d'aperçu d'alerte Victoire / Défaite
   const [alertPreviewType, setAlertPreviewType] = useState<'win' | 'loss'>('loss');
@@ -458,9 +461,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [excelSuccessMsg, setExcelSuccessMsg] = useState<string | null>(null);
   const [excelErrors, setExcelErrors] = useState<string[]>([]);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const [showAllBirthdays, setShowAllBirthdays] = useState(false);
   const [birthdayWeekOffset, setBirthdayWeekOffset] = useState<number>(0);
   const [allMembersPool, setAllMembersPool] = useState<BirthdayItem[]>(() => {
-    if (allMembers && allMembers.length > 0) return allMembers;
+    if (Array.isArray(allMembers)) return allMembers;
     try {
       const saved = localStorage.getItem('club_all_members_pool');
       if (saved) {
@@ -472,7 +476,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   });
 
   useEffect(() => {
-    if (allMembers && allMembers.length > 0) {
+    if (Array.isArray(allMembers)) {
       setAllMembersPool(allMembers);
     }
   }, [allMembers]);
@@ -517,20 +521,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isRewriting, setIsRewriting] = useState<boolean>(false);
   // Periodes du calendrier persistees : restaurees a la reouverture de l'appli
   const [syncStartDate, setSyncStartDate] = useState<string>(() => {
-    try { return localStorage.getItem('src_matches_filter_start') || ''; } catch (e) { return ''; }
+    try { return clubSettings.matchesFilterStart || ''; } catch (e) { return ''; }
   });
   const [syncEndDate, setSyncEndDate] = useState<string>(() => {
-    try { return localStorage.getItem('src_matches_filter_end') || ''; } catch (e) { return ''; }
+    try { return clubSettings.matchesFilterEnd || ''; } catch (e) { return ''; }
   });
   const [resultsStartDate, setResultsStartDate] = useState<string>(() => {
-    try { return localStorage.getItem('src_results_filter_start') || ''; } catch (e) { return ''; }
+    try { return clubSettings.resultsFilterStart || ''; } catch (e) { return ''; }
   });
   const [resultsEndDate, setResultsEndDate] = useState<string>(() => {
-    try { return localStorage.getItem('src_results_filter_end') || ''; } catch (e) { return ''; }
+    try { return clubSettings.resultsFilterEnd || ''; } catch (e) { return ''; }
   });
   // Périodes des calendriers : partagées entre tous les appareils via clubSettings (sauvegarde en ligne)
   // + fallback localStorage hors-ligne.
-  const periodSyncDoneRef = useRef<boolean>(false);
+  const periodSyncDoneRef = useRef<boolean>(true);
 
   // Restauration depuis le serveur : la période sélectionnée suit l'utilisateur sur n'importe quel appareil
   useEffect(() => {
@@ -590,30 +594,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate, clubSettings]);
 
   const [showCalendarInResults, setShowCalendarInResults] = useState<boolean>(true);
-  const [resultsFilterMode, setResultsFilterMode] = useState<'all' | 'range'>('all');
+  const [resultsFilterMode, setResultsFilterMode] = useState<'all' | 'range'>('range');
   const [showAddManualResult, setShowAddManualResult] = useState<boolean>(false);
   const [quickScoreMatchId, setQuickScoreMatchId] = useState<string | null>(null);
   const [quickHomeScore, setQuickHomeScore] = useState<string>('');
   const [quickAwayScore, setQuickAwayScore] = useState<string>('');
-  const [matchesFilterMode, setMatchesFilterMode] = useState<'all' | 'range'>('all');
+  const [matchesFilterMode, setMatchesFilterMode] = useState<'all' | 'range'>('range');
+  const previousPeriods = useRef(`${syncStartDate}|${syncEndDate}|${resultsStartDate}|${resultsEndDate}`);
+  useEffect(() => {
+    const key = `${syncStartDate}|${syncEndDate}|${resultsStartDate}|${resultsEndDate}`;
+    const old = previousPeriods.current.split('|');
+    previousPeriods.current = key;
+    if (syncStartDate && syncEndDate && (old[0] !== syncStartDate || old[1] !== syncEndDate)) {
+      setMatchesFilterMode('range');
+      onUpdateMatches(matches.map(m => ({ ...m, selectedForWeekend: m.date >= syncStartDate && m.date <= syncEndDate })));
+    }
+    if (resultsStartDate && resultsEndDate && (old[2] !== resultsStartDate || old[3] !== resultsEndDate)) {
+      setResultsFilterMode('range');
+      onUpdateResults(results.map(m => ({ ...m, selectedForWeekend: m.date >= resultsStartDate && m.date <= resultsEndDate })));
+    }
+  }, [syncStartDate, syncEndDate, resultsStartDate, resultsEndDate]);
   const [showCalendarInMatches, setShowCalendarInMatches] = useState<boolean>(true);
   const [showAddManualMatch, setShowAddManualMatch] = useState<boolean>(false);
   const [showPerTeamVisuals, setShowPerTeamVisuals] = useState<boolean>(false);
   const [newResultDate, setNewResultDate] = useState<string>('Hier');
 
-  // Opponent Club Logos state & cache
-  const [autoFetchOpponentLogos, setAutoFetchOpponentLogos] = useState<boolean>(true);
-  const [isFetchingOpponentLogos, setIsFetchingOpponentLogos] = useState<boolean>(false);
-  const [opponentLogosCache, setOpponentLogosCache] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('club_opponent_logos_cache');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
-  });
-  const [newOpponentClubName, setNewOpponentClubName] = useState<string>('');
-  const [newOpponentLogoUrl, setNewOpponentLogoUrl] = useState<string>('');
   const [socialForm, setSocialForm] = useState({
     instagramHandle: clubSettings.instagramHandle || '',
     facebookPage: clubSettings.facebookPage || '',
@@ -954,48 +959,19 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
   // Liste unifiée de toutes les catégories / équipes du club pour le test de largeur
   const allCandidateTeams = useMemo(() => {
-    const list: string[] = [];
-    const seen = new Set<string>();
-
-    const add = (name?: string) => {
-      if (!name) return;
-      const trimmed = name.trim();
-      if (!trimmed) return;
-      const lower = trimmed.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        list.push(trimmed);
-      }
-    };
-
-    // 1. Équipes des visuels configurés
-    if (Array.isArray(teamVisuals) && teamVisuals.length > 0) {
-      teamVisuals.forEach((tv) => {
-        add(tv.teamName);
-      });
+    const names = new Map<string, string>();
+    for (const team of ffbbTeams) {
+      const custom = clubSettings.customTeamNames?.[team.id] || clubSettings.customTeamNames?.[team.category];
+      names.set(normalizeCategoryKey(team.category || team.name), custom || team.customName || team.category || team.name);
     }
-
-    // 2. Équipes synchronisées FFBB et catégories des matchs
-    if (Array.isArray(availableFfbbTeams) && availableFfbbTeams.length > 0) {
-      availableFfbbTeams.forEach((t) => {
-        add(t.name);
-      });
+    // With official teams available, visual aliases must not become extra teams.
+    if (names.size > 0) return [...new Set(names.values())];
+    for (const item of [...teamVisuals.map(t => ({ category: t.category, name: t.teamName })), ...matches.map(m => ({ category: m.rawFfbbCategory || m.category, name: m.category }))]) {
+      const key = normalizeCategoryKey(item.category || item.name);
+      if (!names.has(key)) names.set(key, item.name);
     }
-
-    // 3. Catégories des matchs existants
-    if (Array.isArray(matches) && matches.length > 0) {
-      matches.forEach((m) => {
-        add(m.category);
-      });
-    }
-
-    // 4. Équipes réelles du SRC Basket par défaut
-    DEFAULT_REAL_FFBB_TEAMS.forEach((t) => {
-      add(t.name);
-    });
-
-    return list;
-  }, [teamVisuals, availableFfbbTeams, matches]);
+    return [...new Set([...names.values()].filter(Boolean))];
+  }, [teamVisuals, ffbbTeams, matches, clubSettings.customTeamNames]);
 
   const currentPreviewIsWin = selectedAlertVisualUrl ? selectedAlertVisualType === 'win' : alertPreviewType === 'win';
   const currentPreviewTitleTemplate = activeEditingConfig.customTitle || (currentPreviewIsWin ? (visualTemplates.alertCustomWinTitle ?? 'VICTOIRE DES {CATEGORIE}') : (visualTemplates.alertCustomLossTitle ?? 'DÉFAITE DES {CATEGORIE}'));
@@ -1874,13 +1850,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     let daysToFriday = 5 - dayOfWeek;
     if (dayOfWeek === 0) daysToFriday = -2;
     else if (dayOfWeek === 6) daysToFriday = -1;
-    
+
     const friday = new Date(today);
     friday.setDate(today.getDate() + daysToFriday);
-    
+
     const sunday = new Date(friday);
     sunday.setDate(friday.getDate() + 2);
-    
+
     setSyncStartDate(friday.toISOString().slice(0, 10));
     setSyncEndDate(sunday.toISOString().slice(0, 10));
     setMatchesFilterMode('range');
@@ -1892,13 +1868,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     let daysToFriday = 5 - dayOfWeek - 7;
     if (dayOfWeek === 0) daysToFriday = -2 - 7;
     else if (dayOfWeek === 6) daysToFriday = -1 - 7;
-    
+
     const friday = new Date(today);
     friday.setDate(today.getDate() + daysToFriday);
-    
+
     const sunday = new Date(friday);
     sunday.setDate(friday.getDate() + 2);
-    
+
     setResultsStartDate(friday.toISOString().slice(0, 10));
     setResultsEndDate(sunday.toISOString().slice(0, 10));
     setResultsFilterMode('range');
@@ -1910,13 +1886,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     let daysToFriday = 5 - dayOfWeek;
     if (dayOfWeek === 0) daysToFriday = -2;
     else if (dayOfWeek === 6) daysToFriday = -1;
-    
+
     const friday = new Date(today);
     friday.setDate(today.getDate() + daysToFriday);
-    
+
     const sunday = new Date(friday);
     sunday.setDate(friday.getDate() + 2);
-    
+
     setResultsStartDate(friday.toISOString().slice(0, 10));
     setResultsEndDate(sunday.toISOString().slice(0, 10));
     setResultsFilterMode('range');
@@ -2009,71 +1985,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   };
 
   // Récupération automatique des logos des clubs adverses (FFBB API)
-  const handleFetchOpponentLogos = async (overrideMatches?: MatchItem[], overrideResults?: MatchItem[]) => {
-    setIsFetchingOpponentLogos(true);
-    const targetMatches = overrideMatches || matches;
-    const targetResults = overrideResults || results;
-    const updatedCache = { ...opponentLogosCache };
-    let newLogosCount = 0;
-
-    const clubNameLower = (clubSettings.name || '').toLowerCase().trim();
-    const clubShortLower = (clubSettings.shortName || '').toLowerCase().trim();
-    const clubCityLower = (clubSettings.city || '').toLowerCase().trim();
-
-    const allOpponents = Array.from(
-      new Set(
-        [...targetMatches, ...targetResults]
-          .map((m) => (m.isHomeMatch ? m.teamAway : m.teamHome))
-          .filter(
-            (name) => {
-              if (!name || name.trim().length <= 1) return false;
-              const nLower = name.toLowerCase();
-              if (clubNameLower && nLower.includes(clubNameLower)) return false;
-              if (clubShortLower && nLower.includes(clubShortLower)) return false;
-              if (clubCityLower && clubCityLower.length > 2 && nLower.includes(clubCityLower)) return false;
-              return true;
-            }
-          )
-      )
-    );
-
-    for (const opp of allOpponents) {
-      if (!updatedCache[opp]) {
-        const logoUrl = await FFBBService.fetchClubLogoByName(opp);
-        if (logoUrl) {
-          updatedCache[opp] = logoUrl;
-          newLogosCount++;
-        }
-      }
-    }
-
-    setOpponentLogosCache(updatedCache);
-    try {
-      localStorage.setItem('club_opponent_logos_cache', JSON.stringify(updatedCache));
-    } catch (e) {}
-
-    // Attacher les logos aux matchs et résultats
-    const applyLogos = (items: MatchItem[]) =>
-      items.map((m) => {
-        const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
-        const logo = updatedCache[oppName];
-        return logo ? { ...m, opponentLogo: logo } : m;
-      });
-
-    const updatedM = applyLogos(targetMatches);
-    const updatedR = applyLogos(targetResults);
-    onUpdateMatches(updatedM);
-    onUpdateResults(updatedR);
-    setIsFetchingOpponentLogos(false);
-
-    if (!overrideMatches) {
-      setSyncMessage(`🔍 Recherche de logos FFBB terminée : ${newLogosCount} nouveau(x) logo(s) de club(s) adverses trouvé(s) !`);
-      setTimeout(() => setSyncMessage(null), 4000);
-    }
-    return { updatedMatches: updatedM, updatedResults: updatedR, newLogosCount };
-  };
-
-  // Sync with FFBB : Télécharge TOUTE la saison sans supprimer par date
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
     setSyncMessage(null);
@@ -2092,27 +2003,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         }
 
         // Attacher les logos adverses si disponibles en cache
-        const applyLogos = (items: MatchItem[]) =>
-          items.map((m) => {
-            const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
-            const logo = opponentLogosCache[oppName];
-            return logo ? { ...m, opponentLogo: logo } : m;
-          });
-
-        allSeasonMatches = applyLogos(allSeasonMatches);
-        allSeasonResults = applyLogos(allSeasonResults);
-
         const customNames = clubSettings.customTeamNames || {};
         const finalMatches = mergeMatchItems(matches, allSeasonMatches, customNames);
         const finalResults = mergeMatchItems(results, allSeasonResults, customNames);
 
         onUpdateMatches(finalMatches);
         onUpdateResults(finalResults);
-
-        // Si l'option d'auto-récupération des logos adverses est cochée, lancer la recherche en arrière-plan
-        if (autoFetchOpponentLogos) {
-          handleFetchOpponentLogos(finalMatches, finalResults);
-        }
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
           // Préserver les noms personnalisés pour chaque équipe par son identifiant FFBB
@@ -2133,7 +2029,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
             localStorage.setItem('ffbb_club_teams_cache', JSON.stringify(updatedTeams));
           } catch (e) {}
         }
-        
+
         const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
         const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? res.clubInfo.teamsList : ffbbTeams;
         const ignoredCount = allTeamsList.filter((t) => isTeamCategoryIgnored(t.category, ignoredCategories)).length;
@@ -2223,13 +2119,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     } else {
       // Décocher / ignorer l'équipe : l'ajouter aux ignorés
       nextIgnored = [...currentIgnored.filter((item) => normalizeCategoryKey(item) !== targetKey), teamCategory];
-      
-      // Retirer immédiatement les matchs et résultats de cette équipe décochée pour ne pas polluer l'affichage
-      const updatedMatches = matches.filter((m) => !isTeamCategoryIgnored(m.category, [teamCategory]));
-      const updatedResults = results.filter((r) => !isTeamCategoryIgnored(r.category, [teamCategory]));
-      onUpdateMatches(updatedMatches);
-      onUpdateResults(updatedResults);
-      setProposalAppliedMsg(`✕ Équipe ${teamName || teamCategory} ignorée : ses matchs et résultats ont été retirés.`);
+
+      setProposalAppliedMsg(`✕ Suivi de ${teamName || teamCategory} désactivé ; historique conservé.`);
     }
 
     setTimeout(() => setProposalAppliedMsg(null), 5000);
@@ -2257,9 +2148,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       ...clubSettings,
       ignoredTeamCategories: allKeys,
     });
-    onUpdateMatches([]);
-    onUpdateResults([]);
-    setProposalAppliedMsg('⚠ Toutes les équipes sont décochées. Aucune rencontre ne sera affichée.');
+    setProposalAppliedMsg('⚠ Toutes les équipes sont décochées. Historique conservé.');
     setTimeout(() => setProposalAppliedMsg(null), 5000);
   };
 
@@ -2348,7 +2237,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
       const result = await parseExcelBirthdays(file, new Date(), birthdayWeekOffset);
       if (result.allMembers && result.allMembers.length > 0) {
         const sortedMembers = sortBirthdaysByHierarchy(result.allMembers);
-        const refDate = simulatedDate || new Date();
+        const refDate = simulatedDate || clubCalendarDate();
         const filtered = filterAndSortBirthdaysForWeek(sortedMembers, refDate, birthdayWeekOffset);
         updateAllMembersEverywhere(sortedMembers, filtered);
 
@@ -2370,15 +2259,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     }
   };
 
-  const handleSelectWeekOffset = (offset: number) => {
-    setBirthdayWeekOffset(offset);
-    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
-    if (pool.length > 0) {
-      const refDate = simulatedDate || new Date();
-      const filtered = filterAndSortBirthdaysForWeek(pool, refDate, offset);
-      onUpdateBirthdays(filtered);
-    }
-  };
+  const handleSelectWeekOffset = (offset: number) => { setShowAllBirthdays(false); setBirthdayWeekOffset(offset); };
 
   const handleStartEditBirthday = (item: BirthdayItem) => {
     setEditingBirthdayId(item.id);
@@ -2487,7 +2368,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         if (list.length === 0) {
           return isHome ? "Aucun match à domicile" : "Aucun déplacement";
         }
-        
+
         // Group by date
         const grouped: Record<string, MatchItem[]> = {};
         list.forEach((m) => {
@@ -2880,7 +2761,12 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Bouton dynamique Enregistrer en haut à droite */}
+            {(() => {
+            try { const errors = JSON.parse(localStorage.getItem('src_media_errors') || '[]');
+              return errors.length ? <span role="status" className="text-xs text-amber-300">Vidéo indisponible lors de la diffusion : {errors[0].name}</span> : null;
+            } catch { return null; }
+          })()}
+          {/* Bouton dynamique Enregistrer en haut à droite */}
             <button
               onClick={onManualSave}
               disabled={saveStatus === 'saving'}
@@ -2899,8 +2785,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
                   : saveStatus === 'saved'
                   ? 'Données enregistrées avec succès !'
                   : saveStatus === 'error'
-                  ? saveErrorMessage || 'Erreur lors de la sauvegarde — Cliquez pour réorganiser'
-                  : 'Enregistrer manuellement les modifications'
+                  ? saveErrorMessage || 'Erreur lors de la sauvegarde — Cliquez pour réessayer'
+                  : 'Enregistrement automatique actif. Cliquer pour relancer une sauvegarde.'
               }
               id="btn-header-save"
             >
@@ -2912,7 +2798,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               ) : saveStatus === 'saved' ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-white" />
-                  <span>Enregistré !</span>
+                  <span>Modifications enregistrées</span>
                 </>
               ) : saveStatus === 'error' ? (
                 <>
@@ -2922,16 +2808,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Enregistrer</span>
+                  <span>Enregistrement automatique</span>
                 </>
               )}
             </button>
 
             {/* Direct Switch to TV Broadcast Mode Button */}
             <button
-              onClick={() => {
-                onSwitchToTvMode();
-              }}
+              disabled={saveStatus === 'saving' || saveStatus === 'error'}
+              onClick={() => { onSwitchToTvMode(); }}
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 shadow-lg shadow-orange-600/20 transition-all hover:scale-105"
               title="Lancer le diaporama TV (ou appuyez sur C)"
               id="btn-launch-tv-mode"
@@ -3167,7 +3052,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               <Tv className="w-4 h-4 text-amber-300" />
               <span>Guide Fully Kiosk</span>
             </button>
-          
+
           </div>
 
           {/* Right Slide Button */}
@@ -3241,16 +3126,15 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'matches' && (
             <MatchesTab
-              autoFetchOpponentLogos={autoFetchOpponentLogos}
+
               birthdays={birthdays}
               clubSettings={clubSettings}
               editingMatch={editingMatch}
               handleAddMatchManual={handleAddMatchManual}
-              handleFetchOpponentLogos={handleFetchOpponentLogos}
               handleQuickMatchOutcome={handleQuickMatchOutcome}
               handleSelectOnlyFilteredMatchesForTV={handleSelectOnlyFilteredMatchesForTV}
               handleSyncFFBB={handleSyncFFBB}
-              isFetchingOpponentLogos={isFetchingOpponentLogos}
+
               isSyncingFFBB={isSyncingFFBB}
               logos={logos}
               matches={matches}
@@ -3266,7 +3150,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               quickHomeScore={quickHomeScore}
               quickScoreMatchId={quickScoreMatchId}
               results={results}
-              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
+
               setEditingMatch={setEditingMatch}
               setFilterToCurrentWeekend={setFilterToCurrentWeekend}
               setMatchesFilterMode={setMatchesFilterMode}
@@ -3299,7 +3183,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'results' && (
             <ResultsTab
-              autoFetchOpponentLogos={autoFetchOpponentLogos}
+
               availableFfbbTeams={availableFfbbTeams}
               birthdays={birthdays}
               clubSettings={clubSettings}
@@ -3330,7 +3214,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               resultsStartDate={resultsStartDate}
               resultsSubTab={resultsSubTab}
               selectedScheduledMatchId={selectedScheduledMatchId}
-              setAutoFetchOpponentLogos={setAutoFetchOpponentLogos}
+
               setEditingResult={setEditingResult}
               setNewResultAwayScore={setNewResultAwayScore}
               setNewResultCategory={setNewResultCategory}
@@ -3343,6 +3227,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               setNewResultOpponent={setNewResultOpponent}
               setNewResultStatusOutcome={setNewResultStatusOutcome}
               setResultsEndDate={setResultsEndDate}
+              resultsFilterMode={resultsFilterMode}
               setResultsFilterMode={setResultsFilterMode}
               setResultsFilterToCurrentWeekend={setResultsFilterToCurrentWeekend}
               setResultsFilterToLastWeekend={setResultsFilterToLastWeekend}
@@ -3511,7 +3396,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               allMembers={allMembers}
               allMembersPool={allMembersPool}
               birthdayWeekOffset={birthdayWeekOffset}
-              birthdays={birthdays}
+              birthdays={showAllBirthdays ? allMembersPool : filterAndSortBirthdaysForWeek(allMembersPool, simulatedDate || clubCalendarDate(), birthdayWeekOffset)}
+              tvBirthdays={birthdays}
+              onShowAllMembers={() => setShowAllBirthdays(true)}
               birthdaysSubTab={birthdaysSubTab}
               clubSettings={clubSettings}
               editBdayCategory={editBdayCategory}

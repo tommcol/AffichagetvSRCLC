@@ -1,3 +1,4 @@
+import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
 // Alertes TV (victoires / défaites) partagées
 // ============================================================
@@ -76,7 +77,7 @@ export async function addAlert(request: Request, env: Env): Promise<Response> {
   let customTitleConfig = undefined;
   if (!finalCustomImageUrl) {
     try {
-      const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+      const appDataRaw = await readSharedAppData(env);
       if (appDataRaw) {
         const appData = JSON.parse(appDataRaw);
         const vt = appData.visualTemplates;
@@ -108,7 +109,7 @@ export async function addAlert(request: Request, env: Env): Promise<Response> {
   // Les alertes manuelles et Telegram ne sont pas concernées.
   if (triggeredBy === 'ffbb' && inputMatchId) {
     try {
-      const rawAppData = await env.AFFICHAGE_KV.get('app-data');
+      const rawAppData = await readSharedAppData(env);
       if (rawAppData) {
         const appData = JSON.parse(rawAppData);
         const knownMatch = (Array.isArray(appData.matches) ? appData.matches : [])

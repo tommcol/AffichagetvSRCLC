@@ -25,43 +25,41 @@ export function getMimeType(filename: string): string {
   }
 }
 
-export async function serveMedia(filename: string, env: Env): Promise<Response> {
-  const decoded = decodeURIComponent(filename);
-  const mime = getMimeType(decoded);
+export function parseByteRange(value: string | null, size: number): { offset: number; length: number } | null | false {
+  if (!value) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value);
+  if (!match || (!match[1] && !match[2]) || size <= 0) return false;
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) return false;
+  return { offset: start, length: end - start + 1 };
+}
 
-  // 1. Priorité à Cloudflare R2 (Streaming vidéo & stockage fichiers volumineux)
+export async function serveMedia(filename: string, env: Env, request?: Request): Promise<Response> {
+  const decoded = decodeURIComponent(filename);
+  const headers = new Headers({ 'Content-Type': getMimeType(decoded), 'Accept-Ranges': 'bytes',
+    'Cache-Control': 'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin': '*' });
+  const requestedRange = request?.headers.get('range') || null;
   if (env.AFFICHAGE_R2) {
-    try {
-      const object = await env.AFFICHAGE_R2.get(decoded);
-      if (object) {
-        const headers = new Headers();
-        object.writeHttpMetadata(headers);
-        headers.set('etag', object.httpEtag);
-        headers.set('Content-Type', mime);
-        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-        headers.set('Access-Control-Allow-Origin', '*');
-        return new Response(object.body, { headers });
-      }
-    } catch (e) {
-      console.warn('Erreur lecture R2, essai KV:', e);
+    const meta = await env.AFFICHAGE_R2.head(decoded);
+    if (meta) {
+      meta.writeHttpMetadata(headers); headers.set('etag', meta.httpEtag);
+      const range = parseByteRange(requestedRange, meta.size);
+      if (range === false) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${meta.size}` } });
+      if (range) headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${meta.size}`);
+      headers.set('Content-Length', String(range ? range.length : meta.size));
+      const object = request?.method === 'HEAD' ? null : await env.AFFICHAGE_R2.get(decoded, range ? { range } : undefined);
+      return new Response(object?.body || null, { status: range ? 206 : 200, headers });
     }
   }
-
-  // 2. Repli automatique sur Cloudflare KV
-  const cleanKey = 'media:' + decoded;
-  const data = await env.AFFICHAGE_KV.get(cleanKey, { type: 'arrayBuffer' });
-  if (!data) {
-    return new Response('Média non trouvé', { status: 404 });
-  }
-
-  return new Response(data, {
-    status: 200,
-    headers: {
-      'Content-Type': mime,
-      'Cache-Control': 'public, max-age=31536000, immutable',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
+  const data = await env.AFFICHAGE_KV.get('media:' + decoded, { type: 'arrayBuffer' });
+  if (!data) return new Response('Média non trouvé', { status: 404 });
+  const range = parseByteRange(requestedRange, data.byteLength);
+  if (range === false) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${data.byteLength}` } });
+  if (range) headers.set('Content-Range', `bytes ${range.offset}-${range.offset + range.length - 1}/${data.byteLength}`);
+  const bytes = range ? data.slice(range.offset, range.offset + range.length) : data;
+  headers.set('Content-Length', String(bytes.byteLength));
+  return new Response(request?.method === 'HEAD' ? null : bytes, { status: range ? 206 : 200, headers });
 }
 
 export async function uploadFile(request: Request, env: Env): Promise<Response> {
@@ -118,7 +116,7 @@ export async function uploadFile(request: Request, env: Env): Promise<Response> 
   if (request.method === 'POST') {
     try {
       const formData = await request.formData();
-      const file = formData.get('file') as File | null;
+      const file = formData.get('file') as unknown as File | null;
       if (!file) {
         return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
           status: 400,
@@ -167,7 +165,7 @@ export async function uploadMultiple(request: Request, env: Env): Promise<Respon
   if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
   try {
     const formData = await request.formData();
-    const files = formData.getAll('files') as File[];
+    const files = formData.getAll('files') as unknown as File[];
     if (!files || files.length === 0) {
       return new Response(JSON.stringify({ error: 'Aucun fichier reçu' }), {
         status: 400,

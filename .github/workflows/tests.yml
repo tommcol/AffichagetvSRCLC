@@ -29,5 +29,13 @@ jobs:
       - name: Vérification TypeScript (lint)
         run: npm run lint
 
+      - name: Vérification TypeScript du Worker
+        run: npm run lint:worker
+
+      - name: Vérifier la compilation
+        run: npm run build
+
       - name: Lancer les tests
         run: npm test
+        env:
+          SRC_DEMO: '1'

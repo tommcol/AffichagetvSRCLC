@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = path.join(process.cwd(), process.env.SRC_DEMO === '1' ? '.demo-data' : 'data');
 
 // Historique persistant des résultats FFBB : évite de recréer une alerte après expiration/redémarrage.
 export interface FfbbAlertMonitor {

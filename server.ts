@@ -1,3 +1,4 @@
+import { isAdmin, verifyAdmin } from './worker/auth';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -29,12 +30,15 @@ interface ActiveMatchAlert {
   competition?: string;
 }
 
+if (process.env.SRC_DEMO === '1') {
+  globalThis.fetch = async () => { throw new Error('Réseau externe désactivé en démonstration'); };
+}
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 // Setup upload directory - public/uploads is the single unified directory for local media
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
-const DATA_DIR = path.join(process.cwd(), "data");
+const UPLOADS_DIR = process.env.SRC_DEMO === '1' ? path.join(process.cwd(), '.demo-data', 'uploads') : path.join(process.cwd(), 'public', 'uploads');
+const DATA_DIR = path.join(process.cwd(), process.env.SRC_DEMO === '1' ? '.demo-data' : 'data');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -65,6 +69,28 @@ const upload = multer({
 // Support larger JSON payloads (photos, logos, sponsor visuals, base64 exports)
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
+
+// La démonstration ne peut ni contacter la FFBB/Telegram ni publier de contenu.
+if (process.env.SRC_DEMO === '1') {
+  app.use('/api', (req, res, next) => {
+    const permitted = ['/health', '/get-app-data', '/save-app-data', '/app-data', '/verify-password', '/get-alerts', '/upload', '/upload-multiple'];
+    if (permitted.includes(req.path) || req.path.startsWith('/media/')) return next();
+    return res.status(403).json({ error: 'Action externe désactivée dans la démonstration isolée.' });
+  });
+}
+
+const localAuthEnv = { ADMIN_PASSWORD: process.env.SRC_DEMO === '1' ? undefined : process.env.ADMIN_PASSWORD } as any;
+const authRequest = (req: express.Request) => new Request('http://localhost' + req.originalUrl, {
+  method: req.method, headers: { cookie: req.headers.cookie || '', 'Content-Type': 'application/json' },
+  ...(['GET', 'HEAD'].includes(req.method) ? {} : { body: JSON.stringify(req.body || {}) }),
+});
+app.use('/api', async (req, res, next) => {
+  try {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !['/verify-password', '/telegram-webhook'].includes(req.path)
+        && !await isAdmin(authRequest(req), localAuthEnv)) return res.status(401).json({ error: 'Authentification requise' });
+    next();
+  } catch { res.status(503).json({ error: 'Vérification de l’accès indisponible' }); }
+});
 
 // Serve uploaded videos and images statically with proper caching and byte-range streaming
 app.use("/uploads", express.static(UPLOADS_DIR));
@@ -266,8 +292,11 @@ app.post(["/api/app-data", "/api/save-app-data", "/.netlify/functions/save-app-d
   res.json({ ok, success: ok, version: nextVersion });
 });
 
-app.post("/api/verify-password", (_req, res) => {
-  res.json({ ok: true, success: true });
+app.all('/api/verify-password', async (req, res) => {
+  const response = await verifyAdmin(authRequest(req), localAuthEnv);
+  const cookie = response.headers.get('set-cookie');
+  if (cookie) res.setHeader('Set-Cookie', req.secure ? cookie : cookie.replace('; Secure', ''));
+  res.status(response.status).type('application/json').send(await response.text());
 });
 
 // État de suivi FFBB consultable à distance depuis l'API ou Telegram (/ffbbstat).
@@ -1365,7 +1394,8 @@ async function runBackgroundFFBBSync() {
         results: mergedResults,
         version: (typeof saved?.version === "number" ? saved.version : 0) + 1,
       };
-      saveAppDataToFile(updatedData);
+      if ((getSavedAppData()?.version || 0) !== (saved?.version || 0)) throw new Error('Données modifiées pendant la synchronisation ; nouvelle tentative au prochain cycle.');
+      if (JSON.stringify({ ...updatedData, version: undefined }) !== JSON.stringify({ ...saved, version: undefined })) saveAppDataToFile(updatedData);
 
       lastSyncResult = {
         success: true,
@@ -1387,9 +1417,9 @@ async function runBackgroundFFBBSync() {
 }
 
 // Background cron/interval: run every 3 minutes
-setInterval(runBackgroundFFBBSync, 180000);
+if (process.env.SRC_DEMO !== '1') setInterval(runBackgroundFFBBSync, 180000);
 // Initial run 5 seconds after server startup
-setTimeout(runBackgroundFFBBSync, 5000);
+if (process.env.SRC_DEMO !== '1') setTimeout(runBackgroundFFBBSync, 5000);
 
 // Endpoint to trigger manual sync from client
 app.all(["/api/ffbb/sync-now", "/api/ffbb/auto-sync"], async (req, res) => {

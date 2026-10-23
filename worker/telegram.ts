@@ -1,3 +1,4 @@
+import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
 // Bot Telegram (webhook, reconnaissance d’équipes, alertes)
 // ============================================================
@@ -846,7 +847,7 @@ export async function persistTelegramMatchResult(
   );
   appData.results = upsertResultMatch(appData.results, updatedMatch);
   appData.version = (typeof appData.version === 'number' ? appData.version : 0) + 1;
-  await env.AFFICHAGE_KV.put('app-data', JSON.stringify(appData));
+  await commitSharedAppDataOrThrow(env, appData, appData.version - 1);
 
   return { status: 'created', match: updatedMatch, appData };
 }
@@ -859,7 +860,7 @@ export async function revertTelegramMatchResult(
   env: Env,
   matchId?: string
 ): Promise<{ reverted: boolean; match?: any }> {
-  const raw = await env.AFFICHAGE_KV.get('app-data');
+  const raw = await readSharedAppData(env);
   if (!raw) return { reverted: false };
   let appData: any = null;
   try {
@@ -895,7 +896,7 @@ export async function revertTelegramMatchResult(
     (r: any) => !(r?.id === target.id && r?.resultSource === 'telegram')
   );
   appData.version = (typeof appData.version === 'number' ? appData.version : 0) + 1;
-  await env.AFFICHAGE_KV.put('app-data', JSON.stringify(appData));
+  await commitSharedAppDataOrThrow(env, appData, appData.version - 1);
   return { reverted: true, match: restored };
 }
 
@@ -1114,7 +1115,7 @@ export async function telegramWebhook(request: Request, env: Env): Promise<Respo
     // Récupérer appData pour accéder aux équipes réellement configurées dans l'application
     let appData: any = null;
     try {
-      const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+      const appDataRaw = await readSharedAppData(env);
       if (appDataRaw) {
         appData = JSON.parse(appDataRaw);
       }
@@ -1370,7 +1371,7 @@ export async function telegramTest(request: Request, env: Env): Promise<Response
   // Récupérer appData pour accéder aux équipes configurées
   let appData: any = null;
   try {
-    const appDataRaw = await env.AFFICHAGE_KV.get('app-data');
+    const appDataRaw = await readSharedAppData(env);
     if (appDataRaw) {
       appData = JSON.parse(appDataRaw);
     }

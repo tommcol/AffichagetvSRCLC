@@ -36,5 +36,21 @@
     "crons": [
       "*/5 * * * *"
     ]
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "APP_DATA_COORDINATOR",
+        "class_name": "AppDataCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "src-app-data-v1",
+      "new_sqlite_classes": [
+        "AppDataCoordinator"
+      ]
+    }
+  ]
 }

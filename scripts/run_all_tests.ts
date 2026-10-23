@@ -20,7 +20,7 @@ const failures: string[] = [];
 for (const file of files) {
   console.log('--------------------------------------------------');
   console.log(`> ${file}`);
-  const result = spawnSync('npx', ['tsx', `scripts/${file}`], {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', `scripts/${file}`], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
     timeout: TIMEOUT_SECONDS * 1000,

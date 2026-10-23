@@ -1,3 +1,4 @@
+import { isInDisplayPeriod } from '../../../utils/displayPeriod';
 // MatchesTab — onglet « matches » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
@@ -16,16 +17,13 @@ export interface MatchesTabProps {
 
 export function MatchesTab(props: MatchesTabProps) {
     const {
-    autoFetchOpponentLogos,
     birthdays,
     clubSettings,
     editingMatch,
     handleAddMatchManual,
-    handleFetchOpponentLogos,
     handleQuickMatchOutcome,
     handleSelectOnlyFilteredMatchesForTV,
     handleSyncFFBB,
-    isFetchingOpponentLogos,
     isSyncingFFBB,
     logos,
     matches,
@@ -41,7 +39,6 @@ export function MatchesTab(props: MatchesTabProps) {
     quickHomeScore,
     quickScoreMatchId,
     results,
-    setAutoFetchOpponentLogos,
     setEditingMatch,
     setFilterToCurrentWeekend,
     setMatchesFilterMode,
@@ -68,6 +65,9 @@ export function MatchesTab(props: MatchesTabProps) {
     newMatchIsHome,
   } = props;
 
+  const periodItems = matches.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'matches'));
+  const visibleMatches = matchesFilterMode === 'all' ? matches : periodItems;
+  const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
               {/* Barre de sous-onglets : Matchs vs Studio Calques */}
@@ -83,7 +83,7 @@ export function MatchesTab(props: MatchesTabProps) {
                     }`}
                   >
                     <Calendar className="w-4 h-4 text-orange-400" />
-                    <span>Matchs & Calendrier ({matches.length})</span>
+                    <span>Matchs & Calendrier ({periodItems.length})</span>
                   </button>
 
                   <button
@@ -123,7 +123,7 @@ export function MatchesTab(props: MatchesTabProps) {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                      <span>PROGRAMME DES MATCHS DU WEEK-END ({matches.length})</span>
+                      <span>PROGRAMME DES MATCHS DU WEEK-END ({periodItems.length})</span>
                     </h3>
                     <p className="text-xs text-slate-400">
                       Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
@@ -160,8 +160,6 @@ export function MatchesTab(props: MatchesTabProps) {
                         <button
                           type="button"
                           onClick={() => {
-                            setSyncStartDate('');
-                            setSyncEndDate('');
                             setMatchesFilterMode('all');
                           }}
                           className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-medium transition-all cursor-pointer"
@@ -177,6 +175,7 @@ export function MatchesTab(props: MatchesTabProps) {
                     <div className="flex flex-col md:flex-row items-stretch gap-4 pt-1">
                       <div className="shrink-0 flex justify-center">
                         <MiniCalendarPicker
+                            emptyRangeLabel="Diffusion automatique : week-end courant ; historique conservé"
                           startDate={syncStartDate}
                           endDate={syncEndDate}
                           onChangeRange={(start, end) => {
@@ -194,7 +193,7 @@ export function MatchesTab(props: MatchesTabProps) {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                              Filtre actif :
+                              {syncStartDate || syncEndDate ? 'Période consultée :' : 'Historique consultable :'}
                             </span>
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold">
                               {
@@ -222,7 +221,7 @@ export function MatchesTab(props: MatchesTabProps) {
                               </span>
                             ) : (
                               <span className="text-xs text-slate-400 italic">
-                                Aucun filtre : toute la saison ({matches.length} matchs) est affichée.
+                                Diffusion automatique : week-end courant. Les matchs des autres semaines restent dans l’historique.
                               </span>
                             )}
                           </div>
@@ -235,20 +234,7 @@ export function MatchesTab(props: MatchesTabProps) {
                         {/* Actions directes sur la sélection filtrée */}
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const list = (syncStartDate || syncEndDate)
-                                  ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
-                                  : matches;
-                                handleSelectOnlyFilteredMatchesForTV(list);
-                              }}
-                              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
-                              title="Coche uniquement les matchs de cette période pour la boucle TV et décoche les autres"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>Cocher cette période pour la TV</span>
-                            </button>
+
 
                             <button
                               type="button"
@@ -273,33 +259,13 @@ export function MatchesTab(props: MatchesTabProps) {
                           {syncStartDate && syncEndDate ? (
                             <>Période filtrée : <strong>{formatDateToReadableFrench(syncStartDate)}</strong> au <strong>{formatDateToReadableFrench(syncEndDate)}</strong></>
                           ) : (
-                            <span className="text-slate-400 italic">Aucune période filtrée (Toute la saison : {matches.length} matchs)</span>
+                            <span className="text-slate-400 italic">Diffusion : week-end courant · historique : {matches.length} matchs</span>
                           )}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const list = (syncStartDate || syncEndDate)
-                              ? matches.filter((m) => (!syncStartDate || m.date >= syncStartDate) && (!syncEndDate || m.date <= syncEndDate))
-                              : matches;
-                            handleSelectOnlyFilteredMatchesForTV(list);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer"
-                        >
-                          Cocher pour la TV
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleFetchOpponentLogos()}
-                          disabled={isFetchingOpponentLogos}
-                          className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/35 text-sky-300 border border-sky-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          title="Rechercher et télécharger automatiquement les logos officiels FFBB des équipes adverses"
-                        >
-                          <Search className={`w-3.5 h-3.5 text-sky-400 ${isFetchingOpponentLogos ? 'animate-spin' : ''}`} />
-                          <span>{isFetchingOpponentLogos ? 'Recherche logos...' : 'Logos adverses (FFBB)'}</span>
-                        </button>
+
+
                         <button
                           type="button"
                           onClick={() => setShowCalendarInMatches(true)}
@@ -322,15 +288,7 @@ export function MatchesTab(props: MatchesTabProps) {
                   )}
 
                   <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                      <input
-                        type="checkbox"
-                        checked={autoFetchOpponentLogos}
-                        onChange={(e) => setAutoFetchOpponentLogos(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0"
-                      />
-                      <span>Récupérer automatiquement les logos officiels FFBB des clubs adverses à chaque synchronisation</span>
-                    </label>
+
                   </div>
 
                   {syncMessage && (
@@ -357,7 +315,7 @@ export function MatchesTab(props: MatchesTabProps) {
                         SÉLECTION DES MATCHS DU WEEK-END
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold font-mono">
-                        {matches.filter((m) => m.selectedForWeekend !== false).length} / {matches.length} cochés pour la TV
+                        {periodItems.length} sur la période · {periodSelected} pour la TV · {matches.length} enregistrés
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400">
@@ -367,20 +325,8 @@ export function MatchesTab(props: MatchesTabProps) {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: true })))}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all"
-                  >
-                    Tout cocher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateMatches(matches.map((m) => ({ ...m, selectedForWeekend: false })))}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold transition-all"
-                  >
-                    Tout décocher
-                  </button>
+
+
                   <button
                     type="button"
                     onClick={() => setShowAddManualMatch(!showAddManualMatch)}
@@ -523,40 +469,18 @@ export function MatchesTab(props: MatchesTabProps) {
                     }`}
                   >
                     Période du calendrier ({
-                      syncStartDate || syncEndDate
-                        ? matches.filter(
-                            (m) =>
-                              (!syncStartDate || m.date >= syncStartDate) &&
-                              (!syncEndDate || m.date <= syncEndDate)
-                          ).length
-                        : matches.length
+                      periodItems.length
                     })
                   </button>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = matches.map((item) => ({ ...item, selectedForWeekend: true }));
-                      onUpdateMatches(updated);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all cursor-pointer"
-                    title="Cocher tous les matchs affichés pour la diffusion TV"
-                  >
-                    ✓ Tout cocher pour la TV
-                  </button>
+
                 </div>
               </div>
 
               {/* Liste des matchs */}
-              {matches.filter((m) => {
-                if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
-                  if (syncStartDate && m.date < syncStartDate) return false;
-                  if (syncEndDate && m.date > syncEndDate) return false;
-                }
-                return true;
-              }).length === 0 && (
+              {visibleMatches.length === 0 && (
                 <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 space-y-2">
                   <Calendar className="w-7 h-7 text-slate-500 mx-auto opacity-60" />
                   <p className="text-xs font-bold text-slate-300">
@@ -569,8 +493,6 @@ export function MatchesTab(props: MatchesTabProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setSyncStartDate('');
-                          setSyncEndDate('');
                           setMatchesFilterMode('all');
                         }}
                         className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer"
@@ -590,14 +512,7 @@ export function MatchesTab(props: MatchesTabProps) {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {matches
-                  .filter((m) => {
-                    if (matchesFilterMode === 'range' && (syncStartDate || syncEndDate)) {
-                      if (syncStartDate && m.date < syncStartDate) return false;
-                      if (syncEndDate && m.date > syncEndDate) return false;
-                    }
-                    return true;
-                  })
+                {visibleMatches
                   .map((m) => {
                   const isEditing = editingMatch?.id === m.id;
                   const isSelected = m.selectedForWeekend !== false;
@@ -770,7 +685,7 @@ export function MatchesTab(props: MatchesTabProps) {
                           }`}
                           title={
                             isSelected
-                              ? 'Match coché pour la TV du week-end (cliquer pour masquer)'
+                              ? isInDisplayPeriod(m, clubSettings, 'matches') ? 'Sélectionné sur la période TV (cliquer pour masquer)' : 'Sélection conservée dans l’historique, hors de la période TV'
                               : 'Match masqué de la TV (cliquer pour cocher et afficher)'
                           }
                         >
@@ -784,7 +699,7 @@ export function MatchesTab(props: MatchesTabProps) {
                             {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
                           <span className="hidden sm:inline font-mono text-[11px]">
-                            {isSelected ? 'Ce week-end' : 'Masqué'}
+                            {!isSelected ? 'Non sélectionné' : isInDisplayPeriod(m, clubSettings, 'matches') ? 'Sélection TV' : 'Hors période TV'}
                           </span>
                         </button>
 

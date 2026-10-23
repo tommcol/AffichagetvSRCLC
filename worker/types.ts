@@ -4,6 +4,7 @@
 
 export interface Env {
   AFFICHAGE_KV: KVNamespace;
+  APP_DATA_COORDINATOR?: DurableObjectNamespace;
   AFFICHAGE_R2?: R2Bucket;
   ADMIN_PASSWORD?: string;
   GEMINI_API_KEY?: string;

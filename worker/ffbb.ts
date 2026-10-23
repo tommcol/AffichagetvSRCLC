@@ -1,3 +1,5 @@
+import { clubDateTimeTimestamp } from '../src/utils/clubTime';
+import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
 // API FFBB (synchronisation matchs/résultats, cron)
 // ============================================================
@@ -22,7 +24,7 @@ export async function resolveOrganismeId(codeOrName: string): Promise<string | n
       headers: { 'Accept': 'application/json' },
     });
     if (res.ok) {
-      const data = await res.json();
+      const data: any = await res.json();
       if (data.status === 'ok' && data.club_resolu?.organisme_id) {
         return String(data.club_resolu.organisme_id);
       }
@@ -117,7 +119,7 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
         headers: { 'Accept': 'application/json', 'User-Agent': 'AffichageTV-SRC/1.0' },
         signal: AbortSignal.timeout(20000),
       });
-      const body = await response.json().catch(() => null);
+      const body: any = await response.json().catch(() => null);
       if (!response.ok) {
         const detail = body?.error?.message || body?.detail || `HTTP ${response.status}`;
         throw new Error(`API FFBB ${endpoint}: ${detail}`);
@@ -171,7 +173,7 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
 
     if (pouleIds.length > 0) {
       try {
-        const pouleResults = await Promise.all(
+        const pouleResults: any[] = await Promise.all(
           pouleIds.map((pid) =>
             fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
               headers: { 'Accept': 'application/json' },
@@ -530,20 +532,20 @@ export async function ffbbDebug(request: Request, env: Env): Promise<Response> {
   try {
     const orgId = await resolveOrganismeId(code);
     out.orgId = orgId;
-    const md = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(String(orgId))}/matches`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
+    const md: any = await fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(String(orgId))}/matches`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
     const all = Array.isArray(md?.matches) ? md.matches : [];
     out.clubMatches = all.filter(hit);
     const pouleIds = Array.from(new Set(out.clubMatches.map((m: any) => m.pouleId).filter(Boolean)));
     out.poules = [];
     for (const pid of pouleIds) {
-      const p = await fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
+      const p: any = await fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, { headers: { Accept: 'application/json' } }).then(r => r.json()).catch(() => null);
       out.poules.push({ pouleId: pid, rencontres: (Array.isArray(p?.rencontres) ? p.rencontres : []).filter(hit) });
     }
   } catch (e: any) {
     out.error = String(e?.message || e);
   }
   try {
-    const raw = await env.AFFICHAGE_KV.get('app-data');
+    const raw = await readSharedAppData(env);
     const data = raw ? JSON.parse(raw) : {};
     out.storedMatches = (data.matches || []).filter(hit);
     out.storedResults = (data.results || []).filter(hit);
@@ -558,7 +560,10 @@ export async function ffbbDebug(request: Request, env: Env): Promise<Response> {
 // Avec contrôle de concurrence optimiste et gestion de version
 // ============================================================
 
+const syncsInProgress = new WeakSet<object>();
 export async function runScheduledFfbbSync(env: Env): Promise<void> {
+  if (syncsInProgress.has(env.AFFICHAGE_KV)) return;
+  syncsInProgress.add(env.AFFICHAGE_KV);
   const startedAt = Date.now();
   console.log('[FFBB CRON] Début de la synchronisation automatique.');
   try {
@@ -569,7 +574,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       throw new Error(payload?.message || payload?.error || 'Réponse FFBB invalide; données conservées.');
     }
 
-    const raw = await env.AFFICHAGE_KV.get('app-data');
+    const raw = await readSharedAppData(env);
     if (!raw) {
       console.warn('[FFBB CRON] Aucun app-data en KV; aucune donnée écrite.');
       return;
@@ -580,10 +585,11 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       ? data.clubSettings.ignoredTeamCategories
       : [];
     const isIgnoredMatch = (match: any) => isTeamCategoryIgnored(String(match?.category || ''), ignoredCategories);
-    const existingMatches = (Array.isArray(data.matches) ? data.matches : []).filter((match: any) => !isIgnoredMatch(match));
-    const existingResults = (Array.isArray(data.results) ? data.results : []).filter((match: any) => !isIgnoredMatch(match));
+    const existingMatches = (Array.isArray(data.matches) ? data.matches : []);
+    const existingResults = (Array.isArray(data.results) ? data.results : []);
     const incomingMatches = (payload.matches as any[]).filter((match: any) => !isIgnoredMatch(match));
     const incomingResults = (Array.isArray(payload.results) ? payload.results : []).filter((match: any) => !isIgnoredMatch(match));
+    const beforeSync = JSON.stringify(data);
     const now = Date.now();
     let updatedResults = 0;
 
@@ -599,7 +605,12 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
     const mergeCollection = (existing: any[], incoming: any[], isResults = false) => {
       const byKey = new Map<string, any>();
       for (const item of existing) byKey.set(matchKey(item), item);
-      for (const fresh of incoming) {
+      for (const incomingItem of incoming) {
+        const names = data.clubSettings?.customTeamNames || {};
+        const rawCategory = incomingItem.rawFfbbCategory || incomingItem.category;
+        const fresh = { ...incomingItem, rawFfbbCategory: rawCategory,
+          category: names[incomingItem.ffbbTeamId] || names[rawCategory] || incomingItem.category };
+
         const key = matchKey(fresh);
         const previous = byKey.get(key);
         const hasOfficialScore = (fresh.result === 'win' || fresh.result === 'loss' || fresh.result === 'draw')
@@ -621,6 +632,9 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
 
         if (previous) {
           const merged = { ...previous, ...fresh };
+          const names = data.clubSettings?.customTeamNames || {};
+          merged.category = names[fresh.ffbbTeamId] || names[fresh.rawFfbbCategory || fresh.category] || previous.category || fresh.category;
+          merged.selectedForWeekend = previous.selectedForWeekend;
           // Si la FFBB ne fournit plus d'heure pour la même date, garder la dernière heure connue
           // plutôt que de l'effacer (une heure vide ne doit jamais écraser une heure existante).
           if (!fresh.time && previous.time && previous.date === fresh.date) merged.time = previous.time;
@@ -680,16 +694,14 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
 
     // Finalisation automatique des matchs commencés depuis plus de deux heures sans résultat.
     const parseMatchStart = (match: any): number | null => {
-      if (!match?.date || !match?.time || !/^\\d{1,2}:\\d{2}$/.test(String(match.time))) return null;
-      const date = String(match.date);
-      const time = String(match.time).padStart(5, '0');
-      const parsed = Date.parse(`${date}T${time}:00`);
-      return Number.isFinite(parsed) ? parsed : null;
+      if (!match?.date || !match?.time || !/^\d{1,2}:\d{2}$/.test(String(match.time))) return null;
+      return clubDateTimeTimestamp(String(match.date), String(match.time));
     };
     const finishWithoutScore = (match: any) => {
-      if (!match || match.status === 'finished' || (match.result === 'win' || match.result === 'loss' || match.result === 'draw')) return match;
+      if (!match || (match.result === 'win' || match.result === 'loss' || match.result === 'draw')) return match;
       const start = parseMatchStart(match);
       if (start !== null && now >= start + 2 * 60 * 60 * 1000) return { ...match, status: 'finished' };
+      if (start !== null && now < start) return { ...match, status: 'upcoming' };
       return match;
     };
     data.matches = data.matches.map(finishWithoutScore);
@@ -705,6 +717,10 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       }
     }
 
+
+    if (JSON.stringify(data) === beforeSync) return;
+    data.version = (typeof data.version === 'number' ? data.version : 0) + 1;
+    await commitSharedAppDataOrThrow(env, data, data.version - 1);
 
     // Déclencher la boucle victoire/défaite (1 h) pour chaque nouveau score officiel FFBB,
     // SAUF si une alerte Telegram/manuelle existe déjà pour ce match (pas de double boucle).
@@ -784,10 +800,9 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         await env.AFFICHAGE_KV.put('alerts', JSON.stringify(activeAlerts));
       }
     }
-    data.version = (typeof data.version === 'number' ? data.version : 0) + 1;
-    await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
+
     console.log(`[FFBB CRON] Terminé: ${payload.matches.length} matchs FFBB, ${updatedResults} résultats mis à jour, durée ${Date.now() - startedAt} ms.`);
   } catch (error) {
     console.error('[FFBB CRON] Échec de synchronisation; données existantes conservées.', error);
-  }
+  } finally { syncsInProgress.delete(env.AFFICHAGE_KV); }
 }

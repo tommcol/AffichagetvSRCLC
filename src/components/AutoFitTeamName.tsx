@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { FontFamilyOption } from '../types';
 import { getFontFamilyClass } from '../utils/fontUtils';
 import { formatTeamNameForBadge } from '../utils/posterFormattingHelpers';
@@ -18,13 +18,34 @@ export const AutoFitTeamName: React.FC<{
   fontHeader?: FontFamilyOption;
   textColor?: string;
 }> = ({ name, isExempt, isCompact, pillHeight, count = 4, aspectRatio, fontHeader, textColor = '#ffffff' }) => {
+  const fittingRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const container = fittingRef.current;
+    const text = container?.querySelector('span');
+    if (!container || !text) return;
+    let cancelled = false;
+    const fit = () => {
+      if (cancelled || !container.clientWidth || !container.clientHeight) return;
+      let low = 8, high = Math.max(8, pillHeight ? pillHeight * .85 : 64);
+      for (let i = 0; i < 10; i++) {
+        const mid = (low + high) / 2;
+        text.style.fontSize = `${mid}px`;
+        if (text.scrollWidth <= container.clientWidth - 32 && text.scrollHeight <= container.clientHeight - 8) low = mid;
+        else high = mid;
+      }
+      text.style.fontSize = `${Math.floor(low)}px`;
+    };
+    fit(); void document.fonts.ready.then(fit);
+    const observer = new ResizeObserver(fit); observer.observe(container);
+    return () => { cancelled = true; observer.disconnect(); };
+  }, [name, pillHeight, count, aspectRatio, fontHeader]);
   const originalName = (name || '').trim();
   const formattedName = formatTeamNameForBadge(originalName);
   const len = formattedName.length;
 
   if (isExempt || originalName.toLowerCase() === 'exempt') {
     return (
-      <div className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
+      <div ref={fittingRef} className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
         <span
           className={`font-montserrat font-black text-white uppercase tracking-wider drop-shadow-sm ${
             count >= 6 || aspectRatio === '16:9' ? 'text-[28px]' : count >= 5 ? 'text-[32px]' : 'text-[36px]'
@@ -124,7 +145,7 @@ export const AutoFitTeamName: React.FC<{
   }
 
   return (
-    <div className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
+    <div ref={fittingRef} className="w-full h-full flex items-center justify-center text-center px-4 pointer-events-none select-none">
       <span
         className={`${getFontFamilyClass(fontHeader)} font-black text-center uppercase tracking-tight block max-w-full drop-shadow-sm`}
         style={{
@@ -133,11 +154,9 @@ export const AutoFitTeamName: React.FC<{
           color: textColor,
           wordBreak: 'break-word',
           overflowWrap: 'anywhere',
-          maxHeight,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
+          maxHeight: 'none',
+          display: 'block',
+          overflow: 'visible',
         }}
         title={originalName}
       >

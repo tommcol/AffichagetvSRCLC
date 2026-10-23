@@ -83,6 +83,8 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   onUpdatePosition,
   onUpdateTemplate,
 }) => {
+  const [mediaError, setMediaError] = useState(false);
+  useEffect(() => setMediaError(false), [overrideImageUrl, alert.customImageUrl, alert.isWin]);
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(1920);
@@ -311,6 +313,7 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
       {/* ========================================================================= */}
       {/* 1. MÉDIA DE FOND : PHOTO OU VIDÉO PLEIN ÉCRAN                              */}
       {/* ========================================================================= */}
+      {mediaError && <div role="alert" className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950 text-white">Média indisponible — vérifiez le visuel sélectionné.</div>}
       {visualImage ? (
         <div className="absolute inset-0 z-0">
           {isVideoMedia(visualImage) ? (
@@ -341,6 +344,7 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
           ) : (
             <img
               src={visualImage}
+              onError={() => setMediaError(true)}
               alt={`${alert.team} - ${alert.isWin ? 'Victoire' : 'Défaite'}`}
               className="w-full h-full object-cover brightness-[0.88] contrast-105 scale-100"
             />

@@ -47,8 +47,8 @@ async function runTests() {
     throw new Error('Le bloc résultats doit exister');
   }
   // Le bloc résultats doit utiliser le dimensionnement adaptatif commun
-  const resultsIdx = posterContent.indexOf("contentType === 'results' &&");
-  const resultsSlice = posterContent.slice(resultsIdx, posterContent.indexOf("contentType === 'notification'"));
+  const resultsIdx = posterContent.indexOf("{contentType === 'results' &&");
+  const resultsSlice = posterContent.slice(resultsIdx, posterContent.indexOf("{contentType === 'notification'", resultsIdx));
   if (!resultsSlice.includes('getAdaptivePosterCardSizing')) {
     throw new Error('Le bloc résultats doit utiliser getAdaptivePosterCardSizing (tailles adaptatives)');
   }

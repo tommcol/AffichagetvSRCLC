@@ -3,12 +3,12 @@ import { sortMatchesChronologically } from './matchDateHelper';
 
 export function getWeekendMatches(matches: MatchItem[]): MatchItem[] {
   const selected = matches.filter((m) => m.selectedForWeekend !== false);
-  return selected.length > 0 ? selected : matches;
+  return selected;
 }
 
 export function getWeekendResults(results: MatchItem[]): MatchItem[] {
   const selected = results.filter((r) => r.selectedForWeekend !== false);
-  return selected.length > 0 ? selected : results;
+  return selected;
 }
 
 export interface PosterItemCounts {

@@ -47,7 +47,7 @@ export function TelegramTab(props: TelegramTabProps) {
                   DÉCLENCHER UNE VICTOIRE OU DÉFAITE VIA TELEGRAM
                 </h3>
                 <p className="text-xs text-slate-300 max-w-3xl mt-1">
-                  Au coup de sifflet final sur le terrain, vous pouvez envoyer un simple message Telegram depuis votre smartphone. 
+                  Au coup de sifflet final sur le terrain, vous pouvez envoyer un simple message Telegram depuis votre smartphone.
                   L'application analyse automatiquement votre message (équipe, score, résultat) et injecte immédiatement l'affiche dans la boucle TV pendant 1 heure.
                 </p>
               </div>
@@ -401,129 +401,6 @@ export function TelegramTab(props: TelegramTabProps) {
                 </div>
               </div>
 
-              {/* Interactive Telegram Test Simulator */}
-              <div className="p-6 rounded-3xl bg-slate-950 border border-slate-800 space-y-4">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-sky-400" />
-                  <h4 className="text-lg font-black text-white font-bebas tracking-wide">
-                    SIMULATEUR DE MESSAGE TELEGRAM EN DIRECT
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Testez immédiatement ce qui se passe quand vous envoyez un message Telegram depuis votre smartphone.
-                </p>
 
-                {/* Preset sample buttons */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-slate-500">Exemples rapides :</span>
-                  <button
-                    onClick={() => setTelegramSimText('Victoire Seniors 1 88-75')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Victoire Seniors 1 88-75
-                  </button>
-                  <button
-                    onClick={() => setTelegramSimText('Victoire U9 Garçons 24-18')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Victoire U9 Garçons 24-18
-                  </button>
-                  <button
-                    onClick={() => setTelegramSimText('Victoire U9 Mixte 24-18')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Victoire U9 Mixte 24-18
-                  </button>
-                  <button
-                    onClick={() => setTelegramSimText('Défaite U18 62-68')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Défaite U18 62-68
-                  </button>
-                  <button
-                    onClick={() => setTelegramSimText('Victoire U13F1 42-36')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Victoire U13F1 42-36
-                  </button>
-                  <button
-                    onClick={() => setTelegramSimText('Victoire SF1 71-65')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono"
-                  >
-                    Victoire SF1 71-65
-                  </button>
-                </div>
-
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={telegramSimText}
-                    onChange={(e) => setTelegramSimText(e.target.value)}
-                    placeholder="Tapez un message ex: Victoire Seniors 1 82-74..."
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white font-mono"
-                    onKeyDown={(e) => e.key === 'Enter' && handleTestTelegramMessage()}
-                  />
-                  <button
-                    onClick={handleTestTelegramMessage}
-                    disabled={telegramSimLoading}
-                    className="px-6 py-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs md:text-sm flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-sky-600/20 disabled:opacity-50"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>{telegramSimLoading ? 'Analyse...' : 'Tester l\'envoi'}</span>
-                  </button>
-                </div>
-
-                {/* Result feedback */}
-                {telegramSimFeedback && (
-                  telegramSimFeedback.success ? (
-                    <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-sm flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <div className="space-y-1">
-                        <p className="font-bold">{telegramSimFeedback.message}</p>
-                        <p className="text-xs text-emerald-400/80">
-                          Le visuel de l'équipe a été injecté dans la rotation TV pour une durée de 1 heure. Vous pouvez le voir dans l'onglet "Alertes 1h en cours" ou en basculant sur la TV !
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-sm space-y-2.5">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-bold text-amber-300">
-                            {telegramSimFeedback.isAmbiguous
-                              ? 'Nom d\'équipe ambigu : aucune alerte créée'
-                              : 'Nom d\'équipe non reconnu : aucune alerte créée'}
-                          </p>
-                          <p className="text-xs text-amber-200/90 mt-0.5">
-                            {telegramSimFeedback.message}
-                          </p>
-                        </div>
-                      </div>
-
-                      {telegramSimFeedback.suggestions && telegramSimFeedback.suggestions.length > 0 && (
-                        <div className="pt-2 border-t border-amber-500/20 pl-8">
-                          <span className="text-xs font-semibold text-slate-300 block mb-1.5">
-                            Équipes configurées les plus proches (cliquez pour tester) :
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {telegramSimFeedback.suggestions.map((sug) => (
-                              <button
-                                key={sug}
-                                onClick={() => {
-                                  setTelegramSimText(`Victoire ${sug} 82-74`);
-                                }}
-                                className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 hover:text-white border border-amber-500/30 text-xs font-bold transition-all hover:scale-105"
-                              >
-                                {sug}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
             </div>  );
 }

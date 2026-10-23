@@ -49,20 +49,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   const activeResults = results;
   const sortedResults = [...activeResults].sort(sortMatchesChronologically);
 
-  const getOpponentLogo = (r: MatchItem): string | null => {
-    if (r.opponentLogo) return r.opponentLogo;
-    const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-    const oppName = isHome ? r.teamAway : r.teamHome;
-    try {
-      const rawCache = localStorage.getItem('club_opponent_logos_cache');
-      if (rawCache) {
-        const cache = JSON.parse(rawCache);
-        if (cache && oppName && cache[oppName]) return cache[oppName];
-      }
-    } catch (e) {}
-    if (r.teamLogo && r.teamLogo !== clubSettings.logoUrl) return r.teamLogo;
-    return null;
-  };
+  const getOpponentLogo = (r: MatchItem): null => null;
 
   const totalWins = sortedResults.filter((r) => getMatchOutcome(r, clubSettings.name, clubSettings.shortName) === 'win').length;
   const totalLosses = sortedResults.filter((r) => getMatchOutcome(r, clubSettings.name, clubSettings.shortName) === 'loss').length;
@@ -401,12 +388,12 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
         {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES RÉSULTATS ÉTENDUE 16:9) */}
         <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
-          
+
           {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
           <div className={`w-full flex flex-col relative shrink-0 ${
             titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
           }`}>
-            
+
             {/* Boutons d'action haut droite (Passerelle Réseaux) */}
             <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
               {!hideShareButton && (
@@ -445,7 +432,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
               <Trophy className="w-10 h-10 text-emerald-400/60 mx-auto mb-2" />
               <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-                AUCUN RÉSULTAT ENREGISTRÉ
+                AUCUN RÉSULTAT POUR CETTE PÉRIODE
               </h3>
               <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
                 Les résultats apparaîtront dès la fin des rencontres du week-end.
@@ -611,7 +598,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           <div className="my-auto text-center py-16 bg-slate-900/60 border border-slate-800 rounded-3xl p-8 max-w-xl mx-auto backdrop-blur-sm">
             <Trophy className="w-12 h-12 text-emerald-400/60 mx-auto mb-3" />
             <h3 className={`text-2xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-              AUCUN RÉSULTAT ENREGISTRÉ
+              AUCUN RÉSULTAT POUR CETTE PÉRIODE
             </h3>
             <p className="text-slate-400 text-sm mt-1">
               Les résultats apparaîtront dès la fin des rencontres du week-end.

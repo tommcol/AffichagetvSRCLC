@@ -1,5 +1,7 @@
 import { generateSocialCaptions, isExemptItem } from '../src/utils/socialCaptionGenerator';
 import { MatchItem, ClubSettings, FinishedMatchNotification } from '../src/types';
+import { getCurrentWeekendBounds } from '../src/utils/matchDateHelper';
+import { clubCalendarDate } from '../src/utils/clubTime';
 
 async function runTests() {
   console.log('================================================================');
@@ -27,10 +29,13 @@ async function runTests() {
   const safeClubName = 'Sports Réunis Clayettois';
   const safeGymnasium = 'COSEC';
 
+  // Le scénario de référence vise le week-end courant, quelle que soit la date du test.
+  const weekend = getCurrentWeekendBounds(clubCalendarDate()).start;
+  const currentWeekendDate = `${weekend.getFullYear()}-${String(weekend.getMonth() + 1).padStart(2, '0')}-${String(weekend.getDate()).padStart(2, '0')}`;
   const mockMatches: MatchItem[] = [
     {
       id: 'm1',
-      date: '2026-10-03',
+      date: currentWeekendDate,
       time: '20:30',
       category: 'Seniors Garçons 1',
       competition: 'Régionale 2',

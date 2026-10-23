@@ -4,9 +4,12 @@ import {
   FinishedMatchNotification,
 } from '../types';
 import { isMatchWin } from './matchStatus';
+import { isMatchInCurrentWeekend } from './matchDateHelper';
+import { clubCalendarDate } from './clubTime';
 
 export interface GenerateSocialCaptionsParams {
   contentType: 'matches' | 'results' | 'notification';
+  isPeriodSelection?: boolean;
   badgeTitle: string;
   captionMatches: MatchItem[];
   captionResults: MatchItem[];
@@ -72,6 +75,7 @@ function defaultFormatPosterMatchDate(dateStr?: string, timeStr?: string): strin
 
 export function generateSocialCaptions({
   contentType,
+  isPeriodSelection = false,
   badgeTitle,
   captionMatches,
   captionResults,
@@ -89,8 +93,13 @@ export function generateSocialCaptions({
   tiktok: string;
   facebook: string;
 } {
-  const clubTag = clubSettings?.instagramHandle || `@${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-  const fbTag = clubSettings?.facebookPage || safeClubName;
+  const selectedItems = contentType === 'results' ? captionResults : captionMatches;
+  const outsideCurrentPeriod = selectedItems.some(item => item.date && !isMatchInCurrentWeekend(item.date, clubCalendarDate()));
+  const adaptPeriod = (text: string) => (isPeriodSelection || outsideCurrentPeriod)
+    ? text.replace(/#[^\s#]*week-end/gi, contentType === 'results' ? '#Resultats' : '#Matchs').replace(/sur les terrains ce week-end/gi, 'sur les terrains pendant la période sélectionnée').replace(/ce week-end/gi, 'sur la période sélectionnée').replace(/du week-end/gi, 'de la période sélectionnée').replace(/week-end/gi, 'période')
+    : text;
+  const clubTag = clubSettings?.instagramHandle || '';
+  const fbTag = clubSettings?.facebookPage || '';
 
   if (contentType === 'matches') {
     const matchLinesStandard = captionMatches.map((m) => {
@@ -116,23 +125,23 @@ export function generateSocialCaptions({
     let fb = '';
 
     if (captionStyleProposal === 'short') {
-      insta = `⚡ AGENDA ${badgeTitle} | ${safeShortName.toUpperCase()} ⚡\n\n${matchLinesShort}\n\n📍 ${safeGymnasium}\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Story #MatchDay`;
+      insta = `⚡ AGENDA ${badgeTitle} | ${safeShortName.toUpperCase()} ⚡\n\n${matchLinesShort}\n\n📍 ${safeGymnasium}\n${clubTag ? `Identifiez-nous : ${clubTag}` : ''}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Story #MatchDay`;
       tiktok = `⚡ Matchs du week-end ! 🏀👇\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       fb = `⚡ RAPPEL PROGRAMME DU WEEK-END [${badgeTitle}] ⚡\n\n${matchLinesShort}\n\nVenez encourager nos équipes au ${safeGymnasium} ! 🍿🏀\nAllez le ${safeShortName} !`;
     } else if (captionStyleProposal === 'hype') {
-      insta = `🔴⚪ GAMEDAY ! TOUS ENSEMBLE AVEC LE ${safeShortName.toUpperCase()} ! 🔥🚨\n\nCe week-end, nos équipes ont besoin de VOS ENCOURAGEMENTS ! 🔥⚡\n\n${matchLinesHype}\n\nFaisons du bruit dans les tribunes ! 📣🔥 Buvette & snack sur place ! 🥤🍿\n\nIdentifiez-nous dans vos stories : ${clubTag} 📸\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #TousEnsemble #Gameday #Basketball #Supporters`;
+      insta = `🔴⚪ GAMEDAY ! TOUS ENSEMBLE AVEC LE ${safeShortName.toUpperCase()} ! 🔥🚨\n\nCe week-end, nos équipes ont besoin de VOS ENCOURAGEMENTS ! 🔥⚡\n\n${matchLinesHype}\n\nFaisons du bruit dans les tribunes ! 📣🔥 Buvette & snack sur place ! 🥤🍿\n\n${clubTag ? `Identifiez-nous dans vos stories : ${clubTag} 📸` : ''}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #TousEnsemble #Gameday #Basketball #Supporters`;
       tiktok = `🔥 CE WEEK-END C'EST MATCHDAY ! 🚨 Qui vient faire du bruit en tribunes ? 📢⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #gameday #hype #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-      fb = `🔥 WEEK-END DE BASKETBALL ET DE PASSION ! 🏀\n\nNos équipes entrent en piste pour ${badgeTitle} ! Chers supporters, rendez-vous au ${safeGymnasium} pour pousser les rouges et blancs vers la victoire ! 💪🍿\n\n${matchLinesHype}\n\nAllez ${safeShortName} ! 🔴⚪\nPage officielle : ${fbTag}`;
+      fb = `🔥 WEEK-END DE BASKETBALL ET DE PASSION ! 🏀\n\nNos équipes entrent en piste pour ${badgeTitle} ! Chers supporters, rendez-vous au ${safeGymnasium} pour pousser les rouges et blancs vers la victoire ! 💪🍿\n\n${matchLinesHype}\n\nAllez ${safeShortName} ! 🔴⚪\n${fbTag ? `Page officielle : ${fbTag}` : ''}`;
     } else {
-      insta = `🔥 PROGRAMME ${badgeTitle} | ${safeShortName.toUpperCase()} 🔥\n\nRetrouvez nos équipes sur les terrains ce week-end :\n\n${matchLinesStandard}\n\n📍 Soutenez nos couleurs au ${safeGymnasium} !\nBuvette & ambiance assurées ☕🍿\n\nIdentifiez-nous : ${clubTag} 📸\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #MatchDay #${(badgeTitle || '').replace(/\s+/g, '')} #Basketball #FFBB #BasketFrance`;
+      insta = `🔥 PROGRAMME ${badgeTitle} | ${safeShortName.toUpperCase()} 🔥\n\nRetrouvez nos équipes sur les terrains ce week-end :\n\n${matchLinesStandard}\n\n📍 Soutenez nos couleurs au ${safeGymnasium} !\nBuvette & ambiance assurées ☕🍿\n\n${clubTag ? `Identifiez-nous : ${clubTag} 📸` : ''}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #MatchDay #${(badgeTitle || '').replace(/\s+/g, '')} #Basketball #FFBB #BasketFrance`;
       tiktok = `🏀 Le programme ${badgeTitle} du week-end est là ! Qui vient au gymnase soutenir nos équipes ? 🔥⚡\n\n${matchLinesShort}\n\n#fyp #pourtoi #basketball #matchday #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-      fb = `🏀 PROGRAMME DU WEEK-END [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏀\n\nChers supporters, voici le planning de nos rencontres :\n\n${matchLinesStandard}\n\nVenez nombreux encourager nos joueuses et joueurs !\n\nAllez le ${safeShortName} ! 🧡🖤\nPage officielle : ${fbTag}\n#Basketball #FFBB #${(badgeTitle || '').replace(/\s+/g, '')}`;
+      fb = `🏀 PROGRAMME DU WEEK-END [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏀\n\nChers supporters, voici le planning de nos rencontres :\n\n${matchLinesStandard}\n\nVenez nombreux encourager nos joueuses et joueurs !\n\nAllez le ${safeShortName} ! 🧡🖤\n${fbTag ? `Page officielle : ${fbTag}` : ''}\n#Basketball #FFBB #${(badgeTitle || '').replace(/\s+/g, '')}`;
     }
 
     return {
-      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
     };
   }
 
@@ -158,36 +167,36 @@ export function generateSocialCaptions({
       tiktok = `🏆 Bilan week-end : ${wins} victoires sur ${total} ! 🔥\n\n${resultLinesShort}\n\n#fyp #basketball #${safeShortName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
       fb = `⚡ BILAN EXPRESS [${badgeTitle}] : ${wins} victoires / ${total} matchs !\n\n${resultLinesShort}\n\nMerci aux supporters ! 👏`;
     } else if (captionStyleProposal === 'hype') {
-      insta = `🏆 QUEL WEEK-END POUR LE ${safeShortName.toUpperCase()} ! 🔥💪\n\nBilan : ${wins} victoires sur ${total} rencontres ! Gros travail de nos équipes et du staff 👏⚡\n\n${resultLinesStandard}\n\nUn grand MERCI à nos supporters et bénévoles en tribunes ! ❤️🖤\n\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Victoire #Basketball #Supporters`;
+      insta = `🏆 QUEL WEEK-END POUR LE ${safeShortName.toUpperCase()} ! 🔥💪\n\nBilan : ${wins} victoires sur ${total} rencontres ! Gros travail de nos équipes et du staff 👏⚡\n\n${resultLinesStandard}\n\nUn grand MERCI à nos supporters et bénévoles en tribunes ! ❤️🖤\n\n${clubTag ? `Identifiez-nous : ${clubTag}` : ''}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Victoire #Basketball #Supporters`;
       tiktok = `🏆 Gros bilans pour le club ! ${wins} victoires sur ${total} matchs 🔥💪 Quelle performance t'a le plus marqué ? Dis-le en commentaire ! 👇\n\n#fyp #pourtoi #basketball #victoire`;
       fb = `🏆 EXCELLENT BILAN DE RENCONTRES [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏆\n\nFélicitations à tous nos joueurs et coachs pour ces résultats : ${wins} victoires sur ${total} matchs !\n\n${resultLinesStandard}\n\nMerci aux supporters pour l'ambiance au gymnase ! 🎉🍿\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball`;
     } else {
-      insta = `🏆 ${badgeTitle} | ${safeShortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs ! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLinesStandard}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\nIdentifiez-nous : ${clubTag}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`;
+      insta = `🏆 ${badgeTitle} | ${safeShortName.toUpperCase()} 🏆\n\nBilan : ${wins} victoires sur ${total} matchs ! Bravo à tous pour l'engagement. 👏🔥\n\n${resultLinesStandard}\n\nMerci aux supporters, coachs et bénévoles ! ❤️\n\n${clubTag ? `Identifiez-nous : ${clubTag}` : ''}\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Resultats #Victoire #Basketball #FFBB`;
       tiktok = `🏆 Les ${(badgeTitle || '').toLowerCase()} du week-end sont là ! ${wins} victoires au compteur 🔥💪 Quelle équipe t'a le plus impressionné ? 👇\n\n#fyp #pourtoi #basketball #resultats #victoire`;
       fb = `🏆 BILAN DES RENCONTRES [${badgeTitle}] - ${safeClubName.toUpperCase()} 🏆\n\nFélicitations à nos équipes pour ce week-end ! Bilan : ${wins} victoires sur ${total} matchs.\n\n${resultLinesStandard}\n\nMerci à nos bénévoles pour la buvette et la table de marque !\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #Basketball #ResultatsWeekend`;
     }
 
     return {
-      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+      instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+      tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+      facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
     };
   }
 
   const alert = specificNotification;
   const isWin = alert ? alert.isWin : true;
   const team = alert?.team || 'Seniors 1';
-  const ourScore = alert?.ourScore ?? 78;
-  const oppScore = alert?.opponentScore ?? 72;
+  const hasScore = typeof alert?.ourScore === 'number' && typeof alert?.opponentScore === 'number';
+  const score = hasScore ? `${alert!.ourScore} - ${alert!.opponentScore}` : 'Score non communiqué';
   const opp = alert?.opponent || 'Adversaire';
 
-  const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} ${ourScore} - ${oppScore} ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
-  const tiktok = `${isWin ? '🏆 VICTOIRE !!' : '🏀 Fin de match !'} ${team} l'emporte ${ourScore}-${oppScore} contre ${opp} ! 🔥⚡ #fyp #pourtoi #basketball #victoire`;
-  const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} ${ourScore} - ${oppScore} ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
+  const insta = `${isWin ? '🚨 VICTOIRE ÉCLATANTE ! 🏆' : '🚨 FIN DU MATCH ! 🏀'}\n\nScore final : ${team} : ${score}, contre ${opp} !\n${isWin ? 'Bravo à toute l’équipe pour cette belle performance !' : 'Gros combat sur le terrain, on se remobilise pour le prochain match !'}\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #BasketFrance #FFBB`;
+  const tiktok = `${isWin ? '🏆 VICTOIRE !!' : '🏀 Fin de match !'} ${team} ${isWin ? 'remporte la rencontre' : 'termine la rencontre'} contre ${opp} (${score}) ! 🔥⚡ #fyp #pourtoi #basketball #victoire`;
+  const fb = `${isWin ? '🏆 VICTOIRE DE NOTRE ÉQUIPE ! 🏆' : '🏀 RÉSULTAT DE LA RENCONTRE 🏀'}\n\n${team} : ${score}, contre ${opp} !\nFélicitations aux joueurs et au staff.\n\n#${safeShortName.replace(/[^a-zA-Z0-9]/g, '')} #FFBB #Basketball`;
 
   return {
-    instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? insta) : insta,
-    tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? tiktok) : tiktok,
-    facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? fb) : fb,
+    instagram: isCustomCaptionEdited.instagram ? (customCaptions.instagram ?? adaptPeriod(insta)) : adaptPeriod(insta),
+    tiktok: isCustomCaptionEdited.tiktok ? (customCaptions.tiktok ?? adaptPeriod(tiktok)) : adaptPeriod(tiktok),
+    facebook: isCustomCaptionEdited.facebook ? (customCaptions.facebook ?? adaptPeriod(fb)) : adaptPeriod(fb),
   };
 }
