@@ -29,7 +29,7 @@ const hexToRgb = (hex: string) => {
   };
 };
 
-export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
+const OverlayLayerContent: React.FC<FreeOverlayLayerProps> = ({
   layer,
   layerNumber,
   isVictoryContext = false,
@@ -498,4 +498,11 @@ export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = ({
       </div>
     </div>
   );
+};
+
+// Mount hooks only for an enabled, visible layer. Toggling a layer cannot change hook order.
+export const FreeOverlayLayer: React.FC<FreeOverlayLayerProps> = (props) => {
+  if (!props.layer?.enabled || !props.layer.mediaUrl) return null;
+  if (props.layer.onlyOnVictory && !props.isVictoryContext && !props.interactive) return null;
+  return <OverlayLayerContent {...props} />;
 };

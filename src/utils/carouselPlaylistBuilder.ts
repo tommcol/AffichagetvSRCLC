@@ -1,3 +1,4 @@
+import { getDisplayItems } from './displayPeriod';
 import {
   CarouselSlide,
   CategoryConfig,
@@ -133,9 +134,7 @@ export function buildCarouselPlaylist({
         }));
       }
     } else if (cat.id === 'matches') {
-      const weekendMatches = matches.filter(
-        (m) => m.selectedForWeekend !== false && isMatchInCurrentWeekend(m.date)
-      );
+      const weekendMatches = getDisplayItems(matches, clubSettings, 'matches');
       const sortMatches = (a: MatchItem, b: MatchItem) => {
         const dateA = a.date || '';
         const dateB = b.date || '';
@@ -270,9 +269,7 @@ export function buildCarouselPlaylist({
         }
       }
     } else if (cat.id === 'results') {
-      const activeResults = results.filter(
-        (r) => r.selectedForWeekend !== false && isMatchInCurrentWeekend(r.date)
-      );
+      const activeResults = getDisplayItems(results, clubSettings, 'results');
       const resultsToUse = activeResults;
 
       const sortMatches = (a: MatchItem, b: MatchItem) => {

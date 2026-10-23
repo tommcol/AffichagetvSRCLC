@@ -9,3 +9,4 @@ package-lock.json
 bun.lock*
 # Données personnelles (aperçu local) — ne jamais versionner
 data/saved-app-data.json
+.demo-data/

@@ -106,19 +106,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     WebkitBackdropFilter: `blur(${cardBlur}px)`,
   };
 
-  const getOpponentLogo = (m: MatchItem): string | null => {
-    if (m.opponentLogo) return m.opponentLogo;
-    const oppName = m.isHomeMatch ? m.teamAway : m.teamHome;
-    try {
-      const rawCache = localStorage.getItem('club_opponent_logos_cache');
-      if (rawCache) {
-        const cache = JSON.parse(rawCache);
-        if (cache && oppName && cache[oppName]) return cache[oppName];
-      }
-    } catch (e) {}
-    if (m.teamLogo && m.teamLogo !== clubSettings.logoUrl) return m.teamLogo;
-    return null;
-  };
+  const getOpponentLogo = (m: MatchItem): null => null;
 
   // Only display matches that are checked/selected for the weekend (selectedForWeekend !== false)
   const weekendMatches = matches.filter((m) => m.selectedForWeekend !== false);
@@ -323,7 +311,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                   ) : (
                     <Clock className="w-3.5 h-3.5 text-slate-300" />
                   )}
-                  <span>{outcome === 'win' ? 'VICTOIRE' : outcome === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}</span>
+                  <span>{outcome === 'win' ? 'VICTOIRE' : outcome === 'loss' ? 'DÉFAITE' : 'EN ATTENTE DU RÉSULTAT'}</span>
                 </span>
               ) : null}
 
@@ -477,12 +465,12 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
         {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES MATCHS ÉTENDUE 16:9) */}
         <div className="relative z-20 w-full h-full flex flex-col justify-between p-5 md:p-7 lg:p-8 xl:p-10">
-          
+
           {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
           <div className={`w-full flex flex-col relative shrink-0 mb-2 md:mb-3 ${
             titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
           }`}>
-            
+
             {/* Boutons d'action haut droite (Passerelle Réseaux) */}
             {!hideShareButton && (
               <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
@@ -859,7 +847,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                                     ? 'bg-rose-600 text-white'
                                     : 'bg-slate-700 text-slate-200'
                                 }`}>
-                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}
+                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'EN ATTENTE DU RÉSULTAT'}
                                 </div>
                               )
                             ) : (
@@ -1020,7 +1008,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                                     ? 'bg-rose-600 text-white'
                                     : 'bg-slate-700 text-slate-200'
                                 }`}>
-                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'MATCH FINI'}
+                                  {m.result === 'win' ? 'VICTOIRE' : m.result === 'loss' ? 'DÉFAITE' : 'EN ATTENTE DU RÉSULTAT'}
                                 </div>
                               )
                             ) : (

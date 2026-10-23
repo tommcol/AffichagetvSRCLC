@@ -27,10 +27,10 @@ async function runTests() {
   const resAll = getPosterBadgeTitle({ contentType: 'results', posterFilter: 'all' });
 
   if (
-    resHome === 'RÉSULTATS DOMICILE' &&
-    resAway === 'RÉSULTATS EXTÉRIEUR' &&
+    resHome === 'RÉSULTATS À DOMICILE' &&
+    resAway === 'RÉSULTATS À L’EXTÉRIEUR' &&
     resExempt === 'EXEMPT' &&
-    resAll === 'RÉSULTATS'
+    resAll === 'RÉSULTATS DU WEEK-END'
   ) {
     console.log('✓ Réussi : RÉSULTATS DOMICILE, RÉSULTATS EXTÉRIEUR, EXEMPT, RÉSULTATS');
   } else {
@@ -58,10 +58,10 @@ async function runTests() {
   const matchAll = getPosterBadgeTitle({ contentType: 'matches', posterFilter: 'all' });
 
   if (
-    matchHome === 'DOMICILE' &&
-    matchAway === 'EXTÉRIEUR' &&
+    matchHome === 'MATCHS À DOMICILE' &&
+    matchAway === 'MATCHS À L’EXTÉRIEUR' &&
     matchExempt === 'EXEMPT' &&
-    matchAll === 'MATCHDAY'
+    matchAll === 'MATCHS DU WEEK-END'
   ) {
     console.log('✓ Réussi : DOMICILE, EXTÉRIEUR, EXEMPT, MATCHDAY');
   } else {

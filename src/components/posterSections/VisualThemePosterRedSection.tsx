@@ -153,10 +153,10 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                       {/* CONTENT WRAPPER */}
                       <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
-                        
+
                         {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
                         <div className="w-full flex flex-col items-center">
-                          
+
                           {/* 6 Slanted Red Stripes (Exact Match to Photos) */}
                           <div className={`flex gap-3.5 transform -skew-x-[25deg] ${aspectRatio === '16:9' ? 'mb-2' : 'mb-3.5'} z-10`}>
                             {[...Array(6)].map((_, i) => (
@@ -172,6 +172,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                           <div
                             className={`font-black uppercase tracking-wider text-center border-t-2 border-white/20 z-10 ${getFontFamilyClass(layer2FontHeader)}`}
                             style={{
+                              maxWidth: '90%',
+                              overflowWrap: 'anywhere',
                               background: `linear-gradient(180deg, ${layer2BadgeBgColor} 0%, ${layer2BadgeBgColor}dd 100%)`,
                               color: layer2BadgeTextColor,
                               fontSize: aspectRatio === '16:9' ? '44px' : (aspectRatio === '1:1' ? '50px' : (displayedMatches.length >= 6 ? '54px' : '62px')),

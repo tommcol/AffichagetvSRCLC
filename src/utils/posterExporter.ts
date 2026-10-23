@@ -1,4 +1,4 @@
-import { toPng, toJpeg, toCanvas } from 'html-to-image';
+import { toPng, toJpeg, toCanvas, getFontEmbedCSS } from 'html-to-image';
 
 export type PosterAspectRatio = '4:5' | '9:16' | '1:1' | '16:9';
 
@@ -31,9 +31,18 @@ export async function safeExportPosterToDataUrl(
   const targetWidth = dims.width;
   const targetHeight = dims.height;
 
+  await document.fonts.ready;
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  await Promise.all(Array.from(node.querySelectorAll('img')).map(async image => {
+    if (!image.complete) await image.decode();
+    if (!image.naturalWidth) throw new Error('Une image de l’aperçu ne peut pas être chargée.');
+  }));
+  const fontEmbedCSS = await getFontEmbedCSS(node, { preferredFontFormat: 'woff2' });
+  if (/url\(["']?https?:/i.test(fontEmbedCSS)) throw new Error('Une police n’a pas pu être intégrée au PNG.');
   const baseOptions = {
     cacheBust: false,
-    skipFonts: true,
+    skipFonts: false,
+    fontEmbedCSS,
     width: targetWidth,
     height: targetHeight,
     pixelRatio: targetRatio,
@@ -78,14 +87,5 @@ export async function safeExportPosterToDataUrl(
     console.warn('Tentative 3 export toCanvas échouée, tentative 4 avec toJpeg...', err3);
   }
 
-  // Stage 4: toJpeg
-  try {
-    return await toJpeg(node, {
-      ...baseOptions,
-      quality: 0.92,
-    });
-  } catch (err4) {
-    console.error('Toutes les méthodes de rendu ont échoué:', err4);
-    throw new Error('Échec de la génération de l\'image sur ce navigateur.');
-  }
+  throw new Error('Impossible de produire un PNG fidèle à l’aperçu. Vérifiez le chargement des polices et des images.');
 }

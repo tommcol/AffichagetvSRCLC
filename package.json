@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "tsx scripts/run_all_tests.ts"
+    "test": "node --import tsx scripts/run_all_tests.ts",
+    "demo": "node --import tsx scripts/demo.ts",
+    "lint:worker": "tsc --noEmit --types @cloudflare/workers-types --lib ES2022 --module esnext --target es2022 --moduleResolution bundler --skipLibCheck worker/index.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

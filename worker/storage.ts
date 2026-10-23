@@ -1,3 +1,5 @@
+import { isAdmin } from './auth';
+import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
 // Stockage partagé (app-data, sauvegarde avec contrôle de concurrence)
 // ============================================================
@@ -5,7 +7,7 @@
 import { Env } from './types';
 
 export async function getAppData(env: Env): Promise<Response> {
-  const raw = await env.AFFICHAGE_KV.get('app-data');
+  const raw = await readSharedAppData(env);
   const data = raw ? JSON.parse(raw) : null;
 
   // Rétrocompatibilité : initialiser à 0 si le document existe sans numéro de version
@@ -32,6 +34,7 @@ export async function saveAppData(request: Request, env: Env): Promise<Response>
     });
   }
   const { data } = body;
+  if (!await isAdmin(request, env)) return Response.json({ error: 'Authentification requise' }, { status: 401 });
 
   if (!data) {
     return new Response(JSON.stringify({ error: 'Champ "data" requis' }), {
@@ -41,7 +44,7 @@ export async function saveAppData(request: Request, env: Env): Promise<Response>
   }
 
   // 1. Lire la version actuelle en base dans Cloudflare KV
-  const rawCurrent = await env.AFFICHAGE_KV.get('app-data');
+  const rawCurrent = await readSharedAppData(env);
   let currentVersion = 0;
   if (rawCurrent) {
     try {
@@ -82,11 +85,13 @@ export async function saveAppData(request: Request, env: Env): Promise<Response>
     );
   }
 
+  if (rawCurrent && JSON.stringify({ ...JSON.parse(rawCurrent), version: undefined }) === JSON.stringify({ ...data, version: undefined })) return Response.json({ ok: true, version: currentVersion });
+
   // 4. Aucune divergence de version : acceptation et incrémentation de la version
   const nextVersion = currentVersion + 1;
   data.version = nextVersion;
 
-  await env.AFFICHAGE_KV.put('app-data', JSON.stringify(data));
+  if (!await commitSharedAppData(env, data, currentVersion)) return Response.json({ code: 'CONCURRENCY_CONFLICT', error: 'Les données ont changé. Rechargez avant de réessayer.' }, { status: 409 });
 
   return new Response(
     JSON.stringify({
@@ -101,13 +106,4 @@ export async function saveAppData(request: Request, env: Env): Promise<Response>
   );
 }
 
-export async function verifyPassword(_request: Request, _env: Env): Promise<Response> {
-  return new Response(JSON.stringify({ ok: true, success: true }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-// ============================================================
-// GESTION DU STOCKAGE MULTIMÉDIA (PHOTOS, LOGOS HD, CLIPS)
-// ============================================================
+export { verifyAdmin as verifyPassword } from './auth';

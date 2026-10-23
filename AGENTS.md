@@ -3,14 +3,14 @@
 ## Architecture actuelle (Cloudflare Worker)
 
 - **Hébergement** : Cloudflare Workers (avec assets statiques), pas Netlify, pas Cloudflare Pages classique.
-- **Stockage partagé** : Cloudflare KV, namespace lié à la variable `AFFICHAGE_KV` (voir `wrangler.json`). Deux clés utilisées : `app-data` (tous les réglages/matchs/sponsors) et `alerts` (alertes victoire/défaite actives).
+- **Stockage partagé** : Cloudflare KV, namespace lié à la variable `AFFICHAGE_KV` (voir `wrangler.json`). La clé `app-data` reste un miroir compatible ; le binding `APP_DATA_COORDINATOR` coordonne les écritures transactionnelles et initialise son document depuis KV. La clé `alerts` conserve les alertes actives. Toute lecture/écriture applicative doit passer par `readSharedAppData` / `commitSharedAppData` de `worker/appDataCoordinator.ts`, y compris le cron et Telegram.
 - **Point d'entrée serveur unique** : `worker/index.ts`. Toutes les routes `/api/...` y sont gérées manuellement (pas de routage automatique par dossier). Tout le reste (page principale, fichiers) est servi automatiquement par Cloudflare via le binding `ASSETS`.
 - **Mot de passe admin** : variable d'environnement `ADMIN_PASSWORD`, configurée dans Cloudflare > le projet > Settings > Variables et secrets, section "Exécution" (pas "Build").
 - **Légendes IA** : variable d'environnement `GEMINI_API_KEY` (optionnelle). Sans elle, un générateur de texte de secours local prend le relais automatiquement.
 - **API FFBB réelle** : passe par `ffbb-api.desimone.fr` (API non officielle tierce). Le numéro d'organisme du club (9422) est résolu automatiquement à partir du code FFBB dans `worker/index.ts`.
 
 ## Ce qui n'est plus utilisé (historique, gardé pour référence)
-- `server.ts` : ancien serveur Express, utile uniquement pour `npm run dev` en local (aperçu visuel rapide, les données ne se sauvegardent pas vraiment en local).
+- `server.ts` : ancien serveur Express, utile uniquement pour `npm run dev` en local (développement local, avec persistance dans data/).
 - Le dossier `functions/` a existé un temps pour une tentative Cloudflare Pages, abandonnée au profit de Cloudflare Workers — a été supprimé.
 
 ## Composants principaux
@@ -37,3 +37,8 @@ Sports Réunis Clayettois (SRC Basket), La Clayette, code FFBB BFC0071024, numé
 - Le mot de passe admin se configure dans la section "Exécution" des variables Cloudflare, pas "Build" — c'est une source d'erreur fréquente.
 - Le secret Telegram `TELEGRAM_BOT_TOKEN` est également dans la section "Exécution" de Cloudflare et ne doit jamais être exposé.
 <!-- Relance CI suite a panne infra GitHub (etape Installer Node.js) 15/10/2026 -->
+
+## Démonstration et contrôle des corrections
+- Utiliser `npm run demo` pour les essais de modification : les fichiers et médias sont isolés dans `.demo-data/`, sans FFBB, Telegram ou publication externe. Ne jamais utiliser les données de production pour un test.
+- Vérifier `npm run lint`, `npm run lint:worker`, `npm run build` et `npm test`. La réussite des commandes ne remplace pas le contrôle visuel.
+- Voir `docs/CORRECTIONS_AUDIT_2026-10-23.md` pour les 34 décisions du responsable, les refus et les limites de vérification. Ne pas réintroduire les logos adverses, le test Telegram ni les commandes de sélection groupée retirées. Conserver tous les réglages de calques ; utiliser uniquement Tous / Séparé pour la présentation TV.

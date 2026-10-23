@@ -1,3 +1,4 @@
+import { getDisplayItems } from '../utils/displayPeriod';
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   Download,
@@ -179,10 +180,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Default to 4:5 portrait (1080x1350 for Instagram / Facebook - directly matching user reference images!)
   const [aspectRatio, setAspectRatio] = useState<PosterAspectRatio>('4:5');
-  
+
   // Flagship theme matching user's template and photos: 'poster-red'
   const [visualTheme, setVisualTheme] = useState<PosterThemeType>('poster-red');
-  
+
   // Filter for matches poster: Domicile, Extérieur, Exempt, or All
   const [posterFilter, setPosterFilter] = useState<PosterFilterType>('home');
 
@@ -191,7 +192,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [teamFilter, setTeamFilter] = useState<string>('');
   const [teamPeriodStart, setTeamPeriodStart] = useState<string>('');
   const [teamPeriodEnd, setTeamPeriodEnd] = useState<string>('');
-  
+
   // Optional custom badge title override
   const [customBadgeTitle, setCustomBadgeTitle] = useState<string>('');
 
@@ -214,7 +215,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   const [captionStyleProposal, setCaptionStyleProposal] = useState<'standard' | 'short' | 'hype'>('standard');
   const [customCaptions, setCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
   const [isCustomCaptionEdited, setIsCustomCaptionEdited] = useState<{ instagram?: boolean; tiktok?: boolean; facebook?: boolean }>({});
-  
+
   // AI Caption Generator state
   const [aiGenerating, setAiGenerating] = useState<boolean>(false);
   const [aiTone, setAiTone] = useState<'supporter' | 'officiel' | 'fun' | 'ambiance'>('supporter');
@@ -283,14 +284,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Active matches selection
   const weekendMatches = useMemo(
-    () => getWeekendMatches(matches),
-    [matches]
+    () => getDisplayItems(matches, clubSettings, 'matches'),
+    [matches, clubSettings]
   );
 
   // Active results selection
   const weekendResults = useMemo(
-    () => getWeekendResults(results),
-    [results]
+    () => getDisplayItems(results, clubSettings, 'results'),
+    [results, clubSettings]
   );
 
   // Counts per filter category to grey out empty filter buttons
@@ -372,9 +373,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         customBadgeTitle,
         contentType,
         posterFilter,
+        teamName: teamFilterEnabled ? teamFilter : undefined,
         isWin: specificNotification?.isWin,
       }),
-    [customBadgeTitle, contentType, posterFilter, specificNotification?.isWin]
+    [customBadgeTitle, contentType, posterFilter, teamFilterEnabled, teamFilter, specificNotification?.isWin]
   );
 
   // Mode d'affichage mobile : 'preview' (Affiche en direct + téléchargement) ou 'settings' (Options & Calques)
@@ -779,6 +781,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   // High-Resolution Image Export (Native 1080p exact dimensions on all platforms)
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
+    if (contentType !== 'notification' && (contentType === 'results' ? filteredResults : filteredMatches).length === 0) { setExportError('Aucune rencontre sélectionnée pour cette période.'); return; }
     try {
       setIsExporting(true);
       setExportError(null);
@@ -802,7 +805,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       setTimeout(() => setDownloadSuccess(false), 3000);
     } catch (err: any) {
       console.error('Erreur export image:', err);
-      setExportError("La génération a rencontré une restriction navigateur. Veuillez réessayer.");
+      setExportError(err?.message || 'Impossible de produire une image fidèle à l’aperçu.');
       setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsExporting(false);
@@ -856,6 +859,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   // Mobile Web Share
   const handleNativeShare = async () => {
     if (!cardRef.current) return;
+    if (contentType !== 'notification' && (contentType === 'results' ? filteredResults : filteredMatches).length === 0) { setExportError('Aucune rencontre sélectionnée pour cette période.'); return; }
     try {
       setIsSharing(true);
       setExportError(null);
@@ -1050,7 +1054,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
         {/* Content Type & Filter Bar : visible uniquement dans l'onglet Options sur mobile, toujours sur PC */}
         <div className={`${mobileTab === 'settings' ? 'flex' : 'hidden'} lg:flex flex-wrap items-center justify-between gap-3 px-3 sm:px-5 py-2.5 bg-slate-950/80 border-b border-slate-800 shrink-0`}>
-          
+
           {/* Main Category Selector */}
           <div className="flex flex-wrap items-center gap-1.5">
             <button
@@ -1302,14 +1306,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               >
                 <span>🔴 Affiche Rouge</span>
               </button>
-              
+
             </div>
 
             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
               <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Format :</span>
 
               <button
-                onClick={() => setAspectRatio('4:5')}
+                disabled={isExporting || isExportingAll} onClick={() => setAspectRatio('4:5')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   aspectRatio === '4:5'
                     ? 'bg-red-600 text-white shadow-sm'
@@ -1321,7 +1325,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </button>
 
               <button
-                onClick={() => setAspectRatio('9:16')}
+                disabled={isExporting || isExportingAll} onClick={() => setAspectRatio('9:16')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   aspectRatio === '9:16'
                     ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-sm'
@@ -1334,7 +1338,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </button>
 
               <button
-                onClick={() => setAspectRatio('1:1')}
+                disabled={isExporting || isExportingAll} onClick={() => setAspectRatio('1:1')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   aspectRatio === '1:1'
                     ? 'bg-orange-600 text-white shadow-sm'
@@ -1346,7 +1350,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </button>
 
               <button
-                onClick={() => setAspectRatio('16:9')}
+                disabled={isExporting || isExportingAll} onClick={() => setAspectRatio('16:9')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                   aspectRatio === '16:9'
                     ? 'bg-slate-700 text-white shadow-sm'
@@ -1383,14 +1387,14 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
         <div className={`grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 p-3 sm:p-5 bg-slate-950/90 ${
           embeddedInTab ? 'rounded-b-3xl' : 'flex-1 overflow-y-auto overscroll-contain'
         }`} style={{ WebkitOverflowScrolling: 'touch' }}>
-          
+
           {/* ========================================================================= */}
           {/* LEFT: THE LIVE CAPTURABLE VISUAL CARD */}
           {/* ========================================================================= */}
           <div className={`lg:col-span-6 ${mobileTab === 'preview' ? 'flex' : 'hidden'} lg:flex flex-col items-center justify-start p-2 sm:p-4 bg-black/40 rounded-2xl sm:rounded-3xl border border-slate-800/80 relative pb-8 ${
             embeddedInTab ? 'lg:sticky lg:top-4 self-start' : ''
           }`}>
-            
+
             {/* MINI BARRE MOBILE : CONTRÔLES EXPRESS AU-DESSUS DE L'AFFICHE (< lg) */}
             <div className="w-full flex lg:hidden flex-col gap-1.5 bg-slate-900/95 p-2 rounded-xl border border-slate-800 mb-2.5 shadow-md">
               <div className="flex flex-wrap items-center justify-between gap-1">
@@ -1611,6 +1615,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* ========================================================================= */}
             {/* CARD PREVIEW CONTAINER WITH DYNAMIC ZOOM & FIXED LOGICAL DIMENSIONS        */}
             {/* ========================================================================= */}
+            {contentType !== 'notification' && (contentType === 'results' ? filteredResults : filteredMatches).length === 0 && <p role="status" className="p-4 text-amber-300 text-center">Aucune rencontre sélectionnée pour cette période</p>}
             <div ref={previewWrapperRef} className="w-full flex items-center justify-center overflow-hidden py-1">
               <div
                 style={{
@@ -1682,7 +1687,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             />
           )}
 
-                  
+
                 </div>
               </div>
             </div>
@@ -1792,7 +1797,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
           {/* RIGHT: STUDIO LAYERS & SOCIAL BRIDGE CONTROLS */}
           {/* ========================================================================= */}
           <div className={`lg:col-span-6 ${mobileTab === 'settings' ? 'flex' : 'hidden'} lg:flex flex-col justify-between space-y-3.5`}>
-            
+
             {/* Raccourci rapide vers l'Aperçu sur smartphone */}
             <div className="block lg:hidden bg-slate-950 p-2.5 rounded-2xl border border-red-900/50">
               <button

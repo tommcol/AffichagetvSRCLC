@@ -1,3 +1,4 @@
+import { isInDisplayPeriod } from '../../../utils/displayPeriod';
 // ResultsTab — onglet « results » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
@@ -15,7 +16,6 @@ export interface ResultsTabProps {
 
 export function ResultsTab(props: ResultsTabProps) {
   const {
-    autoFetchOpponentLogos,
     availableFfbbTeams,
     birthdays,
     clubSettings,
@@ -46,7 +46,6 @@ export function ResultsTab(props: ResultsTabProps) {
     resultsStartDate,
     resultsSubTab,
     selectedScheduledMatchId,
-    setAutoFetchOpponentLogos,
     setEditingResult,
     setNewResultAwayScore,
     setNewResultCategory,
@@ -71,6 +70,8 @@ export function ResultsTab(props: ResultsTabProps) {
     visualTemplates,
   } = props;
 
+  const periodItems = results.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'results'));
+  const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
               {/* Barre de sous-onglets : Résultats vs Studio Calques */}
@@ -86,7 +87,7 @@ export function ResultsTab(props: ResultsTabProps) {
                     }`}
                   >
                     <Trophy className="w-4 h-4 text-emerald-400" />
-                    <span>Scores & Résultats ({results.length})</span>
+                    <span>Scores & Résultats ({periodItems.length})</span>
                   </button>
 
                   <button
@@ -126,7 +127,7 @@ export function ResultsTab(props: ResultsTabProps) {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-black text-white font-bebas tracking-wide flex items-center gap-2">
-                      <span>PROGRAMME DES RÉSULTATS DU WEEK-END ({results.length})</span>
+                      <span>PROGRAMME DES RÉSULTATS DU WEEK-END ({periodItems.length})</span>
                     </h3>
                     <p className="text-xs text-slate-400">
                       Ces rencontres sont affichées dans la boucle TV et exportables sur Instagram/TikTok/Facebook.
@@ -246,20 +247,7 @@ export function ResultsTab(props: ResultsTabProps) {
                         {/* Actions directes sur la sélection filtrée */}
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const list = (resultsStartDate || resultsEndDate)
-                                  ? results.filter((r) => (!resultsStartDate || (r.date && r.date >= resultsStartDate)) && (!resultsEndDate || (r.date && r.date <= resultsEndDate)))
-                                  : results;
-                                handleSelectOnlyFilteredResultsForTV(list);
-                              }}
-                              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
-                              title="Coche uniquement les résultats de cette période pour la boucle TV et décoche les autres"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>Cocher cette période pour la TV</span>
-                            </button>
+
 
                             <button
                               type="button"
@@ -322,15 +310,7 @@ export function ResultsTab(props: ResultsTabProps) {
                   )}
 
                   <div className="flex items-center justify-between text-[11px] pt-1 text-slate-400">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                      <input
-                        type="checkbox"
-                        checked={autoFetchOpponentLogos}
-                        onChange={(e) => setAutoFetchOpponentLogos(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0"
-                      />
-                      <span>Récupérer automatiquement les logos officiels FFBB des clubs adverses à chaque synchronisation</span>
-                    </label>
+
                   </div>
                 </div>
               </div>
@@ -347,7 +327,7 @@ export function ResultsTab(props: ResultsTabProps) {
                         SÉLECTION DES RÉSULTATS DU WEEK-END
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold font-mono">
-                        {results.filter((r) => r.selectedForWeekend !== false).length} / {results.length} cochés pour la TV
+                        {periodItems.length} sur la période · {periodSelected} pour la TV · {results.length} enregistrés
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400">
@@ -357,20 +337,8 @@ export function ResultsTab(props: ResultsTabProps) {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateResults(results.map((r) => ({ ...r, selectedForWeekend: true })))}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold transition-all cursor-pointer"
-                  >
-                    Tout cocher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateResults(results.map((r) => ({ ...r, selectedForWeekend: false })))}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-bold transition-all cursor-pointer"
-                  >
-                    Tout décocher
-                  </button>
+
+
                   <button
                     type="button"
                     onClick={() => setShowAddManualResult(!showAddManualResult)}
@@ -473,7 +441,7 @@ export function ResultsTab(props: ResultsTabProps) {
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 text-xs">
-                  
+
                   {/* 1. Équipe FFBB Synchronisée (MENU DÉROULANT DEMANDÉ) */}
                   <div className="lg:col-span-4 space-y-1.5">
                     <label className="text-slate-300 block font-bold flex items-center gap-1.5">

@@ -1,3 +1,4 @@
+import { getDisplayItems } from '../../utils/displayPeriod';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Layers,
@@ -117,7 +118,6 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   }, [compactMode]);
 
   // Aperçu taille réelle : canevas rendu à 1920px (zoom 100%, défilement horizontal)
-  const [realSizeMode, setRealSizeMode] = useState<boolean>(false);
 
   // Réglages par défaut réutilisables : sauvegarde locale du thème courant de la catégorie
   const defaultThemeStorageKey = 'src_studio_default_theme_' + activeCategory;
@@ -177,6 +177,11 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   };
 
   // Sauvegarde les réglages actuels de la catégorie comme réglages par défaut réutilisables
+  useEffect(() => {
+    const mode = currentEffective.categoryTheme?.matchDisplayScope;
+    setStudioScope(scope => mode === 'all' ? 'all' : scope === 'all' ? 'home' : scope);
+  }, [activeCategory, currentEffective.categoryTheme?.matchDisplayScope]);
+
   const handleSaveDefaultTheme = () => {
     try {
       localStorage.setItem(defaultThemeStorageKey, JSON.stringify(currentEffective.categoryTheme));
@@ -197,7 +202,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   };
 
   const displayedMatches = useMemo(() => {
-    const activeMatches = matches.filter((m) => m.selectedForWeekend !== false);
+    const activeMatches = getDisplayItems(matches, clubSettings, 'matches');
     if (studioScope === 'home') {
       return activeMatches.filter((m) => isClubHomeMatch(m, clubSettings.name, clubSettings.shortName));
     }
@@ -208,7 +213,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
   }, [matches, studioScope, clubSettings]);
 
   const displayedResults = useMemo(() => {
-    const activeResults = results.filter((r) => r.selectedForWeekend !== false);
+    const activeResults = getDisplayItems(results, clubSettings, 'results');
     if (studioScope === 'home') {
       return activeResults.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName));
     }
@@ -349,7 +354,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-black text-xs shadow-lg shadow-orange-600/30 transition-all cursor-pointer"
           >
             <Maximize2 className="w-4 h-4" />
-            <span>Plein Écran TV</span>
+            <span>Aperçu plein écran</span>
           </button>
         </div>
       </div>
@@ -426,7 +431,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
 
       {/* GRILLE PRINCIPALE : APERÇU GRAND FORMAT À GAUCHE (7 cols), RÉGLAGES DU CALQUE ACTIF À DROITE (5 cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        
+
         {/* COLONNE GAUCHE (7 colonnes sur desktop) : APERÇU 16:9 INTERACTIF DIRECT */}
         <div className={`xl:col-span-7 space-y-3 sticky top-4 ${mobileStudioTab === 'preview' ? 'block' : 'hidden'} xl:block`}>
           <div className="flex items-center justify-between bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-800 flex-wrap gap-2">
@@ -437,8 +442,71 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </span>
             </div>
 
+              {/* Mode de regroupement TV : Tous ou Domicile / Extérieur */}
+              {(activeCategory === 'matches' || activeCategory === 'results') && (
+                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>
+                        Diffusion TV : Présentation des {activeCategory === 'matches' ? 'matchs' : 'résultats'}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {(currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
+                        ? 'Mode 2 calques'
+                        : 'Mode 1 calque'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentCategoryTheme({ matchDisplayScope: 'all' });
+                        setStudioScope('all');
+                      }}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
+                        currentEffective.categoryTheme.matchDisplayScope === 'all'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                      }`}
+                      title="Afficher ensemble les matchs à domicile et à l'extérieur sur une même diapositive"
+                    >
+                      <div className="flex items-center gap-1.5 font-black">
+                        <span>🏀</span>
+                        <span>Tous</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        1 seule diapositive (titre unique)
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCurrentCategoryTheme({ matchDisplayScope: 'split' });
+                        if (studioScope === 'all') setStudioScope('home');
+                      }}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
+                        (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
+                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
+                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
+                      }`}
+                      title="Créer une diapositive pour les Matchs Domicile puis une diapositive pour les Matchs Extérieur avec des titres indépendants"
+                    >
+                      <div className="flex items-center gap-1.5 font-black">
+                        <span>🔄</span>
+                        <span>Séparé</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        2 diapositives (titres indépendants)
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
             {/* Sélecteur Domicile / Extérieur pour prévisualiser chaque slide */}
-            {(previewMode === 'matches' || previewMode === 'results') && (
+            {(previewMode === 'matches' || previewMode === 'results') && (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split' && (
               <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
                 <button
                   type="button"
@@ -466,39 +534,20 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   <Plane className="w-3.5 h-3.5 -rotate-45" />
                   <span>Extérieur</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStudioScope('all')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${
-                    studioScope === 'all'
-                      ? 'bg-slate-700 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Voir tous les matchs"
-                >
-                  <span>Tous</span>
-                </button>
+
               </div>
             )}
 
             {/* Aperçu taille réelle (zoom 100%, défilement) */}
-            <button
-              type="button"
-              onClick={() => setRealSizeMode(!realSizeMode)}
-              className={'px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ' + (realSizeMode ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white bg-slate-950 border border-slate-800')}
-              title="Afficher le canevas à sa taille réelle 1920px (défilement horizontal pour tout voir)"
-            >
-              <Monitor className="w-3.5 h-3.5" />
-              <span>Taille réelle</span>
-            </button>
+
           </div>
 
           {/* CANEVAS 16:9 AVEC GESTION INTERACTIVE DU GLISSER-DÉPOSER */}
           <div
             ref={previewCanvasRef}
-            className={'relative w-full rounded-3xl overflow-auto border-2 border-slate-800 shadow-2xl bg-black select-none' + (realSizeMode ? '' : ' aspect-video')}
+            className="relative w-full rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl bg-black select-none aspect-video"
           >
-            <div style={realSizeMode ? { width: '1920px' } : undefined}>
+            <div className="w-full h-full">
             <FixedCanvas169>
               {previewMode === 'matches' ? (
                 <MatchesSlide
@@ -575,7 +624,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               <Tv className="w-3.5 h-3.5 text-orange-400" />
               <span>Repositionnement interactif en direct sur l'écran.</span>
             </div>
-            <span className="font-mono text-emerald-400">✓ Synchronisé en direct</span>
+            <span className="font-mono text-emerald-400">Aperçu actualisé · réglages enregistrés automatiquement</span>
           </div>
 
           {/* Raccourci vers réglages sur smartphone */}
@@ -732,7 +781,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                         const file = e.target.files?.[0];
                         if (!file) return;
                         const isVideo = file.type.startsWith('video') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
-                        
+
                         if (isVideo || file.size > 2 * 1024 * 1024) {
                           try {
                             const uploadUrl = `/api/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'video/mp4')}`;
@@ -1046,69 +1095,6 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   Apparence des cartes vitrées (Glassmorphism), couleurs et polices
                 </p>
               </div>
-
-              {/* Mode de regroupement TV : Tous ou Domicile / Extérieur */}
-              {(activeCategory === 'matches' || activeCategory === 'results') && (
-                <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" />
-                      <span>
-                        Diffusion TV : Présentation des {activeCategory === 'matches' ? 'matchs' : 'résultats'}
-                      </span>
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {(currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
-                        ? 'Mode 2 calques'
-                        : 'Mode 1 calque'}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        updateCurrentCategoryTheme({ matchDisplayScope: 'all' });
-                        setStudioScope('all');
-                      }}
-                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
-                        currentEffective.categoryTheme.matchDisplayScope === 'all'
-                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
-                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
-                      }`}
-                      title="Afficher ensemble les matchs à domicile et à l'extérieur sur une même diapositive"
-                    >
-                      <div className="flex items-center gap-1.5 font-black">
-                        <span>🏀</span>
-                        <span>Tous</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        1 seule diapositive (titre unique)
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        updateCurrentCategoryTheme({ matchDisplayScope: 'split' });
-                        if (studioScope === 'all') setStudioScope('home');
-                      }}
-                      className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-all text-left flex flex-col gap-0.5 cursor-pointer ${
-                        (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split'
-                          ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
-                          : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800'
-                      }`}
-                      title="Créer une diapositive pour les Matchs Domicile puis une diapositive pour les Matchs Extérieur avec des titres indépendants"
-                    >
-                      <div className="flex items-center gap-1.5 font-black">
-                        <span>🔄</span>
-                        <span>Domicile / Extérieur</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        2 diapositives (titres indépendants)
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Titres / Entêtes personnalisées */}
               {(activeCategory === 'matches' || activeCategory === 'results') &&
@@ -1687,7 +1673,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
           <div className="absolute top-2 sm:top-4 right-2 sm:right-4 left-2 sm:left-auto z-50 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 pointer-events-auto">
             <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
               <button
-                onClick={() => setPreviewMode('matches')}
+                onClick={() => { setPreviewMode('matches'); setActiveCategory('matches'); } }
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'matches' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
@@ -1695,7 +1681,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 🏀 Matchs
               </button>
               <button
-                onClick={() => setPreviewMode('results')}
+                onClick={() => { setPreviewMode('results'); setActiveCategory('results'); } }
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'results' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
@@ -1703,7 +1689,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                 🏆 Résultats
               </button>
               <button
-                onClick={() => setPreviewMode('birthdays')}
+                onClick={() => { setPreviewMode('birthdays'); setActiveCategory('birthdays'); } }
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
                   previewMode === 'birthdays' ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
@@ -1712,7 +1698,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
               </button>
             </div>
 
-            {(previewMode === 'matches' || previewMode === 'results') && (
+            {(previewMode === 'matches' || previewMode === 'results') && (currentEffective.categoryTheme.matchDisplayScope || 'split') === 'split' && (
               <div className="flex items-center gap-1 bg-slate-900/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-700 shadow-xl">
                 <button
                   type="button"
@@ -1736,16 +1722,7 @@ export const StudioGraphiqueWorkbench: React.FC<StudioGraphiqueWorkbenchProps> =
                   <Plane className="w-3.5 h-3.5 -rotate-45" />
                   <span className="hidden sm:inline">Extérieur</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setStudioScope('all')}
-                  className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
-                    studioScope === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Tous les matchs"
-                >
-                  <span>Tous</span>
-                </button>
+
               </div>
             )}
 

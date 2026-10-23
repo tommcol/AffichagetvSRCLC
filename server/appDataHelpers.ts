@@ -4,6 +4,10 @@ import { mergeMatchItems } from "../src/utils/ffbbMergeUtils";
 import { normalizeCategoryKey } from "./ffbbDataHelpers";
 
 // 1d. Persistent App Data Storage (Server-side JSON file)
+const DATA_DIR = process.env.SRC_DEMO === '1'
+  ? path.join(process.cwd(), '.demo-data')
+  : path.join(process.cwd(), 'data');
+fs.mkdirSync(DATA_DIR, { recursive: true });
 const APP_DATA_FILE = path.join(DATA_DIR, "saved-app-data.json");
 
 export const getSavedAppData = () => {
@@ -20,7 +24,9 @@ export const getSavedAppData = () => {
 
 export const saveAppDataToFile = (data: any) => {
   try {
-    fs.writeFileSync(APP_DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+    const temporary = APP_DATA_FILE + '.tmp';
+    fs.writeFileSync(temporary, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(temporary, APP_DATA_FILE);
     return true;
   } catch (err) {
     console.error("Erreur écriture saved-app-data:", err);

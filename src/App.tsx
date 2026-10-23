@@ -1,3 +1,6 @@
+import { AdminAccess } from './components/Admin/AdminAccess';
+import { VideoPlaybackBoundary } from './components/common/VideoPlaybackBoundary';
+import { clubCalendarDate } from './utils/clubTime';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   DEFAULT_CLUB_SETTINGS,
@@ -49,7 +52,6 @@ import {
 } from './utils/appStorageHelpers';
 import { buildCarouselPlaylist } from './utils/carouselPlaylistBuilder';
 import { getServerDataVersion, normalizeLoadedVisualTemplates } from './utils/appDataHelpers';
-import { isCarouselSlideVideo } from './utils/carouselVideoHelpers';
 import { registerVideoBlob } from './utils/mediaUtils';
 import { saveAppDataRequest } from './utils/appDataSaveHelpers';
 import { getPolledAppDataVersion, getPolledCollections, hasChangedJson } from './utils/appDataPollingHelpers';
@@ -157,12 +159,14 @@ export default function App() {
     dataVersionRef.current = v;
   }, []);
 
-  const [adminAuthentifie, setAdminAuthentifie] = useState(true);
+  const [adminAuthentifie, setAdminAuthentifie] = useState(false);
+  const authorizeAdmin = useCallback(() => setAdminAuthentifie(true), []);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
   // Controls & TV playback state
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+  const [slideCycle, setSlideCycle] = useState(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [showControls, setShowControls] = useState<boolean>(false);
@@ -218,14 +222,14 @@ export default function App() {
     if (d.sponsors) setSponsors(d.sponsors);
     if (d.logos) setLogos(d.logos);
     if (d.photos) setPhotos(d.photos);
-    if (d.allMembers && Array.isArray(d.allMembers) && d.allMembers.length > 0) {
+    if (Array.isArray(d.allMembers)) {
       setAllMembers(d.allMembers);
       setMemberPoolCache(d.allMembers);
-      const ref = simulatedDate || new Date();
+      const ref = simulatedDate || clubCalendarDate();
       const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
-      setBirthdays(calculatedWeekBirthdays.length > 0 ? calculatedWeekBirthdays : (d.birthdays || []));
+      setBirthdays(calculatedWeekBirthdays);
     } else if (d.birthdays) {
-      setBirthdays(d.birthdays);
+      setBirthdays(filterAndSortBirthdaysForWeek(d.birthdays, simulatedDate || clubCalendarDate(), 0));
     }
     if (d.events) setEvents(d.events);
     if (d.teamVisuals) setTeamVisuals(d.teamVisuals);
@@ -371,12 +375,22 @@ export default function App() {
   // Enregistrement automatique (avec anti-rebond de 800ms) dès qu'une donnée change
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveSeqRef = useRef<number>(0);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const persistAppData = useCallback(
     async (payload: { version: number; data: AppDataPayload }, currentSeq: number, retryOnFailure: boolean) => {
       if (currentSeq !== saveSeqRef.current) return;
 
-      const result = await saveAppDataRequest(payload);
+      const request = saveQueueRef.current.catch(() => {}).then(async () => {
+        if (currentSeq !== saveSeqRef.current) return { ok: false };
+        payload.version = dataVersionRef.current;
+        payload.data.version = payload.version;
+        const response = await saveAppDataRequest(payload);
+        if (response.ok && typeof response.version === 'number') updateDataVersion(response.version);
+        return response;
+      });
+      saveQueueRef.current = request;
+      const result = await request;
       if (currentSeq !== saveSeqRef.current) return;
 
       if (result.ok) {
@@ -391,12 +405,12 @@ export default function App() {
         setSaveStatus('saved');
         setSaveErrorMessage('');
         window.setTimeout(() => {
-          if (currentSeq === saveSeqRef.current) setSaveStatus('idle');
+          if (currentSeq === saveSeqRef.current) setSaveStatus('saved');
         }, 2000);
         return;
       }
 
-      if (retryOnFailure && !result.isConflict) {
+      if (retryOnFailure && !result.isConflict && !result.isUnauthorized) {
         window.setTimeout(() => {
           if (currentSeq === saveSeqRef.current) {
             void persistAppData(payload, currentSeq, false);
@@ -405,6 +419,7 @@ export default function App() {
         return;
       }
 
+      if (result.isUnauthorized) setAdminAuthentifie(false);
       setSaveStatus('error');
       setSaveErrorMessage(result.errorMessage || 'Erreur serveur');
       console.error("Échec de l'enregistrement des données :", result.errorMessage);
@@ -413,8 +428,9 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!dataChargee) return;
+    if (!dataChargee || viewMode !== 'admin' || !adminAuthentifie) return;
 
+    setSaveStatus('saving');
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     saveDebounceRef.current = setTimeout(() => {
       const currentSeq = ++saveSeqRef.current;
@@ -423,7 +439,7 @@ export default function App() {
       const contentToCompare = JSON.stringify({ ...dataToSave, version: undefined });
 
       if (lastSavedDataRef.current === contentToCompare && currentVer === dataVersionRef.current) {
-        setSaveStatus('idle');
+        setSaveStatus('saved');
         return;
       }
 
@@ -438,7 +454,15 @@ export default function App() {
     return () => {
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     };
-  }, [dataChargee, buildAppData, allMembers, persistAppData]);
+  }, [dataChargee, viewMode, adminAuthentifie, buildAppData, allMembers, persistAppData]);
+
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => {
+      if (saveStatus === 'saving' || saveStatus === 'error') { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, [saveStatus]);
 
   const handleManualSave = useCallback(() => {
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
@@ -508,18 +532,16 @@ export default function App() {
   // Surveillance automatique du changement de semaine des anniversaires.
   useEffect(() => {
     const checkWeekTransition = () => {
-      const now = simulatedDate || new Date();
+      const now = simulatedDate || clubCalendarDate();
       if (!hasBirthdayWeekChanged(currentWeekKey, now)) return;
 
       const { weekKey, birthdays: newBirthdays } = getBirthdayWeekState(allMembers, now);
       setCurrentWeekKey(weekKey);
-      if (allMembers.length > 0) {
-        setBirthdays(newBirthdays);
-      }
+      setBirthdays(newBirthdays);
     };
 
     const interval = window.setInterval(checkWeekTransition, 2000);
-    const now = simulatedDate || new Date();
+    const now = simulatedDate || clubCalendarDate();
     const delay = getNextMondayDelayMs(now);
     const exactTimer =
       delay > 0 && delay < 2147483647
@@ -536,7 +558,7 @@ export default function App() {
   // à l'heure annoncée -> en cours, après 2h sans résultat -> terminé.
   useEffect(() => {
     const refreshMatchStatuses = () => {
-      const referenceDate = simulatedDate || new Date();
+      const referenceDate = simulatedDate || clubCalendarDate();
       setMatches((prev) => {
         const next = applyMatchTimingStatuses(prev, referenceDate);
         return hasChangedJson(prev, next) ? next : prev;
@@ -575,10 +597,14 @@ export default function App() {
 
   // Actualisation automatique des résultats et matchs depuis le serveur (mise à jour continue en temps réel)
   const refreshInProgressRef = useRef(false);
+  const pendingTvDataRef = useRef<AppDataPayload | null>(null);
+  const currentViewRef = useRef(viewMode);
+  currentViewRef.current = viewMode;
+  useEffect(() => { if (viewMode === 'admin') pendingTvDataRef.current = null; }, [viewMode]);
 
   const pollUpdatedData = useCallback(async () => {
     // En mode TV (non administrateur actif), synchroniser automatiquement les nouveaux résultats et matchs
-    if (adminAuthentifie && viewMode === 'admin') return;
+    if (viewMode !== 'tv') return;
 
     // Verrou anti-chevauchement de requêtes
     if (refreshInProgressRef.current) return;
@@ -588,39 +614,9 @@ export default function App() {
       const res = await fetch('/api/get-app-data');
       if (res.ok) {
         const json = await res.json();
-        if (json?.data) {
-          const d: AppDataPayload = json.data;
-          const v = getPolledAppDataVersion(d, json.version);
-
-          updateDataVersion(v);
-          setOfflineAppData({ ...d, version: v });
-
-          const collections = getPolledCollections(d);
-          if (collections.results) {
-            setResults((prev) => (hasChangedJson(prev, collections.results) ? collections.results! : prev));
-          }
-          if (collections.matches) {
-            const currentAlerts = getActiveAlertsCache();
-            setMatches((prev) => {
-              const baseMatches = hasChangedJson(prev, collections.matches)
-                ? collections.matches!
-                : prev;
-              const syncedMatches = applyAlertsToCurrentWeekendMatches(baseMatches, currentAlerts);
-              return hasChangedJson(prev, syncedMatches) ? syncedMatches : prev;
-            });
-          }
-          if (collections.sponsors) {
-            setSponsors((prev) => (hasChangedJson(prev, collections.sponsors) ? collections.sponsors! : prev));
-          }
-          if (collections.photos) {
-            setPhotos((prev) => (hasChangedJson(prev, collections.photos) ? collections.photos! : prev));
-          }
-          if (collections.events) {
-            setEvents((prev) => (hasChangedJson(prev, collections.events) ? collections.events! : prev));
-          }
-          if (collections.categories) {
-            setCategories((prev) => (hasChangedJson(prev, collections.categories) ? collections.categories! : prev));
-          }
+        if (json?.data && currentViewRef.current === 'tv') {
+          const version = getPolledAppDataVersion(json.data, json.version);
+          if (version !== dataVersionRef.current) pendingTvDataRef.current = { ...json.data, version };
         }
       }
     } catch (err) {
@@ -632,7 +628,7 @@ export default function App() {
 
   // Polling toutes les 30 secondes + Rafraîchissement intelligent au retour au premier plan
   useEffect(() => {
-    if (adminAuthentifie && viewMode === 'admin') return;
+    if (viewMode !== 'tv') return;
 
     const dataPollInterval = window.setInterval(() => {
       pollUpdatedData();
@@ -719,59 +715,57 @@ export default function App() {
   }, [currentSlide, categories, clubSettings.victoryPhotoDurationSeconds]);
 
   // Effective slide themes per category
-  const matchesEffective = useMemo(
-    () => getEffectiveCategoryConfig('matches', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-  const resultsEffective = useMemo(
-    () => getEffectiveCategoryConfig('results', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-  const birthdaysEffective = useMemo(
-    () => getEffectiveCategoryConfig('birthdays', visualTemplates, clubSettings),
-    [visualTemplates, clubSettings]
-  );
-
-  const isCurrentSlideVideo = useMemo(
-    () =>
-      isCarouselSlideVideo(
-        currentSlide,
-        {
-          birthdays: birthdaysEffective,
-          matches: matchesEffective,
-          results: resultsEffective,
-        },
-        teamVisuals,
-        visualTemplates
-      ),
-    [currentSlide, birthdaysEffective, matchesEffective, resultsEffective, teamVisuals, visualTemplates]
-  );
+  const [isCurrentSlideVideo, setIsCurrentSlideVideo] = useState(false);
+  useEffect(() => {
+    const data = pendingTvDataRef.current;
+    if (!data || viewMode !== 'tv') return;
+    pendingTvDataRef.current = null;
+    lastSavedDataRef.current = JSON.stringify({ ...data, version: undefined });
+    updateDataVersion(data.version || 0);
+    applyLoadedData(data);
+  }, [currentSlide?.id, viewMode, applyLoadedData, updateDataVersion]);
 
   // Slide navigation
   const nextSlide = useCallback(() => {
+    const pending = pendingTvDataRef.current;
+    if (pending) {
+      pendingTvDataRef.current = null;
+      lastSavedDataRef.current = JSON.stringify({ ...pending, version: undefined });
+      updateDataVersion(pending.version || 0); applyLoadedData(pending);
+    }
+
+    fixedSlideClock.current = { id: '', elapsed: 0 };
+    setSlideCycle(cycle => cycle + 1);
     setCurrentSlideIndex((prev) => (prev + 1) % carouselPlaylist.length);
     setProgressPercent(0);
-  }, [carouselPlaylist.length]);
+  }, [carouselPlaylist.length, applyLoadedData, updateDataVersion]);
 
   const prevSlide = useCallback(() => {
+    fixedSlideClock.current = { id: '', elapsed: 0 };
+    setSlideCycle(cycle => cycle + 1);
     setCurrentSlideIndex((prev) => (prev - 1 + carouselPlaylist.length) % carouselPlaylist.length);
     setProgressPercent(0);
   }, [carouselPlaylist.length]);
 
+  const fixedSlideClock = useRef({ id: '', elapsed: 0 });
   // Les visuels fixes suivent la durée configurée. Une slide contenant une vidéo
   // est pilotée exclusivement par l'événement de fin de lecture de sa vidéo.
   useEffect(() => {
-    if (!isPlaying || carouselPlaylist.length <= 1 || isCurrentSlideVideo) {
-      if (!isCurrentSlideVideo) setProgressPercent(0);
+    if (!isPlaying || carouselPlaylist.length === 0 || isCurrentSlideVideo) {
+
       return;
     }
 
-    setProgressPercent(0);
-    const startTime = Date.now();
+    const key = currentSlide?.id || String(activeSlideIndex);
+    if (fixedSlideClock.current.id !== key) fixedSlideClock.current = { id: key, elapsed: 0 };
+    let lastTick = Date.now();
     const durationMs = currentDuration * 1000;
 
     const timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
+      const now = Date.now();
+      fixedSlideClock.current.elapsed += now - lastTick;
+      lastTick = now;
+      const elapsed = fixedSlideClock.current.elapsed;
       const pct = Math.min(100, (elapsed / durationMs) * 100);
       setProgressPercent(pct);
 
@@ -782,7 +776,7 @@ export default function App() {
     }, 50);
 
     return () => clearInterval(timer);
-  }, [isPlaying, activeSlideIndex, currentDuration, nextSlide, carouselPlaylist.length, isCurrentSlideVideo]);
+  }, [isPlaying, activeSlideIndex, slideCycle, currentDuration, nextSlide, carouselPlaylist.length, isCurrentSlideVideo]);
 
   // Handle Fullscreen
   const handleToggleFullscreen = () => {
@@ -835,7 +829,7 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'f') {
         handleToggleFullscreen();
       } else if (!isKioskMode && (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'a')) {
-        setViewMode((v) => (v === 'admin' ? 'tv' : 'admin'));
+        if (viewMode !== 'admin' || (saveStatus !== 'saving' && saveStatus !== 'error')) setViewMode((v) => (v === 'admin' ? 'tv' : 'admin'));
       }
     };
 
@@ -870,6 +864,8 @@ export default function App() {
         tv.shortAliases.some((alias) => currentSlide.alert!.team.toLowerCase().includes(alias.toLowerCase()))
       )
     : undefined;
+
+  if (viewMode === 'admin' && !adminAuthentifie) return <AdminAccess onAuthorized={authorizeAdmin} />;
 
   if (viewMode === 'admin') {
     return (
@@ -956,6 +952,7 @@ export default function App() {
               transition={{ duration: 0 }}
               className="w-full h-full flex items-center justify-center"
             >
+              <VideoPlaybackBoundary key={`${currentSlide.id}:${slideCycle}`} playing={isPlaying} slideId={`${currentSlide.id}:${slideCycle}`} onComplete={nextSlide} onVideoMode={setIsCurrentSlideVideo} onProgress={setProgressPercent}>
               <TVSlideRenderer
                 slide={currentSlide}
                 clubSettings={clubSettings}
@@ -968,11 +965,12 @@ export default function App() {
                 events={events}
                 teamVisuals={teamVisuals}
                 visualTemplates={visualTemplates}
-                onVideoEnded={nextSlide}
-                onVideoTimeUpdate={setProgressPercent}
+                onVideoEnded={undefined}
+                onVideoTimeUpdate={undefined}
                 onDownloadVisual={(type) => setVisualModalState({ isOpen: true, type })}
                 hideShareButton={true}
               />
+              </VideoPlaybackBoundary>
             </motion.div>
           </AnimatePresence>
         </FixedCanvas169>

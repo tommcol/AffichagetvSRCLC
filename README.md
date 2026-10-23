@@ -56,7 +56,7 @@ Les secrets se configurent dans Cloudflare → le projet → **Settings → Vari
 
 ```bash
 npm install          # Installer les dépendances
-npm run dev          # Aperçu local (les données ne sont pas sauvegardées)
+npm run dev          # Développement local (persistance dans data/ ; utiliser demo pour les essais)
 npm run build        # Construire le front
 npx wrangler deploy  # Déployer sur Cloudflare Workers
 ```
@@ -79,3 +79,9 @@ npx tsx scripts/test_telegram_webhook.ts
 ---
 
 *SRC Basket La Clayette — Le basket à La Clayette et ses environs.*
+
+## Démonstration isolée et corrections de l'audit
+
+`npm run demo` démarre une copie avec des rencontres seniors fictives et une persistance séparée dans `.demo-data/`. La synchronisation FFBB, les messages Telegram et les publications sont bloqués dans ce mode. Les imports de médias utilisent également ce dossier séparé. Aucune clé Cloudflare n'est requise.
+
+Les décisions point par point, les contrôles et les précautions avant une éventuelle mise en ligne sont décrits dans [le suivi des corrections](docs/CORRECTIONS_AUDIT_2026-10-23.md).

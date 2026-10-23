@@ -5,6 +5,7 @@ export interface SaveAppDataResult {
   version?: number;
   errorMessage?: string;
   isConflict?: boolean;
+  isUnauthorized?: boolean;
 }
 
 export const saveAppDataRequest = async (
@@ -19,7 +20,7 @@ export const saveAppDataRequest = async (
 
     const responseJson = await res.json().catch(() => null);
 
-    if (res.ok) {
+    if (res.ok && responseJson?.ok !== false && responseJson?.success !== false) {
       return {
         ok: true,
         version: typeof responseJson?.version === 'number' ? responseJson.version : undefined,
@@ -32,6 +33,7 @@ export const saveAppDataRequest = async (
     return {
       ok: false,
       isConflict,
+      isUnauthorized: res.status === 401,
       errorMessage: isConflict
         ? 'Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau.'
         : (responseJson?.error || (res.status === 401 ? 'Mot de passe invalide' : `Erreur serveur (${res.status})`)),

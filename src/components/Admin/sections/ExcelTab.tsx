@@ -1,3 +1,4 @@
+import { clubCalendarDate } from '../../../utils/clubTime';
 // ExcelTab — onglet « excel » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
@@ -247,7 +248,7 @@ export function ExcelTab(props: ExcelTabProps) {
                       Filtrer par semaine :
                     </span>
                     <span className="px-3 py-1 rounded-full text-xs font-black bg-pink-950/80 text-pink-300 border border-pink-500/30">
-                      {getWeekBounds(new Date(), birthdayWeekOffset).label}
+                      {getWeekBounds(clubCalendarDate(), birthdayWeekOffset).label}
                     </span>
                   </div>
 
@@ -307,7 +308,7 @@ export function ExcelTab(props: ExcelTabProps) {
                   ))}
                   {((allMembers && allMembers.length > 0) ? allMembers : allMembersPool).length > 0 && (
                     <button
-                      onClick={() => onUpdateBirthdays((allMembers && allMembers.length > 0) ? allMembers : allMembersPool)}
+                      onClick={props.onShowAllMembers}
                       className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 ml-auto"
                     >
                       Afficher tous ({((allMembers && allMembers.length > 0) ? allMembers : allMembersPool).length})
@@ -386,23 +387,17 @@ export function ExcelTab(props: ExcelTabProps) {
                 </div>
               )}
 
+              <p className="text-xs text-slate-400">Consultation uniquement. La TV suit automatiquement la semaine courante, du lundi au dimanche, heure française.</p>
               {/* Liste des Anniversaires diffusés avec Modification & Suppression */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <span>Anniversaires retenus pour la diffusion TV ({birthdays.length})</span>
+                    <span>Anniversaires consultés ({birthdays.length})</span>
                     <span className="text-xs font-normal text-slate-400">
                       (Affichage : Prénom + Catégorie)
                     </span>
                   </h4>
-                  {birthdays.length > 0 && (
-                    <button
-                      onClick={() => onUpdateBirthdays([])}
-                      className="text-xs text-red-400 hover:text-red-300 underline"
-                    >
-                      Tout effacer
-                    </button>
-                  )}
+
                 </div>
 
                 {birthdays.length === 0 ? (

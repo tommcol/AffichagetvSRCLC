@@ -1,3 +1,5 @@
+import { isAdmin } from './auth';
+export { AppDataCoordinator } from './appDataCoordinator';
 // ============================================================
 // Routeur principal du worker Cloudflare
 // Toute la logique métier est découpée dans les modules frères :
@@ -22,13 +24,20 @@ export default {
     const path = url.pathname;
 
     try {
-      if (path === '/api/get-app-data' || path === '/api/app-data') return await getAppData(env);
+      if (path.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
+          && path !== '/api/verify-password' && path !== '/api/telegram-webhook') {
+        const origin = request.headers.get('origin');
+        if ((origin && origin !== url.origin) || !await isAdmin(request, env)) {
+          return Response.json({ error: 'Authentification requise' }, { status: 401 });
+        }
+      }
+      if ((path === '/api/get-app-data' || path === '/api/app-data') && request.method === 'GET') return await getAppData(env);
       if (path === '/api/save-app-data' || path === '/api/app-data' && request.method === 'POST') return await saveAppData(request, env);
       if (path === '/api/verify-password') return await verifyPassword(request, env);
       if (path === '/api/upload') return await uploadFile(request, env);
       if (path === '/api/upload-multiple') return await uploadMultiple(request, env);
-      if (path.startsWith('/api/media/')) return await serveMedia(path.replace('/api/media/', ''), env);
-      if (path.startsWith('/uploads/')) return await serveMedia(path.replace('/uploads/', ''), env);
+      if (path.startsWith('/api/media/')) return await serveMedia(path.replace('/api/media/', ''), env, request);
+      if (path.startsWith('/uploads/')) return await serveMedia(path.replace('/uploads/', ''), env, request);
       if (path === '/api/get-alerts' || path === '/api/alerts') {
         if (request.method === 'POST') return await addAlert(request, env);
         if (request.method === 'DELETE') return await deleteAlert(request, env);

@@ -229,7 +229,7 @@ export function FfbbTab(props: FfbbTabProps) {
                     <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 flex items-start gap-2.5">
                       <span className="text-base leading-none">💡</span>
                       <div>
-                        <strong className="text-slate-200">Filtrage persistant :</strong> Chaque synchronisation future ignore automatiquement les équipes décochées. Leurs matchs et résultats ne seront ni enregistrés, ni affichés sur le diaporama.
+                        <strong className="text-slate-200">Filtrage persistant :</strong> Chaque synchronisation future ignore automatiquement les équipes décochées. Leur historique reste conservé. Seules les nouvelles informations cessent d’être récupérées ; le calendrier et les cases individuelles règlent la diffusion.
                       </div>
                     </div>
 

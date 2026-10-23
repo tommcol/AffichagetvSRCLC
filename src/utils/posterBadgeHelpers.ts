@@ -5,6 +5,7 @@ export interface GetPosterBadgeTitleOptions {
   contentType: 'matches' | 'results' | 'notification';
   posterFilter: PosterFilterType;
   isWin?: boolean;
+  teamName?: string;
 }
 
 export const getPosterBadgeTitle = ({
@@ -12,21 +13,24 @@ export const getPosterBadgeTitle = ({
   contentType,
   posterFilter,
   isWin,
+  teamName,
 }: GetPosterBadgeTitleOptions): string => {
   const custom = (customBadgeTitle || '').trim();
   if (custom) return custom.toUpperCase();
 
+  if (teamName) return `${contentType === 'results' ? 'RÉSULTATS' : 'MATCHS'} — ${teamName}`.toUpperCase();
+
   if (contentType === 'results') {
     switch (posterFilter) {
       case 'home':
-        return 'RÉSULTATS DOMICILE';
+        return 'RÉSULTATS À DOMICILE';
       case 'away':
-        return 'RÉSULTATS EXTÉRIEUR';
+        return "RÉSULTATS À L’EXTÉRIEUR";
       case 'exempt':
         return 'EXEMPT';
       case 'all':
       default:
-        return 'RÉSULTATS';
+        return 'RÉSULTATS DU WEEK-END';
     }
   }
 
@@ -36,13 +40,13 @@ export const getPosterBadgeTitle = ({
 
   switch (posterFilter) {
     case 'home':
-      return 'DOMICILE';
+      return 'MATCHS À DOMICILE';
     case 'away':
-      return 'EXTÉRIEUR';
+      return "MATCHS À L’EXTÉRIEUR";
     case 'exempt':
       return 'EXEMPT';
     case 'all':
     default:
-      return 'MATCHDAY';
+      return 'MATCHS DU WEEK-END';
   }
 };

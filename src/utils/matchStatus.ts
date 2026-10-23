@@ -17,8 +17,15 @@ export function getMatchTimingStatus(
     match.result === 'loss' ||
     (match.homeScore !== undefined && match.awayScore !== undefined);
 
-  if (hasConfirmedResult || match.status === 'finished') return 'finished';
-  if (!match.time) return 'upcoming';
+  if (hasConfirmedResult) return 'finished';
+  if (!match.time) {
+    const day = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(match.date || '')) {
+      if (match.date < day) return 'finished';
+      if (match.date > day) return 'upcoming';
+    }
+    return match.status === 'finished' ? 'finished' : 'upcoming';
+  }
 
   // Nettoyage de l'heure : "15:00", "15h30", "15H30", "15:00:00"
   const timeClean = match.time.toLowerCase().replace('h', ':').trim();
@@ -117,7 +124,6 @@ export function getMatchTimingStatus(
  */
 export function isMatchLive(match: MatchItem, now: Date = new Date()): boolean {
   if (
-    match.status === 'finished' ||
     match.result === 'win' ||
     match.result === 'loss' ||
     (match.homeScore !== undefined && match.awayScore !== undefined)
@@ -132,7 +138,6 @@ export function isMatchLive(match: MatchItem, now: Date = new Date()): boolean {
  */
 export function isMatchFinished(match: MatchItem, now: Date = new Date()): boolean {
   if (
-    match.status === 'finished' ||
     match.result === 'win' ||
     match.result === 'loss' ||
     (match.homeScore !== undefined && match.awayScore !== undefined)
@@ -216,7 +221,7 @@ export function getMatchOutcome(
   if (match.result === 'loss') return 'loss';
 
   // 3. Si le match est passé ou marqué comme terminé SANS score ni résultat connu
-  if (match.status === 'finished' || isMatchFinished(match)) {
+  if (isMatchFinished(match)) {
     return 'finished_no_score';
   }
 

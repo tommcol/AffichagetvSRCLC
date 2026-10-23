@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 // ImageBanksTab — onglet « image_banks » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
@@ -15,6 +16,13 @@ export interface ImageBanksTabProps {
 }
 
 export function ImageBanksTab(props: ImageBanksTabProps) {
+  const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMediaPreview(null); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, []);
+
     const {
     activeEditingConfig,
     alertPreviewTeam,
@@ -82,6 +90,11 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
 
   return (
             <div className="space-y-6">
+              {mediaPreview && <div role="dialog" aria-modal="true" aria-label={mediaPreview.name} className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-5 gap-4">
+                <button onClick={() => setMediaPreview(null)} className="absolute top-5 right-5 rounded-lg bg-rose-600 text-white p-3">Fermer l’aperçu</button>
+                <h3 className="text-white text-xl">{mediaPreview.name}</h3>
+                <video src={mediaPreview.url} autoPlay controls playsInline className="w-full max-w-6xl max-h-[80vh] object-contain" />
+              </div>}
               {/* Entête & Sous-onglets des Banques d'images */}
               <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
                 <div>
@@ -607,10 +620,12 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                       key={lg.id}
                       className="relative rounded-2xl p-4 border border-slate-800 bg-slate-950/80 flex flex-col items-center text-center group hover:border-cyan-500/50 transition-all overflow-hidden"
                     >
-                      <div className="w-28 h-20 bg-slate-900/90 border border-slate-800 rounded-xl p-1 flex items-center justify-center mb-3 relative overflow-hidden">
+                      <div className="w-full aspect-video bg-slate-900/90 border border-slate-800 rounded-xl p-1 flex items-center justify-center mb-3 relative overflow-hidden">
                         {isVid ? (
                           <video
                             src={lg.logoUrl}
+                            aria-label={`Lire l’aperçu : ${lg.name}`}
+                            controls
                             preload="metadata"
                             muted
                             playsInline
@@ -637,6 +652,7 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                         )}
                       </div>
                       <h4 className="text-xs font-bold text-white truncate w-full">{lg.name}</h4>
+                      {isVid && <button onClick={() => setMediaPreview({ url: lg.logoUrl, name: lg.name })} className="mt-2 p-2 text-cyan-300 underline">Lire l’aperçu</button>}
                       <span className="text-[10px] text-cyan-400 font-bold uppercase mt-1 px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-800/60">
                         {lg.category}
                       </span>
@@ -791,7 +807,7 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                     BIBLIOTHÈQUE DES VISUELS VICTOIRE & DÉFAITE PAR ÉQUIPE
                   </h3>
                   <p className="text-xs text-slate-400 max-w-2xl">
-                    Lorsqu'un score est reçu depuis l'<strong>API FFBB</strong> ou depuis un <strong>message Telegram</strong>, 
+                    Lorsqu'un score est reçu depuis l'<strong>API FFBB</strong> ou depuis un <strong>message Telegram</strong>,
                     l'application pioche automatiquement le visuel Victoire ou Défaite associé à l'équipe et l'insère dans la boucle TV pendant 1 heure !
                   </p>
                 </div>
@@ -817,8 +833,8 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                       <span>BANQUE COMMUNE DE VISUELS GÉNÉRAUX & MONTAGE DU TEXTE</span>
                     </h3>
                     <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
-                      Chargez ici vos visuels généraux de <strong>Victoire</strong> et de <strong>Défaite</strong> (photos ou vidéos). 
-                      À la réception d'un match (FFBB, Telegram ou Manuel), l'application pioche automatiquement un visuel et 
+                      Chargez ici vos visuels généraux de <strong>Victoire</strong> et de <strong>Défaite</strong> (photos ou vidéos).
+                      À la réception d'un match (FFBB, Telegram ou Manuel), l'application pioche automatiquement un visuel et
                       <strong> conserve ce même visuel pendant 1 heure</strong> pour l'équipe concernée, avec votre texte personnalisé et positionné au millimètre !
                     </p>
                   </div>
@@ -1762,7 +1778,8 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                           timestamp: Date.now(),
                           expiresAt: Date.now() + 3600000,
                         }}
-                        overrideImageUrl={selectedAlertVisualUrl || undefined}
+                        overrideImageUrl={selectedAlertVisualUrl || (currentPreviewIsWin ? visualTemplates.commonVictoryVisuals?.[0] : visualTemplates.commonDefeatVisuals?.[0]) || undefined}
+                        teamVisual={teamVisuals.find((team: any) => team.category === effectivePreviewTeam || team.teamName === effectivePreviewTeam)}
                         overrideTitleConfig={activeEditingConfig}
                         visualTemplates={visualTemplates}
                         clubSettings={clubSettings}
