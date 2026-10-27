@@ -1,0 +1,334 @@
+import {
+  VisualTemplatesConfig,
+  CategorySlideTheme,
+  SlideDesignTheme,
+  ForegroundMascotConfig,
+  OverlayLayerItem,
+  ClubSettings,
+} from '../types';
+import { isVideoMedia } from './mediaUtils';
+
+export const DEFAULT_OVERLAY_LAYER_3: OverlayLayerItem = {
+  name: 'Élément 1',
+  enabled: false,
+  mediaUrl: '',
+  mediaType: 'image',
+  useChromaKey: true,
+  chromaKeyColor: '#00ff00',
+  chromaTolerance: 0.35,
+  chromaSmoothness: 0.08,
+  x: 88, // 88% horizontal (bas droite)
+  y: 80, // 80% vertical
+  scale: 1.0,
+  opacity: 1.0,
+  animationStyle: 'float',
+  fullScreen: false,
+  objectFit: 'cover',
+  motionTrajectory: 'none',
+  motionDuration: 12,
+  flipHorizontal: false,
+};
+
+export const DEFAULT_OVERLAY_LAYER_4: OverlayLayerItem = {
+  name: 'Élément 2',
+  enabled: false,
+  mediaUrl: '',
+  mediaType: 'image',
+  useChromaKey: false,
+  chromaKeyColor: '#00ff00',
+  chromaTolerance: 0.35,
+  chromaSmoothness: 0.08,
+  x: 12, // 12% horizontal (bas gauche)
+  y: 80, // 80% vertical
+  scale: 0.9,
+  opacity: 1.0,
+  animationStyle: 'none',
+  fullScreen: false,
+  objectFit: 'cover',
+  motionTrajectory: 'none',
+  motionDuration: 12,
+  flipHorizontal: false,
+};
+
+export const normalizeLayerName = (name: string | undefined, layerNumber: 3 | 4): string => {
+  if (!name) return layerNumber === 3 ? 'Élément 1' : 'Élément 2';
+  const norm = name.trim().toLowerCase();
+  const legacy3 = [
+    'mascotte', 'mascotte fête', 'mascotte matchs', 'mascotte victoire',
+    'élément libre 1', 'élément libre fête', 'élément libre matchs', 'élément libre victoire', 'élément libre'
+  ];
+  const legacy4 = [
+    'badge confetti', 'badge confettis', 'badge derby / sponsor', 'badge mvp / sponsor',
+    'badge / logo 2', 'logo / badge 2', 'élément libre 2'
+  ];
+  if (layerNumber === 3 && legacy3.includes(norm)) return 'Élément 1';
+  if (layerNumber === 4 && legacy4.includes(norm)) return 'Élément 2';
+  return name;
+};
+
+export const DEFAULT_MATCHES_THEME: CategorySlideTheme = {
+  primaryColor: '#ea580c',
+  cardBgColor: '#020617',
+  cardOpacity: 0.85,
+  cardBlur: 8,
+  fontFamilyHeader: 'Bebas Neue',
+  backgroundBrightness: 0.4,
+  backgroundBlur: 0,
+  showMascot: true,
+  mascotPosition: 'bottom-right',
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1' },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
+};
+
+export const DEFAULT_RESULTS_THEME: CategorySlideTheme = {
+  primaryColor: '#ea580c',
+  cardBgColor: '#020617',
+  cardOpacity: 0.85,
+  cardBlur: 8,
+  fontFamilyHeader: 'Bebas Neue',
+  fontFamilyScore: 'Teko',
+  backgroundBrightness: 0.4,
+  backgroundBlur: 0,
+  showMascot: true,
+  mascotPosition: 'bottom-right',
+  mascotOnlyOnVictory: false,
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1', onlyOnVictory: false },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
+};
+
+export const DEFAULT_BIRTHDAYS_THEME: CategorySlideTheme = {
+  primaryColor: '#ec4899',
+  cardBgColor: '#180410',
+  cardOpacity: 0.85,
+  cardBlur: 8,
+  fontFamilyHeader: 'Fredoka',
+  backgroundBrightness: 0.5,
+  backgroundBlur: 0,
+  showMascot: true,
+  mascotPosition: 'bottom-right',
+  layer3: { ...DEFAULT_OVERLAY_LAYER_3, name: 'Élément 1' },
+  layer4: { ...DEFAULT_OVERLAY_LAYER_4, name: 'Élément 2' },
+};
+
+/**
+ * Extrait et compose la configuration effective pour une catégorie donnée
+ * (Matchs, Résultats ou Anniversaires) avec ses 4 calques.
+ */
+export function getEffectiveCategoryConfig(
+  category: 'matches' | 'results' | 'birthdays',
+  visualTemplates: VisualTemplatesConfig,
+  clubSettings?: ClubSettings
+): {
+  backgroundUrl: string;
+  theme: SlideDesignTheme;
+  mascot: ForegroundMascotConfig;
+  categoryTheme: CategorySlideTheme;
+  layer3: OverlayLayerItem;
+  layer4: OverlayLayerItem;
+} {
+  const globalTheme = visualTemplates?.theme;
+  const globalMascot: ForegroundMascotConfig = visualTemplates?.mascot || {
+    enabled: false,
+    mediaUrl: '',
+    mediaType: 'video',
+    useChromaKey: true,
+    chromaKeyColor: '#00ff00',
+    chromaTolerance: 0.35,
+    chromaSmoothness: 0.08,
+    position: 'bottom-right',
+    scale: 1.0,
+    opacity: 1.0,
+    animationStyle: 'float',
+    showOnMatches: true,
+    showOnResults: true,
+    showOnBirthdays: true,
+    onlyOnVictory: false,
+  };
+
+  const specific =
+    category === 'matches'
+      ? visualTemplates?.matchesSettings || {}
+      : category === 'results'
+      ? visualTemplates?.resultsSettings || {}
+      : visualTemplates?.birthdaysSettings || {};
+
+  const backgroundUrl =
+    specific.backgroundUrl ||
+    (category === 'matches'
+      ? visualTemplates?.matchesBackgroundUrl
+      : category === 'results'
+      ? visualTemplates?.resultsBackgroundUrl
+      : visualTemplates?.birthdaysBackgroundUrl) ||
+    '';
+
+  const primaryColor =
+    specific.primaryColor ||
+    globalTheme?.primaryColor ||
+    clubSettings?.primaryColor ||
+    (category === 'birthdays' ? '#ec4899' : '#ea580c');
+
+  const cardBgColor =
+    specific.cardBgColor ||
+    globalTheme?.cardBgColor ||
+    (category === 'birthdays' ? '#180410' : '#020617');
+
+  const cardOpacity = specific.cardOpacity ?? globalTheme?.cardOpacity ?? 0.85;
+  const cardBlur = specific.cardBlur ?? globalTheme?.cardBlur ?? 8;
+  const fontFamilyHeader =
+    specific.fontFamilyHeader ||
+    globalTheme?.fontFamilyHeader ||
+    (category === 'birthdays' ? 'Fredoka' : 'Bebas Neue');
+  const fontFamilyScore =
+    specific.fontFamilyScore ||
+    globalTheme?.fontFamilyScore ||
+    'Teko';
+  const backgroundBrightness =
+    specific.backgroundBrightness ??
+    globalTheme?.backgroundBrightness ??
+    (category === 'birthdays' ? 0.5 : 0.4);
+  const backgroundBlur = specific.backgroundBlur ?? globalTheme?.backgroundBlur ?? 0;
+  const backgroundGrayscale = specific.backgroundGrayscale ?? globalTheme?.backgroundGrayscale ?? false;
+  const backgroundContrast = specific.backgroundContrast ?? globalTheme?.backgroundContrast ?? 1;
+  const backgroundScale = specific.backgroundScale ?? globalTheme?.backgroundScale ?? 1;
+  const backgroundVignette = specific.backgroundVignette ?? globalTheme?.backgroundVignette ?? 0;
+
+  // Rétrocompatibilité Mascotte
+  const showMascot =
+    specific.showMascot ??
+    (category === 'matches'
+      ? globalMascot.showOnMatches !== false
+      : category === 'results'
+      ? globalMascot.showOnResults !== false
+      : globalMascot.showOnBirthdays !== false);
+
+  const mascotPosition = specific.mascotPosition || globalMascot.position || 'bottom-right';
+  const onlyOnVictory =
+    category === 'results'
+      ? specific.mascotOnlyOnVictory ?? globalMascot.onlyOnVictory ?? false
+      : false;
+
+  // Calcul Calque 3 (Élément 1)
+  const rawLayer3 = specific.layer3 || {
+    ...DEFAULT_OVERLAY_LAYER_3,
+    enabled: globalMascot.enabled && showMascot,
+    mediaUrl: globalMascot.mediaUrl,
+    mediaType: globalMascot.mediaType,
+    useChromaKey: globalMascot.useChromaKey,
+    chromaKeyColor: globalMascot.chromaKeyColor,
+    chromaTolerance: globalMascot.chromaTolerance,
+    chromaSmoothness: globalMascot.chromaSmoothness,
+    scale: globalMascot.scale,
+    opacity: globalMascot.opacity,
+    animationStyle: globalMascot.animationStyle,
+    x: mascotPosition === 'bottom-left' ? 15 : mascotPosition === 'top-right' ? 88 : 88,
+    y: mascotPosition === 'top-right' ? 20 : 80,
+    onlyOnVictory,
+    name: 'Élément 1',
+  };
+  const resolvedLayer3: OverlayLayerItem = {
+    ...rawLayer3,
+    name: normalizeLayerName(rawLayer3.name, 3),
+  };
+
+  // Calcul Calque 4 (Élément 2)
+  const rawLayer4 = specific.layer4 || {
+    ...DEFAULT_OVERLAY_LAYER_4,
+    name: 'Élément 2',
+  };
+  const resolvedLayer4: OverlayLayerItem = {
+    ...rawLayer4,
+    name: normalizeLayerName(rawLayer4.name, 4),
+  };
+
+  const backgroundMediaType = specific.backgroundMediaType || (isVideoMedia(backgroundUrl) ? 'video' : 'image');
+
+  const showClubLogoWatermark = specific.showClubLogoWatermark ?? globalTheme?.showClubLogoWatermark ?? false;
+
+  const headerTitleAlignment = specific.headerTitleAlignment || globalTheme?.headerTitleAlignment || 'left';
+  const rawScope = specific.matchDisplayScope || globalTheme?.matchDisplayScope || 'split';
+  const matchDisplayScope: 'split' | 'all' = rawScope === 'all' ? 'all' : 'split';
+  const removeWhiteBgLogos = specific.removeWhiteBgLogos ?? globalTheme?.removeWhiteBgLogos ?? true;
+
+  const theme: SlideDesignTheme = {
+    primaryColor,
+    secondaryColor: '#0f172a',
+    cardBgColor,
+    cardOpacity,
+    cardBlur,
+    fontFamilyHeader,
+    fontFamilyScore,
+    fontFamilyBody: specific.fontFamilyBody || globalTheme?.fontFamilyBody || 'Montserrat',
+    textColor: specific.textColor || globalTheme?.textColor || '#ffffff',
+    badgeBgColor: specific.badgeBgColor || globalTheme?.badgeBgColor,
+    badgeTextColor: specific.badgeTextColor || globalTheme?.badgeTextColor,
+    backgroundBrightness,
+    backgroundBlur,
+    backgroundGrayscale,
+    backgroundContrast,
+    backgroundScale,
+    backgroundVignette,
+    backgroundMediaType,
+    customHeaderTitle: specific.customHeaderTitle,
+    customHeaderTitleHome: specific.customHeaderTitleHome,
+    customHeaderTitleAway: specific.customHeaderTitleAway,
+    visualStyle: specific.visualStyle || 'poster-red',
+    showClubLogoWatermark,
+    resultDisplayMode: specific.resultDisplayMode || globalTheme?.resultDisplayMode || 'both',
+    headerTitleAlignment,
+    matchDisplayScope,
+    removeWhiteBgLogos,
+  };
+
+  const mascot: ForegroundMascotConfig = {
+    ...globalMascot,
+    showOnMatches: category === 'matches' ? resolvedLayer3.enabled : globalMascot.showOnMatches,
+    showOnResults: category === 'results' ? resolvedLayer3.enabled : globalMascot.showOnResults,
+    showOnBirthdays: category === 'birthdays' ? resolvedLayer3.enabled : globalMascot.showOnBirthdays,
+    position: mascotPosition,
+    onlyOnVictory,
+  };
+
+  const categoryTheme: CategorySlideTheme = {
+    customHeaderTitle: specific.customHeaderTitle,
+    customHeaderTitleHome: specific.customHeaderTitleHome,
+    customHeaderTitleAway: specific.customHeaderTitleAway,
+    matchDisplayScope,
+    headerTitleAlignment,
+    removeWhiteBgLogos,
+    resultDisplayMode: specific.resultDisplayMode || globalTheme?.resultDisplayMode || 'both',
+    visualStyle: specific.visualStyle || 'poster-red',
+    backgroundUrl,
+    backgroundMediaType,
+    backgroundBrightness,
+    backgroundBlur,
+    backgroundGrayscale,
+    backgroundContrast,
+    backgroundScale,
+    backgroundVignette,
+    showClubLogoWatermark,
+    primaryColor,
+    textColor: specific.textColor || globalTheme?.textColor || '#ffffff',
+    badgeBgColor: specific.badgeBgColor || globalTheme?.badgeBgColor,
+    badgeTextColor: specific.badgeTextColor || globalTheme?.badgeTextColor,
+    cardBgColor,
+    cardOpacity,
+    cardBlur,
+    fontFamilyHeader,
+    fontFamilyScore,
+    fontFamilyBody: specific.fontFamilyBody || globalTheme?.fontFamilyBody || 'Montserrat',
+    showMascot: resolvedLayer3.enabled,
+    mascotPosition,
+    mascotOnlyOnVictory: resolvedLayer3.onlyOnVictory,
+    layer3: resolvedLayer3,
+    layer4: resolvedLayer4,
+  };
+
+  return {
+    backgroundUrl,
+    theme,
+    mascot,
+    categoryTheme,
+    layer3: resolvedLayer3,
+    layer4: resolvedLayer4,
+  };
+}

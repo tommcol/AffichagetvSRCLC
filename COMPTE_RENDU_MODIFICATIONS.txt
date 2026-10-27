@@ -1,0 +1,530 @@
+HISTORIQUE TECHNIQUE GÉNÉRIQUE
+Ce document décrit des travaux antérieurs. Le code et les tests actuels font foi ; les validations historiques ne garantissent pas une installation nouvelle.
+
+================================================================================
+COMPTE RENDU DES CORRECTIONS ET AMÉLIORATIONS — AFFICHAGE TV CLUB BASKET
+================================================================================
+
+1. SPONSORS : FRÉQUENCE PAR RANG & MODIFICATION DU RANG EXISTANT
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Tous les sponsors étaient insérés une seule fois dans le carrousel TV, peu importe leur rang (Gold, Silver, Bronze, Partenaire).
+- Il était impossible de modifier le rang d'un sponsor déjà créé dans l'interface d'administration.
+
+Comportement Après :
+- La fréquence par rang est désormais strictly appliquée dans la boucle TV :
+  • Bronze / Partenaire = 1 passage par boucle.
+  • Silver = 2 passages par boucle.
+  • Gold = 3 passages par boucle.
+- Les passages sont répartis dans la boucle de manière intercalée (par vagues de passage) sans jamais réafficher le même sponsor deux fois de suite.
+- Un sélecteur de rang (Gold, Silver, Bronze, Partenaire) est disponible directement sur chaque carte de sponsor dans la Banque Médias / Sponsors.
+
+Vérifications effectuées :
+- Tests de génération de la playlist `carouselPlaylist` avec plusieurs sponsors Gold, Silver et Bronze.
+- Validation de la modification dynamique du rang dans le panneau d'administration.
+
+
+2. SÉLECTION DES RÉSULTATS : GESTION DES RÉSULTATS COCHÉS / NON COCHÉS
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Si aucun résultat n'était coché pour la TV (ou tous décochés), un mécanisme de secours réaffichait par défaut la totalité des résultats.
+
+Comportement Après :
+- Si aucun résultat n'est coché pour la TV, la diapositive des résultats est masquée et aucun résultat n'est affiché.
+- La diapositive affichée et l'export respectent fidèlement la liste des résultats cochés par l'utilisateur.
+
+Vérifications effectuées :
+- Suppression du fallback conditionnel dans `src/App.tsx` et `src/components/slides/TVSlideRenderer.tsx`.
+- Vérification que la liste diffusée reste synchrone avec les cases à cocher de l'administration.
+
+
+3. SYNCHRONISATION FFBB : MODULE PARTAGÉ ET FUSION SANS PERTE
+--------------------------------------------------------------------------------
+Comportement Avant :
+- 1. L'utilisation de `{ ...incoming, ...existing }` conservait aveuglément tous les anciens champs de `existing`, empêchant les mises à jour officielles FFBB (ex: nom de compétition, poule, ville).
+- 2. Lors de l'édition d'un match dans l'administration, les champs modifiés n'étaient pas comparés à leurs valeurs d'origine pour enregistrer les drapeaux de protection.
+- 3. Incompatibilité potentielle d'identifiant entre un ancien match avec `id: "ffbb-123"` et un nouveau match avec `ffbbMatchNumber: "FFBB-123"`.
+
+Comportement Après :
+- **Module partagé `src/utils/ffbbMergeUtils.ts`** :
+  - La fonction de fusion `mergeMatchItems` et la normalisation d'identifiant `normalizeFfbbNumber` / `getFfbbKey` sont isolées dans ce module et directement importées par `AdminPanel.tsx` et `scripts/test_ffbb_merge.ts`.
+- **Normalisation d'identifiant FFBB** :
+  - Les identifiants sous forme `id: "ffbb-123"`, `ffbbMatchNumber: "123"` ou `ffbbMatchNumber: "FFBB-123"` sont normalisés vers la même clé stable `ffbb-123`. Aucun doublon n'est généré.
+- **Actualisation réelle des champs officiels non modifiés** :
+  - L'objet fusionné part de `...incoming` (données FFBB à jour pour la compétition, poule, ville, équipes) et applique uniquement les surcharges et protections manuelles locales.
+- **Comparaison fine lors de l'édition manuelle** :
+  - Lors de l'enregistrement de l'édition d'un match (`editingMatch`), chaque champ (`date`, `time`, `gymnasium`, `homeScore`/`awayScore`/`status`/`result`) est comparé à sa valeur initiale `orig`. S'il est modifié, le drapeau correspondant (`isDateManual`, `isTimeManual`, `isGymnasiumManual`, `isScoreManual`) est automatiquement activé à `true`.
+
+Vérifications réellement effectuées (Script automatisé exécuté via `npx tsx scripts/test_ffbb_merge.ts` — Code de retour 0) :
+- **Test 1 (Horaire/Date FFBB déplacé)** : Match déplacé au 04/10 à 15:30 -> Mis à jour avec succès (PASSED ✅).
+- **Test 2 (Score corrigé manuellement)** : Score local manuel 78-75 vs PV FFBB 70-75 -> Score local 78-75 conservé (PASSED ✅).
+- **Test 3 (Match amical local)** : Conservation du match amical `match-m-999` lors de l'arrivée de matchs FFBB (PASSED ✅).
+- **Test 4 (Sélection TV individuelle)** : Match décoché (`selectedForWeekend: false`) synchronisé à nouveau -> Statut `false` préservé (PASSED ✅).
+- **Test 5 (Anti-doublons lors de synchros répétées)** : Synchros successives -> Toujours 1 seul match, 0 doublon (PASSED ✅).
+- **Test 6 (Compatibilité anciens identifiants)** : Ancien match `id: "ffbb-123"` et nouveau match `ffbbMatchNumber: "FFBB-123"` fusionnés en 1 seul élément et nom de compétition actualisé (PASSED ✅).
+- **Test 7 (Modification officielle de compétition)** : Changement de compétition de "Pré-Nationale M" vers "Nationale 3 M" pris en compte automatiquement (PASSED ✅).
+- **Test 8 (Édition manuelle & drapeaux de protection)** : Modification manuelle de l'heure à 16:00 et du gymnase à "Salle Annexe" -> Valeurs manuellement éditées conservées lors des synchros suivantes, pendant que la compétition officielle non éditée est actualisée (PASSED ✅).
+
+
+4. SAUVEGARDE : SÉCURISATION CONTRE LES CONCURRENCES ET RETENTATIVES
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Une retentative d'auto-sauvegardes pouvait s'exécuter après un clic sur "Enregistrer" et écraser des données récentes.
+
+Comportement Après :
+- Système de séquenceur unique (`saveSeqRef`) annulant toute réponse ou retentative réseau obsolète.
+
+Vérifications effectuées :
+- Simulation de clics rapides et validation du blocage des retentatives périmées.
+
+
+5. SUPPRESSION DE LA FONCTIONNALITÉ D'EXPORTATION MP4 SUR CLÉ USB (À LA DEMANDE DE L'UTILISATEUR)
+--------------------------------------------------------------------------------
+Actions effectuées :
+- **Suppression du composant visuel** : Le bouton « Télécharger le carrousel pour clé USB » a été retiré de la barre d'outils de la console d'administration (`AdminPanel.tsx`).
+- **Suppression des fichiers et modules d'export** :
+  • Suppression du composant modale `src/components/Admin/TvUsbExportModal.tsx`.
+  • Suppression du moteur de rendu vidéo MP4 `src/utils/tvMp4Exporter.tsx`.
+- **Suppression des états et imports associés** : L'état `isTvUsbModalOpen` et les imports/références liés ont été retirés de `AdminPanel.tsx`.
+- **Nettoyage des dépendances** : La dépendance `mp4-muxer` ainsi que le paquet de types `@types/dom-webcodecs` ont été retirés de `package.json` (après vérification qu'aucune autre partie de l'application ne les utilisait).
+
+Fonctionnalités conservées intactes :
+- Diffusion en direct du carrousel TV dans le navigateur (« Lancer la Diffusion TV »).
+- Tous les médias, arrière-plans animés, calques et mascottes de diapositives.
+- Tous les boutons d'exportation de visuels fixes pour les réseaux sociaux (`VisualExporterModal.tsx`).
+- L'intégralité des données sauvegardées (matchs, résultats, sponsors, photos, anniversaires, réglages).
+
+Vérifications effectuées :
+- Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) passés avec succès (0 erreur).
+- Ouverture du panneau d'administration et fonctionnement de la diffusion TV validés.
+
+
+6. PERSISTANCE DES ANNIVERSAIRES IMPORTÉS DEPUIS EXCEL & SOURCE DE VÉRITÉ UNIQUE
+--------------------------------------------------------------------------------
+Comportement Avant :
+- `handleExcelFileUpload` dans `AdminPanel.tsx` stockait la liste extraite `result.allMembers` dans un état local `allMembersPool` et dans `localStorage`, mais n'appelait jamais `onUpdateAllMembers`.
+- L'état principal `allMembers` de `App.tsx` (qui est transmis dans le payload `/api/save-app-data` vers Cloudflare KV) conservait donc l'ancienne liste de licenciés (ou les données de démonstration).
+- Le message « importé avec succès » pouvait s'afficher alors que la liste complète n'était pas persistée sur le serveur Cloudflare.
+- Sur un autre navigateur ou appareil sans `localStorage` local, la liste des adhérents importés disparaissait.
+- L'ajout, la modification ou la suppression manuelle d'un licencié ne mettaient pas non plus à jour l'état principal `allMembers`.
+
+Comportement Après :
+- **Source de vérité unique (`allMembers`)** :
+  • `AdminPanel.tsx` synchronise son état avec la prop `allMembers` dès que celle-ci est reçue ou actualisée depuis Cloudflare KV (`useEffect`).
+  • Création du helper centralisé `updateAllMembersEverywhere` assurant la transmission immédiate de la liste complète vers `onUpdateAllMembers` (état racine `App.tsx`), le recalcul TV via `onUpdateBirthdays`, et le stockage hors-ligne de secours.
+- **Cycle de vie complet pris en charge** :
+  • **Import Excel** (`handleExcelFileUpload`) : La totalité des licenciés extraits est envoyée à `onUpdateAllMembers` et sauvegardée sur Cloudflare KV.
+  • **Ajout manuel** (`handleAddManualBirthday`) : Le nouvel adhérent est ajouté à la liste complète `allMembers` et persisté sur le serveur.
+  • **Modification** (`handleSaveEditBirthday`) : Les modifications (nom, catégorie, date) sont répercutées dans `allMembers` et persistées.
+  • **Suppression** (`handleDeleteBirthday`) : La suppression est répercutée dans `allMembers` et persistée.
+  • **Changement de semaine** (`handleSelectWeekOffset`) : Calcule dynamiquement les anniversaires de la semaine voulue à partir de la source de vérité `allMembers`.
+- **Indicateur de statut serveur explicite** :
+  • Le bloc de confirmation d'import Excel affiche dynamiquement le statut de synchronisation Cloudflare (`saveStatus`) : en cours (`Loader2`), confirmé (`CheckCircle2`), ou erreur (`AlertCircle` avec message d'erreur et invitation à réenregistrer), évitant toute confusion entre l'analyse locale du fichier et la sauvegarde effective sur le serveur.
+
+Vérifications réellement effectuées :
+- Exécution du banc de tests automatisé (`npx tsx scripts/test_birthdays_persistence.ts` — Code de retour 0) :
+  • Test 1 : État principal `allMembers` contient les licenciés importés (PASSED ✅).
+  • Test 2 : Sélection de semaine (0 / +1) filtre exactement les bons anniversaires sans altérer la liste complète (PASSED ✅).
+  • Test 3 : Ajout manuel d'un licencié intégré à `allMembers` (PASSED ✅).
+  • Test 4 : Modification d'un licencié répercutée dans `allMembers` et sur la TV (PASSED ✅).
+  • Test 5 : Suppression d'un licencié répercutée dans `allMembers` (PASSED ✅).
+  • Test 6 : Validation du payload JSON envoyé à `/api/save-app-data` contenant la totalité des licenciés (PASSED ✅).
+  • Test 7 : Simulation d'un second navigateur (sans localStorage) restaurant l'intégralité des licenciés depuis la réponse serveur Cloudflare KV (PASSED ✅).
+- Compilation TypeScript (`npm run build`) et linter (`tsc --noEmit`) validés avec 0 erreur (PASSED ✅).
+
+
+7. TITRES INDÉPENDANTS DOMICILE / EXTÉRIEUR ET MODE TOUS DANS LE CARROUSEL (MATCHS & RÉSULTATS)
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Pour les diapositives Matchs et Résultats, un seul champ de saisie (`customHeaderTitle`) était proposé dans le Studio Graphique.
+- En mode « Domicile & Extérieur séparés » (`matchDisplayScope: 'split'`), le titre affiché sur les diapositives du carrousel et dans l'aperçu utilisait soit ce titre unique global, soit un libellé figé par défaut, sans possibilité d'attribuer un titre personnalisé distinct au calque Domicile et au calque Extérieur.
+- Dans l'aperçu 16:9 (`StudioGraphiqueWorkbench.tsx`), la bascule entre l'onglet Domicile et l'onglet Extérieur affichait toujours `customHeaderTitle`, ignorant les spécificités de chaque calque.
+
+Comportement Après :
+- **Sélecteur de mode clair et accessible** :
+  • Choix intuitif entre « 🏀 Tous » (1 seule diapositive regroupant domicile et extérieur) et « 🔄 Domicile / Extérieur » (2 diapositives séparées avec calques distincts) pour les Matchs et les Résultats.
+- **Deux champs de titre strictement indépendants en mode « Domicile / Extérieur »** :
+  • **Titre du calque Domicile** (`customHeaderTitleHome`) : saisie libre avec bouton d'aperçu direct (`👁 Aperçu`) positionnant le canevas sur le calque Domicile, bouton de réinitialisation et texte d'aide.
+  • **Titre du calque Extérieur** (`customHeaderTitleAway`) : saisie libre avec bouton d'aperçu direct (`👁 Aperçu`) positionnant le canevas sur le calque Extérieur, bouton de réinitialisation et texte d'aide.
+  • **Indépendance garantie** : la modification du titre d'un calque ne modifie JAMAIS le titre de l'autre calque, ni le titre du mode « Tous ».
+- **Mode « Tous » préservé à l'identique** :
+  • Conserve le champ unique (`customHeaderTitle`), son alignement et la rétro-compatibilité totale avec les carrousels déjà enregistrés.
+  • Basculer entre « Tous » et « Domicile / Extérieur » conserve l'ensemble des titres saisis sans aucune perte de données.
+- **Aperçu 16:9 temps réel sur le bon calque** :
+  • `StudioGraphiqueWorkbench.tsx` calcule dynamiquement `previewMatchesTitle` et `previewResultsTitle` selon le calque affiché (`home`, `away` ou `all`).
+  • Taper dans le champ Domicile met instantanément à jour le titre visible sur la diapositive Domicile ; taper dans le champ Extérieur met à jour le titre visible sur la diapositive Extérieur.
+- **Diffusion TV (`App.tsx` & `TVSlideRenderer.tsx`)** :
+  • Le générateur d'ordonnancement du carrousel (`calculateCarouselSchedule`) attribue respectivement `customTitleHome` à la diapositive Domicile et `customTitleAway` à la diapositive Extérieur (avec gestion automatique des pages multiples si nécessaire).
+  • `TVSlideRenderer.tsx` assure le rendu conforme de chaque diapositive selon son `filterScope`.
+- **Persistance serveur & réouverture** :
+  • Les champs `customHeaderTitleHome` et `customHeaderTitleAway` font partie intégrante de `visualTemplates` (dans `matchesSettings` et `resultsSettings`).
+  • Ils sont sauvegardés lors du clic sur le bouton « Enregistrer » vers `/api/save-app-data` (Cloudflare KV) et dans le cache local hors-ligne.
+  • À la réouverture ou au rechargement de l'application, les deux titres et le mode choisi sont fidèlement restaurés.
+
+Vérifications réellement effectuées :
+- Exécution de la suite de tests automatisée (`npx tsx scripts/test_titles_split_all.ts` — Code de retour 0) :
+  • Test 1 : Vérification de la configuration par défaut en mode split (PASSED ✅).
+  • Test 2 : Modification indépendante du titre Domicile Matchs sans altération du titre Extérieur ni Tous (PASSED ✅).
+  • Test 3 : Modification indépendante du titre Extérieur Matchs sans altération du titre Domicile ni Tous (PASSED ✅).
+  • Test 4 : Modification indépendante des titres Résultats Domicile et Extérieur (PASSED ✅).
+  • Test 5 : Bascule vers le mode « Tous » puis retour vers « Domicile / Extérieur » sans écrasement (PASSED ✅).
+  • Test 6 : Génération des diapositives TV du carrousel avec les bons titres associés à chaque slide (PASSED ✅).
+  • Test 7 : Simulation de sauvegarde `/api/save-app-data` et restauration complète au rechargement (PASSED ✅).
+- Bancs de tests de régression FFBB (`test_ffbb_merge.ts`) et Anniversaires (`test_birthdays_persistence.ts`) passés à 100% (PASSED ✅).
+- Compilation TypeScript (`compile_applet`) et vérification du linter (`lint_applet` / `tsc --noEmit`) passées avec 0 erreur (PASSED ✅).
+
+
+8. BOT TELEGRAM : CONFIGURATION DU WEBHOOK CÔTÉ SERVEUR & SÉCURISATION DU SECRET
+--------------------------------------------------------------------------------
+Comportement Avant :
+- Le token du bot pouvait être manipulé dans des formulaires ou renvoyé de façon masquée (`substring(...)`).
+- L'activation du webhook Telegram n'était pas entièrement automatisée côté serveur.
+- Aucune vérification stricte de signature cryptographique n'assurait que les requêtes reçues sur `/api/telegram-webhook` provenaient obligatoirement de Telegram.
+
+Comportement Après :
+- **Sécurisation absolue du secret (`TELEGRAM_BOT_TOKEN`)** :
+  • Le token est lu exclusivement depuis l'environnement serveur Cloudflare (`env.TELEGRAM_BOT_TOKEN`, configuré dans Settings > Variables et secrets > section "Exécution").
+  • Aucun champ de saisie de token n'existe dans l'interface utilisateur.
+  • Le token n'est JAMAIS renvoyé, ni affiché, ni masqué dans les réponses API ou dans les vues HTML/JSON.
+- **Bouton « Connecter le bot » & Indicateur de connexion dans l'interface** :
+  • Ajout d'une carte dédiée « Liaison Serveur du Bot Telegram » dans l'onglet Bot Telegram de l'administration.
+  • **Indicateur de connexion temps réel** : pastille lumineuse verte pulsante « Bot connecté et opérationnel » avec nom d'utilisateur du bot (`@BotUsername`), nom, URL webhook active, statut de la signature secrète et nombre de messages en attente. Si non connecté, badge ambre avec guidage pas à pas.
+  • **Bouton « Connecter le bot »** : déclenche la route sécurisée `/api/telegram/connect` pour associer automatiquement le webhook auprès des serveurs de Telegram.
+  • **Bouton « Déconnecter le bot » & « Actualiser »** : permet la révocation propre du webhook et le rafraîchissement d'état en direct.
+- **Protection de l'action (`ADMIN_PASSWORD`)** :
+  • Les actions `/api/telegram/connect` et `/api/telegram/disconnect` sont protégées par le mot de passe administrateur (`env.ADMIN_PASSWORD`). Si requis, l'interface affiche une invite sécurisée invitant à saisir le mot de passe avant d'exécuter la connexion.
+- **Vérification cryptographique de provenance des messages Telegram** :
+  • Lors du `setWebhook`, un jeton secret déterministe SHA-256 (`secret_token`) est transmis à l'API Telegram.
+  • À chaque message reçu sur `/api/telegram-webhook`, le serveur vérifie la présence et la stricte égalité du header HTTP `X-Telegram-Bot-Api-Secret-Token`.
+  • Toute requête non certifiée par ce jeton secret est immédiatement rejetée avec une réponse HTTP 403 Forbidden.
+- **Simulation et tests conservés** :
+  • Le simulateur de messages en direct et les 3 étapes d'aide sont enrichis pour guider l'administrateur sans aucune ambiguïté.
+
+Vérifications réellement effectuées :
+- Exécution du banc de tests automatisé (`npx tsx scripts/test_telegram_webhook.ts` — Code de retour 0) :
+  • Test 1 : Calcul déterministe du jeton secret SHA-256 conforme aux exigences Telegram (PASSED ✅).
+  • Test 2 : Rejet 403 des requêtes sans header valide ou avec fausse signature (PASSED ✅).
+  • Test 3 : Audit de `worker/index.ts` : secret lu depuis env, vérification `X-Telegram-Bot-Api-Secret-Token`, protection `ADMIN_PASSWORD`, aucune fuite de token (PASSED ✅).
+  • Test 4 : Audit de `server.ts` : cohérence exacte avec Cloudflare et non-exposition du secret (PASSED ✅).
+  • Test 5 : Audit de `AdminPanel.tsx` : présence du bouton « Connecter le bot », indicateur de statut, 0 champ de saisie de token (PASSED ✅).
+- Bancs de tests de régression FFBB (`test_ffbb_merge.ts`), Anniversaires (`test_birthdays_persistence.ts`) et Titres carrousel (`test_titles_split_all.ts`) validés à 100% (PASSED ✅).
+- Linter (`npm run lint` / `tsc --noEmit`) : 0 erreur (PASSED ✅).
+- Compilation finale (`npm run build`) : réussite totale (PASSED ✅).
+
+================================================================
+================
+SECTION 9 : MISE À JOUR DE L'ONGLET « BOT TELEGRAM » — INSTRUCTIONS ET ÉTATS RÉELS
+================================================================================
+
+Date : 01/10/2026
+Objet : Mise à jour de l'onglet « Bot Telegram » pour refléter l'état réel (webhook déjà configuré, secret actif dans Cloudflare) et affichage conditionnel rigoureux des statuts de messages.
+
+Comportement Avant :
+- Des étapes d'installation initiale (création avec BotFather, copie d'URL webhook) et un bouton « Copier l'URL Webhook » étaient affichés alors que le webhook et la signature étaient déjà en production.
+- Le statut « Bot opérationnel » pouvait s'afficher simplement parce que le webhook était configuré auprès de Telegram, sans vérifier si de véritables messages avaient déjà été reçus et traités.
+
+Comportement Après :
+- **Suppression des étapes initiales 1 & 2 et du bouton « Copier l'URL Webhook »** :
+  • Les étapes d'installation obsolètes et le bouton de copie ont été retirés.
+- **Section « Exemples de messages à envoyer au bot » conservée et mise en valeur** :
+  • Intitulé exact : « EXEMPLES DE MESSAGES À ENVOYER AU BOT ».
+  • Présente les 4 exemples types de syntaxe : Victoire avec score, Défaite avec score, Victoire par alias, Équipe féminine.
+- **Statut dynamique strict selon les messages réels** :
+  • Tant qu'aucun message réel n'a été reçu et traité via le webhook : affichage du statut bleu ciel « Configuration active — en attente du premier message ».
+  • Dès qu'un vrai message est reçu et traité avec succès : affichage du statut vert « Bot opérationnel » avec l'horodatage précis de réception (« Reçu le DD/MM/YYYY à HH:mm »), le texte du message et l'équipe/score reconnus.
+  • En cas d'échec de traitement d'un message reçu (ex: syntaxe sans Victoire/Défaite) : affichage du statut rouge clair « Le message n'a pas été traité » avec la date de réception et le motif de rejet.
+  • Si le webhook n'est pas connecté : affichage clair « Bot non connecté » avec invite à cliquer sur le bouton de connexion.
+- **Commandes de gestion serveur préservées** :
+  • Bouton « Reconnecter le bot » (ou « Connecter le bot ») et « Déconnecter le bot » maintenus.
+  • Le token n'est jamais redemandé, ni affiché, ni stocké dans le navigateur.
+- **Polling automatique d'état** :
+  • Rafraîchissement automatique toutes les 15 secondes pendant que l'onglet Bot Telegram est actif pour détecter immédiatement l'arrivée d'un message envoyé depuis un smartphone.
+
+Vérifications effectuées :
+- Exécution du script de test automatisé `scripts/test_telegram_webhook.ts` (10/10 assertions validées ✅).
+- Bancs de tests de régression FFBB, Anniversaires et Titres carrousel passés avec succès ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================
+
+================================================================================
+SECTION 11 : FINALISATION DE LA SYNCHRONISATION FFBB ET DU BOT TELEGRAM
+================================================================================
+
+Date : 02/10/2026
+Objet : Finalisation de la personnalisation des noms dans « Sync FFBB », de la reconnaissance des équipes dans Telegram et de la gestion stricte des scores facultatifs sans données fictives.
+
+1. Personnalisation des noms dans « Sync FFBB » :
+- **Champ dédié pour chaque équipe sélectionnée** :
+  • Dans l'onglet « Sync FFBB », chaque carte d'équipe dispose désormais d'un champ éditable « Nom affiché dans l'application », avec le nom officiel FFBB en indicateur de substitution (placeholder).
+  • Un bouton de réinitialisation permet à tout moment de rétablir le nom officiel FFBB.
+- **Séparation stricte du nom personnalisé et du rattachement FFBB** :
+  • Utilisation exclusive de l'identifiant FFBB (`team.id`, `rawFfbbCategory`, `ffbbMatchNumber`) pour retrouver les matchs et résultats de l'équipe.
+  • Le nom personnalisé est conservé après chaque synchronisation (enregistré dans `clubSettings.customTeamNames` et dans le cache d'équipe).
+  • Une nouvelle synchronisation officielle FFBB n'écrase jamais le nom personnalisé par le nom FFBB.
+  • Aucun doublon de match n'est créé en cas de renommage ou de nouvelle synchronisation.
+- **Affichage transversal dans toute l'application** :
+  • Le nom personnalisé apparaît automatiquement dans tous les affichages : diapositive des Matchs, diapositive des Résultats, carrousel TV plein écran, aperçu dans l'administration, et notifications/alertes de match.
+  • Concerne l'intégralité des équipes réelles du club des U9 aux Seniors : filles, garçons et mixtes, sans jamais créer automatiquement d'équipes inexistantes.
+
+2. Messages Telegram et reconnaissance des équipes :
+- **Identification unifiée** :
+  • Pour identifier une équipe dans un message, le bot utilise les équipes présentes dans « Sync FFBB », leur nom personnalisé, leur nom officiel FFBB et leurs alias.
+  • Tolérance complète des différences de majuscules/minuscules, d'accents (diacritiques), d'espaces et d'abréviations courantes (ex: `U9 Mixte`, `U9 M`, `u9m`, `u9g`, `SF1`, `Seniors Filles`, `SG1`, etc.).
+- **Liaison U9 Garçons / Mixte** :
+  • Le nom personnalisé (« U9 Mixte ») et le nom officiel FFBB (« U9 M » ou « U9 Garçons / Mixte ») désignent strictement la même équipe.
+- **Scores strictement facultatifs (zéro score fictif)** :
+  • Le bot accepte les messages avec ou sans score (ex: « Victoire Seniors Filles », « Défaite U15 Filles », « Victoire U9 Mixte 42-36 »).
+  • Si aucun score n'est indiqué dans le message, le bot n'invente rien : `ourScore` et `opponentScore` restent indéfinis, aucun chiffre fictif (comme 0-0 ou 82-74) n'est créé ni affiché sur la TV.
+  • L'affichage des alertes sur la TV adapte son visuel : le badge de score n'apparaît que lorsqu'un score réel a été renseigné.
+- **Anti-ambiguïté et propositions d'équipes proches** :
+  • Si l'équipe n'est pas reconnue ou si le message est ambigu, aucune alerte n'est créée dans la boucle TV.
+  • Le bot répond directement sur Telegram en proposant jusqu'à 3 équipes existantes qui s'en rapprochent et fournit un exemple clair pour inviter l'utilisateur à renvoyer son message.
+
+Vérifications réellement effectuées :
+- `scripts/test_ffbb_merge.ts` : 10/10 assertions validées avec succès ✅ (incluant la conservation du nom personnalisé "U9 Mixte" sans écrasement par FFBB et l'absence totale de doublons lors des renommages).
+- `scripts/test_team_matching.ts` : 8/8 assertions validées avec succès ✅ (couverture U9 aux Seniors, liaison U9 Garçons / Mixte, tolérance casse/accents/espaces, gestion des noms personnalisés, parsing fidèle avec/sans score).
+- `scripts/test_telegram_webhook.ts` : 100% conforme ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : compilation réussie sans erreur ✅.
+================================================================================
+
+Date : 01/10/2026
+Objet : Reconnaissance stricte et intelligente des équipes Telegram basée sur les équipes réellement configurées dans l'application, des U9 aux Seniors (filles, garçons et mixtes), liaison U9 Garçons / Mixte, rejet des équipes fictives, suggestions ciblées et zéro choix automatique en cas d'ambiguïté.
+
+Comportement Avant :
+- Le serveur extrayait la chaîne brute du message et l'injectait directement sans vérifier si l'équipe existait dans la configuration du club (création possible d'équipes fictives).
+- En cas de nom ambigu ou inconnu, aucune suggestion n'était retournée et aucune alerte n'était évitée.
+
+Comportement Après :
+- **Référence stricte aux équipes configurées (des U9 aux Seniors : filles, garçons et mixtes)** :
+  • Le serveur et le worker prennent comme référence les équipes réelles définies dans `appData.teamVisuals` (ou le catalogue canonique officiel du club).
+  • Aucune équipe fictive n'est créée automatiquement.
+- **Tolérance multi-appellations, accents, casse, espaces et abréviations courantes** :
+  • Normalisation complète des diacritiques (sans accent), de la casse et des séparateurs.
+  • Abréviations courantes supportées pour chaque équipe (ex: `SG1`, `SG 1`, `SM1`, `Seniors Garçons 1`, `SF1`, `SF`, `U18M`, `U18F`, `U13F1`, `U13F-2`, etc.).
+- **Liaison unique de l'équipe U9 Garçons / Mixte** :
+  • Conformément à la règle, qu'un utilisateur écrive `U9 Garçons`, `U9 Mixte`, `U9`, `U9G` ou `U9M`, toutes ces appellations pointent vers la même équipe configurée `U9 Garçons / Mixte`.
+- **Règle absolue d'anti-ambiguïté** :
+  • Si un message est ambigu (ex: `Victoire U13 Filles` alors qu'il existe `U13 Filles 1` et `U13 Filles 2`, ou `Seniors` quand plusieurs équipes existent), le serveur ne choisit JAMAIS automatiquement.
+  • Aucune alerte n'est créée dans la boucle TV.
+  • Le bot répond sur Telegram en listant les équipes candidates et demande de renvoyer le message avec le nom précis.
+- **Gestion des noms non reconnus et suggestions** :
+  • Si le nom envoyé ne correspond à aucune équipe configurée (ex: `Poussins`, `Real Madrid`), aucune alerte n'est créée.
+  • Le bot répond avec jusqu'à 3 équipes configurées les plus proches (distance de Levenshtein et similarité sémantique) et donne un exemple prêt à l'emploi.
+  • L'interface d'administration et le simulateur affichent les suggestions sous forme de boutons cliquables pour tester immédiatement.
+
+Vérifications effectuées :
+- Création et exécution du banc de test automatisé `scripts/test_team_matching.ts` (6/6 assertions validées ✅) :
+  • Test 1 : U9 Garçons et U9 Mixte pointent bien vers la même équipe.
+  • Test 2 : Tolérance accents, casse, tirets, espaces et abréviations.
+  • Test 3 : Distinction nette entre U13 Filles 1 et U13 Filles 2.
+  • Test 4 : Détection d'ambiguïté sans numéro d'équipe avec suggestions.
+  • Test 5 : Rejet des équipes inconnues sans alerte et propositions des 3 équipes les plus proches.
+  • Test 6 : Couverture complète des 14 équipes canoniques des U9 aux Seniors.
+- Bancs de tests de régression (`test_telegram_webhook.ts`, `test_titles_split_all.ts`, `test_birthdays_persistence.ts`, `test_ffbb_merge.ts`) passés avec succès ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================
+
+================================================================================
+SECTION 12 : FIABILITÉ DE LA SAUVEGARDE — CONCURRENCE OPTIMISTE & VERSIONNAGE
+================================================================================
+
+Date : 02/10/2026
+Objet : Mise en place d'un contrôle de concurrence optimiste (OCC) avec numéro de version sur le document « app-data » dans Cloudflare KV et le serveur local, empêchant tout écrasement silencieux lors d'éditions simultanées.
+
+1. Analyse préalable :
+- **Récupération** : Les données sont récupérées via `GET /api/get-app-data` (ou `/api/app-data`).
+- **Modification** : Les données sont modifiées dans l'état React de `src/App.tsx` et manipulées via l'interface `AdminPanel.tsx`.
+- **Sauvegarde dans Cloudflare KV** : Deux déclencheurs dans `src/App.tsx` appellent `POST /api/save-app-data` :
+  1. La sauvegarde automatique avec anti-rebond de 800ms (`saveDebounceRef`).
+  2. Le bouton manuel « Enregistrer » dans l'en-tête de l'administration (`handleManualSave`).
+- **Endpoints concernés** : `/api/get-app-data`, `/api/app-data`, `/api/save-app-data`.
+
+2. Solution mise en place (Concurrence optimiste & Versionnage) :
+- **Numéro de version incrémental** :
+  • Le document `app-data` intègre un champ `version: number`.
+  • Rétrocompatibilité : si aucune version n'existe encore en base, elle est initialisée à 0 sans provoquer d'erreur.
+- **Vérification stricte côté serveur** (`worker/index.ts` & `server.ts`) :
+  • À chaque appel de sauvegarde, le serveur lit la version actuelle dans KV (`currentVersion`).
+  • Le client transmet la version qu'il avait lue (`clientVersion`).
+  • Si `clientVersion !== currentVersion` : la sauvegarde est **rejetée avec le statut HTTP 409 Conflict**.
+  • **Le serveur n'écrit RIEN dans KV** : les modifications plus récentes sont 100% préservées.
+  • Si `clientVersion === currentVersion` : la sauvegarde est acceptée, la version passe à `currentVersion + 1`, et la nouvelle version est renvoyée au client.
+- **Gestion côté interface** (`src/App.tsx` & `src/components/Admin/AdminPanel.tsx`) :
+  • En cas de rejet 409, l'application ne perd rien silencieusement et affiche un bandeau rouge bien visible :
+    « Les données ont été modifiées ailleurs. Rechargez les données avant de sauvegarder à nouveau. »
+  • Un bouton « Recharger les données » permet de récupérer la dernière version du serveur en un clic.
+  • Le bouton « Réessayer » reste disponible pour forcer l'enregistrement si l'utilisateur le souhaite.
+
+3. Vérifications réellement effectuées :
+- `scripts/test_optimistic_concurrency.ts` (7/7 assertions validées ✅) :
+  • Test 1 : Rétrocompatibilité données legacy sans version (initialisation à 0).
+  • Test 2 : Première sauvegarde valide (version 0 -> 1).
+  • Test 3 : Deuxième sauvegarde valide (version 1 -> 2).
+  • Test 4 : Détection de conflit avec statut 409 lorsqu'un client a une version en retard.
+  • Test 5 : Vérification que les données du serveur ne sont pas écrasées lors du conflit.
+  • Test 6 : Rechargement des données et sauvegarde réussie (version 2 -> 3).
+  • Test 7 : Validation statique de la conformité de `worker/index.ts` et `server.ts`.
+- Tous les bancs de tests existants (`test_ffbb_merge.ts`, `test_team_matching.ts`, `test_telegram_webhook.ts`) validés à 100% sans régression ✅.
+- Validation `npm run lint` (`tsc --noEmit`) : 0 erreur ✅.
+- Validation `npm run build` : succès ✅.
+================================================================================
+
+================================================================================
+SECTION 13 : CYCLE DE VIE DES MATCHS — FFBB / TELEGRAM / TERMINAISON AUTOMATIQUE
+================================================================================
+
+Date : 07/10/2026
+Objet : Unification du résultat d'un même match entre Telegram et FFBB, avec
+persistance du résultat, dédoublonnage des alertes et terminaison automatique
+à +2h.
+
+Règle fonctionnelle définitive :
+- Avant l'heure annoncée : match « à venir ».
+- À l'heure annoncée : match « en cours ».
+- Résultat reçu par Telegram : passage immédiat en « terminé », victoire/défaite
+  et scores éventuels enregistrés.
+- Résultat reçu par FFBB : passage immédiat en « terminé », victoire/défaite et
+  scores officiels enregistrés.
+- À exactement +2h sans résultat : passage automatique en « terminé ».
+- Un résultat enregistré reste attaché au match après expiration ou suppression
+  de l'alerte Telegram d'1 heure.
+- Telegram et FFBB ne créent pas deux résultats indépendants pour le même match.
+
+Cas Telegram -> FFBB :
+- Telegram crée le visuel/alerte d'1 heure une seule fois.
+- Si FFBB arrive ensuite, le match et le visuel Telegram existant sont mis à jour
+  avec les données FFBB.
+- L'identifiant, l'heure d'arrivée initiale et l'expiration 1h du visuel existant
+  restent inchangés.
+- Aucun nouveau slide n'est créé et aucune nouvelle heure n'est ajoutée.
+
+Cas FFBB -> Telegram :
+- Si le match possède déjà un résultat FFBB, Telegram ne crée aucun visuel.
+- Le bot répond : « Résultat déjà transmis par FFBB. »
+- L'alerte d'1 heure n'est donc jamais relancée par un doublon Telegram.
+
+Persistance et provenance :
+- Ajout de resultSource (ffbb, telegram, manual) et resultReceivedAt à MatchItem.
+- Le résultat Telegram est enregistré dans matches et dans results.
+- finishedAt et resultReceivedAt du premier résultat sont conservés lorsqu'une
+  mise à jour FFBB arrive ensuite.
+- La fusion FFBB donne priorité aux données officielles FFBB sans effacer un
+  résultat Telegram déjà reçu si FFBB ne transmet pas encore de résultat.
+
+Fichiers principaux :
+- src/types.ts
+- src/utils/matchStatus.ts
+- src/utils/matchLifecycleHelpers.ts
+- src/utils/weekendMatchResultHelpers.ts
+- src/utils/ffbbMergeUtils.ts
+- src/App.tsx
+- worker/index.ts
+- server.ts
+- scripts/test_match_lifecycle.ts
+
+Nettoyage technique :
+- Suppression de l'ancien helper de cycle de vie à +2h devenu incohérent.
+- Suppression de l'ancien chemin serveur qui créait une alerte autonome lors d'un
+  résultat FFBB.
+- Suppression d'un ancien chemin de fusion FFBB devenu obsolète.
+- Correction du simulateur Telegram pour utiliser la même logique de persistance
+  et de dédoublonnage.
+- Correction de la frontière exacte des 2 heures : à +2h, le match est terminé.
+- Le cycle temporel est maintenant appliqué périodiquement dans App.tsx.
+
+Vérifications :
+- Relecture des chemins Telegram et FFBB côté Worker et serveur local.
+- Contrôle statique des nouveaux chemins et recherche des anciens helpers inutilisés.
+- Nouveau banc de régression ajouté : scripts/test_match_lifecycle.ts.
+- Ce nouveau banc n'a pas pu être exécuté dans l'environnement actuel, car le
+  dépôt ne peut pas être cloné localement ici ; aucune réussite d'exécution ne
+  doit donc être considérée comme acquise tant que npm run lint et npm run build
+  n'ont pas été relancés sur une machine/environnement disposant des dépendances.
+================================================================================
+
+
+SECTION 14 : SYNCHRONISATION AUTOMATIQUE FFBB CÔTÉ CLOUDFLARE
+
+Objectif :
+- Détecter les résultats FFBB même lorsque la TV et l'application ne sont pas ouvertes.
+
+Modifications :
+- Ajout d'un Cron Trigger Cloudflare toutes les 5 minutes dans wrangler.json (*/5 * * * *).
+- Ajout du gestionnaire scheduled() dans worker/index.ts.
+- Le traitement planifié réutilise la récupération FFBB existante et synchronise les matchs/résultats avec app-data dans KV.
+- Les scores FFBB disponibles marquent le match terminé et renseignent resultSource='ffbb', resultReceivedAt et finishedAt.
+- Les résultats Telegram existants sont préservés si la FFBB n'a pas encore publié de score.
+- Les champs explicitement modifiés manuellement (date, horaire, gymnase, logo adverse et score) sont préservés lors de la fusion.
+- Ajout de la règle serveur de passage à finished après deux heures sans résultat, sans fabriquer de score.
+- Ajout de logs de début, fin et erreur pour le Cron.
+- Incrément de la version app-data après synchronisation.
+
+Déploiement et validation :
+- Le code et la configuration sont enregistrés sur main.
+- La tâche Cron ne sera active en production qu'après déploiement Cloudflare de cette version.
+- Aucun test en conditions réelles FFBB n'a été effectué dans cette session. À vérifier un samedi de match, TV éteinte : arrivée du score, persistance dans app-data et absence de doublon avec Telegram.
+- La compilation et les tests automatiques n'ont pas été exécutés depuis cet environnement.
+
+
+================================================================================
+SECTION 15 : MODE KIOSQUE TV SANS ACCÈS RAPIDE À LA CONFIGURATION
+================================================================================
+
+Objectif :
+- Fournir à Fully Kiosk une URL de diffusion qui ne présente pas les commandes
+  d'accès à l'administration, tout en conservant le fonctionnement habituel
+  du bouton « Lancer la diffusion » dans l'application.
+
+Modifications :
+- L'URL du guide Fully Kiosk utilise désormais ?mode=tv&kiosk=1.
+- En mode kiosk=1, le bouton « Configuration » est masqué dans les commandes
+  du carrousel.
+- Les raccourcis clavier C et A ne basculent plus vers la configuration dans
+  ce mode.
+- Le mode TV lancé depuis l'application sans le paramètre kiosk=1 conserve
+  ses commandes de configuration habituelles.
+
+Limite importante :
+- Il s'agit d'une protection contre les manipulations accidentelles via
+  l'interface du carrousel, pas d'une authentification ou d'une barrière
+  de sécurité serveur. Toute personne qui modifie volontairement l'URL peut
+  tenter d'ouvrir le mode normal. Une protection contre un accès volontaire
+  nécessiterait un contrôle d'accès séparé.
+
+Validation :
+- Modifications enregistrées sur main.
+- Compilation et test sur téléviseur non exécutés dans cette session.
+================================================================================
+
+
+================================================================================
+SECTION 16 : FIABILISATION DE LA REMONTÉE DES SCORES FFBB
+================================================================================
+
+Problème signalé :
+- Un match en retard des U11F1 avait son score publié sur FFBB, mais l'application
+  affichait encore « En attente du résultat ».
+
+Correctif appliqué dans worker/index.ts :
+- Normalisation des identifiants de rencontre FFBB (notamment les préfixes FFBB-).
+- Recherche du score à partir de plusieurs champs d'identifiant possibles :
+  id, ffbbMatchId, matchId, rencontreId, numero et numeroRencontre.
+- Validation des deux scores avant de déclarer une rencontre jouée.
+- Prise en charge de champs de score présents directement dans la réponse match,
+  lorsqu'ils sont fournis par l'API.
+- Le mécanisme existant de synchronisation planifiée toutes les 5 minutes est conservé.
+
+Commit :
+- 13153516619c83a9e4136df508828a48fa7a5a57
+
+Validation restante :
+- Le code est enregistré sur GitHub main.
+- Compilation, déploiement Cloudflare et vérification réelle du match U11F1 non
+  effectués dans cette session. Il faudra confirmer après déploiement que le score
+  remonte bien. Si ce match n'est pas présent dans la liste de rencontres renvoyée
+  par l'API du club, une adaptation supplémentaire sera nécessaire pour le retrouver
+  depuis sa poule FFBB.
+================================================================================

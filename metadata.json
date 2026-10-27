@@ -1,0 +1,6 @@
+{
+  "name": "Affichage TV Club Basket",
+  "description": "Système d'affichage dynamique TV (Fully Kiosk Browser) pour club de basket avec synchronisation FFBB, carrousel sponsors, photos, anniversaires Excel, matchs et résultats.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

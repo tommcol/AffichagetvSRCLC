@@ -1,0 +1,143 @@
+import React, { useState } from 'react';
+import { Camera, Calendar, User, Sparkles } from 'lucide-react';
+import { ClubPhotoItem } from '../../types';
+import { isVideoMedia } from '../../utils/mediaUtils';
+
+interface PhotosSlideProps {
+  photo?: ClubPhotoItem;
+  photos: ClubPhotoItem[];
+  itemIndex?: number;
+  totalItems?: number;
+  hideTextOverlay?: boolean;
+  onVideoEnded?: () => void;
+  onVideoTimeUpdate?: (progressPercent: number) => void;
+}
+
+export const PhotosSlide: React.FC<PhotosSlideProps> = ({
+  photo,
+  photos,
+  itemIndex,
+  totalItems,
+  hideTextOverlay = true,
+  onVideoEnded,
+  onVideoTimeUpdate,
+}) => {
+  const [activePhotoIndex] = useState<number>(0);
+
+  const currentPhoto = photo || photos[activePhotoIndex] || photos[0];
+  const currentIndex = typeof itemIndex === 'number' ? itemIndex : activePhotoIndex;
+  const count = typeof totalItems === 'number' ? totalItems : photos.length;
+
+  if (!currentPhoto) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-8 text-center text-slate-400 bg-slate-950">
+        <div>
+          <Camera className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+          <h3 className="text-2xl font-bebas text-slate-300">Aucune photo dans le dossier</h3>
+          <p className="text-sm">Déposez vos photos dans l'espace de configuration pour alimenter le carrousel TV.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isVid = Boolean(
+    currentPhoto.isVideo ||
+    currentPhoto.mediaType === 'video' ||
+    isVideoMedia(currentPhoto.imageUrl)
+  );
+
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-slate-950 flex items-center justify-center select-none">
+      {/* Fond d'ambiance flou : remplit le cadre 16:9 sans déformer l'original */}
+      {!isVid && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center blur-lg opacity-50 scale-105"
+          style={{ backgroundImage: `url("${currentPhoto.imageUrl}")` }}
+        />
+      )}
+
+      {/* L'original reste entièrement visible, quelles que soient ses proportions */}
+      <div className="relative w-full h-full flex items-center justify-center z-10">
+        {isVid ? (
+          <video
+            key={`photo-vid-${currentPhoto.id || currentPhoto.imageUrl}`}
+            src={currentPhoto.imageUrl}
+            autoPlay
+            loop={!onVideoEnded}
+            muted
+            playsInline
+            preload="auto"
+            onCanPlay={(e) => {
+              e.currentTarget.play().catch(() => {});
+            }}
+            onTimeUpdate={(e) => {
+              const vid = e.currentTarget;
+              if (onVideoTimeUpdate && vid.duration) {
+                onVideoTimeUpdate((vid.currentTime / vid.duration) * 100);
+              }
+            }}
+            onEnded={onVideoEnded}
+            onError={() => {
+              console.warn('Erreur lecture vidéo photo, passage au suivant');
+              if (onVideoEnded) onVideoEnded();
+            }}
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <img
+            key={`photo-img-${currentPhoto.id || currentPhoto.imageUrl}`}
+            src={currentPhoto.imageUrl}
+            alt={currentPhoto.title}
+            className="w-full h-full object-contain"
+            referrerPolicy="no-referrer"
+          />
+        )}
+      </div>
+
+      {!hideTextOverlay && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30 pointer-events-none" />
+      )}
+
+      {!hideTextOverlay && (
+        <div className="absolute bottom-8 left-8 right-8 z-20 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 pointer-events-none">
+          <div className="max-w-3xl">
+            {currentPhoto.categoryFolder && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-600 text-white text-xs font-black uppercase tracking-wider mb-2 font-bebas shadow-lg">
+                <Sparkles className="w-3 h-3" />
+                <span>{currentPhoto.categoryFolder}</span>
+              </div>
+            )}
+
+            <h2 className="text-3xl md:text-5xl font-black text-white font-bebas tracking-wide drop-shadow-xl leading-tight">
+              {currentPhoto.title}
+            </h2>
+
+            {currentPhoto.caption && (
+              <p className="text-slate-200 text-sm md:text-lg font-medium mt-1 drop-shadow max-w-2xl">
+                {currentPhoto.caption}
+              </p>
+            )}
+
+            <div className="flex items-center gap-4 text-xs md:text-sm text-slate-300 mt-2 font-medium drop-shadow">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-orange-400" />
+                {currentPhoto.date}
+              </span>
+              {currentPhoto.photographer && (
+                <span className="flex items-center gap-1.5 text-slate-400">
+                  <User className="w-3.5 h-3.5" />
+                  Photo : {currentPhoto.photographer}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="self-end px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-xs text-slate-300 font-mono">
+            Photo {currentIndex + 1} / {count}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

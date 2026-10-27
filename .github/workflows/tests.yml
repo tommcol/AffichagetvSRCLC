@@ -1,0 +1,41 @@
+name: Tests
+
+# Contrôle qualité automatique : lint TypeScript puis suite de tests.
+# Relancé à chaque push sur main et chaque pull request vers main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Contrôle qualité (lint + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Vérification TypeScript (lint)
+        run: npm run lint
+
+      - name: Vérification TypeScript du Worker
+        run: npm run lint:worker
+
+      - name: Vérifier la compilation
+        run: npm run build
+
+      - name: Lancer les tests
+        run: npm test
+        env:
+          APP_DEMO: '1'

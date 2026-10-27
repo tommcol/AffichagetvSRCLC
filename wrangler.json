@@ -1,0 +1,56 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "affichage-tv-club",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/uploads/*"
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AFFICHAGE_KV",
+      "id": "REMPLACER_PAR_VOTRE_ID_KV"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AFFICHAGE_R2",
+      "bucket_name": "votre-banque-medias"
+    }
+  ],
+  "secrets": {
+    "required": [
+      "ADMIN_PASSWORD"
+    ]
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "APP_DATA_COORDINATOR",
+        "class_name": "AppDataCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "app-data-v1",
+      "new_sqlite_classes": [
+        "AppDataCoordinator"
+      ]
+    }
+  ]
+}
