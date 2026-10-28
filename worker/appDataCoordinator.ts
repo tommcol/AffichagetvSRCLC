@@ -56,7 +56,7 @@ export class AppDataCoordinator {
 }
 
 function coordinator(env: Env) {
-  return env.APP_DATA_COORDINATOR?.get(env.APP_DATA_COORDINATOR.idFromName('club-app-data'));
+  return env.APP_DATA_COORDINATOR?.get(env.APP_DATA_COORDINATOR.idFromName(env.APP_DATA_INSTANCE_NAME || 'club-app-data'));
 }
 export async function readSharedAppData(env: Env): Promise<string | null> {
   const stub = coordinator(env);

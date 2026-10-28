@@ -138,3 +138,52 @@ Une fois GitHub relié, un nouveau commit sur la branche de production déclench
 - https://developers.cloudflare.com/durable-objects/
 
 - https://developers.cloudflare.com/workers/configuration/secrets/
+
+## Déploiement avec des paramètres privés (installation existante ou nouveau club)
+
+Ne remettez pas les identifiants de votre installation dans le dépôt public.
+Le script `npm run configure:cloudflare` crée `wrangler.private.json` à la racine,
+ignoré par Git et situé hors de `dist` : il ne sera pas servi aux visiteurs.
+Il ne contacte aucune API et ne crée ni ne déplace aucun stockage.
+
+Dans **Worker → Paramètres → Compilations → Variables et secrets**, ajoutez :
+
+| Variable de compilation | Valeur à fournir |
+|---|---|
+| `DEPLOY_WORKER_NAME` | Nom du Worker existant |
+| `DEPLOY_KV_NAMESPACE_ID` | Identifiant du namespace KV existant (32 caractères hexadécimaux) |
+| `DEPLOY_R2_BUCKET_NAME` | Nom du bucket R2 existant |
+| `DEPLOY_DO_MIGRATION_TAG` | Dernier repère de migration appliqué ; pour une installation neuve : `app-data-v1` |
+| `DEPLOY_DO_INSTANCE_NAME` | Nom exact utilisé par `idFromName` dans l'ancienne installation ; pour une installation neuve : `club-app-data` |
+| `DEPLOY_TELEGRAM_SECRET_SUFFIX` | Facultatif : ancien suffixe de dérivation du secret webhook, s'il diffère du défaut générique |
+
+Ces valeurs ne sont pas des mots de passe ; les conserver dans Cloudflare permet de ne
+pas les publier sur GitHub. Aucun jeton Telegram ni mot de passe ne doit être ajouté
+à ces paramètres de compilation. Le script écrit seulement les variables d'exécution
+`APP_DATA_INSTANCE_NAME` et, si fourni, `TELEGRAM_SECRET_SUFFIX`. `keep_vars` préserve
+les autres variables d'exécution existantes. Les secrets restent gérés dans les
+**Variables et secrets d'exécution** du Worker. `ADMIN_PASSWORD` reste obligatoire ;
+s'il manque, le déploiement doit échouer plutôt que déployer sans protection.
+
+Configurez ensuite :
+
+- Commande de build : `npm run build && npm run configure:cloudflare`
+- Commande de déploiement : `npx wrangler deploy --config wrangler.private.json`
+
+Le champ de version/aperçu ne doit pas promouvoir une branche de test en production.
+N'activez pas un aperçu partageant les stockages de production. Laissez les builds hors
+production désactivés tant qu'aucune configuration de test isolée n'est disponible.
+
+Avant une migration existante : sauvegarder les données, confirmer le namespace KV,
+le bucket, le nom d'instance et le repère de migration réellement utilisés. Ce script
+suppose une seule migration initiale créant `AppDataCoordinator` en SQLite, comme le
+projet actuel. Si votre installation possède d'autres migrations ou classes, ne pas
+utiliser cette recette sans adapter et vérifier son historique complet. Ne jamais
+changer ces valeurs pour contourner une erreur de migration.
+
+La génération échoue si un paramètre obligatoire manque ou si le KV n'est pas un
+identifiant valide. Elle n'affiche pas les valeurs privées dans les journaux.
+Conserver la même commande et les mêmes paramètres pour les mises à jour suivantes.
+
+Références : https://developers.cloudflare.com/workers/wrangler/configuration/
+et https://developers.cloudflare.com/workers/ci-cd/builds/configuration/.

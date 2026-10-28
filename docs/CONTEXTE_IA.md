@@ -52,3 +52,13 @@ Le service tiers FFBB peut fournir un calendrier partiel. Une liste vide ne prou
 - `docs/INSTALLATION_CLOUDFLARE.md` : installation dans le compte du club.
 - `COMPTE_RENDU_MODIFICATIONS.txt` : historique technique générique, à confronter au code actuel.
 - `docs/VALIDATION_VERSION_GENERIQUE.md` : portée des vérifications de cette version.
+
+### Paramètres privés de déploiement
+
+Le script `scripts/configure-cloudflare.mjs` génère `wrangler.private.json` hors des
+assets et ignoré par Git. Lire le chapitre dédié dans INSTALLATION_CLOUDFLARE.md.
+Les identifiants viennent des variables de compilation DEPLOY_*, jamais du dépôt.
+Préserver le repère de migration et le nom d'instance transactionnelle existants.
+Le Worker accepte `APP_DATA_INSTANCE_NAME` et `TELEGRAM_SECRET_SUFFIX` pour assurer
+la continuité des installations antérieures ; leurs valeurs ne doivent pas être
+codées en dur. La préparation ne constitue ni un déploiement ni une sauvegarde.

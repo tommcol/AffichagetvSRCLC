@@ -900,9 +900,9 @@ export async function revertTelegramMatchResult(
   return { reverted: true, match: restored };
 }
 
-export async function getTelegramSecretToken(botToken: string): Promise<string> {
+export async function getTelegramSecretToken(botToken: string, suffix = ':club-basket-telegram-secret'): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(botToken.trim() + ':club-basket-telegram-secret');
+  const data = encoder.encode(botToken.trim() + suffix);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -996,7 +996,7 @@ export async function telegramWebhook(request: Request, env: Env): Promise<Respo
 
   // Vérification de sécurité : le message doit impérativement provenir de Telegram
   // via le header X-Telegram-Bot-Api-Secret-Token convenu lors du setWebhook
-  const expectedSecret = await getTelegramSecretToken(botToken);
+  const expectedSecret = await getTelegramSecretToken(botToken, env.TELEGRAM_SECRET_SUFFIX);
   const incomingSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
 
   if (!incomingSecret || incomingSecret !== expectedSecret) {
@@ -1534,7 +1534,7 @@ export async function telegramConnect(request: Request, env: Env): Promise<Respo
       if (cleanDomain) webhookUrl = `https://${cleanDomain}/api/telegram-webhook`;
     }
 
-    const secretToken = await getTelegramSecretToken(botToken);
+    const secretToken = await getTelegramSecretToken(botToken, env.TELEGRAM_SECRET_SUFFIX);
 
     // 1. Enregistrement du webhook auprès de Telegram avec le jeton secret
     const tgWebhookRes = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {

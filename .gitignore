@@ -19,3 +19,6 @@ public/uploads/*
 *.log
 
 node_modules
+
+# Configuration générée privée, hors des assets publics
+/wrangler.private.json
