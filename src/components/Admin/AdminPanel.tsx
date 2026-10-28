@@ -1,3 +1,4 @@
+import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
 import { clubCalendarDate } from '../../utils/clubTime';
 import { isInDisplayPeriod } from '../../utils/displayPeriod';
@@ -383,7 +384,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return DEFAULT_REAL_FFBB_TEAMS;
   });
 
-  const ffbbTeams = externalFfbbTeams && externalFfbbTeams.length > 0 ? externalFfbbTeams : internalFfbbTeams;
+  const ffbbTeams = useMemo(() => groupFfbbTeams(
+    externalFfbbTeams && externalFfbbTeams.length > 0 ? externalFfbbTeams : internalFfbbTeams,
+    [], clubSettings.customTeamNames || {},
+  ), [externalFfbbTeams, internalFfbbTeams, clubSettings.customTeamNames]);
   const setFfbbTeams = (teams: FFBBTeamItem[]) => {
     setInternalFfbbTeams(teams);
     if (onUpdateFfbbTeams) {
@@ -2011,18 +2015,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         onUpdateResults(finalResults);
 
         if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
-          // Préserver les noms personnalisés pour chaque équipe par son identifiant FFBB
-          const existingMap = new Map(ffbbTeams.map((t) => [t.id, t]));
-          const existingCatMap = new Map(ffbbTeams.map((t) => [normalizeCategoryKey(t.category), t]));
-
-          const updatedTeams = res.clubInfo.teamsList.map((t) => {
-            const existing = existingMap.get(t.id) || existingCatMap.get(normalizeCategoryKey(t.category));
-            const customName = customNames[t.id] || customNames[t.category] || existing?.customName;
-            return {
-              ...t,
-              customName: customName || undefined,
-            };
-          });
+          const updatedTeams = groupFfbbTeams(res.clubInfo.teamsList, ffbbTeams, customNames);
 
           setFfbbTeams(updatedTeams);
           try {
@@ -2031,7 +2024,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
         }
 
         const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
-        const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? res.clubInfo.teamsList : ffbbTeams;
+        const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? groupFfbbTeams(res.clubInfo.teamsList, ffbbTeams, customNames) : ffbbTeams;
         const ignoredCount = allTeamsList.filter((t) => isTeamCategoryIgnored(t.category, ignoredCategories)).length;
         const trackedCount = allTeamsList.length - ignoredCount;
         const ignoredNote = ignoredCount > 0 ? ` (${ignoredCount} équipe${ignoredCount > 1 ? 's' : ''} ignorée${ignoredCount > 1 ? 's' : ''})` : '';
@@ -2158,10 +2151,14 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     const updatedCustomNames = { ...(clubSettings.customTeamNames || {}) };
 
     if (trimmed) {
+      const aliases = ffbbTeams.find(t => t.id === teamId)?.engagementIds || [teamId];
+      for (const id of aliases) updatedCustomNames[id] = trimmed;
       updatedCustomNames[teamId] = trimmed;
       updatedCustomNames[teamCategory] = trimmed;
       updatedCustomNames[normalizeCategoryKey(teamCategory)] = trimmed;
     } else {
+      const aliases = ffbbTeams.find(t => t.id === teamId)?.engagementIds || [teamId];
+      for (const id of aliases) delete updatedCustomNames[id];
       delete updatedCustomNames[teamId];
       delete updatedCustomNames[teamCategory];
       delete updatedCustomNames[normalizeCategoryKey(teamCategory)];

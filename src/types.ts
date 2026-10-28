@@ -52,6 +52,8 @@ export interface MatchItem {
 }
 
 export interface FFBBTeamItem {
+  engagementIds?: string[]; // FFBB engagements belonging to the same squad across phases
+  season?: string;
   id: string;
   name: string;
   customName?: string; // Nom personnalisé affiché dans l'application, le carrousel et Telegram

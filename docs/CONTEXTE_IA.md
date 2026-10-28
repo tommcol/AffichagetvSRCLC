@@ -62,3 +62,14 @@ Préserver le repère de migration et le nom d'instance transactionnelle existan
 Le Worker accepte `APP_DATA_INSTANCE_NAME` et `TELEGRAM_SECRET_SUFFIX` pour assurer
 la continuité des installations antérieures ; leurs valeurs ne doivent pas être
 codées en dur. La préparation ne constitue ni un déploiement ni une sauvegarde.
+
+### Équipes FFBB et phases de championnat
+
+L'administration utilise `groupFfbbTeams` pour présenter une seule fiche par catégorie
+structurée, sexe et saison lorsqu'elle est fournie. Les engagements FFBB sont conservés
+dans `engagementIds`, l'identité enregistrée est stable et le nom personnalisé est
+préservé. Le niveau de division et la phase ne définissent pas une nouvelle équipe.
+Les catégories non structurées restent séparées : aucun rapprochement hasardeux.
+Les matchs/résultats ne sont ni supprimés ni réécrits par ce regroupement. Les réglages
+de suivi restent pilotés par la catégorie. Les données FFBB doivent appartenir au club
+et à la saison sélectionnés ; sans saison fournie, le helper ne peut pas la déduire.
