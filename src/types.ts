@@ -15,6 +15,8 @@ export type MatchResult = 'win' | 'loss' | null;
 export type MatchResultSource = 'ffbb' | 'telegram' | 'manual';
 
 export interface MatchItem {
+  calendarSource?: 'excel' | 'ffbb';
+  calendarImport?: { key: string };
   id: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm

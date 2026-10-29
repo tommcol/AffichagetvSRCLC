@@ -1,3 +1,4 @@
+import { prepareExcelApiHandoff } from '../../utils/calendarImportIdentity';
 import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
 import { clubCalendarDate } from '../../utils/clubTime';
@@ -1995,7 +1996,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setSyncIsError(false);
     try {
       const res = await FFBBService.fetchClubData(clubSettings.codeFFBB);
-      if (res.matches && res.matches.length > 0) {
+      if ((res.matches?.length || 0) + (res.results?.length || 0) > 0) {
         let allSeasonMatches = res.matches || [];
         let allSeasonResults = res.results || [];
 
@@ -2008,8 +2009,9 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
         // Attacher les logos adverses si disponibles en cache
         const customNames = clubSettings.customTeamNames || {};
-        const finalMatches = mergeMatchItems(matches, allSeasonMatches, customNames);
-        const finalResults = mergeMatchItems(results, allSeasonResults, customNames);
+        const handoff = prepareExcelApiHandoff(matches, results, allSeasonMatches, allSeasonResults);
+        const finalMatches = mergeMatchItems(handoff.matches, allSeasonMatches, customNames);
+        const finalResults = mergeMatchItems(handoff.results, allSeasonResults, customNames);
 
         onUpdateMatches(finalMatches);
         onUpdateResults(finalResults);
@@ -3123,6 +3125,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'matches' && (
             <MatchesTab
+              ffbbTeams={ffbbTeams}
+              onUpdateResults={onUpdateResults}
 
               birthdays={birthdays}
               clubSettings={clubSettings}

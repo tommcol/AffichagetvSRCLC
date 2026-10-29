@@ -1,3 +1,4 @@
+import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
 import express from "express";
 import path from "path";
@@ -1338,13 +1339,18 @@ async function runBackgroundFFBBSync() {
       // Fusionner avec les données locales : un résultat Telegram déjà reçu
       // ne doit jamais être effacé par une réponse FFBB incomplète.
       const customNames = saved?.clubSettings?.customTeamNames || {};
-      const mergedMatches = mergeMatchItems(
+      const handoff = prepareExcelApiHandoff(
         Array.isArray(saved?.matches) ? saved.matches : [],
+        Array.isArray(saved?.results) ? saved.results : [],
+        filteredFfbbMatches, filteredFfbbResults,
+      );
+      const mergedMatches = mergeMatchItems(
+        handoff.matches,
         filteredFfbbMatches,
         customNames
       );
       const mergedResults = mergeMatchItems(
-        Array.isArray(saved?.results) ? saved.results : [],
+        handoff.results,
         filteredFfbbResults,
         customNames
       );

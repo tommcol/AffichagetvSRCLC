@@ -1,3 +1,5 @@
+import React, { useState } from 'react';
+import { CalendarImportModal } from '../CalendarImportModal';
 import { isInDisplayPeriod } from '../../../utils/displayPeriod';
 // MatchesTab — onglet « matches » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
@@ -16,7 +18,11 @@ export interface MatchesTabProps {
 }
 
 export function MatchesTab(props: MatchesTabProps) {
+  const [importOpen,setImportOpen] = useState(false);
+  const [importMessage,setImportMessage] = useState('');
     const {
+    ffbbTeams,
+    onUpdateResults,
     birthdays,
     clubSettings,
     editingMatch,
@@ -70,6 +76,8 @@ export function MatchesTab(props: MatchesTabProps) {
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
+              {importOpen && <CalendarImportModal matches={matches} results={results} teams={ffbbTeams || []} clubSettings={clubSettings} onClose={()=>setImportOpen(false)} onConfirm={(nextMatches,nextResults,message)=>{onUpdateMatches(nextMatches);onUpdateResults(nextResults);setMatchesFilterMode('all');setImportMessage(message);}} />}
+              {importMessage && <p role="status" className="p-3 bg-emerald-950 text-emerald-200 rounded-lg">{importMessage}</p>}
               {/* Barre de sous-onglets : Matchs vs Studio Calques */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
                 <div className="flex items-center gap-2">
@@ -236,7 +244,8 @@ export function MatchesTab(props: MatchesTabProps) {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
 
-                            <button
+                            <button type="button" onClick={()=>setImportOpen(true)} disabled={isSyncingFFBB} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold disabled:opacity-40">Importer un calendrier Excel</button>
+                      <button
                               type="button"
                               onClick={handleSyncFFBB}
                               disabled={isSyncingFFBB}
@@ -708,8 +717,9 @@ export function MatchesTab(props: MatchesTabProps) {
                             <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-mono text-[11px] font-bold">
                               {m.category}
                             </span>
+                            {m.calendarSource === 'excel' && <span className="px-2 py-0.5 rounded bg-sky-900 text-sky-200 text-[10px]">Excel — en attente FFBB</span>}
                             <span className="text-slate-600">•</span>
-                            <span className="text-slate-300 font-mono">{formatDateToEuropean(m.date)} - {m.time}</span>
+                            <span className="text-slate-300 font-mono">{formatDateToEuropean(m.date)} - {m.time || 'Horaire à confirmer'}</span>
                             {isLive && (
                               <span className="px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-white"></span>

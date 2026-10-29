@@ -1,3 +1,4 @@
+import { prepareExcelApiHandoff } from '../src/utils/calendarImportIdentity';
 import { clubDateTimeTimestamp } from '../src/utils/clubTime';
 import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
@@ -582,10 +583,13 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       ? data.clubSettings.ignoredTeamCategories
       : [];
     const isIgnoredMatch = (match: any) => isTeamCategoryIgnored(String(match?.category || ''), ignoredCategories);
-    const existingMatches = (Array.isArray(data.matches) ? data.matches : []);
-    const existingResults = (Array.isArray(data.results) ? data.results : []);
+    let existingMatches = (Array.isArray(data.matches) ? data.matches : []);
+    let existingResults = (Array.isArray(data.results) ? data.results : []);
     const incomingMatches = (payload.matches as any[]).filter((match: any) => !isIgnoredMatch(match));
     const incomingResults = (Array.isArray(payload.results) ? payload.results : []).filter((match: any) => !isIgnoredMatch(match));
+    const handoff = prepareExcelApiHandoff(existingMatches, existingResults, incomingMatches, incomingResults);
+    existingMatches = handoff.matches;
+    existingResults = handoff.results;
     const beforeSync = JSON.stringify(data);
     const now = Date.now();
     let updatedResults = 0;

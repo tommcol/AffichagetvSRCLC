@@ -69,3 +69,15 @@ Les tests automatisés ne remplacent pas les contrôles visuels du carrousel et 
 ## Partager une installation personnalisée
 
 Conservez les réglages du club dans son stockage applicatif, jamais dans les valeurs par défaut du code. Publiez une copie générique avec un nouvel historique si le dépôt d'origine contenait des informations personnelles. Les anciennes branches, commits, discussions, pièces jointes et copies externes ne sont pas nettoyés par la modification des fichiers actuels.
+
+### Calendrier Excel de secours
+
+Dans **Matchs → Importer un calendrier Excel**, choisissez l'export de rencontres
+FFBB (`.xlsx`, `.xls` ou `.csv`). Vérifiez le club, les catégories et les lignes,
+puis confirmez. Les rencontres restent décochées pour la TV jusqu'à votre sélection.
+Réimporter le même export met à jour ses rencontres sans remplacer celles déjà
+reprises par l'API. Les informations officielles de l'API sont prioritaires lorsque
+la rencontre est reconnue ; une réponse API incomplète ne supprime pas l'historique.
+Une rencontre ambiguë (plusieurs confrontations possibles, nom incompatible, coupe
+sans catégorie) demande une vérification plutôt qu'une association incertaine.
+Les imports Excel des anniversaires et du calendrier sont indépendants.

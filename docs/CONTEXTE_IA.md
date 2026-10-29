@@ -73,3 +73,31 @@ Les catégories non structurées restent séparées : aucun rapprochement hasard
 Les matchs/résultats ne sont ni supprimés ni réécrits par ce regroupement. Les réglages
 de suivi restent pilotés par la catégorie. Les données FFBB doivent appartenir au club
 et à la saison sélectionnés ; sans saison fournie, le helper ne peut pas la déduire.
+
+### Import de secours du calendrier FFBB
+
+Dans Matchs, `CalendarImportModal` lit les exports Excel/CSV FFBB via la dépendance
+XLSX déjà présente (chargée à la demande). `excelMatchParser` valide les lignes,
+propose les catégories et permet de choisir le club/les équipes avant confirmation.
+Aucune écriture lors du choix du fichier ni de l'annulation. Les nouvelles rencontres
+sont décochées pour la TV ; leur sélection se fait dans la liste habituelle.
+Une ligne de coupe sans catégorie déductible demande un choix explicite. Les forfaits
+et lignes invalides doivent être vérifiés et décochés avant validation.
+Les rencontres avec deux scores valides vont dans Résultats.
+
+`calendarImportIdentity` prépare la reprise Excel → API, utilisée dans la synchro
+manuelle et les tâches automatiques locale/Worker. Les noms d'équipes sont nettoyés
+sans changer les noms personnalisés. Le numéro court de l'export n'est jamais utilisé
+comme identifiant API global. L'identité d'import conserve compétition, saison et
+équipes pour les réimports. La reprise API préfère catégorie/équipes/sens/date ; si
+la date change, elle n'utilise le couple saison/équipes que si le rapprochement est
+unique dans les deux listes. Elle neutralise les marqueurs manuels de la rencontre
+Excel pour laisser l'API prioritaire, mais conserve le choix TV et l'identité d'import.
+Un nouvel import ne remplace pas une rencontre déjà prise en charge par l'API.
+Une réponse vide de l'API n'efface rien. Si plusieurs confrontations sont ambiguës,
+ne jamais fusionner au hasard : elles restent distinctes et nécessitent vérification.
+Les noms officiels et la catégorie doivent permettre le rapprochement ; aucune
+promesse de rapprochement automatique si la source fournit des noms incompatibles.
+
+Tests dédiés : `test_excel_match_import.ts` et `test_excel_api_cron.ts` avec clubs
+fictifs exclusivement. Ne jamais versionner les exports réels d'un club.

@@ -154,6 +154,8 @@ export function mergeMatchItems(
     // et on applique les surcharges et protections locales
     merged.push({
       ...incoming,
+      calendarSource: existing.calendarSource === 'ffbb' ? 'ffbb' : incoming.calendarSource,
+      calendarImport: existing.calendarImport || incoming.calendarImport,
       id: existing.id || incoming.id,
       category: finalCategory,
       rawFfbbCategory: rawCategory,
