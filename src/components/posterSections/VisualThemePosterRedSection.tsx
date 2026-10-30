@@ -1,3 +1,4 @@
+import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 // VisualThemePosterRedSection — bloc « visualTheme === 'poster-red' » de VisualExporterModal.
 // Extrait automatiquement lors du découpage : aucune logique modifiée.
 
@@ -202,16 +203,15 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                             const count = sortedMatches.length;
 
                             const renderPosterCard = (m) => {
-                              const isHome = Boolean(m.isHomeMatch);
+                              const isHome = isClubHomeMatch(m, safeClubName, safeShortName);
                               const isExempt = posterFilter === 'exempt' || isExemptItem(m);
                               const isLive = isMatchLive(m);
                               const isFinished = isMatchFinished(m);
                               const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
                               const isWin = isMatchWin(m, safeClubName, safeShortName);
 
-                              const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
-                              const teamRight = isExempt ? 'Exempt' : (isHome ? (m.teamAway || 'Adversaire') : m.category);
-                              const dateText = formatPosterMatchDate(m.date, m.time);
+                              const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(m, safeClubName, safeShortName, isExempt);
+                              const dateText = formatPosterMatchDate(m.date).split('|')[0].trim();
 
                               const sizing = getAdaptivePosterCardSizing(count, aspectRatio);
                               const pillH = sizing.pillHeight;
@@ -222,57 +222,16 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                               return (
                                 <div key={m.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0">
-                                  {/* Intitulé : Date & Heure • Statut • Badge Domicile/Extérieur */}
-                                  <div className="flex items-center justify-between gap-2 px-1">
-                                    <div
-                                      className={
-                                        'flex items-center gap-2 font-black uppercase tracking-wider text-white ' +
-                                        getFontFamilyClass(layer2FontBody)
-                                      }
-                                      style={{ fontSize: headerFontSize }}
-                                    >
-                                      {isLive ? (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-sm uppercase tracking-wider animate-pulse shadow-lg border border-red-400 shrink-0">
-                                          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                                          <span>EN COURS</span>
-                                        </span>
-                                      ) : isFinished ? (
-                                        <span
-                                          className={
-                                            'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm font-black uppercase tracking-wider shrink-0 ' +
-                                            (isWin ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white')
-                                          }
-                                        >
-                                          {isWin ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                                          <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
-                                        </span>
-                                      ) : null}
-
-                                      {dateText && !isLive && (
-                                        <>
-                                          {isFinished && <span className="text-slate-500">•</span>}
-                                          <span className="text-slate-200 font-semibold" style={{ fontSize: '0.65em' }}>
-                                            {dateText}
-                                          </span>
-                                        </>
-                                      )}
+                                  {/* Date centrée ; statut à gauche et lieu à droite. */}
+                                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
+                                    <div className="min-w-0 justify-self-start">
+                                      {isLive ? <span className="text-sm font-black text-white bg-red-600 rounded-full px-2 py-1">EN COURS</span>
+                                        : isFinished ? <span className={'text-sm font-black rounded-full px-2 py-1 text-white ' + (isWin ? 'bg-emerald-600' : 'bg-rose-600')}>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span> : null}
                                     </div>
-
-                                    {isHome ? (
-                                      <span
-                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 shadow-md shrink-0"
-                                        title="Match à Domicile"
-                                      >
-                                        <Home className="w-5 h-5 text-emerald-400" />
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 shadow-md shrink-0"
-                                        title="Match à l'Extérieur"
-                                      >
-                                        <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
-                                      </span>
-                                    )}
+                                    <span className={'text-center text-slate-200 font-semibold uppercase tracking-wider ' + getFontFamilyClass(layer2FontBody)} style={{fontSize: `calc(${headerFontSize} * 0.65)`}}>{dateText}</span>
+                                    <span className={'justify-self-end inline-flex items-center justify-center w-8 h-8 rounded-full border ' + (isHome ? 'text-emerald-400 border-emerald-400/60 bg-emerald-500/20' : 'text-sky-400 border-sky-400/60 bg-sky-500/20')} title={isHome ? 'Match à Domicile' : "Match à l'Extérieur"}>
+                                      {isHome ? <Home className="w-5 h-5"/> : <Plane className="w-5 h-5 -rotate-45"/>}
+                                    </span>
                                   </div>
 
                                   {/* Rangée de Pilules : club en ROUGE, adversaire en ANTHRACITE, heure au centre */}
@@ -281,9 +240,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                       className={
                                         'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
                                         getFontFamilyClass(layer2FontHeader) +
-                                        (isHome
-                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
-                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                        ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
                                       }
                                       style={{ height: pillHeight }}
                                     >
@@ -293,7 +250,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
                                         pillHeight={pillH}
-                                        textColor={isHome ? '#ffffff' : '#e2e8f0'}
+                                        textColor="#ffffff"
                                       />
                                     </div>
 
@@ -307,7 +264,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                           EN COURS
                                         </span>
                                         <span className="font-black leading-none">
-                                          {hasScore ? m.homeScore + ' - ' + m.awayScore : (m.time || 'EN COURS')}
+                                          {hasScore ? scoreText : (m.time || 'EN COURS')}
                                         </span>
                                       </div>
                                     ) : isFinished && hasScore ? (
@@ -318,7 +275,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">
                                           SCORE
                                         </span>
-                                        <span className="font-black leading-none">{m.homeScore} - {m.awayScore}</span>
+                                        <span className="font-black leading-none">{scoreText}</span>
                                       </div>
                                     ) : (
                                       <div
@@ -333,9 +290,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                       className={
                                         'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
                                         getFontFamilyClass(layer2FontHeader) +
-                                        (!isHome
-                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
-                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                        ' bg-slate-900/95 text-slate-200 border-slate-700/80'
                                       }
                                       style={{ height: pillHeight }}
                                     >
@@ -346,7 +301,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
                                         pillHeight={pillH}
-                                        textColor={!isHome ? '#ffffff' : '#e2e8f0'}
+                                        textColor="#e2e8f0"
                                       />
                                     </div>
                                   </div>
@@ -394,12 +349,11 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                             const renderPosterCard = (r) => {
                               const isWin = isMatchWin(r, safeClubName, safeShortName);
                               const isHome = isClubHomeMatch(r, safeClubName, safeShortName);
-                              const teamLeft = isHome ? r.category : (r.teamHome || 'Notre Club');
-                              const teamRight = isHome ? (r.teamAway || 'Adversaire') : r.category;
+                              const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(r, safeClubName, safeShortName);
                               const matchDateText = r.date ? formatPosterMatchDate(r.date, r.time).split('|')[0].trim() : '';
 
                               const hasScore = r.homeScore !== undefined && r.awayScore !== undefined;
-                              const scoreDisplay = hasScore ? (r.homeScore + ' - ' + r.awayScore) : (isWin ? 'VICTOIRE' : 'DÉFAITE');
+                              const scoreDisplay = hasScore ? scoreText : (isWin ? 'VICTOIRE' : 'DÉFAITE');
 
                               const sizing = getAdaptivePosterCardSizing(count, aspectRatio);
                               const pillH = sizing.pillHeight;
@@ -411,48 +365,15 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                               return (
                                 <div key={r.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0 min-w-0">
-                                  {/* Intitulé : Date dorée • VICTOIRE/DÉFAITE • Badge Domicile/Extérieur */}
-                                  <div className="flex items-center justify-between gap-2 px-1 w-full min-w-0">
-                                    <div
-                                      className={
-                                        'flex items-center gap-2 font-black uppercase tracking-wider text-white min-w-0 truncate ' +
-                                        getFontFamilyClass(layer2FontBody)
-                                      }
-                                      style={{ fontSize: headerFontSize }}
-                                    >
-                                      <span className="text-amber-400 tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate">
-                                        {matchDateText || r.category}
-                                      </span>
-
-                                      {resultDisplayMode !== 'score' && (
-                                        <span
-                                          className={
-                                            'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shrink-0 ' +
-                                            (isWin ? 'bg-emerald-600/90 text-white' : 'bg-rose-600/90 text-white')
-                                          }
-                                          style={{ fontSize: statusFontSize }}
-                                        >
-                                          {isWin ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                                          <span>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>
-                                        </span>
-                                      )}
+                                  {/* Date centrée, score dans l'ordre club / adversaire. */}
+                                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
+                                    <div className="min-w-0 justify-self-start">
+                                      {resultDisplayMode !== 'score' && <span className={'font-black uppercase rounded-full px-2 py-1 text-white ' + (isWin ? 'bg-emerald-600' : 'bg-rose-600')} style={{fontSize:statusFontSize}}>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>}
                                     </div>
-
-                                    {isHome ? (
-                                      <span
-                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 shadow-md shrink-0"
-                                        title="Match à Domicile"
-                                      >
-                                        <Home className="w-5 h-5 text-emerald-400" />
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 shadow-md shrink-0"
-                                        title="Match à l'Extérieur"
-                                      >
-                                        <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
-                                      </span>
-                                    )}
+                                    <span className={'text-center text-amber-400 font-semibold uppercase tracking-wider ' + getFontFamilyClass(layer2FontBody)} style={{fontSize:headerFontSize}}>{matchDateText || 'Date à confirmer'}</span>
+                                    <span className={'justify-self-end inline-flex items-center justify-center w-8 h-8 rounded-full border ' + (isHome ? 'text-emerald-400 border-emerald-400/60 bg-emerald-500/20' : 'text-sky-400 border-sky-400/60 bg-sky-500/20')} title={isHome ? 'Match à Domicile' : "Match à l'Extérieur"}>
+                                      {isHome ? <Home className="w-5 h-5"/> : <Plane className="w-5 h-5 -rotate-45"/>}
+                                    </span>
                                   </div>
 
                                   {/* Rangée de Pilules : club en ROUGE, adversaire en ANTHRACITE, score au centre */}
@@ -461,9 +382,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                       className={
                                         'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
                                         getFontFamilyClass(layer2FontHeader) +
-                                        (isHome
-                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
-                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                        ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
                                       }
                                       style={{ height: pillHeight }}
                                     >
@@ -473,7 +392,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
                                         pillHeight={pillH}
-                                        textColor={isHome ? '#ffffff' : '#e2e8f0'}
+                                        textColor="#ffffff"
                                       />
                                     </div>
 
@@ -495,9 +414,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                       className={
                                         'flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center border ' +
                                         getFontFamilyClass(layer2FontHeader) +
-                                        (!isHome
-                                          ? ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
-                                          : ' bg-slate-900/95 text-slate-200 border-slate-700/80')
+                                        ' bg-slate-900/95 text-slate-200 border-slate-700/80'
                                       }
                                       style={{ height: pillHeight }}
                                     >
@@ -507,7 +424,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         aspectRatio={aspectRatio}
                                         fontHeader={layer2FontHeader}
                                         pillHeight={pillH}
-                                        textColor={!isHome ? '#ffffff' : '#e2e8f0'}
+                                        textColor="#e2e8f0"
                                       />
                                     </div>
                                   </div>

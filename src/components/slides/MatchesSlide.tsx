@@ -1,3 +1,4 @@
+import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2, Flame } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
@@ -263,7 +264,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
     const rightMatches = sortedMatches.length <= 2 ? [] : sortedMatches.slice(half);
 
     const renderPosterMatchItem = (m: MatchItem) => {
-      const isHome = Boolean(m.isHomeMatch);
+      const isHome = getClubFirstMatchPresentation(m, clubSettings?.name, clubSettings?.shortName).isHome;
       const hasReceivedResult = m.result === 'win' || m.result === 'loss' || (m.homeScore !== undefined && m.awayScore !== undefined);
 
       const isLive = !hasReceivedResult && isMatchLive(m, currentTime);
@@ -274,21 +275,15 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
       const dateObj = formatMatchDayAndDate(m.date);
       const dayDisplay = dateObj?.display || dateObj?.dayName || '';
-      const timeDisplay = m.time ? ` à ${m.time}` : '';
-      const dateTimeText = `${dayDisplay}${timeDisplay}`.trim();
+      const dateTimeText = dayDisplay.trim();
 
-      const teamLeft = isHome ? m.category : (m.teamHome || 'Notre Club');
-      const teamRight = isHome ? (m.teamAway || 'Adversaire') : m.category;
+      const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(m, clubSettings?.name, clubSettings?.shortName);
 
       return (
         <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
-          {/* Intitulé au-dessus : Catégorie • Statut En Direct / En Cours • Date & Heure • Badge Domicile / Extérieur */}
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white ${scale.headerSize} ${getFontFamilyClass(bodyFont)}`}>
-              <span className={`drop-shadow-sm tracking-wide text-2xl text-amber-400 ${getFontFamilyClass(headerFont)}`}>
-                {m.category}
-              </span>
-
+          {/* Date centrée sans horaire ; statut et lieu conservés */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-h-8">
+            <div className={`justify-self-start min-w-0 flex items-center gap-2 font-black uppercase tracking-wider text-white ${scale.headerSize} ${getFontFamilyClass(bodyFont)}`}>
               {/* BADGE EN COURS OU STATUT */}
               {isLive ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider animate-pulse shadow-lg shadow-red-600/50 border border-red-400 ring-2 ring-red-400/30 shrink-0">
@@ -315,13 +310,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 </span>
               ) : null}
 
-              {dateTimeText && (
-                <>
-                  <span className="text-slate-500 text-xs">•</span>
-                  <span className="text-slate-200 text-sm font-semibold">{dateTimeText}</span>
-                </>
-              )}
             </div>
+            {dateTimeText && <span className={`text-center text-slate-200 text-sm font-semibold uppercase tracking-wider ${getFontFamilyClass(bodyFont)}`}>{dateTimeText}</span>}
+            <div className="justify-self-end">
 
             {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
             {isHome ? (
@@ -339,16 +330,15 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
               </span>
             )}
+            </div>
           </div>
 
           {/* Rangée de Pilules : Notre Club en ROUGE OFFICIEL, Adversaire en ANTHRACITE CONTRASTÉ */}
           <div className="flex items-center justify-between gap-3 md:gap-5 lg:gap-7 w-full min-w-0">
-            {/* Pilule Équipe Domicile (À gauche) */}
+            {/* Notre équipe à gauche */}
             <div
               className={`flex-1 min-w-0 font-black uppercase tracking-wider py-3 md:py-4 px-4 md:px-6 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
-                isHome
-                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+                'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
               }`}
             >
               <span className="truncate block w-full text-center">{teamLeft}</span>
@@ -365,7 +355,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                   EN COURS
                 </span>
                 <span className="text-xl md:text-3xl lg:text-4xl font-black tracking-tight leading-none">
-                  {hasScore ? `${m.homeScore} - ${m.awayScore}` : (m.time || 'EN COURS')}
+                  {hasScore ? scoreText : (m.time || 'EN COURS')}
                 </span>
               </div>
             ) : isFinished && hasScore ? (
@@ -373,7 +363,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
               >
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">SCORE</span>
-                <span className="text-xl md:text-3xl lg:text-4xl font-black leading-none">{m.homeScore}&nbsp;-&nbsp;{m.awayScore}</span>
+                <span className="text-xl md:text-3xl lg:text-4xl font-black leading-none">{scoreText}</span>
               </div>
             ) : (
               <div
@@ -383,12 +373,10 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
               </div>
             )}
 
-            {/* Pilule Équipe Extérieur (À droite) */}
+            {/* Adversaire à droite */}
             <div
               className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
-                !isHome
-                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+                'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
               <span className="truncate block w-full text-center">{teamRight}</span>

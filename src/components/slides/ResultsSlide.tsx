@@ -1,3 +1,4 @@
+import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React from 'react';
 import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane, Clock } from 'lucide-react';
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
@@ -230,28 +231,28 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
       // Heures supprimées des résultats comme demandé
       const dateText = dayDisplay.trim();
 
-      const teamLeft = isHome ? r.category : (r.teamHome || 'Notre Club');
-      const teamRight = isHome ? (r.teamAway || 'Adversaire') : r.category;
+      const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(r, clubSettings?.name, clubSettings?.shortName);
 
       return (
         <div key={r.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0 min-w-0">
           {/* Intitulé au-dessus : Date en grand et Icône Maison ou Avion */}
-          <div className="flex items-center justify-between gap-2 px-1 w-full min-w-0">
-            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white ${scale.headerSize} ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
+            <span aria-hidden="true"/>
+            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white text-center justify-center ${scale.headerSize} ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
               <span className={`drop-shadow-sm tracking-wide text-amber-400 ${getFontFamilyClass(headerFont)} truncate`}>{dateText || 'Match'}</span>
             </div>
 
             {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
             {isHome ? (
               <span
-                className="inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
+                className="justify-self-end inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
                 title="Match à Domicile"
               >
                 <Home className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
               </span>
             ) : (
               <span
-                className="inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
+                className="justify-self-end inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
                 title="Match à l'Extérieur"
               >
                 <Plane className="w-4 h-4 md:w-5 md:h-5 text-sky-400 -rotate-45" />
@@ -264,9 +265,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             {/* Pilule Équipe Domicile (À gauche) */}
             <div
               className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
-                isHome
-                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+                'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
               }`}
             >
               <span className="truncate block w-full text-center">{teamLeft}</span>
@@ -300,7 +299,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                   className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
                 >
                   {r.homeScore !== undefined && r.awayScore !== undefined
-                    ? `${r.homeScore} - ${r.awayScore}`
+                    ? scoreText
                     : 'FINI'}
                 </div>
               )}
@@ -309,9 +308,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
             {/* Pilule Équipe Extérieur (À droite) */}
             <div
               className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
-                !isHome
-                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-                  : 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
+                'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
             >
               <span className="truncate block w-full text-center">{teamRight}</span>

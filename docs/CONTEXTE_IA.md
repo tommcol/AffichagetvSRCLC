@@ -101,3 +101,14 @@ promesse de rapprochement automatique si la source fournit des noms incompatible
 
 Tests dédiés : `test_excel_match_import.ts` et `test_excel_api_cron.ts` avec clubs
 fictifs exclusivement. Ne jamais versionner les exports réels d'un club.
+
+### Ordre des équipes sur les affiches
+
+Les affiches poster-red (aperçu/export et rendu TV correspondant) présentent toujours
+notre catégorie à gauche dans la bulle rouge, l'adversaire à droite et l'heure ou le
+score au centre. La date seule est centrée au-dessus de la rencontre ; l'heure ne
+figure plus à côté de la date. Le lieu reste indiqué par l'icône domicile/extérieur.
+`getClubFirstMatchPresentation` ordonne les libellés et scores pour l'affichage sans
+modifier les champs officiels teamHome/teamAway/homeScore/awayScore. Pour un match à
+l'extérieur, le score affiché est donc awayScore puis homeScore. Le test
+`test_club_first_posters.ts` contrôle les 4 formats, domicile/extérieur et le rendu TV.
