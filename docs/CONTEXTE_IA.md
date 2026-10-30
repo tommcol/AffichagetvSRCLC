@@ -112,3 +112,14 @@ figure plus à côté de la date. Le lieu reste indiqué par l'icône domicile/e
 modifier les champs officiels teamHome/teamAway/homeScore/awayScore. Pour un match à
 l'extérieur, le score affiché est donc awayScore puis homeScore. Le test
 `test_club_first_posters.ts` contrôle les 4 formats, domicile/extérieur et le rendu TV.
+
+
+## Synchronisation FFBB — origine mobile (2026-10-30)
+
+- `src/utils/ffbbMobileApi.ts` : adaptateur **serveur uniquement**, méthode d'accès documentée par ffbb-data-client v2.4.42. Pas de dépendance Python dans le Worker.
+- `worker/ffbb.ts` et `server/ffbbDataHelpers.ts` réutilisent leurs transformations et mécanismes de conservation existants, avec cette source en priorité.
+- Configuration publique à la demande, jeton conservé seulement dans la fermeture de la synchronisation. Aucun jeton FFBB dans les données, journaux, réponses au navigateur ou dépôt.
+- Poules déduites de tous les engagements, pagination des rencontres, filtre sur les identifiants de club et d'engagement, dédoublonnage par identifiant de rencontre. Les phases ne créent pas de nouvelles équipes locales : conserver `ffbbTeamGrouping`.
+- Repli sur REST tiers si indisponible ; `source: ffbb_mobile` ou `ffbb_api_desimone`, `degraded` indique le repli. Ne pas importer cet adaptateur dans les composants/navigateurs.
+- Le navigateur de secours REST reste inchangé. Les tests de récupération ne doivent jamais appeler la route de synchronisation de production, car elle peut mettre à jour les alertes.
+- `scripts/test_ffbb_mobile_api.ts` utilise uniquement des données fictives et vérifie phases, filtres, pagination, scores, confidentialité des jetons et échecs.

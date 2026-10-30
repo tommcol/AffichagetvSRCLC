@@ -1,3 +1,4 @@
+import { createFfbbDataSource } from '../src/utils/ffbbMobileApi';
 // Helper to resolve code or name to organism ID
 export async function resolveOrganismeId(codeOrName: string): Promise<{ organismeId: string; clubResolue?: any } | null> {
   const clean = codeOrName.trim();
@@ -99,7 +100,10 @@ export function isTeamCategoryIgnored(category: string, ignoredCategories: strin
 // Core helper to fetch and parse official FFBB club matches with real poule scores
 export async function fetchOfficialClubData(clubCode: string) {
   const cleanCode = String(clubCode || "").trim();
-  const resolved = await resolveOrganismeId(cleanCode);
+  const api = createFfbbDataSource();
+  const mobileId = await api.resolveClub(cleanCode).catch(() => null);
+  const resolved: { organismeId: string; clubResolue?: any } | null = mobileId
+    ? { organismeId: mobileId } : await resolveOrganismeId(cleanCode);
   if (!resolved || !resolved.organismeId) {
     return {
       success: false,
@@ -114,24 +118,15 @@ export async function fetchOfficialClubData(clubCode: string) {
 
   const orgId = resolved.organismeId;
 
-  // Fetch official matches, club details, and teams in parallel
   const [matchesData, clubData, teamsData] = await Promise.all([
-    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/matches`, {
-      headers: { "Accept": "application/json" },
-    }).then(r => r.ok ? r.json() : { matches: [], count: 0 }).catch(() => ({ matches: [], count: 0 })),
-
-    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}`, {
-      headers: { "Accept": "application/json" },
-    }).then(r => r.ok ? r.json() : null).catch(() => null),
-
-    fetch(`https://ffbb-api.desimone.fr/api/v1/club/${encodeURIComponent(orgId)}/teams`, {
-      headers: { "Accept": "application/json" },
-    }).then(r => r.ok ? r.json() : { teams: [] }).catch(() => ({ teams: [] })),
+    api.get(`/api/v1/club/${encodeURIComponent(orgId)}/matches?limit=500&offset=0`),
+    api.get(`/api/v1/club/${encodeURIComponent(orgId)}`).catch(() => null),
+    api.get(`/api/v1/club/${encodeURIComponent(orgId)}/teams`).catch(() => ({ teams: [] })),
   ]);
 
   const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
-  const clubNom = clubData?.nom || resolved.clubResolue?.nom || "Club Basket Démonstration";
-  const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "Ville Exemple";
+  const clubNom = clubData?.nom || matchesData?.club || resolved.clubResolue?.nom || `Club ${cleanCode}`;
+  const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "";
   const defaultGym = clubData?.salle?.libelle || "Gymnase municipal";
 
   if (rawMatches.length === 0) {
@@ -156,9 +151,7 @@ export async function fetchOfficialClubData(clubCode: string) {
   if (pouleIds.length > 0) {
     const pouleResults = await Promise.all(
       pouleIds.map((pid) =>
-        fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
-          headers: { "Accept": "application/json" },
-        }).then(r => r.ok ? r.json() : null).catch(() => null)
+        api.get(`/api/v1/poule/${encodeURIComponent(String(pid))}`).catch(() => null)
       )
     );
 
@@ -166,7 +159,8 @@ export async function fetchOfficialClubData(clubCode: string) {
       if (p && Array.isArray(p.rencontres)) {
         for (const r of p.rencontres) {
           if (r.id) {
-            const hasScore = r.resultatEquipe1 && r.resultatEquipe1 !== "None" && r.resultatEquipe1 !== "null";
+            const validScore = (v: any) => v !== undefined && v !== null && v !== '' && v !== 'None' && v !== 'null' && Number.isFinite(Number(v));
+            const hasScore = validScore(r.resultatEquipe1) && validScore(r.resultatEquipe2);
             const isPlayed = r.joue === 1 || hasScore;
             if (isPlayed && hasScore) {
               scoreMap.set(String(r.id), {
@@ -228,7 +222,7 @@ export async function fetchOfficialClubData(clubCode: string) {
     const matchItem = {
       id: `ffbb-${matchId}`,
       date: dateStr,
-      time: m.time && m.time !== "Horaire à fixer" ? m.time : "20:30",
+      time: m.time && m.time !== "Horaire à fixer" && m.time !== "00:00" ? m.time : "",
       category: normCat.badgeCategory,
       competition: m.competition || "Championnat FFBB",
       teamHome,
@@ -300,7 +294,8 @@ export async function fetchOfficialClubData(clubCode: string) {
 
   return {
     success: true,
-    source: "ffbb_api_desimone",
+    source: matchesData.source || "ffbb_api_desimone",
+    degraded: matchesData.degraded === true,
     clubCode: cleanCode,
     organismeId: orgId,
     clubName: clubNom,

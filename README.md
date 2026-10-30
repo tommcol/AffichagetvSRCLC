@@ -51,7 +51,22 @@ Un fichier `.env` n'est jamais destiné à GitHub. Masquer l'adresse d'un site d
 
 ## FFBB et services facultatifs
 
-La récupération sportive utilise le service tiers [FFBB Data Client](https://github.com/nickdesi/ffbb-data-client). Il ne s'agit pas d'un service officiel de la FFBB. La disponibilité et la complétude des réponses dépendent du fournisseur ; un succès réseau ne garantit pas un calendrier complet. Les données déjà enregistrées doivent rester conservées lors d'une indisponibilité.
+La synchronisation côté serveur (Cloudflare et serveur local) utilise en priorité
+l'API mobile `api.ffbb.com`, suivant la méthode documentée par
+[FFBB Data Client v2.4.42](https://github.com/nickdesi/ffbb-data-client/releases/tag/v2.4.42).
+L'adaptateur TypeScript récupère les jetons publics à chaque synchronisation via
+`/items/configuration` et consulte les poules de tous les engagements du club,
+y compris les phases suivantes. Aucun serveur Python supplémentaire ni jeton
+FFBB enregistré dans GitHub n'est nécessaire. Les jetons restent côté serveur.
+Le service REST tiers existant reste disponible en secours ; ce mode est signalé
+comme potentiellement incomplet. Le dernier repli du navigateur conserve le service
+REST tiers : il ne contient pas les jetons de l'API mobile.
+
+FFBB Data Client est un projet tiers, pas un service officiel de la FFBB.
+La disponibilité et la complétude des réponses dépendent des fournisseurs ; un
+succès réseau ne garantit pas un calendrier complet. Les données déjà enregistrées
+restent conservées lors d'une indisponibilité. Cette intégration n'installe pas le
+SDK Python : elle adapte son nouveau mode d'accès au serveur TypeScript existant.
 
 Telegram et la génération de légendes sont facultatifs. Ne publiez aucun jeton, webhook privé, identifiant de compte ou mot de passe dans le dépôt.
 

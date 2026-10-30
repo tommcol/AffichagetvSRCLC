@@ -1,3 +1,4 @@
+import { createFfbbDataSource } from '../src/utils/ffbbMobileApi';
 import { prepareExcelApiHandoff } from '../src/utils/calendarImportIdentity';
 import { clubDateTimeTimestamp } from '../src/utils/clubTime';
 import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
@@ -98,7 +99,8 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
   const clubCode = (url.searchParams.get('code') || '').trim();
 
   try {
-    const orgId = await resolveOrganismeId(clubCode);
+    const api = createFfbbDataSource();
+    const orgId = await api.resolveClub(clubCode).catch(() => null) || await resolveOrganismeId(clubCode);
     if (!orgId) {
       return new Response(
         JSON.stringify({
@@ -110,24 +112,8 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
       );
     }
 
-    // Contrat REST documenté dans nickdesi/ffbb-data-client :
-    // GET /api/v1/club/{organisme_id}/matches renvoie { organisme_id, club, matches, count, total, pagination }.
-    // Ne jamais convertir une erreur HTTP en liste vide : le cron doit conserver les données déjà en KV.
-    const fetchApiJson = async (endpoint: string): Promise<any> => {
-      const response = await fetch(`https://ffbb-api.desimone.fr${endpoint}`, {
-        headers: { 'Accept': 'application/json', 'User-Agent': 'AffichageTV-CLUB/1.0' },
-        signal: AbortSignal.timeout(20000),
-      });
-      const body: any = await response.json().catch(() => null);
-      if (!response.ok) {
-        const detail = body?.error?.message || body?.detail || `HTTP ${response.status}`;
-        throw new Error(`API FFBB ${endpoint}: ${detail}`);
-      }
-      if (!body || typeof body !== 'object' || body.error) {
-        throw new Error(`Réponse invalide de l'API FFBB pour ${endpoint}`);
-      }
-      return body;
-    };
+    // Adaptateur mobile v2.4.42, avec repli sur le service REST existant.
+    const fetchApiJson = api.get;
 
     const [matchesData, clubData, teamsData] = await Promise.all([
       fetchApiJson(`/api/v1/club/${encodeURIComponent(orgId)}/matches?limit=500&offset=0`),
@@ -146,8 +132,8 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
       throw new Error('Réponse API FFBB inattendue : le champ matches est absent.');
     }
     console.log(`[FFBB API] Club ${orgId}: ${rawMatches.length}/${matchesData?.total ?? rawMatches.length} rencontres récupérées.`);
-    const clubNom = clubData?.nom || 'Club Basket Démonstration';
-    const clubCommune = clubData?.commune?.libelle || 'Ville Exemple';
+    const clubNom = clubData?.nom || matchesData?.club || `Club ${clubCode}`;
+    const clubCommune = clubData?.commune?.libelle || '';
     const defaultGym = clubData?.salle?.libelle || 'Gymnase municipal';
     const clubLogoUrl = clubData?.logo?.id
       ? `https://api.ffbb.com/assets/${clubData.logo.id}`
@@ -174,9 +160,7 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
       try {
         const pouleResults: any[] = await Promise.all(
           pouleIds.map((pid) =>
-            fetch(`https://ffbb-api.desimone.fr/api/v1/poule/${encodeURIComponent(String(pid))}`, {
-              headers: { 'Accept': 'application/json' },
-            }).then(r => r.ok ? r.json() : null).catch(() => null)
+            api.get(`/api/v1/poule/${encodeURIComponent(String(pid))}`).catch(() => null)
           )
         );
 
@@ -408,12 +392,12 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
 
     return new Response(
       JSON.stringify({
-        success: true, source: 'ffbb_api_desimone', clubCode, organismeId: orgId,
+        success: true, source: matchesData.source || 'ffbb_api_desimone', degraded: matchesData.degraded === true, clubCode, organismeId: orgId,
         clubName: clubNom, city: clubCommune, gymnasiumDefault: defaultGym,
         logoUrl: clubLogoUrl,
         teams: formattedTeams,
         matches: mappedMatches, results: resultsList, totalCount: mappedMatches.length + resultsList.length,
-        message: `API FFBB Officielle : ${mappedMatches.length} rencontres à venir et ${resultsList.length} résultats récents avec scores pour ${clubNom}.`,
+        message: `${matchesData.source === 'ffbb_mobile' ? 'API mobile FFBB' : 'API FFBB de secours (calendrier potentiellement incomplet)'} : ${mappedMatches.length} rencontres et ${resultsList.length} résultats avec scores pour ${clubNom}.`,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
