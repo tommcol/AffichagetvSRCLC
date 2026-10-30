@@ -222,7 +222,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                               return (
                                 <div key={m.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0">
-                                  {/* Intitulé : Catégorie dorée • Date & Heure • Badge Domicile/Extérieur */}
+                                  {/* Intitulé : Date & Heure • Statut • Badge Domicile/Extérieur */}
                                   <div className="flex items-center justify-between gap-2 px-1">
                                     <div
                                       className={
@@ -231,10 +231,6 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                       }
                                       style={{ fontSize: headerFontSize }}
                                     >
-                                      <span className="text-amber-400 tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-                                        {m.category}
-                                      </span>
-
                                       {isLive ? (
                                         <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-sm uppercase tracking-wider animate-pulse shadow-lg border border-red-400 shrink-0">
                                           <span className="w-2 h-2 rounded-full bg-white animate-ping" />
@@ -254,7 +250,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                                       {dateText && !isLive && (
                                         <>
-                                          <span className="text-slate-500">•</span>
+                                          {isFinished && <span className="text-slate-500">•</span>}
                                           <span className="text-slate-200 font-semibold" style={{ fontSize: '0.65em' }}>
                                             {dateText}
                                           </span>
