@@ -62,6 +62,11 @@ export function normalizeCategoryKey(raw?: string): string {
 // Repair the old importer that stored another club's name as a category.
 export function repairLegacyCategory(previous: MatchItem, incoming: MatchItem): boolean {
   const raw = previous.rawFfbbCategory;
-  return !!incoming.ffbbClubId && !!raw && raw === previous.category
-    && !/^(U\d+|seniors|équipe)\b/i.test(raw);
+  const clubKey = (value?: string) => String(value || '').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/\s*-\s*\d+\s*$/, '')
+    .replace(/\s+/g, ' ').trim().toUpperCase();
+  const usesClubName = !!clubKey(previous.ourClubName)
+    && clubKey(previous.category) === clubKey(previous.ourClubName);
+  return !!incoming.ffbbClubId && (usesClubName || (!!raw && raw === previous.category
+    && !/^(U\d+|seniors|équipe)\b/i.test(raw)));
 }

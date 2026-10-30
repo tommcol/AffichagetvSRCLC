@@ -148,9 +148,17 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
       });
       if (!Array.isArray(rows)) throw new Error('Appartenance des rencontres FFBB invérifiable.');
       for (const row of rows) {
-        if (!ids.includes(id(row)) || !id(row.idOrganismeEquipe1) || !id(row.idOrganismeEquipe2)) continue;
-        if ([id(row.idOrganismeEquipe1), id(row.idOrganismeEquipe2)].includes(orgId)) owned.set(id(row), row);
-        else foreignMatchIds.push(id(row));
+        if (!ids.includes(id(row))) continue;
+        const sides = [row.idOrganismeEquipe1, row.idOrganismeEquipe2];
+        if (sides.some(value => id(value) === orgId)) {
+          owned.set(id(row), row);
+        } else if (Object.hasOwn(row, 'idOrganismeEquipe1') && Object.hasOwn(row, 'idOrganismeEquipe2')
+          && sides.every(value => value === null || /^\d+$/.test(id(value)))
+          && sides.some(value => /^\d+$/.test(id(value)))) {
+          // An explicit null means no club occupies that side (e.g. an exempt match).
+          // A missing/unreadable field is still not proof that the match is foreign.
+          foreignMatchIds.push(id(row));
+        }
       }
     }
     return { foreignMatchIds, owned };

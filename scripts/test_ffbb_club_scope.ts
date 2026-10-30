@@ -46,19 +46,29 @@ assert.equal(repaired[0].category, 'U18 M1');
 assert.equal(repaired[0].rawFfbbCategory, 'U18 M1');
 const personal = mergeMatchItems([{ ...own, category: 'Nos grands', rawFfbbCategory: 'U18 M1' }], [{ ...own, ffbbClubId: '1' }]);
 assert.equal(personal[0].category, 'Nos grands');
+const alreadyScoped = { ...own, ffbbClubId: '1', category: 'CLUB EXEMPLE - 2',
+  ourClubName: 'CLUB EXEMPLE', rawFfbbCategory: 'U18 M1' };
+assert.equal(mergeMatchItems([alreadyScoped], [{ ...own, ffbbClubId: '1' }])[0].category, 'U18 M1');
+assert.equal(mergeMatchItems([alreadyScoped], [{ ...own, ffbbClubId: '1' }],
+  { 'U18 M1': 'Mon nom volontaire' })[0].category, 'Mon nom volontaire');
 
 const mock: typeof fetch = async input => {
   const u = new URL(String(input));
   if (u.pathname.endsWith('/configuration')) return Response.json({ data: { key_dh: 'fixture-token' } });
-  assert.equal(u.searchParams.get('filter[id][_in]'), '101,102,103');
+  assert.equal(u.searchParams.get('filter[id][_in]'), '101,102,103,104,105,106,107,108');
   return Response.json({ data: [
     { id: '101', idOrganismeEquipe1: '1', idOrganismeEquipe2: '8' },
     { id: '102', idOrganismeEquipe1: '7', idOrganismeEquipe2: '8' },
+    { id: '104', idOrganismeEquipe1: '7', idOrganismeEquipe2: null },
+    { id: '105', idOrganismeEquipe1: '7' }, // Absent field: unknown, don't delete.
+    { id: '106', idOrganismeEquipe1: '1', idOrganismeEquipe2: null }, // Our own exempt match.
+    { id: '107', idOrganismeEquipe1: null, idOrganismeEquipe2: null },
+    { id: '108', idOrganismeEquipe1: null, idOrganismeEquipe2: '8' },
   ] }); // 103 absent: not evidence of foreign ownership.
 };
-const proof = await createFfbbDataSource(mock).inspectMembership('1', ['101', '102', '103']);
-assert.deepEqual(proof.foreignMatchIds, ['102']);
-assert.deepEqual([...proof.owned.keys()], ['101']);
+const proof = await createFfbbDataSource(mock).inspectMembership('1', ['101', '102', '103', '104', '105', '106', '107', '108']);
+assert.deepEqual(proof.foreignMatchIds, ['102', '104', '108']);
+assert.deepEqual([...proof.owned.keys()], ['101', '106']);
 
 const nextData = { ...seed, clubSettings: next.settings, matches: next.matches, results: next.results, ffbbTeams: [] };
 const backup = sportsReplacementBackup(seed, nextData)!;

@@ -135,3 +135,14 @@ l'extérieur, le score affiché est donc awayScore puis homeScore. Le test
 - Tous les matchs renvoyés sont conservés, même pour une équipe décochée ; les cases des équipes pilotent uniquement la diffusion.
 - La réparation des anciennes catégories écrites comme des noms de clubs s'applique uniquement aux rencontres retrouvées officiellement ; conserver les vrais noms personnalisés. Compétition sans catégorie (ex. coupe) : catégorie générique d'engagement, jamais un club adverse comme nom d'équipe locale.
 - Tests : `test_ffbb_club_scope.ts` et fixtures mobiles isolées. Ne jamais versionner les données ou identifiants de l'installation réelle dans les fixtures.
+
+### Cas incomplets des anciennes rencontres
+
+`inspectMembership` distingue un champ d'organisme absent/inexploitable (preuve
+insuffisante, conserver) d'un `null` explicite (aucun club de ce côté). Une rencontre
+avec un seul club renseigné est étrangère si ce club ne correspond pas au club actif ;
+une rencontre avec notre club et un côté vide reste conservée. Deux côtés nuls ne
+suffisent pas pour retirer une rencontre. Les anciennes catégories identiques au nom
+officiel de notre club avec suffixe d'équipe sont également réparées lorsque la
+catégorie FFBB est déjà connue, même si la rencontre possède déjà `ffbbClubId`.
+Les noms personnalisés explicitement configurés restent prioritaires.
