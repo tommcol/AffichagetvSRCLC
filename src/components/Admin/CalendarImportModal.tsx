@@ -67,7 +67,14 @@ export function CalendarImportModal({ matches, results, teams, clubSettings, onC
     <div className="bg-slate-900 text-slate-100 border border-slate-600 rounded-2xl p-5 w-full max-w-6xl max-h-[92vh] overflow-y-auto space-y-4">
       <div className="flex justify-between gap-3"><h2 id="calendar-import-title" className="font-bold text-xl">Importer un calendrier Excel</h2><button type="button" onClick={close} className="px-3 py-2 bg-slate-700 rounded-lg">Fermer</button></div>
       <p className="text-sm text-slate-300">Import Excel de secours — les données de l’API FFBB restent prioritaires. Rien n’est enregistré avant votre confirmation.</p>
-      <label className="block">Fichier exporté de la plateforme FFBB<input type="file" accept=".xlsx,.xls,.csv" disabled={busy} onChange={e => { void read(e.target.files?.[0]); e.target.value = ''; }} className="block mt-2 w-full"/></label>
+      <label className="block">Fichier exporté de la plateforme FFBB<input type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/csv" disabled={busy} onChange={e => { void read(e.target.files?.[0]); e.target.value = ''; }} className="block mt-2 w-full"/></label>
+      <details className="text-sm text-slate-300">
+        <summary className="cursor-pointer py-2">Fichier grisé sur téléphone ? Choisir sans filtre</summary>
+        <label className="block mt-2">Choisissez votre calendrier Excel ou CSV
+          <input type="file" aria-label="Choisir le calendrier sans filtre" disabled={busy} onChange={e => { void read(e.target.files?.[0]); e.target.value = ''; }} className="block mt-2 w-full"/>
+        </label>
+        <p className="mt-2">Ce sélecteur affiche tous les fichiers. Le calendrier sera vérifié après sélection ; rien ne sera enregistré avant votre confirmation.</p>
+      </details>
       {busy && <p role="status">Lecture du fichier…</p>}{error && <p role="alert" className="text-red-300">{error}</p>}
       {preview && <>
         <label className="block text-sm">Votre club dans le fichier<select value={club} onChange={e => { setClub(e.target.value); setMapping({}); setExcluded([]); }} className="block bg-slate-800 border border-slate-600 p-2 rounded-lg w-full mt-1">{preview.clubs.map(c => <option key={c}>{c}</option>)}</select></label>
