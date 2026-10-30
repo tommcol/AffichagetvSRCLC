@@ -15,6 +15,7 @@ export type MatchResult = 'win' | 'loss' | null;
 export type MatchResultSource = 'ffbb' | 'telegram' | 'manual';
 
 export interface MatchItem {
+  ffbbClubId?: string; // Canonical owner, verified by FFBB IDs (never the display name).
   calendarSource?: 'excel' | 'ffbb';
   calendarImport?: { key: string };
   id: string;
@@ -377,6 +378,7 @@ export interface TelegramConfig {
 }
 
 export interface ClubSettings {
+  ffbbDataClubId?: string; // Club owning the currently loaded sports collections.
   name: string;
   shortName: string;
   codeFFBB: string;

@@ -1,4 +1,5 @@
 import fs from "fs";
+import { sportsReplacementBackup } from '../src/utils/ffbbClubScope';
 import path from "path";
 import { mergeMatchItems } from "../src/utils/ffbbMergeUtils";
 import { normalizeCategoryKey } from "./ffbbDataHelpers";
@@ -24,6 +25,9 @@ export const getSavedAppData = () => {
 
 export const saveAppDataToFile = (data: any) => {
   try {
+    const before = getSavedAppData();
+    const backup = sportsReplacementBackup(before, data);
+    if (backup) fs.writeFileSync(path.join(DATA_DIR, `sports-backup-v${backup.version}.json`), JSON.stringify(backup), 'utf-8');
     const temporary = APP_DATA_FILE + '.tmp';
     fs.writeFileSync(temporary, JSON.stringify(data, null, 2), 'utf-8');
     fs.renameSync(temporary, APP_DATA_FILE);

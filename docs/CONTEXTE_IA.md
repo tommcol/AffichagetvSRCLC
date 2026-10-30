@@ -121,5 +121,17 @@ l'extérieur, le score affiché est donc awayScore puis homeScore. Le test
 - Configuration publique à la demande, jeton conservé seulement dans la fermeture de la synchronisation. Aucun jeton FFBB dans les données, journaux, réponses au navigateur ou dépôt.
 - Poules déduites de tous les engagements, pagination des rencontres, filtre sur les identifiants de club et d'engagement, dédoublonnage par identifiant de rencontre. Les phases ne créent pas de nouvelles équipes locales : conserver `ffbbTeamGrouping`.
 - Repli sur REST tiers si indisponible ; `source: ffbb_mobile` ou `ffbb_api_desimone`, `degraded` indique le repli. Ne pas importer cet adaptateur dans les composants/navigateurs.
-- Le navigateur de secours REST reste inchangé. Les tests de récupération ne doivent jamais appeler la route de synchronisation de production, car elle peut mettre à jour les alertes.
+- Le navigateur refuse les calendriers externes non vérifiés. Les tests de récupération ne doivent jamais appeler la route de synchronisation de production, car elle peut mettre à jour les alertes.
 - `scripts/test_ffbb_mobile_api.ts` utilise uniquement des données fictives et vérifie phases, filtres, pagination, scores, confidentialité des jetons et échecs.
+
+
+## Un seul club sportif actif
+
+- `ffbbClubScope.ts` prépare la synchronisation après succès, compare l'identifiant canonique `clubSettings.ffbbDataClubId` (les alias code/ID du même club ne sont pas un changement). Les nouvelles rencontres portent `ffbbClubId`.
+- Le champ code de l'administration est un brouillon partagé entre Identité et Sync FFBB. Il n'est enregistré qu'avec les nouvelles collections récupérées. Réponse obsolète après changement du brouillon : abandon sans remplacement. Erreur : ancien club conservé. Nouveau club vide mais vérifié : remplacement permis. Nouveau club en mode dégradé : refus.
+- Même club : fusion et historique conservés. Nouveau club : repartir de collections et équipes vides, réinitialiser les noms personnalisés et catégories ignorées, conserver toutes les données non sportives et les médias. Le nom/nom court suit l'identité officielle ; le logo personnel est conservé.
+- Avant remplacement, `commitSharedAppData` et le stockage local créent une sauvegarde privée des collections sportives. Ne pas écrire directement dans le KV de production en court-circuitant le coordinateur.
+- Les anciens identifiants non marqués sont vérifiés via `inspectMembership`. Les `foreignMatchIds` sont prouvés étrangers, les `verifiedMatchIds` reçoivent leur propriétaire. Absence de réponse, match inconnu, manuel ou Excel : pas une preuve de suppression. Échec de la vérification : historique conservé et avertissement dans l'administration.
+- Tous les matchs renvoyés sont conservés, même pour une équipe décochée ; les cases des équipes pilotent uniquement la diffusion.
+- La réparation des anciennes catégories écrites comme des noms de clubs s'applique uniquement aux rencontres retrouvées officiellement ; conserver les vrais noms personnalisés. Compétition sans catégorie (ex. coupe) : catégorie générique d'engagement, jamais un club adverse comme nom d'équipe locale.
+- Tests : `test_ffbb_club_scope.ts` et fixtures mobiles isolées. Ne jamais versionner les données ou identifiants de l'installation réelle dans les fixtures.

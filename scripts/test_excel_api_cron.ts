@@ -1,3 +1,4 @@
+import { fixtureFfbbFetch } from './fixtures/ffbbFixtureFetch';
 import assert from 'node:assert/strict';
 import { runScheduledFfbbSync } from '../worker/ffbb';
 import { parseCalendarRows, calendarRowToMatch } from '../src/utils/excelMatchParser';
@@ -8,7 +9,7 @@ const map = new Map([['app-data', JSON.stringify({ version: 1, clubSettings: { c
 const env: any = { AFFICHAGE_KV: { get: async (k: string) => map.get(k) || null, put: async (k: string, v: string) => map.set(k, v) } };
 let rows: any[] = [{ ffbbMatchId: '900001', dateISO: '2026-11-09', time: '17:30', team: 'CLUB EXEMPLE - 1', competition: 'Départementale masculine U18 - Division 2 - Phase 2', opponent: 'ADVERSAIRE FICTIF - 2', isHome: true, location: 'Salle officielle' }];
 const original = globalThis.fetch;
-globalThis.fetch = (async (input: any) => { const u = String(input); return Response.json(u.includes('/matches?') ? { matches: rows, total: rows.length } : u.endsWith('/999999') ? { nom: 'CLUB EXEMPLE' } : u.endsWith('/teams') ? { teams: [] } : {}); }) as any;
+globalThis.fetch = fixtureFfbbFetch(() => rows, 'Départementale masculine U18 - Division 2 - Phase 2');
 try {
     await runScheduledFfbbSync(env);
     let snapshot = JSON.parse(map.get('app-data')!);

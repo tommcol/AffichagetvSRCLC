@@ -237,7 +237,7 @@ export default function App() {
       let vt = { ...d.visualTemplates };
       setVisualTemplates(normalizeLoadedVisualTemplates(vt));
     }
-    if (d.ffbbTeams && Array.isArray(d.ffbbTeams) && d.ffbbTeams.length > 0) {
+    if (Array.isArray(d.ffbbTeams)) {
       setFfbbTeams(d.ffbbTeams);
       setFfbbTeamsCache(d.ffbbTeams);
     }

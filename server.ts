@@ -1,3 +1,5 @@
+import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
+import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
 import express from "express";
@@ -1301,7 +1303,8 @@ app.get("/api/ffbb/matches", async (req, res) => {
   console.log(`[API FFBB] Récupération officielle des rencontres pour : ${clubCode}`);
 
   try {
-    const data = await fetchOfficialClubData(clubCode);
+    const saved = getSavedAppData();
+    const data = await fetchOfficialClubData(clubCode, [...(saved?.matches || []), ...(saved?.results || [])]);
     return res.json(data);
   } catch (err: any) {
     console.error("[API FFBB Fatal Error]:", err);
@@ -1328,20 +1331,16 @@ async function runBackgroundFFBBSync() {
     const clubCode = saved?.clubSettings?.codeFFBB || "";
     console.log(`[AUTO-SYNC FFBB] Déclenchement automatique pour club ${clubCode}...`);
 
-    const ffbbData = await fetchOfficialClubData(clubCode);
+    const ffbbData = await fetchOfficialClubData(clubCode, [...(saved?.matches || []), ...(saved?.results || [])]);
     lastSyncTimestamp = Date.now();
 
-    if (ffbbData.success && (ffbbData.matches.length > 0 || ffbbData.results.length > 0)) {
-      const ignoredCategories = saved?.clubSettings?.ignoredTeamCategories || [];
-      const filteredFfbbMatches = ffbbData.matches.filter((m: any) => !isTeamCategoryIgnored(m.category, ignoredCategories));
-      const filteredFfbbResults = ffbbData.results.filter((r: any) => !isTeamCategoryIgnored(r.category, ignoredCategories));
-
-      // Fusionner avec les données locales : un résultat Telegram déjà reçu
-      // ne doit jamais être effacé par une réponse FFBB incomplète.
-      const customNames = saved?.clubSettings?.customTeamNames || {};
+    if (ffbbData.success && ffbbData.organismeId) {
+      const scope = prepareClubSportsSync(saved.clubSettings, saved.matches || [], saved.results || [], ffbbData);
+      const filteredFfbbMatches = ffbbData.matches;
+      const filteredFfbbResults = ffbbData.results;
+      const customNames = scope.settings.customTeamNames || {};
       const handoff = prepareExcelApiHandoff(
-        Array.isArray(saved?.matches) ? saved.matches : [],
-        Array.isArray(saved?.results) ? saved.results : [],
+        scope.matches, scope.results,
         filteredFfbbMatches, filteredFfbbResults,
       );
       const mergedMatches = mergeMatchItems(
@@ -1396,6 +1395,8 @@ async function runBackgroundFFBBSync() {
       // Update saved app data
       const updatedData = {
         ...(saved || {}),
+        clubSettings: scope.settings,
+        ffbbTeams: groupFfbbTeams(ffbbData.teams || [], scope.changedClub ? [] : saved.ffbbTeams || [], customNames),
         matches: mergedMatches,
         results: mergedResults,
         version: (typeof saved?.version === "number" ? saved.version : 0) + 1,

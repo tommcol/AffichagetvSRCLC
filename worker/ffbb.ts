@@ -1,3 +1,6 @@
+import { repairLegacyCategory } from '../src/utils/ffbbCategory';
+import { prepareClubSportsSync, officialMatchIds } from '../src/utils/ffbbClubScope';
+import { groupFfbbTeams } from '../src/utils/ffbbTeamGrouping';
 import { createFfbbDataSource } from '../src/utils/ffbbMobileApi';
 import { prepareExcelApiHandoff } from '../src/utils/calendarImportIdentity';
 import { clubDateTimeTimestamp } from '../src/utils/clubTime';
@@ -210,7 +213,10 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
         if (parts[0] && parts[0].trim()) gym = parts[0].trim();
       }
       const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
-      const normCat = normalizeFFBBCategory(m.team, m.competition);
+      let normCat = normalizeFFBBCategory(m.team, m.competition);
+      if (normCat.badgeCategory === m.team) {
+        normCat = normalizeFFBBCategory(`Équipe ${m.team_number || String(m.team || '').match(/(\d+)$/)?.[1] || '1'}`, m.competition);
+      }
       const matchId = String(m.ffbbMatchId || m.id || m.matchId || m.rencontreId || idx);
       // Selon les endpoints FFBB, l'identifiant peut être exposé sous plusieurs formes.
       const candidateIds = [m.ffbbMatchId, m.id, m.matchId, m.rencontreId, m.numero, m.numeroRencontre]
@@ -303,6 +309,8 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
 
       const matchItem = {
         id: `ffbb-${matchId}`,
+        ffbbClubId: orgId,
+        ffbbTeamId: m.engagementId ? `team-${m.engagementId}` : undefined,
         date: dateStr,
         time: matchTime,
         category: normCat.badgeCategory,
@@ -332,6 +340,18 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
         resultsList.push(matchItem);
       }
     }
+
+    let foreignMatchIds: string[] = [];
+    let verifiedMatchIds: string[] = [];
+    let membershipChecked = true;
+    try {
+      const savedRaw = await readSharedAppData(env);
+      const saved = savedRaw ? JSON.parse(savedRaw) : {};
+      const legacy = [...(saved.matches || []), ...(saved.results || [])].filter(m => !m.ffbbClubId);
+      const proof = await api.inspectMembership(orgId, officialMatchIds(legacy));
+      foreignMatchIds = proof.foreignMatchIds;
+      verifiedMatchIds = [...proof.owned.keys()];
+    } catch { membershipChecked = false; }
 
     mappedMatches.sort((a: any, b: any) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
     await syncActiveTelegramAlertsWithFfbbResults(env, mappedMatches);
@@ -393,7 +413,7 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
     return new Response(
       JSON.stringify({
         success: true, source: matchesData.source || 'ffbb_api_desimone', degraded: matchesData.degraded === true, clubCode, organismeId: orgId,
-        clubName: clubNom, city: clubCommune, gymnasiumDefault: defaultGym,
+        clubName: clubNom, officialClubCode: clubData?.code, foreignMatchIds, verifiedMatchIds, membershipChecked, city: clubCommune, gymnasiumDefault: defaultGym,
         logoUrl: clubLogoUrl,
         teams: formattedTeams,
         matches: mappedMatches, results: resultsList, totalCount: mappedMatches.length + resultsList.length,
@@ -562,19 +582,16 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
       throw new Error(payload?.message || payload?.error || 'Réponse FFBB invalide; données conservées.');
     }
 
-    // Respecter les équipes décochées dans « Sync FFBB », y compris lors du cron automatique.
-    const ignoredCategories: string[] = Array.isArray(data.clubSettings?.ignoredTeamCategories)
-      ? data.clubSettings.ignoredTeamCategories
-      : [];
-    const isIgnoredMatch = (match: any) => isTeamCategoryIgnored(String(match?.category || ''), ignoredCategories);
-    let existingMatches = (Array.isArray(data.matches) ? data.matches : []);
-    let existingResults = (Array.isArray(data.results) ? data.results : []);
-    const incomingMatches = (payload.matches as any[]).filter((match: any) => !isIgnoredMatch(match));
-    const incomingResults = (Array.isArray(payload.results) ? payload.results : []).filter((match: any) => !isIgnoredMatch(match));
-    const handoff = prepareExcelApiHandoff(existingMatches, existingResults, incomingMatches, incomingResults);
-    existingMatches = handoff.matches;
-    existingResults = handoff.results;
     const beforeSync = JSON.stringify(data);
+    const scope = prepareClubSportsSync(data.clubSettings, data.matches || [], data.results || [], payload);
+    data.clubSettings = scope.settings;
+    data.ffbbTeams = groupFfbbTeams(payload.teams || [], scope.changedClub ? [] : data.ffbbTeams || [], scope.settings.customTeamNames || {});
+    // Team checkboxes control TV visibility; keep all official sports data.
+    const incomingMatches = payload.matches;
+    const incomingResults = Array.isArray(payload.results) ? payload.results : [];
+    const handoff = prepareExcelApiHandoff(scope.matches, scope.results, incomingMatches, incomingResults);
+    let existingMatches = handoff.matches;
+    let existingResults = handoff.results;
     const now = Date.now();
     let updatedResults = 0;
 
@@ -618,7 +635,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         if (previous) {
           const merged = { ...previous, ...fresh };
           const names = data.clubSettings?.customTeamNames || {};
-          merged.category = names[fresh.ffbbTeamId] || names[fresh.rawFfbbCategory || fresh.category] || previous.category || fresh.category;
+          merged.category = names[fresh.ffbbTeamId] || names[fresh.rawFfbbCategory || fresh.category] || (repairLegacyCategory(previous, fresh) ? fresh.category : previous.category) || fresh.category;
           merged.selectedForWeekend = previous.selectedForWeekend;
           // Si la FFBB ne fournit plus d'heure pour la même date, garder la dernière heure connue
           // plutôt que de l'effacer (une heure vide ne doit jamais écraser une heure existante).

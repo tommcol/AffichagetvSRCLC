@@ -1,3 +1,4 @@
+import { prepareClubSportsSync, clubCodeKey } from '../../utils/ffbbClubScope';
 import { prepareExcelApiHandoff } from '../../utils/calendarImportIdentity';
 import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
@@ -1989,35 +1990,48 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     setTimeout(() => setSyncMessage(null), 4000);
   };
 
+  // A code being typed is a draft, not a club switch. Commit it with successful sports data.
+  const [ffbbClubDraft, setFfbbClubDraft] = useState(clubSettings.codeFFBB);
+  const ffbbDraftRef = useRef(ffbbClubDraft);
+  ffbbDraftRef.current = ffbbClubDraft;
+  useEffect(() => { setFfbbClubDraft(clubSettings.codeFFBB); }, [clubSettings.codeFFBB]);
+  const updateClubDraftSettings = (next: ClubSettings) => {
+    ffbbDraftRef.current = next.codeFFBB;
+    setFfbbClubDraft(next.codeFFBB);
+    onUpdateClubSettings({ ...next, codeFFBB: clubSettings.codeFFBB });
+  };
+  const draftClubSettings = { ...clubSettings, codeFFBB: ffbbClubDraft };
+
   // Récupération automatique des logos des clubs adverses (FFBB API)
   const handleSyncFFBB = async () => {
     setIsSyncingFFBB(true);
     setSyncMessage(null);
     setSyncIsError(false);
     try {
-      const res = await FFBBService.fetchClubData(clubSettings.codeFFBB);
-      if ((res.matches?.length || 0) + (res.results?.length || 0) > 0) {
+      const requestedCode = ffbbClubDraft.trim();
+      const res = await FFBBService.fetchClubData(requestedCode);
+      if (clubCodeKey(ffbbDraftRef.current) !== clubCodeKey(requestedCode)) {
+        setSyncMessage('Le code a changé pendant la récupération. Relancez la synchronisation ; aucune donnée remplacée.');
+        return;
+      }
+      if (res.clubInfo?.organismeId) {
+        const scope = prepareClubSportsSync(clubSettings, matches, results,
+          { ...res.clubInfo, clubName: res.clubInfo.clubName }, requestedCode);
         let allSeasonMatches = res.matches || [];
         let allSeasonResults = res.results || [];
 
-        // Étape : Filtrer uniquement en ignorant les équipes décochées par l'administrateur
-        const ignoredCategories = clubSettings.ignoredTeamCategories || [];
-        if (ignoredCategories.length > 0) {
-          allSeasonMatches = allSeasonMatches.filter((m) => !isTeamCategoryIgnored(m.category, ignoredCategories));
-          allSeasonResults = allSeasonResults.filter((r) => !isTeamCategoryIgnored(r.category, ignoredCategories));
-        }
-
-        // Attacher les logos adverses si disponibles en cache
-        const customNames = clubSettings.customTeamNames || {};
-        const handoff = prepareExcelApiHandoff(matches, results, allSeasonMatches, allSeasonResults);
+        const ignoredCategories = scope.settings.ignoredTeamCategories || [];
+        const customNames = scope.settings.customTeamNames || {};
+        const handoff = prepareExcelApiHandoff(scope.matches, scope.results, allSeasonMatches, allSeasonResults);
         const finalMatches = mergeMatchItems(handoff.matches, allSeasonMatches, customNames);
         const finalResults = mergeMatchItems(handoff.results, allSeasonResults, customNames);
 
+        onUpdateClubSettings(scope.settings);
         onUpdateMatches(finalMatches);
         onUpdateResults(finalResults);
 
-        if (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) {
-          const updatedTeams = groupFfbbTeams(res.clubInfo.teamsList, ffbbTeams, customNames);
+        if (res.clubInfo?.teamsList) {
+          const updatedTeams = groupFfbbTeams(res.clubInfo.teamsList, scope.changedClub ? [] : ffbbTeams, customNames);
 
           setFfbbTeams(updatedTeams);
           try {
@@ -2025,13 +2039,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           } catch (e) {}
         }
 
-        const sourceInfo = "API FFBB Officielle (ffbb-api.desimone.fr)";
-        const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? groupFfbbTeams(res.clubInfo.teamsList, ffbbTeams, customNames) : ffbbTeams;
+        const sourceInfo = res.source === 'ffbb_mobile' ? 'API mobile FFBB' : 'API FFBB de secours';
+        const allTeamsList = (res.clubInfo?.teamsList && res.clubInfo.teamsList.length > 0) ? groupFfbbTeams(res.clubInfo.teamsList, scope.changedClub ? [] : ffbbTeams, customNames) : scope.changedClub ? [] : ffbbTeams;
         const ignoredCount = allTeamsList.filter((t) => isTeamCategoryIgnored(t.category, ignoredCategories)).length;
         const trackedCount = allTeamsList.length - ignoredCount;
         const ignoredNote = ignoredCount > 0 ? ` (${ignoredCount} équipe${ignoredCount > 1 ? 's' : ''} ignorée${ignoredCount > 1 ? 's' : ''})` : '';
 
-        setSyncMessage(`Synchronisation réussie (${sourceInfo})${ignoredNote} ! L'intégralité du calendrier de la saison (${allSeasonMatches.length} rencontres et ${allSeasonResults.length} résultats) a été synchronisée pour les ${trackedCount} équipes suivies.`);
+        setSyncMessage(`${res.clubInfo.membershipChecked === false ? 'Attention : vérification des anciens matchs indisponible ; leur historique est conservé. ' : ''}Synchronisation réussie (${sourceInfo})${ignoredNote}${scope.changedClub ? ' — nouveau club, anciennes données sportives remplacées' : ''} ! Le calendrier reçu (${allSeasonMatches.length} rencontres et ${allSeasonResults.length} résultats) a été synchronisé pour les ${trackedCount} équipes suivies.`);
       } else {
         setSyncIsError(true);
         setSyncMessage(res.message || 'Calendrier FFBB officiel interrogé : aucune rencontre programmée pour ce club.');
@@ -3444,12 +3458,13 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'club_identity' && (
             <ClubIdentityTab
-              clubSettings={clubSettings}
+              clubSettings={draftClubSettings}
+              activeClubCode={clubSettings.codeFFBB}
               ffbbTeams={ffbbTeams}
               handleLogoFileUpload={handleLogoFileUpload}
               isUploadingLogo={isUploadingLogo}
               logoFileInputRef={logoFileInputRef}
-              onUpdateClubSettings={onUpdateClubSettings}
+              onUpdateClubSettings={updateClubDraftSettings}
               setActiveTab={setActiveTab}
               setIsDraggingLogo={setIsDraggingLogo}
               setSocialForm={setSocialForm}
@@ -3462,7 +3477,8 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           {/* ========================================================================= */}
           {activeTab === 'ffbb' && (
             <FfbbTab
-              clubSettings={clubSettings}
+              clubSettings={draftClubSettings}
+              activeClubCode={clubSettings.codeFFBB}
               ffbbTeams={ffbbTeams}
               handleSyncFFBB={handleSyncFFBB}
               handleToggleTrackTeam={handleToggleTrackTeam}
@@ -3471,7 +3487,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
               handleUpdateTeamCustomName={handleUpdateTeamCustomName}
               isSyncingFFBB={isSyncingFFBB}
               onOpenVisualExporter={onOpenVisualExporter}
-              onUpdateClubSettings={onUpdateClubSettings}
+              onUpdateClubSettings={updateClubDraftSettings}
               setActiveTab={setActiveTab}
               setFilterToCurrentWeekend={setFilterToCurrentWeekend}
               setSyncEndDate={setSyncEndDate}

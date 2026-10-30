@@ -1,4 +1,5 @@
 import { Env } from './types';
+import { sportsReplacementBackup } from '../src/utils/ffbbClubScope';
 
 const localQueues = new WeakMap<object, Promise<unknown>>();
 
@@ -65,6 +66,11 @@ export async function readSharedAppData(env: Env): Promise<string | null> {
   return raw === 'null' ? null : raw;
 }
 export async function commitSharedAppData(env: Env, data: any, expectedVersion: number): Promise<boolean> {
+  const rawBefore = await readSharedAppData(env);
+  const before = rawBefore ? JSON.parse(rawBefore) : null;
+  if ((before?.version || 0) !== expectedVersion) return false;
+  const backup = sportsReplacementBackup(before, data);
+  if (backup) await env.AFFICHAGE_KV.put(`sports-backup-v${expectedVersion}`, JSON.stringify(backup));
   const stub = coordinator(env);
   if (stub) {
     const response = await stub.fetch('https://storage.internal/', {

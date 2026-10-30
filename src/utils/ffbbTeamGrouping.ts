@@ -1,5 +1,5 @@
 import type { FFBBTeamItem } from '../types';
-import { normalizeCategoryKey } from '../services/ffbbService';
+import { normalizeCategoryKey } from './ffbbCategory';
 
 // Only a structured category identifies a squad. Never guess from a custom name
 // or a division: division and engagement identifiers may change between phases.

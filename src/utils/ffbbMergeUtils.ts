@@ -1,3 +1,4 @@
+import { repairLegacyCategory } from './ffbbCategory';
 import { MatchItem } from '../types';
 
 /**
@@ -139,8 +140,9 @@ export function mergeMatchItems(
 
     // Résolution du nom affiché de l'équipe (personnalisation préservée, jamais écrasée par FFBB)
     const teamId = existing.ffbbTeamId || incoming.ffbbTeamId;
-    const rawCategory = existing.rawFfbbCategory || incoming.rawFfbbCategory || incoming.category;
-    let finalCategory = existing.category || incoming.category;
+    const repair = repairLegacyCategory(existing, incoming);
+    const rawCategory = repair ? incoming.rawFfbbCategory || incoming.category : existing.rawFfbbCategory || incoming.rawFfbbCategory || incoming.category;
+    let finalCategory = repair ? incoming.category : existing.category || incoming.category;
 
     if (customTeamNames) {
       if (teamId && customTeamNames[teamId]) {

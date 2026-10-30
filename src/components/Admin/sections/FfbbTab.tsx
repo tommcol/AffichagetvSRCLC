@@ -14,6 +14,7 @@ export interface FfbbTabProps {
 export function FfbbTab(props: FfbbTabProps) {
     const {
     clubSettings,
+    activeClubCode,
     ffbbTeams,
     handleSyncFFBB,
     handleToggleTrackTeam,
@@ -61,13 +62,17 @@ export function FfbbTab(props: FfbbTabProps) {
                   </button>
                 </div>
 
+                {activeClubCode !== undefined && clubSettings.codeFFBB !== activeClubCode && (
+                  <p className="text-sm text-amber-300">Code en préparation. Cliquez sur « Synchroniser les matchs » : les données sportives seront remplacées uniquement si le nouveau club est récupéré. Le club actif reste {activeClubCode || 'non configuré'}.</p>
+                )}
+
                 {/* Petit Calendrier de Filtrage des Dates */}
                 <div className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700/40 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-orange-400" />
-                        <span>Filtre calendrier (Évite d'importer toute la saison) :</span>
+                        <span>Période de consultation (la synchronisation récupère toute la saison) :</span>
                       </h4>
                       <p className="text-[10px] text-slate-400">
                         Sélectionnez directement vos dates sur le petit calendrier ci-dessous sans rien taper.

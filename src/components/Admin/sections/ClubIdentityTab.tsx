@@ -184,7 +184,7 @@ export function ClubIdentityTab(props: ClubIdentityTabProps) {
                         </button>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Code officiel attribué par la fédération (ex: DEMO0000000).
+                        Code en préparation : validez-le dans la synchronisation FFBB. Un changement de club remplacera ses équipes, matchs et résultats après récupération réussie.
                       </p>
                     </div>
 

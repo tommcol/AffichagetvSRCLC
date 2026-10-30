@@ -59,8 +59,9 @@ L'adaptateur TypeScript récupère les jetons publics à chaque synchronisation 
 y compris les phases suivantes. Aucun serveur Python supplémentaire ni jeton
 FFBB enregistré dans GitHub n'est nécessaire. Les jetons restent côté serveur.
 Le service REST tiers existant reste disponible en secours ; ce mode est signalé
-comme potentiellement incomplet. Le dernier repli du navigateur conserve le service
-REST tiers : il ne contient pas les jetons de l'API mobile.
+comme potentiellement incomplet. Les données de secours sont contrôlées avec les identifiants officiels du club.
+Le navigateur n'accepte plus un calendrier externe non vérifié et ne contient pas
+les jetons de l'API mobile.
 
 FFBB Data Client est un projet tiers, pas un service officiel de la FFBB.
 La disponibilité et la complétude des réponses dépendent des fournisseurs ; un
@@ -96,3 +97,22 @@ la rencontre est reconnue ; une réponse API incomplète ne supprime pas l'histo
 Une rencontre ambiguë (plusieurs confrontations possibles, nom incompatible, coupe
 sans catégorie) demande une vérification plutôt qu'une association incertaine.
 Les imports Excel des anniversaires et du calendrier sont indépendants.
+
+### Un seul club actif
+
+Le code saisi dans **Identité du club** ou **Sync FFBB** reste en préparation
+jusqu'à une synchronisation réussie. Pour le même club, les horaires et scores
+s'actualisent en conservant l'historique et les sélections TV. Un autre club
+remplace les équipes, matchs et résultats, même si son calendrier officiel est
+vide ; ses noms personnalisés et équipes ignorées repartent de zéro. Une erreur
+ou un calendrier de secours incomplet ne valide pas un changement de club.
+Les médias, sponsors, anniversaires, événements et réglages graphiques restent
+conservés ; seul le nom textuel est adapté au nouveau club.
+
+Les anciens matchs FFBB sont contrôlés par identifiant : seules les rencontres
+prouvées étrangères au club sont écartées. Un match absent de la réponse, un import
+Excel ou une rencontre manuelle n'est pas supprimé sur cette seule absence.
+Avant remplacement de données sportives, une copie privée est conservée dans KV
+(`sports-backup-v<version>`) ou dans le dossier local `data` (démonstration :
+`.demo-data`). Elle contient l'ancien calendrier et les paramètres sportifs,
+pas les banques de médias. Ne jamais versionner ces sauvegardes.

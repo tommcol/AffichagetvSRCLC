@@ -1,3 +1,4 @@
+import { fixtureFfbbFetch } from './fixtures/ffbbFixtureFetch';
 import assert from 'node:assert/strict';
 import { runScheduledFfbbSync } from '../worker/ffbb';
 const RealDate = Date;
@@ -13,11 +14,7 @@ const data = new Map<string, string>([['app-data', JSON.stringify({ version: 1, 
 const env: any = { AFFICHAGE_KV: { get: async (key: string) => data.get(key) || null, put: async (key: string, value: string) => { data.set(key, value); } } };
 const raw: any = { ffbbMatchId: '900001', dateISO: '2026-11-06', time: '20:30', team: 'Seniors Filles 1', competition: 'Seniors Féminin', opponent: 'ADVERSAIRE FICTIF', isHome: true };
 let rows = [raw];
-globalThis.fetch = (async (input: any) => {
- const url = String(input);
- const body = url.includes('/matches?') ? { matches: rows, total: rows.length } : url.endsWith('/teams') ? { teams: [] } : url.endsWith('/999999') ? { nom: 'CLUB DÉMO' } : {};
- return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
-}) as any;
+globalThis.fetch = fixtureFfbbFetch(() => rows, 'Seniors Féminin');
 try {
  await runScheduledFfbbSync(env);
  let snapshot = JSON.parse(data.get('app-data')!);

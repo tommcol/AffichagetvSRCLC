@@ -119,6 +119,7 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
             const validScore = (v: any) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
             const scored = validScore(r.resultatEquipe1) && validScore(r.resultatEquipe2);
             matches.set(id(r), {
+              engagementId: id(e), team_number: e.numeroEquipe || '1',
               ffbbMatchId: id(r), dateISO: date.slice(0, 10), time: time === '00:00' ? '' : time,
               team: home ? r.nomEquipe1 : r.nomEquipe2, opponent: home ? r.nomEquipe2 : r.nomEquipe1,
               competition: e.idCompetition?.nom || '', isHome: home,
@@ -134,6 +135,25 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
       return { matches: [...matches.values()], total: matches.size, source: 'ffbb_mobile', degraded: false };
     })());
     return calendars.get(orgId)!;
+  }
+
+  async function inspectMembership(orgId: string, matchIds: string[]) {
+    const foreignMatchIds: string[] = [];
+    const owned = new Map<string, Row>();
+    const ids = [...new Set(matchIds.filter(value => /^\d+$/.test(value)))];
+    for (let start = 0; start < ids.length; start += 50) {
+      const rows = await official('ffbbserver_rencontres', {
+        'filter[id][_in]': ids.slice(start, start + 50).join(','), limit: '50',
+        fields: 'id,idOrganismeEquipe1,idOrganismeEquipe2,idEngagementEquipe1,idEngagementEquipe2,nomEquipe1,nomEquipe2',
+      });
+      if (!Array.isArray(rows)) throw new Error('Appartenance des rencontres FFBB invérifiable.');
+      for (const row of rows) {
+        if (!ids.includes(id(row)) || !id(row.idOrganismeEquipe1) || !id(row.idOrganismeEquipe2)) continue;
+        if ([id(row.idOrganismeEquipe1), id(row.idOrganismeEquipe2)].includes(orgId)) owned.set(id(row), row);
+        else foreignMatchIds.push(id(row));
+      }
+    }
+    return { foreignMatchIds, owned };
   }
 
   async function get(path: string): Promise<Row> {
@@ -152,9 +172,23 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
     } catch {
       // Keep the existing REST service as fallback. Never persist an API failure as empty data.
       const body = await read(`https://ffbb-api.desimone.fr${path}`);
-      if (match?.[3] === 'matches' && !Array.isArray(body.matches)) throw new Error('Calendrier de secours FFBB invalide.');
+      if (match?.[3] === 'matches') {
+        if (!Array.isArray(body.matches)) throw new Error('Calendrier de secours FFBB invalide.');
+        const c = await club(match[2]);
+        const proof = await inspectMembership(match[2], body.matches.map((m: Row) => id(m.ffbbMatchId || m.id)));
+        body.matches = body.matches.flatMap((m: Row) => {
+          const row = proof.owned.get(id(m.ffbbMatchId || m.id));
+          if (!row) return [];
+          const home = id(row.idOrganismeEquipe1) === match[2];
+          const e = c.engagements.find((e: Row) => id(e) === id(home ? row.idEngagementEquipe1 : row.idEngagementEquipe2));
+          if (!e) return [];
+          return [{ ...m, engagementId: id(e), team_number: e.numeroEquipe || '1', isHome: home, team: home ? row.nomEquipe1 : row.nomEquipe2,
+            opponent: home ? row.nomEquipe2 : row.nomEquipe1, competition: e.idCompetition?.nom || '' }];
+        });
+        body.total = body.matches.length;
+      }
       return { ...body, source: 'ffbb_api_desimone', degraded: true };
     }
   }
-  return { get, resolveClub };
+  return { get, resolveClub, inspectMembership };
 }

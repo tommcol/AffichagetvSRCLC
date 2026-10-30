@@ -1,3 +1,4 @@
+import { officialMatchIds } from '../src/utils/ffbbClubScope';
 import { createFfbbDataSource } from '../src/utils/ffbbMobileApi';
 // Helper to resolve code or name to organism ID
 export async function resolveOrganismeId(codeOrName: string): Promise<{ organismeId: string; clubResolue?: any } | null> {
@@ -98,7 +99,7 @@ export function isTeamCategoryIgnored(category: string, ignoredCategories: strin
 }
 
 // Core helper to fetch and parse official FFBB club matches with real poule scores
-export async function fetchOfficialClubData(clubCode: string) {
+export async function fetchOfficialClubData(clubCode: string, existingRows: any[] = []) {
   const cleanCode = String(clubCode || "").trim();
   const api = createFfbbDataSource();
   const mobileId = await api.resolveClub(cleanCode).catch(() => null);
@@ -124,6 +125,14 @@ export async function fetchOfficialClubData(clubCode: string) {
     api.get(`/api/v1/club/${encodeURIComponent(orgId)}/teams`).catch(() => ({ teams: [] })),
   ]);
 
+  let foreignMatchIds: string[] = [];
+  let verifiedMatchIds: string[] = [];
+  let membershipChecked = true;
+  try {
+    const proof = await api.inspectMembership(orgId, officialMatchIds(existingRows.filter(m => !m.ffbbClubId)));
+    foreignMatchIds = proof.foreignMatchIds;
+    verifiedMatchIds = [...proof.owned.keys()];
+  } catch { membershipChecked = false; }
   const rawMatches = Array.isArray(matchesData?.matches) ? matchesData.matches : [];
   const clubNom = clubData?.nom || matchesData?.club || resolved.clubResolue?.nom || `Club ${cleanCode}`;
   const clubCommune = clubData?.commune?.libelle || resolved.clubResolue?.ville || "";
@@ -135,6 +144,7 @@ export async function fetchOfficialClubData(clubCode: string) {
       clubCode: cleanCode,
       organismeId: orgId,
       clubName: clubNom,
+      officialClubCode: clubData?.code, foreignMatchIds, verifiedMatchIds, membershipChecked,
       city: clubCommune,
       teams: teamsData?.teams || [],
       matches: [],
@@ -200,7 +210,10 @@ export async function fetchOfficialClubData(clubCode: string) {
     }
 
     const dateStr = m.dateISO && m.dateISO.length >= 10 ? m.dateISO.slice(0, 10) : todayStr;
-    const normCat = normalizeFFBBCategory(m.team, m.competition);
+    let normCat = normalizeFFBBCategory(m.team, m.competition);
+      if (normCat.badgeCategory === m.team) {
+        normCat = normalizeFFBBCategory(`Équipe ${m.team_number || String(m.team || '').match(/(\d+)$/)?.[1] || '1'}`, m.competition);
+      }
     const matchId = String(m.ffbbMatchId || idx);
     const pouleScore = scoreMap.get(matchId);
 
@@ -221,6 +234,8 @@ export async function fetchOfficialClubData(clubCode: string) {
 
     const matchItem = {
       id: `ffbb-${matchId}`,
+      ffbbClubId: orgId,
+        ffbbTeamId: m.engagementId ? `team-${m.engagementId}` : undefined,
       date: dateStr,
       time: m.time && m.time !== "Horaire à fixer" && m.time !== "00:00" ? m.time : "",
       category: normCat.badgeCategory,
@@ -299,6 +314,7 @@ export async function fetchOfficialClubData(clubCode: string) {
     clubCode: cleanCode,
     organismeId: orgId,
     clubName: clubNom,
+    officialClubCode: clubData?.code, foreignMatchIds, verifiedMatchIds, membershipChecked,
     city: clubCommune,
     gymnasiumDefault: defaultGym,
     logoUrl: clubData?.logo?.id ? `https://api.ffbb.com/assets/${clubData.logo.id}` : undefined,

@@ -1,9 +1,16 @@
+import { normalizeFFBBCategory, normalizeCategoryKey } from '../utils/ffbbCategory';
 import { MatchItem, FinishedMatchNotification, FFBBTeamItem } from '../types';
 
 export type { FFBBTeamItem };
 
 export interface FFBBClubInfo {
   clubCode: string;
+  organismeId?: string;
+  officialClubCode?: string;
+  foreignMatchIds?: string[];
+  verifiedMatchIds?: string[];
+  membershipChecked?: boolean;
+  degraded?: boolean;
   clubName: string;
   logoUrl?: string;
   city?: string;
@@ -14,65 +21,7 @@ export interface FFBBClubInfo {
   teamsList: FFBBTeamItem[];
 }
 
-export function normalizeFFBBCategory(rawTeam?: string, competition?: string): {
-  badgeCategory: string;
-  displayName: string;
-  gender: 'M' | 'F' | 'Mixte';
-} {
-  const comp = (competition || '').trim();
-  const compLower = comp.toLowerCase();
-  const raw = (rawTeam || '').trim();
-  const rawLower = raw.toLowerCase();
-
-  const isFem = compLower.includes('féminin') || compLower.includes('feminin') || compLower.includes('fille') || rawLower.includes(' f') || /u\d+\s*f/i.test(rawLower);
-  const isMasc = compLower.includes('masculin') || compLower.includes('garçon') || compLower.includes('garcon') || rawLower.includes(' m') || rawLower.includes(' g') || /u\d+\s*[mg]/i.test(rawLower);
-  const gender: 'M' | 'F' | 'Mixte' = isFem ? 'F' : (isMasc ? 'M' : 'Mixte');
-
-  const uMatch = compLower.match(/u\s*(\d+)/i) || rawLower.match(/u\s*(\d+)/i);
-  const numMatch = raw.match(/(\d+)$/) || comp.match(/équipe\s*(\d+)/i) || comp.match(/division\s*(\d+)/i);
-  const num = numMatch ? numMatch[1] : '1';
-
-  if (uMatch) {
-    const age = uMatch[1];
-    const gLetter = isFem ? 'F' : (isMasc ? 'M' : '');
-    const gWord = isFem ? 'Filles' : (isMasc ? 'Garçons' : 'Mixte');
-    return {
-      badgeCategory: `U${age} ${gLetter}${num}`.trim(),
-      displayName: `U${age} ${gWord} ${num}`.trim(),
-      gender,
-    };
-  }
-
-  if (compLower.includes('senior') || rawLower.includes('senior')) {
-    const gLetter = isFem ? 'F' : 'M';
-    const gWord = isFem ? 'Filles' : 'Garçons';
-    return {
-      badgeCategory: `Seniors ${gLetter}${num}`,
-      displayName: `Seniors ${gWord} ${num}`,
-      gender,
-    };
-  }
-
-  return {
-    badgeCategory: raw || 'Seniors',
-    displayName: raw || comp || 'Équipe Club',
-    gender,
-  };
-}
-
-/**
- * Normalise une chaîne de catégorie en clé standardisée unique (ex: "U18 F1", "SENIORS M1")
- * Permet d'identifier une équipe de façon fiable d'une semaine à l'autre même en cas de légère variation de libellé.
- */
-export function normalizeCategoryKey(raw?: string): string {
-  if (!raw) return '';
-  const clean = String(raw).trim();
-  const normalized = normalizeFFBBCategory(clean);
-  const key = (normalized.badgeCategory || clean).trim().toUpperCase();
-  // Standardise la lettre Garçons ('G' -> 'M') pour éviter les disparités
-  return key.replace(/\bG(\d*)\b/g, 'M$1').replace(/\s+/g, ' ');
-}
-
+export { normalizeFFBBCategory, normalizeCategoryKey } from '../utils/ffbbCategory';
 /**
  * Vérifie si une catégorie fait partie de la liste des équipes ignorées/décochées
  */
@@ -409,6 +358,7 @@ export class FFBBService {
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
+        if (data.success !== true || !data.organismeId || !Array.isArray(data.matches) || !Array.isArray(data.results)) throw new Error('Réponse FFBB non vérifiée.');
         const matches: MatchItem[] = data.matches || [];
         const results: MatchItem[] = data.results || [];
 
@@ -469,6 +419,9 @@ export class FFBBService {
 
         const clubInfo: FFBBClubInfo = {
           clubCode,
+          organismeId: String(data.organismeId), officialClubCode: data.officialClubCode,
+          foreignMatchIds: data.foreignMatchIds, verifiedMatchIds: data.verifiedMatchIds, membershipChecked: data.membershipChecked,
+          degraded: data.degraded === true,
           clubName: clubNom,
           logoUrl: data.logoUrl,
           city: data.city,
@@ -488,36 +441,10 @@ export class FFBBService {
         };
       }
     } catch (e) {
-      console.warn("Proxy local non disponible, passage à l'appel direct FFBB:", e);
+      console.warn("Récupération FFBB non vérifiée, données conservées :", e);
     }
 
-    // Direct fetch from ffbb.desimone.fr (works reliably on Cloudflare)
-    const directData = await fetchClubDataDirect(clubCode);
-    if (directData && (directData.matches.length > 0 || directData.results.length > 0)) {
-      return directData;
-    }
-    if (directData) {
-      return directData;
-    }
-
-    // When API fails or has no matches: RETURN EMPTY DATA — NEVER INVENT FAKE MATCHES
-    const clubNom = `Club ${clubCode}`;
-    const clubInfo: FFBBClubInfo = {
-      clubCode,
-      clubName: clubNom,
-      league: 'Ligue Régionale & Comité Départemental FFBB',
-      season: '2026-2027',
-      teamsCount: 0,
-      teamsList: [],
-    };
-
-    return {
-      matches: [],
-      results: [],
-      clubInfo,
-      source: 'ffbb_api_desimone',
-      message: "Aucune rencontre disponible sur l'API FFBB officielle.",
-    };
+    throw new Error('Récupération FFBB impossible : le club et ses données précédentes restent conservés.');
   }
 
   /**
