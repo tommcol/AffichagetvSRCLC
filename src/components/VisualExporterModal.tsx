@@ -1,3 +1,4 @@
+import { buildTeamCalendarRows } from '../utils/teamCalendarHelpers';
 import { getDisplayItems } from '../utils/displayPeriod';
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
@@ -556,10 +557,23 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     [contentType, filteredMatches, filteredResults]
   );
 
+  // In the team calendar, pagination counts opponents (pairs), not individual games.
+  const teamCalendarMode = teamFilterEnabled && contentType === 'matches';
+  const teamCalendarRows = useMemo(() => teamCalendarMode
+    ? buildTeamCalendarRows(matches.filter(m => m.category === teamFilter), filteredMatches, safeClubName, safeShortName)
+    : [], [teamCalendarMode, matches, teamFilter, filteredMatches, safeClubName, safeShortName]);
+  const visualItemsCount = teamCalendarMode ? teamCalendarRows.length : allSourceItems.length;
+  const displayedCalendarRows = useMemo(() => {
+    const start = (currentPage - 1) * maxDisplayMatches;
+    return teamCalendarRows.slice(start, start + maxDisplayMatches);
+  }, [teamCalendarRows, currentPage, maxDisplayMatches]);
+  useEffect(() => { if (teamCalendarMode) setCurrentPage(1); },
+    [teamCalendarMode, teamFilter, teamPeriodStart, teamPeriodEnd, aspectRatio, matchesLimit]);
+
   // Total pages
   const totalPages = useMemo(
-    () => getTotalPages(allSourceItems.length, maxDisplayMatches),
-    [allSourceItems.length, maxDisplayMatches]
+    () => getTotalPages(visualItemsCount, maxDisplayMatches),
+    [visualItemsCount, maxDisplayMatches]
   );
 
   // Auto-reset current page when filter or limits change
@@ -571,8 +585,10 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
 
   // Active items for display on the card (paginated)
   const displayedMatches = useMemo(
-    () => paginatePosterItems(filteredMatches, currentPage, maxDisplayMatches),
-    [filteredMatches, currentPage, maxDisplayMatches]
+    () => teamCalendarMode
+      ? displayedCalendarRows.flatMap(row => [row.first, row.second].filter((m): m is MatchItem => !!m))
+      : paginatePosterItems(filteredMatches, currentPage, maxDisplayMatches),
+    [teamCalendarMode, displayedCalendarRows, filteredMatches, currentPage, maxDisplayMatches]
   );
 
   const displayedResults = useMemo(
@@ -1290,6 +1306,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 {contentType === 'results' ? teamPeriodFilteredResults.length : teamPeriodFilteredMatches.length}{' '}
                 {contentType === 'results' ? 'résultat(s)' : 'match(s)'}
               </span>
+              {contentType === 'matches' && <span className="w-full text-[11px] text-sky-200/80 px-1">Une ligne par adversaire : aller à gauche, retour à droite. La capacité compte les adversaires.</span>}
             </div>
           )}
 
@@ -1376,9 +1393,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       ? 'bg-red-700 text-white shadow-sm font-black'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
-                  title={limit === 'auto' ? 'Automatique selon le format' : `Forcer ${limit} matchs par visuel`}
+                  title={limit === 'auto' ? 'Automatique selon le format' : `Forcer ${limit} ${teamCalendarMode ? 'adversaires' : 'matchs'} par visuel`}
                 >
-                  {limit === 'auto' ? 'Auto' : `${limit} m`}
+                  {limit === 'auto' ? 'Auto' : `${limit} ${teamCalendarMode ? 'adv.' : 'm'}`}
                 </button>
               ))}
             </div>
@@ -1563,7 +1580,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                     Affiche {currentPage} / {totalPages}
                   </span>
                   <span className="text-[10px] text-slate-300">
-                    {contentType === 'matches' ? 'Matchs' : 'Résultats'} {(currentPage - 1) * maxDisplayMatches + 1} à {Math.min(currentPage * maxDisplayMatches, allSourceItems.length)} sur {allSourceItems.length} • 1 seul texte global
+                    {teamCalendarMode ? 'Adversaires' : contentType === 'matches' ? 'Matchs' : 'Résultats'} {(currentPage - 1) * maxDisplayMatches + 1} à {Math.min(currentPage * maxDisplayMatches, visualItemsCount)} sur {visualItemsCount} • 1 seul texte global
                   </span>
                 </div>
 
@@ -1674,6 +1691,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               layer2BadgeBgColor={layer2BadgeBgColor}
               layer2BadgeTextColor={layer2BadgeTextColor}
               displayedMatches={displayedMatches}
+              teamCalendarRows={teamCalendarMode ? displayedCalendarRows : undefined}
+              teamCalendarTitle={customBadgeTitle || 'MATCHS'}
+              teamCalendarTeam={teamFilter}
               badgeTitle={badgeTitle}
               contentType={contentType}
               matches={matches}

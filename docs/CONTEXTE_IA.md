@@ -146,3 +146,13 @@ suffisent pas pour retirer une rencontre. Les anciennes catégories identiques a
 officiel de notre club avec suffixe d'équipe sont également réparées lorsque la
 catégorie FFBB est déjà connue, même si la rencontre possède déjà `ffbbClubId`.
 Les noms personnalisés explicitement configurés restent prioritaires.
+
+
+## Calendrier des matchs « Par équipe »
+
+- Uniquement dans la passerelle réseaux sociaux, `teamFilterEnabled && contentType === 'matches'` : une ligne par adversaire, date et domicile/extérieur de l'aller à gauche, adversaire au centre, retour à droite. Le style poster-red, les fonds, les calques, couleurs et polices existants sont réutilisés. Aucun logo adverse ajouté.
+- `teamCalendarHelpers.ts` construit les paires sans modifier les rencontres : catégorie, saison (juillet à juin), compétition, poule, nom de l'adversaire avec son numéro d'équipe. Un retour suppose un sens domicile/extérieur opposé. Contexte de compétition ou adversaire inconnu : pas de regroupement incertain. Exemptions séparées.
+- Les paires sont construites avant le filtre de période. Si seul le retour est dans la période, il reste à droite. Une date absente n'est pas inventée. La pagination et la capacité comptent les lignes/adversaires ; une paire ne se sépare pas entre deux affiches. Les légendes sociales globales continuent de couvrir tous les matchs filtrés.
+- `TeamCalendarRows.tsx` réutilise les pastilles arrondies et le texte auto-adaptatif. Le nom de l'équipe est sous le titre personnalisable. Le même élément `cardRef` pilote aperçu, téléchargement et partage.
+- Résultats, notifications, affiches du week-end et diffusion TV : présentation inchangée. Ne pas appliquer automatiquement cette organisation à ces autres vues.
+- Test `scripts/test_team_calendar.ts` : regroupement, phases/poules/saisons, numéros d'équipes, doublons officiels, retour absent, période, pagination et structure rendue dans les quatre formats. Le rendu HTML serveur ne remplace pas une vérification visuelle dans le navigateur.

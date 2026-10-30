@@ -1,3 +1,4 @@
+import { TeamCalendarRows } from './TeamCalendarRows';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 // VisualThemePosterRedSection — bloc « visualTheme === 'poster-red' » de VisualExporterModal.
 // Extrait automatiquement lors du découpage : aucune logique modifiée.
@@ -42,6 +43,9 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
     layer2BadgeBgColor,
     layer2BadgeTextColor,
     displayedMatches,
+    teamCalendarRows,
+    teamCalendarTitle,
+    teamCalendarTeam,
     badgeTitle,
     contentType,
     matches,
@@ -188,12 +192,22 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                               lineHeight: '1.2',
                             }}
                           >
-                            {badgeTitle}
+                            {teamCalendarRows ? teamCalendarTitle : badgeTitle}
                           </div>
+                          {teamCalendarRows && <div className="w-full min-w-0 text-center text-slate-100"
+                            style={{ height: aspectRatio === '16:9' ? 50 : 64, marginBottom: 16 }}>
+                            <AutoFitTeamName name={teamCalendarTeam} aspectRatio={aspectRatio}
+                              pillHeight={aspectRatio === '16:9' ? 50 : 64} fontHeader={layer2FontHeader} />
+                          </div>}
                         </div>
 
+                        {contentType === 'matches' && teamCalendarRows && <TeamCalendarRows rows={teamCalendarRows}
+                          aspectRatio={aspectRatio} fontHeader={layer2FontHeader} fontBody={layer2FontBody}
+                          dateColor={layer2BadgeBgColor} dateTextColor={layer2BadgeTextColor}
+                          clubName={safeClubName} shortName={safeShortName} />}
+
                                                 {/* MATCHES LIST BODY — cartes identiques à l'aperçu TV (MatchesSlide poster-red) */}
-                        {contentType === 'matches' &&
+                        {contentType === 'matches' && !teamCalendarRows &&
                           (() => {
                             const sortedMatches = [...displayedMatches];
                             const sizing0 = getAdaptivePosterCardSizing(sortedMatches.length, aspectRatio);
