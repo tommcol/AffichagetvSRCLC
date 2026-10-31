@@ -156,3 +156,17 @@ Les noms personnalisés explicitement configurés restent prioritaires.
 - `TeamCalendarRows.tsx` réutilise les pastilles arrondies et le texte auto-adaptatif. Le nom de l'équipe est sous le titre personnalisable. Le même élément `cardRef` pilote aperçu, téléchargement et partage.
 - Résultats, notifications, affiches du week-end et diffusion TV : présentation inchangée. Ne pas appliquer automatiquement cette organisation à ces autres vues.
 - Test `scripts/test_team_calendar.ts` : regroupement, phases/poules/saisons, numéros d'équipes, doublons officiels, retour absent, période, pagination et structure rendue dans les quatre formats. Le rendu HTML serveur ne remplace pas une vérification visuelle dans le navigateur.
+
+### Modèles d’affiches personnalisés et polices
+
+`src/utils/graphicTemplates.ts` définit la bibliothèque optionnelle versionnée de
+`visualTemplates.graphicLibrary`, ses dix inspirations et les limites de mise en page.
+`GraphicModelLibrary` édite un brouillon local jusqu’à validation ; seuls les imports
+explicites de polices sont immédiatement enregistrés dans la bibliothèque. Les médias
+passent par l’upload existant, jamais en base64 dans la bibliothèque ni dans Git.
+`clubFonts.ts` valide et charge WOFF2/WOFF/TTF/OTF. Le nouveau renderer est employé
+pour les affiches de matchs/résultats, avec les mêmes dimensions et le même nœud
+pour l’aperçu et l’export. Les polices indisponibles et textes débordants bloquent
+l’export. Ne jamais réécrire les scores ni les noms officiels pour la présentation.
+Classique, calendrier par équipe, notifications et TV conservent leurs rendus et
+calques existants. Voir STUDIO_MODELES.md pour le périmètre et les essais manquants.

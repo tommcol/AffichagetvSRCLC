@@ -243,6 +243,7 @@ export interface MediaBankItem {
 }
 
 export interface VisualTemplatesConfig {
+  graphicLibrary?: import('./utils/graphicTemplates').GraphicLibrary;
   matchesBackgroundUrl: string;
   resultsBackgroundUrl: string;
   birthdaysBackgroundUrl: string;

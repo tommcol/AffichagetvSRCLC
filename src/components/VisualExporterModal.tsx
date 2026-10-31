@@ -1,3 +1,6 @@
+import { GraphicModelLibrary } from './templates/GraphicModelLibrary';
+import { GraphicTemplateRenderer } from './templates/GraphicTemplateRenderer';
+import { templateCapacity } from '../utils/graphicTemplates';
 import { buildTeamCalendarRows } from '../utils/teamCalendarHelpers';
 import { getDisplayItems } from '../utils/displayPeriod';
 import React, { useRef, useState, useMemo, useEffect } from 'react';
@@ -545,11 +548,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   };
 
+  const graphicLibrary = visualTemplates?.graphicLibrary?.schemaVersion === 1 ? visualTemplates.graphicLibrary : undefined;
+  const graphicKind = contentType === 'results' ? 'results' : 'matches';
+  const activeGraphicModel = contentType !== 'notification' && !teamFilterEnabled
+    ? graphicLibrary?.models.find(model => model.id === graphicLibrary.selected[graphicKind]) : undefined;
+
   // Max number of matches to display per aspect ratio to ensure no overflow
   const maxDisplayMatches = useMemo(
-    () => getMaxDisplayMatches(aspectRatio, matchesLimit),
-    [aspectRatio, matchesLimit]
+    () => activeGraphicModel ? Math.min(templateCapacity(activeGraphicModel, aspectRatio), matchesLimit === 'auto' ? Infinity : matchesLimit) : getMaxDisplayMatches(aspectRatio, matchesLimit),
+    [aspectRatio, matchesLimit, activeGraphicModel]
   );
+
+  useEffect(() => { setCurrentPage(1); }, [activeGraphicModel?.id]);
 
   // Active source items list for pagination
   const allSourceItems = useMemo(
@@ -866,7 +876,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
       setTimeout(() => setDownloadSuccess(false), 3000);
     } catch (err: any) {
       console.error('Erreur export multi-affiches:', err);
-      setExportError("Erreur lors de la génération de toutes les affiches. Téléchargez chaque affiche individuellement.");
+      setExportError(err?.message || "Erreur lors de la génération de toutes les affiches. Téléchargez chaque affiche individuellement.");
     } finally {
       setCurrentPage(initialPage);
       setIsExportingAll(false);
@@ -1314,14 +1324,18 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             </div>
           )}
 
+          {contentType !== 'notification' && !teamFilterEnabled && visualTemplates && onUpdateVisualTemplates && <GraphicModelLibrary
+            config={visualTemplates} onChange={onUpdateVisualTemplates} kind={graphicKind} format={aspectRatio} disabled={isExporting || isExportingAll}/>} 
+          {teamFilterEnabled && <p className="text-xs text-slate-400">Le calendrier aller / retour conserve sa présentation actuelle.</p>}
+          {activeGraphicModel && <p className="text-xs text-sky-200">Les formes, polices et positions de cette affiche se règlent dans « Modifier ce modèle ». Les calques du studio classique ne sont pas appliqués à ce modèle.</p>}
           {/* Social Aspect Ratio & Visual Theme Selector */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
               <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase">Style :</span>
               <button
-                onClick={() => setVisualTheme('poster-red')}
+                onClick={() => { setVisualTheme('poster-red'); if (visualTemplates && onUpdateVisualTemplates && graphicLibrary) onUpdateVisualTemplates({...visualTemplates, graphicLibrary:{...graphicLibrary, selected:{...graphicLibrary.selected, [graphicKind]:''}}}); }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  visualTheme === 'poster-red'
+                  !activeGraphicModel && visualTheme === 'poster-red'
                     ? 'bg-red-700 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
@@ -1671,8 +1685,12 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                       : 'p-10'
                   }`}
                 >
+                  {activeGraphicModel && <GraphicTemplateRenderer model={activeGraphicModel} format={aspectRatio}
+                    title={badgeTitle} matches={contentType === 'results' ? displayedResults : displayedMatches}
+                    results={contentType === 'results'} clubName={safeClubName} shortName={safeShortName}
+                    backgroundUrl={effectiveBgUrl} fonts={graphicLibrary?.fonts}/>} 
                   {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
-                  {visualTheme === 'poster-red' && (
+                  {!activeGraphicModel && visualTheme === 'poster-red' && (
             <VisualThemePosterRedSection
               effectiveBgUrl={effectiveBgUrl}
               layer1Grayscale={layer1Grayscale}
@@ -1925,7 +1943,8 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
             {/* ========================================================================= */}
             {/* OPTION 2: STUDIO GRAPHIQUE & CALQUES OPTIONS */}
             {/* ========================================================================= */}
-            {rightPanelTab === 'layers' && (
+            {rightPanelTab === 'layers' && activeGraphicModel && <p className="p-4 text-sky-200">Ce modèle utilise son propre design. Ouvrez « Modifier ce modèle » au-dessus de l’aperçu pour le personnaliser. Les réglages du studio classique restent conservés pour le modèle Classique et la TV.</p>}
+            {rightPanelTab === 'layers' && !activeGraphicModel && (
               <StudioGraphiqueWorkbench
                 visualTemplates={visualTemplates || ({} as VisualTemplatesConfig)}
                 onUpdateVisualTemplates={onUpdateVisualTemplates || (() => {})}

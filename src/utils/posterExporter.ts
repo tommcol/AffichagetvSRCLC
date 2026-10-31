@@ -1,6 +1,7 @@
 import { toPng, getFontEmbedCSS } from 'html-to-image';
 
-export type PosterAspectRatio = '4:5' | '9:16' | '1:1' | '16:9';
+import type { PosterAspectRatio } from './graphicTemplates';
+export type { PosterAspectRatio } from './graphicTemplates';
 
 /**
  * Dimensions logiques fixes natives pour chaque format d'affiche (haute définition 1080p).
@@ -63,6 +64,8 @@ export async function safeExportPosterToDataUrl(
   const targetWidth = dims.width;
   const targetHeight = dims.height;
 
+  if (node.querySelector('[data-template-pending="true"]')) throw new Error('Attendez le chargement des polices du modèle. Si une erreur apparaît dans l’aperçu, réimportez la police manquante.');
+  if (node.querySelector('[data-template-overflow="true"]')) throw new Error('Un texte dépasse la place disponible (cadre orange). Agrandissez son bloc, ajustez sa police ou diminuez le nombre de rencontres par page.');
   const snapshot = capturePoster(node, targetWidth, targetHeight);
   try {
     node = snapshot.clone;
