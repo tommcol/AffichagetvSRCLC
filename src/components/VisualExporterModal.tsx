@@ -1290,7 +1290,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 type="date"
                 value={teamPeriodStart}
                 onChange={(e) => setTeamPeriodStart(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none"
+                aria-label="Date de début de période"
+                style={{ colorScheme: 'dark' }}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                 title="Début de période (vide = depuis le début)"
               />
               <span className="text-[10px] text-slate-400">&#8594;</span>
@@ -1298,7 +1300,9 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                 type="date"
                 value={teamPeriodEnd}
                 onChange={(e) => setTeamPeriodEnd(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none"
+                aria-label="Date de fin de période"
+                style={{ colorScheme: 'dark' }}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:border-sky-500 focus:outline-none [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                 title="Fin de période (vide = jusqu'à la fin)"
               />
 
