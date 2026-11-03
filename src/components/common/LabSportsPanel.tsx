@@ -30,7 +30,7 @@ function SportsDialog({onClose}:{onClose:()=>void}){
   useEffect(()=>{
     const overflow=document.body.style.overflow;document.body.style.overflow='hidden';
     const abort=new AbortController();
-    fetch('/api/get-app-data',{signal:abort.signal}).then(async r=>{if(r.ok){const data=await r.json();setLibrary(data.visualTemplates?.graphicLibrary||null);}}).catch(()=>{});
+    fetch('/api/get-app-data',{signal:abort.signal}).then(async r=>{if(r.ok){const envelope=await r.json();setLibrary(envelope.data?.visualTemplates?.graphicLibrary||null);}}).catch(()=>{});
     return()=>{document.body.style.overflow=overflow;abort.abort();controller.current?.abort();};
   },[]);
   useEffect(()=>{const el=frame.current;if(!el)return;const update=()=>setWidth(Math.min(el.clientWidth,600));const observer=new ResizeObserver(update);observer.observe(el);update();return()=>observer.disconnect();},[feed]);
