@@ -4,7 +4,7 @@ import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane, Clock } from 'lucid
 import { MatchItem, ClubSettings, SlideDesignTheme, ForegroundMascotConfig, OverlayLayerItem } from '../../types';
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { isMatchWin, isClubHomeMatch, getMatchOutcome } from '../../utils/matchStatus';
-import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/matchDateHelper';
+import { sortMatchesChronologically } from '../../utils/matchDateHelper';
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
 import { getFontFamilyClass } from '../../utils/fontUtils';
@@ -226,10 +226,7 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
       const isWin = outcome === 'win';
       const isLoss = outcome === 'loss';
       const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-      const dateObj = formatMatchDayAndDate(r.date);
-      const dayDisplay = dateObj?.display || dateObj?.dayName || '';
-      // Heures supprimées des résultats comme demandé
-      const dateText = dayDisplay.trim();
+      // Date et heure retirées des résultats (badge Victoire/Défaite centré à la place).
 
       const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(r, clubSettings?.name, clubSettings?.shortName);
 
@@ -239,7 +236,26 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
             <span aria-hidden="true"/>
             <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white text-center justify-center ${scale.headerSize} ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
-              <span className={`drop-shadow-sm tracking-wide text-amber-400 ${getFontFamilyClass(headerFont)} truncate`}>{dateText || 'Match'}</span>
+              {resultDisplayMode !== 'score' && (
+                <span
+                  className={`text-[10px] md:text-xs font-black uppercase tracking-wider px-2 md:px-3 py-0.5 rounded-full shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
+                    isWin
+                      ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
+                      : isLoss
+                      ? 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
+                      : 'bg-slate-700 text-slate-200 border border-slate-600 shadow-slate-900/30'
+                  }`}
+                >
+                  {isWin ? (
+                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  ) : isLoss ? (
+                    <XCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  ) : (
+                    <Clock className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
+                  )}
+                  <span>{isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI'}</span>
+                </span>
+              )}
             </div>
 
             {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
@@ -273,26 +289,6 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
             {/* Bloc Central : VICTOIRE / DÉFAITE / MATCH FINI ET / OU SCORE SELON RESULTDISPLAYMODE */}
             <div className="flex flex-col items-center shrink-0">
-              {resultDisplayMode !== 'score' && (
-                <span
-                  className={`text-[10px] md:text-xs font-black uppercase tracking-wider px-2 md:px-3 py-0.5 rounded-full mb-1 shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
-                    isWin
-                      ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
-                      : isLoss
-                      ? 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
-                      : 'bg-slate-700 text-slate-200 border border-slate-600 shadow-slate-900/30'
-                  }`}
-                >
-                  {isWin ? (
-                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  ) : isLoss ? (
-                    <XCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  ) : (
-                    <Clock className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
-                  )}
-                  <span>{isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI'}</span>
-                </span>
-              )}
 
               {resultDisplayMode !== 'status' && (
                 <div
