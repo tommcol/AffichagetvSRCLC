@@ -7,8 +7,8 @@ import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <DemoEnvironmentBanner />
     <ErrorBoundary>
-      <DemoEnvironmentBanner />
       <App />
     </ErrorBoundary>
   </StrictMode>,

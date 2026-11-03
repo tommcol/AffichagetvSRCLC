@@ -4,6 +4,7 @@
 
 export interface Env {
   APP_DEMO?: string;
+  APP_DEMO_FFBB?: string;
   AFFICHAGE_KV: KVNamespace;
   APP_DATA_COORDINATOR?: DurableObjectNamespace;
   AFFICHAGE_R2?: R2Bucket;

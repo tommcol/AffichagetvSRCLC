@@ -15,7 +15,7 @@ export async function isAdmin(request: Request, env: Env) {
   return sig === await signature(expiry, env.ADMIN_PASSWORD);
 }
 export async function verifyAdmin(request: Request, env: Env) {
-  if (request.method === 'GET') return Response.json({ demo: env.APP_DEMO === '1', required: Boolean(env.ADMIN_PASSWORD), authenticated: await isAdmin(request, env) });
+  if (request.method === 'GET') return Response.json({ demo: env.APP_DEMO === '1', demoFfbb: env.APP_DEMO === '1' && env.APP_DEMO_FFBB === '1', required: Boolean(env.ADMIN_PASSWORD), authenticated: await isAdmin(request, env) });
   if (request.method !== 'POST') return new Response('Méthode non autorisée', { status: 405 });
   const body = await request.json().catch(() => null) as any;
   if (env.ADMIN_PASSWORD && body?.password !== env.ADMIN_PASSWORD) return Response.json({ error: 'Mot de passe incorrect', ok: false }, { status: 401 });

@@ -167,3 +167,9 @@ est pilotée par l’API. Les exemples de `scripts/studioDemoData.ts` initialise
 stockage neuf uniquement ; ne jamais les appliquer à une installation existante.
 Voir `LABORATOIRE_STUDIO.md`. Une compilation de la branche de laboratoire doit
 utiliser son propre Worker et jamais les déclencheurs de l’installation habituelle.
+
+Le studio à modèles et l’import de polices sont maintenant repris dans le laboratoire
+sur demande explicite. Ne pas les intégrer à main sans validation. Les lectures FFBB
+peuvent être autorisées avec DEPLOY_DEMO_FFBB=1 ; le code club reste une donnée
+privée de l’installation, jamais une valeur par défaut du dépôt. Le journal local
+labDiagnostics capture les erreurs côté navigateur sans corps de requêtes/réponses.

@@ -11,7 +11,7 @@ assert.throws(()=>createDeploymentConfig(base,{...env,DEPLOY_WORKER_NAME:'exampl
 const normal=createDeploymentConfig(base,{...env,DEPLOY_DEMO:undefined});
 assert.deepEqual(normal.triggers,base.triggers);assert.deepEqual(normal.secrets,base.secrets);assert.equal(normal.vars.APP_DEMO,undefined);
 let touched=false;
-const isolated=new Proxy({APP_DEMO:'1'}, {get(target,key){if(key==='APP_DEMO')return '1';touched=true;throw Error('Integration or storage accessed');}}) as any;
+const isolated=new Proxy({APP_DEMO:'1'}, {get(target,key){if(key==='APP_DEMO')return '1';if(key==='APP_DEMO_FFBB')return undefined;touched=true;throw Error('Integration or storage accessed');}}) as any;
 for(const path of ['/api/ffbb/matches','/api/ffbb/search','/api/ffbb/debug','/api/telegram-webhook','/api/telegram/test','/api/telegram/connect','/api/telegram/disconnect','/api/generate-caption','/api/social/publish']) {
   const r=await worker.fetch(new Request('https://example.invalid'+path,{method:'POST'}),isolated);
   assert.equal(r.status,403,path);assert.equal((await r.json() as any).demo,true);
@@ -24,3 +24,12 @@ assert.ok(data.matches.every(m=>m.category.startsWith('Seniors') && m.isManualMa
 assert.equal(data.clubSettings.matchesFilterStart,'2030-11-09');assert.equal(data.clubSettings.matchesFilterEnd,'2030-11-10');
 assert.ok(!/"https?:\/\//.test(JSON.stringify(data)));
 console.log('Isolated lab: explicit config opt-in, no cron, external services blocked before storage, fictional seed OK.');
+
+const ffbbEnv={APP_DEMO:'1',APP_DEMO_FFBB:'1'} as any;
+const emptySearch=await worker.fetch(new Request('https://example.invalid/api/ffbb/search'),ffbbEnv);
+assert.equal(emptySearch.status,400,'Opted-in FFBB reads reach the existing route');
+const blockedPost=await worker.fetch(new Request('https://example.invalid/api/ffbb/search',{method:'POST'}),ffbbEnv);
+assert.equal(blockedPost.status,403,'FFBB only permits reads in the lab');
+const optedIn=createDeploymentConfig(base,{...env,DEPLOY_DEMO_FFBB:'1'});
+assert.equal(optedIn.vars.APP_DEMO_FFBB,'1');
+assert.equal(demo.vars.APP_DEMO_FFBB,'0');

@@ -1,6 +1,6 @@
 # Laboratoire du studio
 
-Cette branche part de la version principale existante. Le nouveau studio précédemment abandonné n’y est pas activé. L’objectif est de tester les prochaines modifications avant de décider de leur intégration.
+Cette branche part de la version principale existante. Le nouveau studio est repris uniquement dans ce laboratoire, après autorisation explicite. L’objectif est de tester les prochaines modifications avant de décider de leur intégration.
 
 ## Séparation obligatoire
 
@@ -14,7 +14,7 @@ Cette branche part de la version principale existante. Le nouveau studio précé
 
 Le générateur de configuration accepte `DEPLOY_DEMO=1` pour un Worker dont le nom finit par `-test`. Il active alors `APP_DEMO=1`, retire les tâches planifiées et permet un laboratoire public sans mot de passe administrateur obligatoire. Les autres variables `DEPLOY_*` doivent désigner exclusivement les nouvelles ressources du laboratoire. Les identifiants restent dans les variables privées de Cloudflare, jamais dans cette branche.
 
-L’API bloque FFBB (recherche, synchronisation et diagnostic), Telegram, génération IA et publication sociale lorsque `APP_DEMO=1`. Les sauvegardes, médias, aperçus et exports de la copie restent utilisables. Une bannière « LABORATOIRE » permet d’identifier l’environnement. Les propriétés d’authentification de l’installation habituelle ne sont pas modifiées.
+L’API bloque Telegram, génération IA et publication sociale lorsque `APP_DEMO=1`. FFBB reste désactivée par défaut. `DEPLOY_DEMO_FFBB=1` autorise explicitement la lecture des rencontres et la recherche FFBB pour tester un vrai code club ; les sauvegardes restent exclusivement dans le laboratoire, sans cron ni modification de la FFBB. Le diagnostic FFBB et les requêtes FFBB autres que GET restent bloqués. Les sauvegardes, médias, aperçus et exports de la copie restent utilisables. Une bannière « LABORATOIRE » permet d’identifier l’environnement. Les propriétés d’authentification de l’installation habituelle ne sont pas modifiées.
 
 La copie est publique et modifiable pour les essais : n’y mettre aucune donnée personnelle, aucun vrai secret ni document privé.
 
@@ -31,3 +31,13 @@ La copie est publique et modifiable pour les essais : n’y mettre aucune donné
 5. Après accord explicite, préparer une proposition d’intégration dans la branche principale. Ne pas fusionner automatiquement cette configuration de laboratoire.
 
 Le studio peut évoluer sur cette copie sans changer l’affichage du club. Un changement sauvegardé ici concerne uniquement le laboratoire.
+
+## Console de diagnostic
+
+La bannière ouvre une console locale à ce navigateur : erreurs JavaScript, promesses
+rejetées, appels API échoués, médias non chargés et avertissements de l’application.
+La copie ou le téléchargement du diagnostic est volontaire. Aucune donnée de
+requête/réponse API ni fichier importé n’est enregistré. Les paramètres des URL et
+motifs de secrets sont masqués. Le journal est limité à 150 entrées et 24 heures.
+Vider le journal ne supprime aucune donnée ni aucun média de l’application.
+La console ne remplace pas la vérification visuelle et ne capture pas tous les bugs.

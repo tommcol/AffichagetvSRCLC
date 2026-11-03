@@ -30,6 +30,7 @@ export function createDeploymentConfig(base, env) {
   if (env.DEPLOY_DEMO === '1') {
     if (!name.endsWith('-test')) throw new Error('Un laboratoire doit utiliser un Worker distinct dont le nom finit par -test');
     config.vars.APP_DEMO = '1';
+    config.vars.APP_DEMO_FFBB = env.DEPLOY_DEMO_FFBB === '1' ? '1' : '0';
     config.triggers = { crons: [] };
     // Public sandbox containing only fictional data; never copy runtime secrets.
     config.secrets = { required: [] };

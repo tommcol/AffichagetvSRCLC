@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { retainDiagnostics, sanitizeDiagnostic, DIAGNOSTIC_LIMIT, installLabDiagnostics, recordDiagnostic, diagnosticSnapshot, clearDiagnostics } from '../src/utils/labDiagnostics';
+const raw='https://user:password@example.invalid/api/get?token=secret#fragment token=abc123 password=mysecret 12345678:ABCDEFGHIJKLMNOPQRSTUVWXYZ123456 eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature';
+const clean=sanitizeDiagnostic(raw);
+for(const secret of ['user:password','?token=','abc123','mysecret','ABCDEFGHIJKLMNOPQRSTUVWXYZ123456','eyJhbGci'])assert.ok(!clean.includes(secret));
+assert.ok(clean.includes('https://example.invalid/api/get'));
+const now=Date.now();
+const row={id:'a',time:new Date(now).toISOString(),level:'error' as const,source:'API',message:'Test',count:1};
+assert.equal(retainDiagnostics(Array.from({length:300},()=>row),now).length,DIAGNOSTIC_LIMIT);
+assert.equal(retainDiagnostics([{...row,time:new Date(now-25*3600000).toISOString()}],now).length,0);
+// A browser mock verifies rejected APIs are logged without recording the response body.
+const mem=new Map<string,string>();(globalThis as any).localStorage={getItem:(k:string)=>mem.get(k)||null,setItem:(k:string,v:string)=>mem.set(k,v)};
+(globalThis as any).window={location:{href:'https://example.invalid/' ,origin:'https://example.invalid'},addEventListener(){},removeEventListener(){},fetch:async()=>new Response('PRIVATE RESPONSE BODY',{status:503})};
+(globalThis as any).document={addEventListener(){},removeEventListener(){}};
+const stop=installLabDiagnostics();
+await (globalThis as any).window.fetch('/api/test?token=private');
+assert.equal(diagnosticSnapshot().length,1);assert.equal(diagnosticSnapshot()[0].message,'GET /api/test — HTTP 503');
+recordDiagnostic('info','Vérification','Console active');recordDiagnostic('info','Vérification','Console active');
+assert.equal(diagnosticSnapshot()[1].count,2);assert.ok(!JSON.stringify(diagnosticSnapshot()).includes('PRIVATE RESPONSE BODY'));
+clearDiagnostics();assert.equal(diagnosticSnapshot().length,0);stop();
+console.log('Diagnostics: bounded history, retention, secret redaction, rejected API capture, deduplication and isolated clear OK.');

@@ -25,8 +25,11 @@ export default {
     const path = url.pathname;
 
     try {
+      const allowedDemoFfbb = env.APP_DEMO_FFBB === '1' && request.method === 'GET'
+        && ['/api/ffbb/matches', '/api/ffbb/search'].includes(path);
       if (env.APP_DEMO === '1' && (
-        path.startsWith('/api/ffbb/') || path.startsWith('/api/telegram') ||
+
+        (path.startsWith('/api/ffbb/') && !allowedDemoFfbb) || path.startsWith('/api/telegram') ||
         path === '/api/generate-caption' || path.startsWith('/api/social/')
       )) return Response.json({ error: 'Laboratoire : les services externes sont désactivés.', demo: true }, { status: 403 });
 
