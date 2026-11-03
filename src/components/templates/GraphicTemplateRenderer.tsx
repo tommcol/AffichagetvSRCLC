@@ -1,3 +1,4 @@
+import { recordDiagnostic } from '../../utils/labDiagnostics';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MatchItem } from '../../types';
 import { GraphicTemplate, GraphicTextStyle, GraphicBox, ClubFont } from '../../utils/graphicTemplates';
@@ -12,20 +13,27 @@ const position=(b:GraphicBox):React.CSSProperties=>({position:'absolute',left:`$
 function TextBox({text,style,box,fontRevision}:{text:string;style:GraphicTextStyle;box:GraphicBox;fontRevision:number}) {
   const ref=useRef<HTMLDivElement>(null);
   const [overflow,setOverflow]=useState(false);
+  const warned=useRef(false);
   useLayoutEffect(()=>{
     const el=ref.current;if(!el) return;
     const fit=()=>{
+      const parent=el.parentElement!;
+      const parentStyle=getComputedStyle(parent);
+      const availableHeight=parent.clientHeight-parseFloat(parentStyle.paddingTop)-parseFloat(parentStyle.paddingBottom);
+      const exceeds=()=>el.scrollHeight>availableHeight+1 || el.scrollWidth>el.clientWidth+1;
       let size=style.size;el.style.fontSize=`${size}px`;
-      while(size>style.minSize && (el.scrollHeight>el.clientHeight+1 || el.scrollWidth>el.clientWidth+1)) {size--;el.style.fontSize=`${size}px`;}
-      setOverflow(el.scrollHeight>el.clientHeight+1 || el.scrollWidth>el.clientWidth+1);
+      while(size>style.minSize && exceeds()) {size--;el.style.fontSize=`${size}px`;}
+      const over=exceeds();
+      if(over && !warned.current && fontRevision>0) recordDiagnostic('warning','Mise en page','Un texte dépasse son bloc à la taille minimale. Agrandissez le bloc ou réduisez la capacité par page.');
+      warned.current=over;setOverflow(over);
     };
     fit();const observer=new ResizeObserver(fit);observer.observe(el);return()=>observer.disconnect();
   },[text,style,box,fontRevision]);
   return <div style={{...position(box),background:style.shape==='text'||style.shape==='outline'?'transparent':style.background,
     color:style.color,border:style.shape==='text'?'none':`${style.borderWidth}px solid ${style.borderColor}`,
     borderRadius:style.shape==='pill'?999:style.shape==='rounded'?18:0,opacity:style.opacity,
-    display:'flex',alignItems:'center',padding:'8px 12px',outline:overflow?'3px solid #f59e0b':undefined}}>
-    <div ref={ref} data-template-overflow={overflow?'true':undefined} style={{width:'100%',maxHeight:'100%',overflow:'hidden',fontFamily:`"${style.font}", sans-serif`,fontSize:style.size,fontWeight:style.font.startsWith('clubfont_')?400:700,lineHeight:1.12,whiteSpace:'pre-line',overflowWrap:'anywhere',textAlign:style.align}}>{text}</div>
+    display:'flex',alignItems:'center',padding:'8px 12px',overflow:'hidden',outline:overflow?'3px solid #f59e0b':undefined}}>
+    <div ref={ref} data-template-overflow={overflow?'true':undefined} style={{width:'100%',maxHeight:'none',overflow:'visible',fontFamily:`"${style.font}", sans-serif`,fontSize:style.size,fontWeight:style.font.startsWith('clubfont_')?400:700,lineHeight:1.12,whiteSpace:'pre-line',overflowWrap:'anywhere',textAlign:style.align}}>{text}</div>
   </div>;
 }
 export function GraphicTemplateRenderer({model,format,title,matches,results=false,calendarRows,clubName,shortName,backgroundUrl,fonts=[]}:{
@@ -42,7 +50,7 @@ export function GraphicTemplateRenderer({model,format,title,matches,results=fals
       if(family.startsWith('clubfont_')) {
         const font=fonts.find(f=>f.family===family);if(!font) throw new Error('Une police du modèle manque dans la bibliothèque.');await loadClubFont(font);
       }else await document.fonts.load(`700 32px "${family}"`);
-    })).then(()=>{if(!cancelled)setFontState(s=>({ready:true,error:'',revision:s.revision+1}));}).catch(error=>{if(!cancelled)setFontState(s=>({...s,ready:false,error:String(error.message||error)}));});
+    })).then(()=>{if(!cancelled)setFontState(s=>({ready:true,error:'',revision:s.revision+1}));}).catch(error=>{if(!cancelled)recordDiagnostic('error','Polices','Une police du modèle ne peut pas être chargée.');if(!cancelled)setFontState(s=>({...s,ready:false,error:String(error.message||error)}));});
     return()=>{cancelled=true;};
   },[fontKey,libraryKey]);
   const rows=calendarRows || matches;
