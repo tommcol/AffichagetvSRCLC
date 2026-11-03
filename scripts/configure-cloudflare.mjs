@@ -27,6 +27,13 @@ export function createDeploymentConfig(base, env) {
   config.vars = { ...config.vars, APP_DATA_INSTANCE_NAME: instance };
   const suffix = env.DEPLOY_TELEGRAM_SECRET_SUFFIX;
   if (suffix) config.vars.TELEGRAM_SECRET_SUFFIX = suffix;
+  if (env.DEPLOY_DEMO === '1') {
+    if (!name.endsWith('-test')) throw new Error('Un laboratoire doit utiliser un Worker distinct dont le nom finit par -test');
+    config.vars.APP_DEMO = '1';
+    config.triggers = { crons: [] };
+    // Public sandbox containing only fictional data; never copy runtime secrets.
+    config.secrets = { required: [] };
+  }
   return config;
 }
 

@@ -156,3 +156,14 @@ Les noms personnalisés explicitement configurés restent prioritaires.
 - `TeamCalendarRows.tsx` réutilise les pastilles arrondies et le texte auto-adaptatif. Le nom de l'équipe est sous le titre personnalisable. Le même élément `cardRef` pilote aperçu, téléchargement et partage.
 - Résultats, notifications, affiches du week-end et diffusion TV : présentation inchangée. Ne pas appliquer automatiquement cette organisation à ces autres vues.
 - Test `scripts/test_team_calendar.ts` : regroupement, phases/poules/saisons, numéros d'équipes, doublons officiels, retour absent, période, pagination et structure rendue dans les quatre formats. Le rendu HTML serveur ne remplace pas une vérification visuelle dans le navigateur.
+
+### Laboratoire isolé du studio
+
+La branche de laboratoire part du studio existant ; ne pas réactiver les changements
+abandonnés sans instruction. `DEPLOY_DEMO=1` prépare uniquement un Worker distinct
+finissant par `-test`, avec stockages neufs, sans secrets du club et sans cron.
+`APP_DEMO=1` bloque les services externes côté Worker. La bannière de démonstration
+est pilotée par l’API. Les exemples de `scripts/studioDemoData.ts` initialisent un
+stockage neuf uniquement ; ne jamais les appliquer à une installation existante.
+Voir `LABORATOIRE_STUDIO.md`. Une compilation de la branche de laboratoire doit
+utiliser son propre Worker et jamais les déclencheurs de l’installation habituelle.

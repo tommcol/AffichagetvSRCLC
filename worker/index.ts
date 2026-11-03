@@ -16,6 +16,7 @@ import { generateCaption, socialPublish } from './ai';
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (env.APP_DEMO === '1') return;
     ctx.waitUntil(runScheduledFfbbSync(env));
   },
 
@@ -24,6 +25,11 @@ export default {
     const path = url.pathname;
 
     try {
+      if (env.APP_DEMO === '1' && (
+        path.startsWith('/api/ffbb/') || path.startsWith('/api/telegram') ||
+        path === '/api/generate-caption' || path.startsWith('/api/social/')
+      )) return Response.json({ error: 'Laboratoire : les services externes sont désactivés.', demo: true }, { status: 403 });
+
       if (path.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)
           && path !== '/api/verify-password' && path !== '/api/telegram-webhook') {
         const origin = request.headers.get('origin');
