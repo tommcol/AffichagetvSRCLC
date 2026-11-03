@@ -1,4 +1,5 @@
 import { isAdmin } from './auth';
+import { sportsLab } from './sportsLab';
 export { AppDataCoordinator } from './appDataCoordinator';
 // ============================================================
 // Routeur principal du worker Cloudflare
@@ -25,6 +26,7 @@ export default {
     const path = url.pathname;
 
     try {
+      if (path === '/api/lab/sports') return await sportsLab(request, env);
       const allowedDemoFfbb = env.APP_DEMO_FFBB === '1' && request.method === 'GET'
         && ['/api/ffbb/matches', '/api/ffbb/search'].includes(path);
       if (env.APP_DEMO === '1' && (

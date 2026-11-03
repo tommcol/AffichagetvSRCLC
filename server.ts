@@ -2,6 +2,7 @@ import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
 import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
+import { sportsLab } from './worker/sportsLab';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -76,13 +77,17 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 // La démonstration ne peut ni contacter la FFBB/Telegram ni publier de contenu.
 if (process.env.APP_DEMO === '1') {
   app.use('/api', (req, res, next) => {
-    const permitted = ['/health', '/get-app-data', '/save-app-data', '/app-data', '/verify-password', '/get-alerts', '/upload', '/upload-multiple'];
+    const permitted = ['/health', '/get-app-data', '/save-app-data', '/app-data', '/verify-password', '/get-alerts', '/upload', '/upload-multiple', '/lab/sports'];
     if (permitted.includes(req.path) || req.path.startsWith('/media/')) return next();
     return res.status(403).json({ error: 'Action externe désactivée dans la démonstration isolée.' });
   });
 }
 
 const localAuthEnv = { ADMIN_PASSWORD: process.env.APP_DEMO === '1' ? undefined : process.env.ADMIN_PASSWORD } as any;
+app.all('/api/lab/sports', async (req, res) => {
+  const response = await sportsLab(new Request('http://localhost' + req.originalUrl, { method: req.method }), { APP_DEMO: process.env.APP_DEMO } as any);
+  res.status(response.status).set('Content-Type', 'application/json').send(await response.text());
+});
 const authRequest = (req: express.Request) => new Request('http://localhost' + req.originalUrl, {
   method: req.method, headers: { cookie: req.headers.cookie || '', 'Content-Type': 'application/json' },
   ...(['GET', 'HEAD'].includes(req.method) ? {} : { body: JSON.stringify(req.body || {}) }),

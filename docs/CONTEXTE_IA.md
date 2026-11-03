@@ -8,6 +8,8 @@ Maintenir une application générique d'affichage TV pour des clubs de basket. N
 
 ## Architecture
 
+Sur la branche laboratoire, `docs/LABORATOIRE_MULTISPORTS.md` décrit les essais handball/volley/football : fenêtre séparée, lecture publique, aucun mélange avec les données FFBB ni activation en production.
+
 - React / TypeScript / Vite / Tailwind pour l'interface.
 - `src/App.tsx` orchestre les données et les modes administration / TV.
 - `src/components/Admin/AdminPanel.tsx` et ses sections gèrent l'administration.

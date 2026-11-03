@@ -1,4 +1,5 @@
 import { LabDiagnosticConsole } from './LabDiagnosticConsole';
+import { LabSportsPanel } from './LabSportsPanel';
 import React, { useEffect, useState } from 'react';
 
 /** The server is authoritative: no label inferred from a hostname or build flag. */
@@ -18,5 +19,6 @@ export function DemoEnvironmentBanner() {
   return <aside role="status" className="bg-amber-300 text-slate-950 px-3 py-2 text-center text-sm font-bold border-b-2 border-amber-600">
     LABORATOIRE — Sauvegardes et médias séparés · {ffbb ? 'FFBB activée pour les essais' : 'Données fictives · FFBB désactivée'} · Telegram et publications désactivés
     <LabDiagnosticConsole />
+    <LabSportsPanel />
   </aside>;
 }
