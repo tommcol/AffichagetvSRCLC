@@ -5,7 +5,8 @@ import type { LabSport, SportsFeed } from '../src/utils/sportsFeeds';
 const MAX_BYTES=2_000_000;
 /** Bounded GETs to fixed federation hosts. No cookies, credentials or redirects. */
 async function readPublic(url:URL):Promise<string> {
-  const response=await fetch(url.toString(),{method:'GET',redirect:'error',signal:AbortSignal.timeout(18000),headers:{Accept:'application/json, text/html','User-Agent':'Affichage-TV-Club-Laboratoire/1.0'}});
+  const response=await fetch(url.toString(),{method:'GET',redirect:'manual',signal:AbortSignal.timeout(18000),headers:{Accept:'application/json, text/html','User-Agent':'Affichage-TV-Club-Laboratoire/1.0'}});
+  if(response.status>=300&&response.status<400){await response.body?.cancel();throw new Error('La fédération redirige cette adresse. Copiez le lien final affiché sur son site.');}
   if(!response.ok){await response.body?.cancel();throw new Error(response.status===403?'La fédération refuse cet accès (HTTP 403). Aucun match fictif ne sera ajouté.':`Le service fédéral répond HTTP ${response.status}.`);}
   const reader=response.body?.getReader();if(!reader)throw new Error('Réponse fédérale vide.');
   const chunks:Uint8Array[]=[];let size=0;

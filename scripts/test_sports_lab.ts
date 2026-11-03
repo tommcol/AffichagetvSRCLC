@@ -38,11 +38,13 @@ const poster=sportsMatchForPoster(hand.matches[1],hand.teams[0]);assert.equal(po
 
 const originalFetch=globalThis.fetch;let calls=0;
 try{
-  globalThis.fetch=async(url,init)=>{calls++;assert.equal(new URL(String(url)).hostname,'www.ffhandball.fr');assert.equal(init?.redirect,'error');assert.equal(init?.method,'GET');return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}});};
+  globalThis.fetch=async(url,init)=>{calls++;assert.equal(new URL(String(url)).hostname,'www.ffhandball.fr');assert.equal(init?.redirect,'manual');assert.equal(init?.method,'GET');return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}});};
   const request=new Request('https://example.invalid/api/lab/sports?'+new URLSearchParams({sport:'handball',source:handUrl}));
   assert.equal((await worker.fetch(request,{APP_DEMO:'0'} as any)).status,404);assert.equal(calls,0);
   assert.equal((await sportsLab(new Request(request.url,{method:'POST'}),{APP_DEMO:'1'} as any)).status,405);assert.equal(calls,0);
   const response=await worker.fetch(request,{APP_DEMO:'1'} as any);assert.equal(response.status,200);const feed=await response.json() as any;assert.equal(feed.matches.length,2);assert.equal(calls,1);assert.ok(!JSON.stringify(feed).includes('arbitre'));
+  globalThis.fetch=async()=>new Response(null,{status:302,headers:{Location:'https://other.invalid/'}});
+  const redirect=await sportsLab(request,{APP_DEMO:'1'} as any);assert.equal(redirect.status,502);assert.match((await redirect.json() as any).error,/redirige/);
   globalThis.fetch=async()=>new Response('Denied',{status:403});
   const denied=await sportsLab(request,{APP_DEMO:'1'} as any);assert.equal(denied.status,502);assert.match((await denied.json() as any).error,/403/);
   globalThis.fetch=async()=>new Response('x'.repeat(2_000_001));
