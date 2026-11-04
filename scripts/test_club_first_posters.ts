@@ -24,7 +24,7 @@ for(const isHome of [true,false]){
   assert.equal((t.match(/U18 M1/g)||[]).length,1);
   assert.equal((t.match(/20:30/g)||[]).length,type==='matches'?1:0,'time only in the centre pill');
   assert.ok(!t.includes('20h30'),'no time beside date');
-  assert.ok(t.includes('novembre'),'date retained');
+  assert.equal(t.includes('novembre'), type === 'matches', 'date shown for matches only');
   if(type==='results')assert.ok(t.includes('72 - 60'),'our score first at away games');
   assert.ok(html.includes('grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'),'symmetrical date header');
  }

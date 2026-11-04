@@ -55,8 +55,8 @@ async function runTests() {
   if (!resultsSlice.includes('AutoFitTeamName')) {
     throw new Error('Le bloc résultats doit utiliser AutoFitTeamName avec pillHeight');
   }
-  if (!resultsSlice.includes('text-amber-400')) {
-    throw new Error('La date doit être en doré (text-amber-400) comme l aperçu TV');
+  if (resultsSlice.includes('{matchDateText}')) {
+    throw new Error('La date ne doit plus être affichée sur les résultats');
   }
   if (!resultsSlice.includes('bg-gradient-to-r from-red-600 via-rose-600')) {
     throw new Error('La pilule du club doit être en dégradé rouge comme les matchs et l aperçu TV');
