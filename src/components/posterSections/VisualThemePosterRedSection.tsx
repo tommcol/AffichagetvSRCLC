@@ -379,12 +379,12 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
                               return (
                                 <div key={r.id} className="flex flex-col gap-1.5 w-full flex-1 justify-center min-h-0 min-w-0">
-                                  {/* Date centrée, score dans l'ordre club / adversaire. */}
+                                  {/* Badge Victoire/Défaite centré (date retirée), icône domicile/extérieur à droite. */}
                                   <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
-                                    <div className="min-w-0 justify-self-start">
+                                    <span aria-hidden="true" />
+                                    <div className="min-w-0 justify-self-center flex items-center justify-center">
                                       {resultDisplayMode !== 'score' && <span className={'font-black uppercase rounded-full px-2 py-1 text-white ' + (isWin ? 'bg-emerald-600' : 'bg-rose-600')} style={{fontSize:statusFontSize}}>{isWin ? 'VICTOIRE' : 'DÉFAITE'}</span>}
                                     </div>
-                                    <span className={'text-center text-amber-400 font-semibold uppercase tracking-wider ' + getFontFamilyClass(layer2FontBody)} style={{fontSize:headerFontSize}}>{matchDateText || 'Date à confirmer'}</span>
                                     <span className={'justify-self-end inline-flex items-center justify-center w-8 h-8 rounded-full border ' + (isHome ? 'text-emerald-400 border-emerald-400/60 bg-emerald-500/20' : 'text-sky-400 border-sky-400/60 bg-sky-500/20')} title={isHome ? 'Match à Domicile' : "Match à l'Extérieur"}>
                                       {isHome ? <Home className="w-5 h-5"/> : <Plane className="w-5 h-5 -rotate-45"/>}
                                     </span>
