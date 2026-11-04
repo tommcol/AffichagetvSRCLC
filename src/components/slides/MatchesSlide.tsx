@@ -1,3 +1,5 @@
+import { AutoFitTeamName } from '../AutoFitTeamName';
+import { getAdaptivePosterCardSizing } from '../../utils/posterAdaptiveSizing';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2, Flame } from 'lucide-react';
@@ -194,59 +196,6 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
   const activeStyle = theme?.visualStyle || 'poster-red';
 
-  // Helper pour dimensionner et adapter automatiquement la disposition 16:9 selon le nombre de matchs (jusqu'à 10)
-  const getPosterAdaptiveScale = (count: number) => {
-    if (count <= 2) {
-      return {
-        headerSize: 'text-3xl md:text-4xl lg:text-5xl',
-        pillHeight: 'min-h-[100px] md:min-h-[118px] lg:min-h-[132px]',
-        pillText: 'text-3xl md:text-4xl lg:text-5xl xl:text-6xl',
-        centerPill: 'text-3xl md:text-4xl lg:text-5xl px-7 md:px-9 lg:px-11 min-h-[100px] md:min-h-[118px] lg:min-h-[132px]',
-        badgeSize: 'text-base md:text-lg px-5 py-1.5',
-        badgeIcon: 'w-6 h-6 md:w-7 md:h-7',
-      };
-    }
-    if (count <= 4) {
-      return {
-        headerSize: 'text-base md:text-lg',
-        pillHeight: 'min-h-[60px] md:min-h-[66px]',
-        pillText: 'text-xl md:text-2xl',
-        centerPill: 'text-xl md:text-2xl px-3.5 md:px-5 min-h-[60px] md:min-h-[66px]',
-        badgeSize: 'text-xs md:text-sm px-3 py-1',
-        badgeIcon: 'w-4 h-4',
-      };
-    }
-    if (count <= 6) {
-      return {
-        headerSize: 'text-sm md:text-base',
-        pillHeight: 'min-h-[50px] md:min-h-[56px]',
-        pillText: 'text-lg md:text-xl',
-        centerPill: 'text-lg md:text-xl px-3 md:px-4 min-h-[50px] md:min-h-[56px]',
-        badgeSize: 'text-xs px-2.5 py-0.5',
-        badgeIcon: 'w-3.5 h-3.5',
-      };
-    }
-    if (count <= 8) {
-      return {
-        headerSize: 'text-xs md:text-sm',
-        pillHeight: 'min-h-[44px] md:min-h-[48px]',
-        pillText: 'text-base md:text-lg',
-        centerPill: 'text-base md:text-lg px-2.5 md:px-3 min-h-[44px] md:min-h-[48px]',
-        badgeSize: 'text-xs px-2.5 py-0.5',
-        badgeIcon: 'w-3 h-3',
-      };
-    }
-    // Jusqu'à 10 matchs (5 par colonne)
-    return {
-      headerSize: 'text-xs',
-      pillHeight: 'min-h-[38px] md:min-h-[42px]',
-      pillText: 'text-sm md:text-base',
-      centerPill: 'text-sm md:text-base px-2 min-h-[38px] md:min-h-[42px]',
-      badgeSize: 'text-[11px] px-2 py-0.5',
-      badgeIcon: 'w-3 h-3',
-    };
-  };
-
   // =========================================================================
   // MODE AFFICHE OFFICIELLE / PASSERELLE RÉSEAUX (Pill Badges 16:9)
   // =========================================================================
@@ -256,7 +205,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       : weekendMatches;
     // Tri chronologique rigoureux : dates puis heures
     const sortedMatches = [...allMatches].sort(sortMatchesChronologically);
-    const scale = getPosterAdaptiveScale(sortedMatches.length);
+    const scale = getAdaptivePosterCardSizing(sortedMatches.length, '16:9');
+    const centerStyle = { height: scale.pillHeight, fontSize: Math.max(scale.centerFontSize, Math.round(scale.pillHeight * 0.42)) };
+    const headerSize = Math.round(Math.max(scale.headerFontSize, Math.min(scale.pillHeight * 0.36, 46)) * 0.65);
 
     // Répartition en 2 colonnes verticales s'il y a plus de 2 matchs
     const half = Math.ceil(sortedMatches.length / 2);
@@ -283,7 +234,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
           {/* Date centrée sans horaire ; statut et lieu conservés */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-h-8">
-            <div className={`justify-self-start min-w-0 flex items-center gap-2 font-black uppercase tracking-wider text-white ${scale.headerSize} ${getFontFamilyClass(bodyFont)}`}>
+            <div className={`justify-self-start min-w-0 flex items-center gap-2 font-black uppercase tracking-wider text-white  ${getFontFamilyClass(bodyFont)}`}>
               {/* BADGE EN COURS OU STATUT */}
               {isLive ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider animate-pulse shadow-lg shadow-red-600/50 border border-red-400 ring-2 ring-red-400/30 shrink-0">
@@ -311,7 +262,7 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
               ) : null}
 
             </div>
-            {dateTimeText && <span className={`text-center text-slate-200 text-sm font-semibold uppercase tracking-wider ${getFontFamilyClass(bodyFont)}`}>{dateTimeText}</span>}
+            {dateTimeText && <span className={`text-center text-slate-200 font-semibold uppercase tracking-wider ${getFontFamilyClass(bodyFont)}`} style={{fontSize: headerSize}}>{dateTimeText}</span>}
             <div className="justify-self-end">
 
             {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
@@ -337,37 +288,42 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
           <div className="flex items-center justify-between gap-3 md:gap-5 lg:gap-7 w-full min-w-0">
             {/* Notre équipe à gauche */}
             <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-3 md:py-4 px-4 md:px-6 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
                 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
               }`}
+              style={{height: scale.pillHeight}}
+              data-tv-team="teamLeft"
             >
-              <span className="truncate block w-full text-center">{teamLeft}</span>
+              <AutoFitTeamName name={teamLeft} count={sortedMatches.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#ffffff" />
             </div>
 
             {/* Pilule Centrale Blanche ou Rouge EN COURS (Heure / VS / Score) */}
             {isLive ? (
               <div
-                className={`shrink-0 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 text-white font-mono font-black shadow-xl shadow-red-600/40 text-center border-2 border-red-300 ring-2 ring-red-400/60 flex flex-col items-center justify-center rounded-full animate-pulse ${scale.pillHeight} ${scale.centerPill}`}
+                className={`shrink-0 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 text-white font-mono font-black shadow-xl shadow-red-600/40 text-center border-2 border-red-300 ring-2 ring-red-400/60 flex flex-col items-center justify-center rounded-full animate-pulse px-3`}
                 title="Match actuellement en cours"
+                style={centerStyle}
               >
                 <span className="text-[10px] md:text-xs font-black uppercase tracking-wider flex items-center gap-1 text-white">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                   EN COURS
                 </span>
-                <span className="text-xl md:text-3xl lg:text-4xl font-black tracking-tight leading-none">
+                <span className="font-black tracking-tight leading-none">
                   {hasScore ? scoreText : (m.time || 'EN COURS')}
                 </span>
               </div>
             ) : isFinished && hasScore ? (
               <div
-                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full px-3`}
+                style={centerStyle}
               >
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">SCORE</span>
-                <span className="text-xl md:text-3xl lg:text-4xl font-black leading-none">{scoreText}</span>
+                <span className="font-black leading-none">{scoreText}</span>
               </div>
             ) : (
               <div
-                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full px-3`}
+                style={centerStyle}
               >
                 {m.time || 'VS'}
               </div>
@@ -375,11 +331,13 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
             {/* Adversaire à droite */}
             <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
                 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
+              style={{height: scale.pillHeight}}
+              data-tv-team="teamRight"
             >
-              <span className="truncate block w-full text-center">{teamRight}</span>
+              <AutoFitTeamName name={teamRight} count={sortedMatches.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#e2e8f0" />
             </div>
           </div>
         </div>

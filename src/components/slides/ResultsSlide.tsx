@@ -1,3 +1,5 @@
+import { AutoFitTeamName } from '../AutoFitTeamName';
+import { getAdaptivePosterCardSizing } from '../../utils/posterAdaptiveSizing';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React from 'react';
 import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane, Clock } from 'lucide-react';
@@ -155,66 +157,15 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
   const activeStyle = theme?.visualStyle || 'poster-red';
 
-  // Helper pour dimensionner et adapter automatiquement la disposition 16:9 selon le nombre de résultats (jusqu'à 10)
-  const getPosterAdaptiveScale = (count: number) => {
-    if (count <= 2) {
-      return {
-        headerSize: 'text-2xl',
-        pillHeight: 'min-h-[76px] md:min-h-[82px]',
-        pillText: 'text-2xl md:text-3xl',
-        centerPill: 'text-2xl md:text-3xl px-6 md:px-8 min-h-[76px] md:min-h-[82px]',
-        badgeSize: 'text-sm px-4 py-1',
-        badgeIcon: 'w-5 h-5',
-      };
-    }
-    if (count <= 4) {
-      return {
-        headerSize: 'text-base md:text-lg',
-        pillHeight: 'min-h-[60px] md:min-h-[66px]',
-        pillText: 'text-xl md:text-2xl',
-        centerPill: 'text-xl md:text-2xl px-3.5 md:px-5 min-h-[60px] md:min-h-[66px]',
-        badgeSize: 'text-xs md:text-sm px-3 py-1',
-        badgeIcon: 'w-4 h-4',
-      };
-    }
-    if (count <= 6) {
-      return {
-        headerSize: 'text-sm md:text-base',
-        pillHeight: 'min-h-[50px] md:min-h-[56px]',
-        pillText: 'text-lg md:text-xl',
-        centerPill: 'text-lg md:text-xl px-3 md:px-4 min-h-[50px] md:min-h-[56px]',
-        badgeSize: 'text-xs px-2.5 py-0.5',
-        badgeIcon: 'w-3.5 h-3.5',
-      };
-    }
-    if (count <= 8) {
-      return {
-        headerSize: 'text-xs md:text-sm',
-        pillHeight: 'min-h-[44px] md:min-h-[48px]',
-        pillText: 'text-base md:text-lg',
-        centerPill: 'text-base md:text-lg px-2.5 md:px-3 min-h-[44px] md:min-h-[48px]',
-        badgeSize: 'text-xs px-2.5 py-0.5',
-        badgeIcon: 'w-3 h-3',
-      };
-    }
-    // Jusqu'à 10 résultats (5 par colonne)
-    return {
-      headerSize: 'text-xs',
-      pillHeight: 'min-h-[38px] md:min-h-[42px]',
-      pillText: 'text-sm md:text-base',
-      centerPill: 'text-sm md:text-base px-2 min-h-[38px] md:min-h-[42px]',
-      badgeSize: 'text-[11px] px-2 py-0.5',
-      badgeIcon: 'w-3 h-3',
-    };
-  };
-
   // =========================================================================
   // MODE AFFICHE OFFICIELLE / PASSERELLE RÉSEAUX (Pill Badges 16:9)
   // =========================================================================
   if (activeStyle === 'poster-red') {
     // Tri chronologique rigoureux : dates puis heures
     const sortedResults = [...activeResults].sort(sortMatchesChronologically);
-    const scale = getPosterAdaptiveScale(sortedResults.length);
+    const scale = getAdaptivePosterCardSizing(sortedResults.length, '16:9');
+    const centerStyle = { height: scale.pillHeight, fontSize: Math.max(scale.centerFontSize, Math.round(scale.pillHeight * 0.42)) };
+    const headerSize = Math.round(Math.max(scale.headerFontSize, Math.min(scale.pillHeight * 0.36, 46)) * 0.65);
 
     // Répartition en 2 colonnes verticales s'il y a plus de 2 résultats
     const half = Math.ceil(sortedResults.length / 2);
@@ -232,13 +183,14 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
       return (
         <div key={r.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0 min-w-0">
-          {/* Intitulé au-dessus : Date en grand et Icône Maison ou Avion */}
+          {/* Résultat centré au-dessus des équipes ; lieu à droite. */}
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
             <span aria-hidden="true"/>
-            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white text-center justify-center ${scale.headerSize} ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
+            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white text-center justify-center  ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
               {resultDisplayMode !== 'score' && (
                 <span
-                  className={`text-[10px] md:text-xs font-black uppercase tracking-wider px-2 md:px-3 py-0.5 rounded-full shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
+                  style={{fontSize: Math.max(14, headerSize)}}
+                  className={`font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
                     isWin
                       ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
                       : isLoss
@@ -280,11 +232,13 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
           <div className="flex items-center justify-between gap-1.5 md:gap-2.5 w-full min-w-0">
             {/* Pilule Équipe Domicile (À gauche) */}
             <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
                 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
               }`}
+              style={{height: scale.pillHeight}}
+              data-tv-team="teamLeft"
             >
-              <span className="truncate block w-full text-center">{teamLeft}</span>
+              <AutoFitTeamName name={teamLeft} count={sortedResults.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#ffffff" />
             </div>
 
             {/* Bloc Central : VICTOIRE / DÉFAITE / MATCH FINI ET / OU SCORE SELON RESULTDISPLAYMODE */}
@@ -292,7 +246,8 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
               {resultDisplayMode !== 'status' && (
                 <div
-                  className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full ${scale.pillHeight} ${scale.centerPill}`}
+                  className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full px-3`}
+                  style={centerStyle}
                 >
                   {r.homeScore !== undefined && r.awayScore !== undefined
                     ? scoreText
@@ -303,11 +258,13 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
 
             {/* Pilule Équipe Extérieur (À droite) */}
             <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider py-1.5 md:py-2 px-2.5 md:px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)} ${scale.pillHeight} ${scale.pillText} ${
+              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
                 'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
               }`}
+              style={{height: scale.pillHeight}}
+              data-tv-team="teamRight"
             >
-              <span className="truncate block w-full text-center">{teamRight}</span>
+              <AutoFitTeamName name={teamRight} count={sortedResults.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#e2e8f0" />
             </div>
           </div>
         </div>
