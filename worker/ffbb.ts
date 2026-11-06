@@ -4,6 +4,7 @@ import { groupFfbbTeams } from '../src/utils/ffbbTeamGrouping';
 import { createFfbbDataSource } from '../src/utils/ffbbMobileApi';
 import { prepareExcelApiHandoff } from '../src/utils/calendarImportIdentity';
 import { clubDateTimeTimestamp } from '../src/utils/clubTime';
+import { getAlertMediaCandidates } from '../src/utils/alertMedia';
 import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
 // API FFBB (synchronisation matchs/résultats, cron)
@@ -786,14 +787,21 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
           ourScore: typeof ourScore === 'number' ? ourScore : undefined,
           opponentScore: typeof opponentScore === 'number' ? opponentScore : undefined,
           opponent,
-          customImageUrl: undefined,
-          titleConfig: undefined,
+          customImageUrl: undefined as string | undefined,
+          titleConfig: undefined as any,
           triggeredBy: 'ffbb',
           matchId: match.id,
           category: match.category,
           timestamp: nowAlert,
           expiresAt: nowAlert + 60 * 60 * 1000,
         };
+        const teamVisual = (data.teamVisuals || []).find((visual: any) =>
+          visual.category === match.category || visual.teamName === newAlert.team
+        );
+        newAlert.customImageUrl = getAlertMediaCandidates(newAlert, teamVisual, data.visualTemplates)[0];
+        newAlert.titleConfig = newAlert.customImageUrl
+          ? data.visualTemplates?.visualTitleConfigs?.[newAlert.customImageUrl]
+          : undefined;
         activeAlerts.unshift(newAlert);
         alertsChanged = true;
         console.log('[FFBB CRON] Nouveau score officiel: boucle ' + (isWin ? 'VICTOIRE' : 'DÉFAITE') + ' programmée 1 h pour ' + match.category + '.');

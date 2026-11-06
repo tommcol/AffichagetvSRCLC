@@ -4,6 +4,7 @@ import { ActiveMatchAlert, TeamVisualItem, VisualTemplatesConfig, ClubSettings, 
 import { isVideoMedia } from '../../utils/mediaUtils';
 import { getFontFamilyClass } from '../../utils/fontUtils';
 import { formatAlertTitle } from '../../utils/alertUtils';
+import { getAlertMediaCandidates } from '../../utils/alertMedia';
 
 /**
  * Résout la configuration graphique effective du titre pour un média donné.
@@ -83,8 +84,7 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   onUpdatePosition,
   onUpdateTemplate,
 }) => {
-  const [mediaError, setMediaError] = useState(false);
-  useEffect(() => setMediaError(false), [overrideImageUrl, alert.customImageUrl, alert.isWin]);
+  const [mediaIndex, setMediaIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(1920);
@@ -95,11 +95,12 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // 1. Détermination du média de fond (Photo ou Vidéo)
-  const visualImage =
-    overrideImageUrl ||
-    alert.customImageUrl ||
-    (alert.isWin ? teamVisual?.winVisualUrl : teamVisual?.lossVisualUrl) ||
-    (alert.isWin ? visualTemplates?.defaultVictoryBackgroundUrl : visualTemplates?.defaultDefeatBackgroundUrl);
+  const mediaCandidates = getAlertMediaCandidates(alert, teamVisual, visualTemplates, overrideImageUrl);
+  const mediaKey = JSON.stringify([alert.id, alert.isWin, mediaCandidates]);
+  useEffect(() => setMediaIndex(0), [mediaKey]);
+  const visualImage = mediaCandidates[mediaIndex];
+  const mediaError = mediaCandidates.length > 0 && !visualImage;
+  const handleMediaError = () => setMediaIndex(index => Math.min(index + 1, mediaCandidates.length));
 
   // 2. Configuration graphique effective (attachée au visuel ou globale)
   const effectiveConfig = overrideTitleConfig || getEffectiveTitleConfig(
@@ -313,7 +314,7 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
       {/* ========================================================================= */}
       {/* 1. MÉDIA DE FOND : PHOTO OU VIDÉO PLEIN ÉCRAN                              */}
       {/* ========================================================================= */}
-      {mediaError && <div role="alert" className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950 text-white">Média indisponible — vérifiez le visuel sélectionné.</div>}
+      {mediaError && <div role="alert" className="absolute top-4 left-4 right-4 z-10 text-center text-sm text-white">Média indisponible — vérifiez le visuel sélectionné.</div>}
       {visualImage ? (
         <div className="absolute inset-0 z-0">
           {isVideoMedia(visualImage) ? (
@@ -336,15 +337,16 @@ export const MatchAlertSlide: React.FC<MatchAlertSlideProps> = ({
               }}
               onEnded={onVideoEnded}
               onError={() => {
-                console.warn('Erreur lecture vidéo alerte victoire/défaite, passage au suivant');
-                if (onVideoEnded) onVideoEnded();
+                console.warn('Média alerte indisponible, essai du suivant');
+                handleMediaError();
               }}
               className="w-full h-full object-cover brightness-[0.88] contrast-105"
             />
           ) : (
             <img
               src={visualImage}
-              onError={() => setMediaError(true)}
+              key={visualImage}
+              onError={handleMediaError}
               alt={`${alert.team} - ${alert.isWin ? 'Victoire' : 'Défaite'}`}
               className="w-full h-full object-cover brightness-[0.88] contrast-105 scale-100"
             />
