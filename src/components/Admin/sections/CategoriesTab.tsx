@@ -3,6 +3,7 @@
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
 
 import { CheckCircle2, Camera, Shuffle } from 'lucide-react';
+import { RadioSettings } from './RadioSettings';
 
 export interface CategoriesTabProps {
   // Typage permissif lors de l'extraction : chaque identifiant utilisé est passé en prop depuis AdminPanel.
@@ -21,6 +22,7 @@ export function CategoriesTab(props: CategoriesTabProps) {
 
   return (
             <div className="space-y-6">
+              <RadioSettings settings={clubSettings} onChange={onUpdateClubSettings} />
               {/* Option 1: Mélange Équilibré de la Boucle TV */}
               <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">

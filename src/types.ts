@@ -378,6 +378,8 @@ export interface TelegramConfig {
 }
 
 export interface ClubSettings {
+  radioStationId?: string; // Absent/off : aucune radio ; station proposée ou flux personnalisé.
+  radioCustomUrl?: string;
   ffbbDataClubId?: string; // Club owning the currently loaded sports collections.
   name: string;
   shortName: string;
