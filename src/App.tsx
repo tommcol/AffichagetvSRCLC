@@ -1,4 +1,5 @@
 import { AdminAccess } from './components/Admin/AdminAccess';
+import { BackgroundRadio } from './components/common/BackgroundRadio';
 import { VideoPlaybackBoundary } from './components/common/VideoPlaybackBoundary';
 import { clubCalendarDate } from './utils/clubTime';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -938,6 +939,7 @@ export default function App() {
       className="relative w-screen h-screen min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none cursor-default"
       onMouseMove={handleUserActivity}
     >
+      <BackgroundRadio settings={clubSettings} />
       {/* ========================================================================= */}
       {/* 1. 100% PURE FULL-SCREEN VISUAL CAROUSEL STAGE (FIXED 16:9 SCALED CANVAS) */}
       {/* ========================================================================= */}

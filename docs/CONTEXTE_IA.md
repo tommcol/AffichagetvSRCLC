@@ -166,3 +166,19 @@ et les modes de résultats ont ainsi une seule composition. Les composants TV
 conservent la sélection des rencontres, les médias, les calques interactifs et leurs
 événements vidéo. Ne pas réintroduire une seconde mise en page pour ces éléments.
 Le test `test_tv_social_parity.ts` compare le contenu rendu, avec données fictives.
+
+### Radio de fond TV
+
+`BackgroundRadio` est monté uniquement en mode TV, hors du composant animé des
+diapositives et de `VideoPlaybackBoundary`. Ne pas le remonter lors d'un changement
+de diapositive ni le synchroniser sur la pause du carrousel. Les vidéos restent
+muettes. Les réglages facultatifs `clubSettings.radioStationId` / `radioCustomUrl`
+passent par les sauvegardes existantes ; absence de station = radio désactivée.
+Le choix est dans Paramètres Carrousel & TV. Le flux est lu directement par le
+navigateur (pas de proxy Cloudflare), sans lecteur visible ni volume logiciel.
+Le navigateur peut exiger un geste avant le son : afficher seulement alors le
+bouton d'activation. Le volume se règle sur la TV. Les erreurs réseau déclenchent
+une reconnexion bornée ; quitter le mode TV ou désactiver la station libère le flux.
+Les liens personnalisés doivent être des flux HTTPS directs MP3/AAC sans identifiants.
+Le test `test_background_radio.ts` utilise un lecteur et des horloges simulés,
+sans connexion radio ni écriture de production.
