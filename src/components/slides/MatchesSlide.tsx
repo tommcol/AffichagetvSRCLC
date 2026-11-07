@@ -1,5 +1,4 @@
-import { AutoFitTeamName } from '../AutoFitTeamName';
-import { getAdaptivePosterCardSizing } from '../../utils/posterAdaptiveSizing';
+import { VisualThemePosterRedSection } from '../posterSections/VisualThemePosterRedSection';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Clock, Home, Navigation, Plane, CheckCircle2, XCircle, Share2, Flame } from 'lucide-react';
@@ -205,145 +204,6 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
       : weekendMatches;
     // Tri chronologique rigoureux : dates puis heures
     const sortedMatches = [...allMatches].sort(sortMatchesChronologically);
-    const scale = getAdaptivePosterCardSizing(sortedMatches.length, '16:9');
-    const centerStyle = { height: scale.pillHeight, fontSize: Math.max(scale.centerFontSize, Math.round(scale.pillHeight * 0.42)) };
-    const headerSize = Math.round(Math.max(scale.headerFontSize, Math.min(scale.pillHeight * 0.36, 46)) * 0.65);
-
-    // Répartition en 2 colonnes verticales s'il y a plus de 2 matchs
-    const half = Math.ceil(sortedMatches.length / 2);
-    const leftMatches = sortedMatches.length <= 2 ? sortedMatches : sortedMatches.slice(0, half);
-    const rightMatches = sortedMatches.length <= 2 ? [] : sortedMatches.slice(half);
-
-    const renderPosterMatchItem = (m: MatchItem) => {
-      const isHome = getClubFirstMatchPresentation(m, clubSettings?.name, clubSettings?.shortName).isHome;
-      const hasReceivedResult = m.result === 'win' || m.result === 'loss' || (m.homeScore !== undefined && m.awayScore !== undefined);
-
-      const isLive = !hasReceivedResult && isMatchLive(m, currentTime);
-
-      const isFinished = hasReceivedResult || isMatchFinished(m, currentTime);
-      const outcome = getMatchOutcome(m, clubSettings?.name, clubSettings?.shortName);
-      const hasScore = m.homeScore !== undefined && m.awayScore !== undefined;
-
-      const dateObj = formatMatchDayAndDate(m.date);
-      const dayDisplay = dateObj?.display || dateObj?.dayName || '';
-      const dateTimeText = dayDisplay.trim();
-
-      const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(m, clubSettings?.name, clubSettings?.shortName);
-
-      return (
-        <div key={m.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0">
-          {/* Date centrée sans horaire ; statut et lieu conservés */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-h-8">
-            <div className={`justify-self-start min-w-0 flex items-center gap-2 font-black uppercase tracking-wider text-white  ${getFontFamilyClass(bodyFont)}`}>
-              {/* BADGE EN COURS OU STATUT */}
-              {isLive ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-600 text-white font-black text-xs uppercase tracking-wider animate-pulse shadow-lg shadow-red-600/50 border border-red-400 ring-2 ring-red-400/30 shrink-0">
-                  <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                  <Flame className="w-3.5 h-3.5 text-amber-300" />
-                  <span>EN COURS</span>
-                </span>
-              ) : isFinished ? (
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider shrink-0 ${
-                  outcome === 'win'
-                    ? 'bg-emerald-600/90 text-white'
-                    : outcome === 'loss'
-                    ? 'bg-rose-600/90 text-white'
-                    : 'bg-slate-700/90 text-slate-200'
-                }`}>
-                  {outcome === 'win' ? (
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  ) : outcome === 'loss' ? (
-                    <XCircle className="w-3.5 h-3.5" />
-                  ) : (
-                    <Clock className="w-3.5 h-3.5 text-slate-300" />
-                  )}
-                  <span>{outcome === 'win' ? 'VICTOIRE' : outcome === 'loss' ? 'DÉFAITE' : 'EN ATTENTE DU RÉSULTAT'}</span>
-                </span>
-              ) : null}
-
-            </div>
-            {dateTimeText && <span className={`text-center text-slate-200 font-semibold uppercase tracking-wider ${getFontFamilyClass(bodyFont)}`} style={{fontSize: headerSize}}>{dateTimeText}</span>}
-            <div className="justify-self-end">
-
-            {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
-            {isHome ? (
-              <span
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
-                title="Match à Domicile"
-              >
-                <Home className="w-5 h-5 text-emerald-400" />
-              </span>
-            ) : (
-              <span
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
-                title="Match à l'Extérieur"
-              >
-                <Plane className="w-5 h-5 text-sky-400 -rotate-45" />
-              </span>
-            )}
-            </div>
-          </div>
-
-          {/* Rangée de Pilules : Notre Club en ROUGE OFFICIEL, Adversaire en ANTHRACITE CONTRASTÉ */}
-          <div className="flex items-center justify-between gap-3 md:gap-5 lg:gap-7 w-full min-w-0">
-            {/* Notre équipe à gauche */}
-            <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
-                'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-              }`}
-              style={{height: scale.pillHeight}}
-              data-tv-team="teamLeft"
-            >
-              <AutoFitTeamName name={teamLeft} count={sortedMatches.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#ffffff" />
-            </div>
-
-            {/* Pilule Centrale Blanche ou Rouge EN COURS (Heure / VS / Score) */}
-            {isLive ? (
-              <div
-                className={`shrink-0 bg-gradient-to-br from-red-600 via-rose-600 to-red-700 text-white font-mono font-black shadow-xl shadow-red-600/40 text-center border-2 border-red-300 ring-2 ring-red-400/60 flex flex-col items-center justify-center rounded-full animate-pulse px-3`}
-                title="Match actuellement en cours"
-                style={centerStyle}
-              >
-                <span className="text-[10px] md:text-xs font-black uppercase tracking-wider flex items-center gap-1 text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                  EN COURS
-                </span>
-                <span className="font-black tracking-tight leading-none">
-                  {hasScore ? scoreText : (m.time || 'EN COURS')}
-                </span>
-              </div>
-            ) : isFinished && hasScore ? (
-              <div
-                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex flex-col items-center justify-center rounded-full px-3`}
-                style={centerStyle}
-              >
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none -mb-0.5">SCORE</span>
-                <span className="font-black leading-none">{scoreText}</span>
-              </div>
-            ) : (
-              <div
-                className={`shrink-0 bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full px-3`}
-                style={centerStyle}
-              >
-                {m.time || 'VS'}
-              </div>
-            )}
-
-            {/* Adversaire à droite */}
-            <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
-                'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
-              }`}
-              style={{height: scale.pillHeight}}
-              data-tv-team="teamRight"
-            >
-              <AutoFitTeamName name={teamRight} count={sortedMatches.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#e2e8f0" />
-            </div>
-          </div>
-        </div>
-      );
-    };
-
     return (
       <div className="relative w-full h-full flex flex-col justify-between overflow-hidden select-none bg-[#111111]">
         {/* Calque 1 : Arrière-plan photo / vidéo */}
@@ -380,13 +240,9 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
                 referrerPolicy="no-referrer"
               />
             )}
-            <div className="absolute inset-0 bg-slate-950/70 pointer-events-none" />
-            {bgVignette > 0 && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{ background: `radial-gradient(circle at center, rgba(0,0,0,0) 45%, rgba(0,0,0,${bgVignette}) 100%)` }}
-              />
-            )}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `radial-gradient(circle at center, rgba(0,0,0,${(theme?.backgroundVignette ?? 0.8) * 0.25}) 0%, rgba(0,0,0,${theme?.backgroundVignette ?? 0.8}) 100%)`,
+            }} />
           </div>
         )}
 
@@ -403,84 +259,43 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
         )}
 
         {/* Rayures Zebra Blancs en bas à droite */}
-        <div className="absolute -bottom-4 -right-4 pointer-events-none z-10 flex flex-col gap-1.5 -rotate-45">
-          <div className="w-24 h-2.5 bg-white shadow-md" />
-          <div className="w-24 h-2.5 bg-white shadow-md" />
-          <div className="w-24 h-2.5 bg-white shadow-md" />
+        <div className="absolute -bottom-8 -right-8 pointer-events-none z-10 flex flex-col gap-4 -rotate-45">
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
         </div>
 
-        {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES MATCHS ÉTENDUE 16:9) */}
-        <div className="relative z-20 w-full h-full flex flex-col justify-between p-5 md:p-7 lg:p-8 xl:p-10">
-
-          {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
-          <div className={`w-full flex flex-col relative shrink-0 mb-2 md:mb-3 ${
-            titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
-          }`}>
-
-            {/* Boutons d'action haut droite (Passerelle Réseaux) */}
-            {!hideShareButton && (
-              <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
-                <button
-                  onClick={onDownloadVisual}
-                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 hover:from-pink-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
-                  title="Passerelle Réseaux Sociaux : Exporter pour Instagram, TikTok et Facebook"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Passerelle Réseaux</span>
-                </button>
-              </div>
-            )}
-
-            {/* 6 Traits Rouges Inclinés (Signature Graphique) */}
-            <div className="flex gap-1.5 transform -skew-x-[25deg] mb-1">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="w-2 md:w-2.5 h-3 md:h-3.5 bg-red-600 rounded-[1px] shadow-md" />
-              ))}
-            </div>
-
-            {/* Pastille Pilule de Titre Rouge */}
-            <div className={`px-10 py-2 rounded-full bg-red-600 text-white font-black text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || (
-                sortedMatches.length > 0 && sortedMatches.every((m) => m.isHomeMatch)
-                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RENCONTRES À DOMICILE'
-                  : sortedMatches.length > 0 && sortedMatches.every((m) => !m.isHomeMatch)
-                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RENCONTRES À L'EXTÉRIEUR"
-                  : theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END'
-              )}
-            </div>
-          </div>
-
-          {/* LISTE ADAPTATIVE DES MATCHS OCCUPANT TOUT L'ESPACE 16:9 */}
-          {sortedMatches.length === 0 ? (
-            <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
-              <Calendar className="w-10 h-10 text-orange-400/60 mx-auto mb-2" />
-              <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-                AUCUNE RENCONTRE POUR CETTE PÉRIODE
-              </h3>
-              <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
-                Le calendrier sera mis à jour dès la programmation des prochains matchs.
-              </p>
-            </div>
-          ) : (
-            <div className="w-full flex-1 flex flex-row gap-5 xl:gap-8 my-2 md:my-3 py-1 items-stretch min-h-0 min-w-0 overflow-hidden">
-              {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
-              <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
-                {leftMatches.map(renderPosterMatchItem)}
-              </div>
-
-              {/* Colonne 2 : Deuxième moitié ordonnée chronologiquement */}
-              {rightMatches.length > 0 && (
-                <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
-                  {rightMatches.map(renderPosterMatchItem)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Bas de page / Signature Club */}
-          <div className={`w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 uppercase tracking-widest pt-1 shrink-0 ${getFontFamilyClass(bodyFont)}`}>
-            <span>{(clubSettings?.shortName || clubSettings?.name || 'CLUB BASKET').toUpperCase()}</span>
-          </div>
+        {/* Composition partagée avec la passerelle réseaux, canevas 1920 × 1080. */}
+        <div className="relative z-20 w-full h-full p-10">
+          <VisualThemePosterRedSection
+            contentOnly
+            aspectRatio="16:9"
+            contentType="matches"
+            displayedMatches={sortedMatches}
+            displayedResults={[]}
+            posterFilter="all"
+            badgeTitle={customHeaderTitle || (sortedMatches.length > 0 && sortedMatches.every(m => m.isHomeMatch)
+                ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RENCONTRES À DOMICILE'
+                : sortedMatches.length > 0 && sortedMatches.every(m => !(m.isHomeMatch))
+                ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RENCONTRES À L'EXTÉRIEUR"
+                : theme?.customHeaderTitle || 'LES RENCONTRES DU WEEK-END')}
+            layer2PrimaryColor={primaryColor}
+            layer2BadgeBgColor={theme?.badgeBgColor || primaryColor}
+            layer2BadgeTextColor={theme?.badgeTextColor || '#ffffff'}
+            layer2FontHeader={headerFont}
+            layer2FontBody={bodyFont}
+            layer2TextColor={textColor}
+            safeClubName={clubSettings.name}
+            safeShortName={clubSettings.shortName}
+            resultDisplayMode={'both'}
+          />
+          {!hideShareButton && <button type="button" onClick={onDownloadVisual}
+            className="absolute top-4 right-4 z-30 px-4 py-2 bg-slate-900 text-white rounded-xl">
+            Passerelle Réseaux
+          </button>}
+          {sortedMatches.length === 0 && <p role="status" className="absolute inset-0 flex items-center justify-center text-white text-3xl">
+            AUCUNE RENCONTRE POUR CETTE PÉRIODE
+          </p>}
         </div>
 
         {/* ========================================================================= */}
