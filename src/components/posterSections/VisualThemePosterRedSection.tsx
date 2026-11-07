@@ -1,7 +1,8 @@
+import React from 'react';
 import { TeamCalendarRows } from './TeamCalendarRows';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
-// VisualThemePosterRedSection — bloc « visualTheme === 'poster-red' » de VisualExporterModal.
-// Extrait automatiquement lors du découpage : aucune logique modifiée.
+// Composition commune de la passerelle réseaux et des diapositives TV.
+// contentOnly conserve les médias et les calques interactifs gérés par les composants TV.
 
 import { Trophy, Home, Plane, CheckCircle2, XCircle } from 'lucide-react';
 import { getFontFamilyClass } from '../../utils/fontUtils';
@@ -19,6 +20,7 @@ export interface VisualThemePosterRedSectionProps {
 
 export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionProps) {
   const {
+    contentOnly = false,
     effectiveBgUrl,
     layer1Grayscale,
     layer1Contrast,
@@ -70,6 +72,7 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
 
   return (
                     <>
+                      {!contentOnly && <>
                       {/* Photo background with grayscale, blur, scale, brightness, contrast (Calque 1) */}
                       <div className="absolute inset-0 overflow-hidden pointer-events-none">
                         <PosterMedia
@@ -159,8 +162,9 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                         <div className={`${aspectRatio === '16:9' ? 'w-[260px] h-6' : 'w-[360px] h-8'} bg-white shadow-lg`} />
                       </div>
 
+                      </>}
                       {/* CONTENT WRAPPER */}
-                      <div className="relative z-20 w-full h-full flex flex-col items-center justify-between">
+                      <div data-poster-content="true" className="relative z-20 w-full h-full flex flex-col items-center justify-between">
 
                         {/* TOP SECTION: 6 RED STRIPES & HEADER BADGE */}
                         <div className="w-full flex flex-col items-center">
@@ -256,7 +260,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         getFontFamilyClass(layer2FontHeader) +
                                         ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
                                       }
-                                      style={{ height: pillHeight }}
+                                      style={{ height: pillHeight, backgroundColor: '#dc2626', color: '#ffffff' }}
+                                      data-tv-team="teamLeft"
                                     >
                                       <AutoFitTeamName
                                         name={teamLeft}
@@ -306,7 +311,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         getFontFamilyClass(layer2FontHeader) +
                                         ' bg-slate-900/95 text-slate-200 border-slate-700/80'
                                       }
-                                      style={{ height: pillHeight }}
+                                      style={{ height: pillHeight, backgroundColor: '#0f172a', color: '#e2e8f0' }}
+                                      data-tv-team="teamRight"
                                     >
                                       <AutoFitTeamName
                                         name={teamRight}
@@ -398,7 +404,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         getFontFamilyClass(layer2FontHeader) +
                                         ' bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 border-red-500'
                                       }
-                                      style={{ height: pillHeight }}
+                                      style={{ height: pillHeight, backgroundColor: '#dc2626', color: '#ffffff' }}
+                                      data-tv-team="teamLeft"
                                     >
                                       <AutoFitTeamName
                                         name={teamLeft}
@@ -430,7 +437,8 @@ export function VisualThemePosterRedSection(props: VisualThemePosterRedSectionPr
                                         getFontFamilyClass(layer2FontHeader) +
                                         ' bg-slate-900/95 text-slate-200 border-slate-700/80'
                                       }
-                                      style={{ height: pillHeight }}
+                                      style={{ height: pillHeight, backgroundColor: '#0f172a', color: '#e2e8f0' }}
+                                      data-tv-team="teamRight"
                                     >
                                       <AutoFitTeamName
                                         name={teamRight}

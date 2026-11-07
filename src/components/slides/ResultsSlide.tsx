@@ -1,5 +1,4 @@
-import { AutoFitTeamName } from '../AutoFitTeamName';
-import { getAdaptivePosterCardSizing } from '../../utils/posterAdaptiveSizing';
+import { VisualThemePosterRedSection } from '../posterSections/VisualThemePosterRedSection';
 import { getClubFirstMatchPresentation } from '../../utils/clubFirstMatchPresentation';
 import React from 'react';
 import { Trophy, CheckCircle2, XCircle, Share2, Home, Plane, Clock } from 'lucide-react';
@@ -163,114 +162,6 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
   if (activeStyle === 'poster-red') {
     // Tri chronologique rigoureux : dates puis heures
     const sortedResults = [...activeResults].sort(sortMatchesChronologically);
-    const scale = getAdaptivePosterCardSizing(sortedResults.length, '16:9');
-    const centerStyle = { height: scale.pillHeight, fontSize: Math.max(scale.centerFontSize, Math.round(scale.pillHeight * 0.42)) };
-    const headerSize = Math.round(Math.max(scale.headerFontSize, Math.min(scale.pillHeight * 0.36, 46)) * 0.65);
-
-    // Répartition en 2 colonnes verticales s'il y a plus de 2 résultats
-    const half = Math.ceil(sortedResults.length / 2);
-    const leftResults = sortedResults.length <= 2 ? sortedResults : sortedResults.slice(0, half);
-    const rightResults = sortedResults.length <= 2 ? [] : sortedResults.slice(half);
-
-    const renderPosterResultItem = (r: MatchItem) => {
-      const outcome = getMatchOutcome(r, clubSettings.name, clubSettings.shortName);
-      const isWin = outcome === 'win';
-      const isLoss = outcome === 'loss';
-      const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-      // Date et heure retirées des résultats (badge Victoire/Défaite centré à la place).
-
-      const { teamLeft, teamRight, scoreText } = getClubFirstMatchPresentation(r, clubSettings?.name, clubSettings?.shortName);
-
-      return (
-        <div key={r.id} className="flex flex-col gap-1 w-full flex-1 justify-center min-h-0 min-w-0">
-          {/* Résultat centré au-dessus des équipes ; lieu à droite. */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 w-full min-w-0">
-            <span aria-hidden="true"/>
-            <div className={`flex items-center gap-2 font-black uppercase tracking-wider text-white text-center justify-center  ${getFontFamilyClass(bodyFont)} min-w-0 truncate`}>
-              {resultDisplayMode !== 'score' && (
-                <span
-                  style={{fontSize: Math.max(14, headerSize)}}
-                  className={`font-black uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md flex items-center gap-1 ${getFontFamilyClass(bodyFont)} ${
-                    isWin
-                      ? 'bg-emerald-500 text-slate-950 border border-emerald-400 shadow-emerald-500/20'
-                      : isLoss
-                      ? 'bg-rose-600 text-white border border-rose-500 shadow-rose-600/30'
-                      : 'bg-slate-700 text-slate-200 border border-slate-600 shadow-slate-900/30'
-                  }`}
-                >
-                  {isWin ? (
-                    <CheckCircle2 className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  ) : isLoss ? (
-                    <XCircle className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                  ) : (
-                    <Clock className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
-                  )}
-                  <span>{isWin ? 'VICTOIRE' : isLoss ? 'DÉFAITE' : 'MATCH FINI'}</span>
-                </span>
-              )}
-            </div>
-
-            {/* DISTINCTION CLAIRE : MAISON OU AVION VISIBLE SANS PASTILLE */}
-            {isHome ? (
-              <span
-                className="justify-self-end inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-400 shadow-md shadow-emerald-500/30 shrink-0"
-                title="Match à Domicile"
-              >
-                <Home className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" />
-              </span>
-            ) : (
-              <span
-                className="justify-self-end inline-flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-full bg-sky-500/20 border border-sky-400/60 text-sky-400 shadow-md shadow-sky-500/30 shrink-0"
-                title="Match à l'Extérieur"
-              >
-                <Plane className="w-4 h-4 md:w-5 md:h-5 text-sky-400 -rotate-45" />
-              </span>
-            )}
-          </div>
-
-          {/* Rangée de Pilules : Équipe Domicile (ou catégorie), Bloc Central [Victoire/Défaite au-dessus du Score], Équipe Extérieur (ou catégorie) */}
-          <div className="flex items-center justify-between gap-1.5 md:gap-2.5 w-full min-w-0">
-            {/* Pilule Équipe Domicile (À gauche) */}
-            <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
-                'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white ring-2 ring-red-400/80 shadow-red-600/40 border border-red-500'
-              }`}
-              style={{height: scale.pillHeight}}
-              data-tv-team="teamLeft"
-            >
-              <AutoFitTeamName name={teamLeft} count={sortedResults.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#ffffff" />
-            </div>
-
-            {/* Bloc Central : VICTOIRE / DÉFAITE / MATCH FINI ET / OU SCORE SELON RESULTDISPLAYMODE */}
-            <div className="flex flex-col items-center shrink-0">
-
-              {resultDisplayMode !== 'status' && (
-                <div
-                  className={`bg-white text-slate-950 font-mono font-black shadow-xl text-center border-2 border-white flex items-center justify-center rounded-full px-3`}
-                  style={centerStyle}
-                >
-                  {r.homeScore !== undefined && r.awayScore !== undefined
-                    ? scoreText
-                    : 'FINI'}
-                </div>
-              )}
-            </div>
-
-            {/* Pilule Équipe Extérieur (À droite) */}
-            <div
-              className={`flex-1 min-w-0 font-black uppercase tracking-wider px-4 rounded-full shadow-lg text-center flex items-center justify-center ${getFontFamilyClass(headerFont)}  ${
-                'bg-slate-900/95 text-slate-200 border border-slate-700/80 shadow-black/40'
-              }`}
-              style={{height: scale.pillHeight}}
-              data-tv-team="teamRight"
-            >
-              <AutoFitTeamName name={teamRight} count={sortedResults.length} aspectRatio="16:9" fontHeader={headerFont} pillHeight={scale.pillHeight} textColor="#e2e8f0" />
-            </div>
-          </div>
-        </div>
-      );
-    };
-
     return (
       <div className="relative w-full h-full flex flex-col justify-between overflow-hidden select-none bg-[#111111]">
         {/* Calque 1 : Arrière-plan photo / vidéo */}
@@ -307,13 +198,9 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
                 referrerPolicy="no-referrer"
               />
             )}
-            <div className="absolute inset-0 bg-slate-950/70 pointer-events-none" />
-            {bgVignette > 0 && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{ background: `radial-gradient(circle at center, rgba(0,0,0,0) 45%, rgba(0,0,0,${bgVignette}) 100%)` }}
-              />
-            )}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `radial-gradient(circle at center, rgba(0,0,0,${(theme?.backgroundVignette ?? 0.8) * 0.25}) 0%, rgba(0,0,0,${theme?.backgroundVignette ?? 0.8}) 100%)`,
+            }} />
           </div>
         )}
 
@@ -330,84 +217,43 @@ export const ResultsSlide: React.FC<ResultsSlideProps> = ({
         )}
 
         {/* Rayures Zebra Blancs en bas à droite */}
-        <div className="absolute -bottom-4 -right-4 pointer-events-none z-10 flex flex-col gap-1.5 -rotate-45">
-          <div className="w-24 h-2.5 bg-white shadow-md" />
-          <div className="w-24 h-2.5 bg-white shadow-md" />
-          <div className="w-24 h-2.5 bg-white shadow-md" />
+        <div className="absolute -bottom-8 -right-8 pointer-events-none z-10 flex flex-col gap-4 -rotate-45">
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
+          <div className="w-[260px] h-6 bg-white shadow-lg" />
         </div>
 
-        {/* CONTENU DE L'AFFICHE (EN TÊTE & GRILLE DES RÉSULTATS ÉTENDUE 16:9) */}
-        <div className="relative z-20 w-full h-full flex flex-col justify-between p-4 md:p-6 lg:p-7 xl:p-8">
-
-          {/* EN-TÊTE : 6 BARRES ROUGES & PILULE DE TITRE */}
-          <div className={`w-full flex flex-col relative shrink-0 ${
-            titleAlign === 'center' ? 'items-center' : titleAlign === 'right' ? 'items-end' : 'items-start'
-          }`}>
-
-            {/* Boutons d'action haut droite (Passerelle Réseaux) */}
-            <div className="absolute right-0 top-0 hidden sm:flex items-center gap-2.5">
-              {!hideShareButton && (
-                <button
-                  onClick={onDownloadVisual}
-                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-emerald-600 hover:from-pink-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-pink-600/20 transition-all hover:scale-105"
-                  title="Passerelle Réseaux Sociaux : Exporter pour Instagram, TikTok et Facebook"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Passerelle Réseaux</span>
-                </button>
-              )}
-            </div>
-
-            {/* 6 Traits Rouges Inclinés (Signature Graphique) */}
-            <div className="flex gap-1.5 transform -skew-x-[25deg] mb-1">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="w-2 md:w-2.5 h-3 md:h-3.5 bg-red-600 rounded-[1px] shadow-md" />
-              ))}
-            </div>
-
-            {/* Pastille Pilule de Titre Rouge */}
-            <div className={`max-w-[calc(100%-1rem)] sm:max-w-none px-5 sm:px-7 md:px-10 py-2 rounded-full bg-red-600 text-white font-black text-lg sm:text-xl md:text-2xl uppercase tracking-wider shadow-xl shadow-red-600/30 border border-red-500/50 text-center whitespace-nowrap ${getFontFamilyClass(headerFont)}`}>
-              {customHeaderTitle || (
-                sortedResults.length > 0 && sortedResults.every((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RÉSULTATS À DOMICILE'
-                  : sortedResults.length > 0 && sortedResults.every((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
-                  ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RÉSULTATS À L'EXTÉRIEUR"
-                  : theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END'
-              )}
-            </div>
-          </div>
-
-          {/* LISTE ADAPTATIVE DES RÉSULTATS OCCUPANT TOUT L'ESPACE 16:9 */}
-          {sortedResults.length === 0 ? (
-            <div className="my-auto text-center py-10 bg-slate-900/60 border border-slate-800 rounded-3xl p-6 max-w-xl mx-auto backdrop-blur-sm">
-              <Trophy className="w-10 h-10 text-emerald-400/60 mx-auto mb-2" />
-              <h3 className={`text-xl font-black text-white ${getFontFamilyClass(headerFont)}`}>
-                AUCUN RÉSULTAT POUR CETTE PÉRIODE
-              </h3>
-              <p className={`text-slate-400 text-xs mt-1 ${getFontFamilyClass(bodyFont)}`}>
-                Les résultats apparaîtront dès la fin des rencontres du week-end.
-              </p>
-            </div>
-          ) : (
-            <div className="w-full flex-1 flex flex-row gap-5 xl:gap-8 my-2 py-0.5 items-stretch min-h-0 min-w-0 overflow-hidden">
-              {/* Colonne 1 : Première moitié ordonnée chronologiquement */}
-              <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
-                {leftResults.map(renderPosterResultItem)}
-              </div>
-
-              {/* Colonne 2 : Deuxième moitié ordonnée chronologiquement */}
-              {rightResults.length > 0 && (
-                <div className="flex-1 min-w-0 flex flex-col justify-between h-full gap-2 md:gap-3 min-h-0">
-                  {rightResults.map(renderPosterResultItem)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Bas de page / Signature Club */}
-          <div className={`w-full flex items-center justify-end text-[10px] md:text-xs font-bold text-slate-400/80 uppercase tracking-widest pt-1 shrink-0 ${getFontFamilyClass(bodyFont)}`}>
-            <span>{(clubSettings?.shortName || clubSettings?.name || 'CLUB BASKET').toUpperCase()}</span>
-          </div>
+        {/* Composition partagée avec la passerelle réseaux, canevas 1920 × 1080. */}
+        <div className="relative z-20 w-full h-full p-10">
+          <VisualThemePosterRedSection
+            contentOnly
+            aspectRatio="16:9"
+            contentType="results"
+            displayedMatches={[]}
+            displayedResults={sortedResults}
+            posterFilter="all"
+            badgeTitle={customHeaderTitle || (sortedResults.length > 0 && sortedResults.every(m => isClubHomeMatch(m, clubSettings.name, clubSettings.shortName))
+                ? theme?.customHeaderTitleHome || theme?.customHeaderTitle || 'LES RÉSULTATS À DOMICILE'
+                : sortedResults.length > 0 && sortedResults.every(m => !(isClubHomeMatch(m, clubSettings.name, clubSettings.shortName)))
+                ? theme?.customHeaderTitleAway || theme?.customHeaderTitle || "LES RÉSULTATS À L'EXTÉRIEUR"
+                : theme?.customHeaderTitle || 'RÉSULTATS DU WEEK-END')}
+            layer2PrimaryColor={primaryColor}
+            layer2BadgeBgColor={theme?.badgeBgColor || primaryColor}
+            layer2BadgeTextColor={theme?.badgeTextColor || '#ffffff'}
+            layer2FontHeader={headerFont}
+            layer2FontBody={bodyFont}
+            layer2TextColor={textColor}
+            safeClubName={clubSettings.name}
+            safeShortName={clubSettings.shortName}
+            resultDisplayMode={resultDisplayMode}
+          />
+          {!hideShareButton && <button type="button" onClick={onDownloadVisual}
+            className="absolute top-4 right-4 z-30 px-4 py-2 bg-slate-900 text-white rounded-xl">
+            Passerelle Réseaux
+          </button>}
+          {sortedResults.length === 0 && <p role="status" className="absolute inset-0 flex items-center justify-center text-white text-3xl">
+            AUCUN RÉSULTAT POUR CETTE PÉRIODE
+          </p>}
         </div>
 
         {/* ========================================================================= */}

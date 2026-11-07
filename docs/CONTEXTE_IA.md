@@ -156,3 +156,13 @@ Les noms personnalisés explicitement configurés restent prioritaires.
 - `TeamCalendarRows.tsx` réutilise les pastilles arrondies et le texte auto-adaptatif. Le nom de l'équipe est sous le titre personnalisable. Le même élément `cardRef` pilote aperçu, téléchargement et partage.
 - Résultats, notifications, affiches du week-end et diffusion TV : présentation inchangée. Ne pas appliquer automatiquement cette organisation à ces autres vues.
 - Test `scripts/test_team_calendar.ts` : regroupement, phases/poules/saisons, numéros d'équipes, doublons officiels, retour absent, période, pagination et structure rendue dans les quatre formats. Le rendu HTML serveur ne remplace pas une vérification visuelle dans le navigateur.
+
+### Parité de composition TV / passerelle réseaux
+
+Pour les matchs et résultats en style `poster-red`, `MatchesSlide` et `ResultsSlide`
+réutilisent `VisualThemePosterRedSection` avec `contentOnly` sur le canevas TV
+1920 × 1080 et le même padding que l'export 16:9. Le titre, les rangées, les tailles
+et les modes de résultats ont ainsi une seule composition. Les composants TV
+conservent la sélection des rencontres, les médias, les calques interactifs et leurs
+événements vidéo. Ne pas réintroduire une seconde mise en page pour ces éléments.
+Le test `test_tv_social_parity.ts` compare le contenu rendu, avec données fictives.
