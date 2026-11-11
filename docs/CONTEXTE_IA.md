@@ -173,6 +173,9 @@ La liste de stations est centralisée dans `src/utils/radioStations.ts` : Radio
 Paradise et les flux HTTPS MP3 officiels Fréquence 3, Gold et Dance. Source des
 liens : https://www.frequence3.com/howlisten/ . Un ajout de station ne change pas
 la sélection enregistrée et ne doit pas activer la radio chez les clubs existants.
+Radio Swiss Pop utilise son flux MP3 officiel (page `/en/reception/internet` de
+radioswisspop.ch). Radio Odyssey utilise le flux RadioKing publié dans le lecteur
+de radio-odyssey.com ; sa programmation inclut des séquences de bien-être.
 
 `BackgroundRadio` est monté uniquement en mode TV, hors du composant animé des
 diapositives et de `VideoPlaybackBoundary`. Ne pas le remonter lors d'un changement
