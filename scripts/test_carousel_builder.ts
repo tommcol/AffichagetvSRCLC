@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { buildCarouselPlaylist } from '../src/utils/carouselPlaylistBuilder';
 import {
   CategoryConfig,
@@ -113,6 +114,26 @@ async function runTests() {
     console.error(`❌ Échec : Mauvais nombre de passes sponsors (${goldCount}, ${silverCount}, ${bronzeCount})`);
     process.exit(1);
   }
+
+  // Désactivation, réactivation et suppression, après sérialisation des réglages.
+  for (const balancedLoopMode of [true, false]) {
+    const buildSponsors = (sponsors: SponsorItem[]) => buildCarouselPlaylist({
+      activeAlerts: [], categories: mockCategories, sponsors,
+      logos: [], photos: [], events: [], matches: [], results: [], birthdays: [],
+      clubSettings: { ...mockClubSettings, balancedLoopMode }, visualTemplates: mockVisualTemplates,
+    });
+    const disabled = JSON.parse(JSON.stringify(mockSponsors.map(s =>
+      s.id === 'sp-gold' ? { ...s, enabled: false } : s))) as SponsorItem[];
+    const filtered = buildSponsors(disabled);
+    assert.equal(filtered.some(slide => slide.sponsor?.id === 'sp-gold'), false);
+    assert.equal(filtered.filter(slide => slide.sponsor).length, 3);
+    assert.ok(filtered.filter(slide => slide.sponsor).every(slide => slide.totalItems === 2));
+    assert.equal(disabled.length, 3, 'Désactiver conserve la fiche');
+    assert.equal(buildSponsors(disabled.map(s => ({ ...s, enabled: true }))).filter(s => s.sponsor).length, 6);
+    assert.equal(buildSponsors(disabled.filter(s => s.id !== 'sp-gold')).some(s => s.sponsor?.id === 'sp-gold'), false);
+    assert.equal(buildSponsors(mockSponsors.map(s => ({ ...s, enabled: false })))[0].categoryId, 'standby');
+  }
+  console.log('✓ Désactivation persistée, réactivation, suppression et ancien format : modes équilibré et séquentiel');
 
   // TEST 3 : Génération des matchs en mode 'all'
   console.log('\n--- TEST 3 : Génération des matchs (mode "all") ---');

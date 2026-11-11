@@ -205,3 +205,12 @@ une reconnexion bornée ; quitter le mode TV ou désactiver la station libère l
 Les liens personnalisés doivent être des flux HTTPS directs MP3/AAC sans identifiants.
 Le test `test_background_radio.ts` utilise un lecteur et des horloges simulés,
 sans connexion radio ni écriture de production.
+
+### Gestion des sponsors
+
+Les fiches sponsors ont un champ facultatif `enabled` : absent ou true = actif,
+false = conservé mais exclu de tous les passages TV et du rendu de secours.
+Les boutons Désactiver/Réactiver et Supprimer sont toujours visibles, y compris
+sur téléphone. La suppression demande une confirmation et retire définitivement
+la fiche via la sauvegarde partagée habituelle ; elle ne supprime aucun fichier
+de la banque de médias, qui peut être réutilisé ailleurs.

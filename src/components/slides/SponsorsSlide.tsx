@@ -22,6 +22,8 @@ export const SponsorsSlide: React.FC<SponsorsSlideProps> = ({
   onVideoEnded,
   onVideoTimeUpdate,
 }) => {
+  sponsors = sponsors.filter((item) => item.enabled !== false);
+  if (sponsor?.enabled === false) return null;
   // Single sponsor per slide mode - 100% Pure Full-Screen Visual Image or Video without text overlays or cards
   if (sponsor) {
     const isVid = Boolean(

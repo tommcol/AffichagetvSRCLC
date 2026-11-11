@@ -323,6 +323,7 @@ export interface BirthdayItem {
 
 export interface SponsorItem {
   id: string;
+  enabled?: boolean; // Absent sur les anciennes fiches : diffusion active.
   name: string;
   tier: 'gold' | 'silver' | 'bronze' | 'partenaire';
   logoUrl: string;

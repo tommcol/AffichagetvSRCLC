@@ -9,6 +9,7 @@ import { formatAlertTitle } from '../../../utils/alertUtils';
 import { isVideoMedia } from '../../../utils/mediaUtils';
 import { MediaBankManager } from '.././MediaBankManager';
 import { AVAILABLE_FONTS, getFontFamilyClass } from '../../../utils/fontUtils';
+import { SponsorActions } from '../SponsorActions';
 
 export interface ImageBanksTabProps {
   // Typage permissif lors de l'extraction : chaque identifiant utilisé est passé en prop depuis AdminPanel.
@@ -497,12 +498,10 @@ export function ImageBanksTab(props: ImageBanksTabProps) {
                           <option value="partenaire">PARTENAIRE (1 passage)</option>
                         </select>
                       </div>
-                      <button
-                        onClick={() => onUpdateSponsors(sponsors.filter((item) => item.id !== sp.id))}
-                        className="absolute top-1.5 right-1.5 p-1 rounded bg-red-600/80 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <SponsorActions sponsor={sp}
+                        onToggle={() => onUpdateSponsors(sponsors.map((item) => item.id === sp.id ? { ...item, enabled: item.enabled === false } : item))}
+                        onDelete={() => onUpdateSponsors(sponsors.filter((item) => item.id !== sp.id))}
+                      />
                     </div>
                   );
                 })}

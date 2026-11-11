@@ -42,6 +42,7 @@ export function buildCarouselPlaylist({
   clubSettings,
   visualTemplates,
 }: BuildCarouselPlaylistParams): CarouselSlide[] {
+  sponsors = sponsors.filter((sponsor) => sponsor.enabled !== false);
   const isBalanced = clubSettings.balancedLoopMode !== false;
   const enabledCategories = categories.filter((c) => c.enabled);
 
