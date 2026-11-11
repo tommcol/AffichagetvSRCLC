@@ -176,6 +176,16 @@ la sélection enregistrée et ne doit pas activer la radio chez les clubs exista
 Radio Swiss Pop utilise son flux MP3 officiel (page `/en/reception/internet` de
 radioswisspop.ch). Radio Odyssey utilise le flux RadioKing publié dans le lecteur
 de radio-odyssey.com ; sa programmation inclut des séquences de bien-être.
+Les libellés des stations indiquent leur style. COTN (lounge), Chilltrax (électro
+douce), Mellow Rock (rock doux) et Fréquence 3 Stroboscope (dance années 90)
+complètent la liste. COTN, Chilltrax et Stroboscope utilisent les flux directs de
+leurs lecteurs officiels. Le flux Mellow Rock HLS est référencé par Radio Browser
+(fiche MellowRock.com, homepage mellowrock.com) et servi par indexcom.com.
+`hls.js` est chargé uniquement pour cette station si le navigateur ne sait pas
+lire HLS nativement. `radioHlsSource` recrée le lecteur HLS en reconnexion et le
+détruit à l'arrêt ; ne jamais appeler audio.load() pendant sa lecture. Aucun
+proxy ni conversion du son n'est ajouté. L'ajout des stations ne résout pas à lui
+seul un éventuel problème de qualité sonore sur un appareil.
 
 `BackgroundRadio` est monté uniquement en mode TV, hors du composant animé des
 diapositives et de `VideoPlaybackBoundary`. Ne pas le remonter lors d'un changement
