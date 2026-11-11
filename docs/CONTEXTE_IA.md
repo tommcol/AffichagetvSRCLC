@@ -169,6 +169,11 @@ Le test `test_tv_social_parity.ts` compare le contenu rendu, avec données ficti
 
 ### Radio de fond TV
 
+La liste de stations est centralisée dans `src/utils/radioStations.ts` : Radio
+Paradise et les flux HTTPS MP3 officiels Fréquence 3, Gold et Dance. Source des
+liens : https://www.frequence3.com/howlisten/ . Un ajout de station ne change pas
+la sélection enregistrée et ne doit pas activer la radio chez les clubs existants.
+
 `BackgroundRadio` est monté uniquement en mode TV, hors du composant animé des
 diapositives et de `VideoPlaybackBoundary`. Ne pas le remonter lors d'un changement
 de diapositive ni le synchroniser sur la pause du carrousel. Les vidéos restent
