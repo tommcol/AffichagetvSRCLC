@@ -3,6 +3,7 @@ import { prepareExcelApiHandoff } from '../../utils/calendarImportIdentity';
 import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
 import { clubCalendarDate } from '../../utils/clubTime';
+import { MediaPlaybackWarning } from '../common/MediaPlaybackWarning';
 import { isInDisplayPeriod } from '../../utils/displayPeriod';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
@@ -2774,11 +2775,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
           </div>
 
           <div className="flex items-center gap-3">
-            {(() => {
-            try { const errors = JSON.parse(localStorage.getItem('club_media_errors') || '[]');
-              return errors.length ? <span role="status" className="text-xs text-amber-300">Vidéo indisponible lors de la diffusion : {errors[0].name}</span> : null;
-            } catch { return null; }
-          })()}
+            <MediaPlaybackWarning />
           {/* Bouton dynamique Enregistrer en haut à droite */}
             <button
               onClick={onManualSave}

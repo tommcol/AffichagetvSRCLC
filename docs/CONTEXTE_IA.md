@@ -21,6 +21,11 @@ Maintenir une application générique d'affichage TV pour des clubs de basket. N
 
 ## Comportements à préserver
 
+- `MediaPlaybackWarning` présente la dernière erreur vidéo locale avec sa date et
+  son heure (heure du club). Fermer l'avertissement efface uniquement la liste
+  locale `club_media_errors`, jamais les médias ni les réglages. Une nouvelle
+  erreur de lecture crée un nouvel avertissement ; ne pas désactiver le diagnostic.
+
 - Distinguer l'historique enregistré et les rencontres réellement diffusées pendant la période sélectionnée.
 - Réglages de présentation Tous / Séparé indépendants pour matchs et résultats.
 - Titres domicile / extérieur / tous conservés lors des changements de présentation.
