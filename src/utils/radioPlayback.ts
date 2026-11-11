@@ -4,6 +4,7 @@ type AudioTarget = Pick<HTMLAudioElement, 'src' | 'muted' | 'volume' | 'play' | 
 export function startRadioPlayback(audio: AudioTarget, url: string, options: {
   events: EventTarget;
   onBlocked: (blocked: boolean) => void;
+  source?: { load: () => void; dispose: () => void };
   schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancel?: (timer: ReturnType<typeof setTimeout>) => void;
 }) {
@@ -46,7 +47,8 @@ export function startRadioPlayback(audio: AudioTarget, url: string, options: {
     clearRetry();
     playSequence++;
     pending = false;
-    audio.load();
+    if (options.source) options.source.load();
+    else audio.load();
     play();
     waiting();
   };
@@ -56,7 +58,8 @@ export function startRadioPlayback(audio: AudioTarget, url: string, options: {
     timer = schedule(() => { timer = undefined; reconnect(); }, 30000);
   };
   const playing = () => { clearRetry(); attempts = 0; };
-  audio.src = url;
+  if (options.source) options.source.load();
+  else audio.src = url;
   audio.muted = false;
   audio.volume = 1;
   audio.addEventListener('error', retryLater);
@@ -83,6 +86,7 @@ export function startRadioPlayback(audio: AudioTarget, url: string, options: {
       options.events.removeEventListener('pointerdown', gesture, true);
       options.events.removeEventListener('keydown', gesture, true);
       audio.pause();
+      options.source?.dispose();
       audio.removeAttribute('src');
       audio.load();
     },
