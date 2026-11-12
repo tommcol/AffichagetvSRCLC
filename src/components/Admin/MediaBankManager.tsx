@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StoredMediaManager } from './StoredMediaManager';
 import { Film, Upload, Trash2, CheckCircle2, AlertCircle, Video, Image as ImageIcon, Sparkles, ExternalLink, X } from 'lucide-react';
 import { VisualTemplatesConfig, MediaBankItem } from '../../types';
 import {
@@ -142,6 +143,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
 
   return (
     <div className="space-y-6">
+      <StoredMediaManager visualTemplates={visualTemplates} onUpdateVisualTemplates={onUpdateVisualTemplates} />
       {/* En-tête de section */}
       <div className="bg-slate-800/80 p-5 rounded-3xl border border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
         <div className="space-y-1">
@@ -325,11 +327,11 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
                       title={
                         isUsed
                           ? "Ce média est encore utilisé. Cliquez pour voir où le retirer."
-                          : 'Supprimer définitivement ce média'
+                          : 'Retirer de la bibliothèque (le fichier reste stocké)'
                       }
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Supprimer</span>
+                      <span>Retirer</span>
                     </button>
                   </div>
                 </div>
@@ -407,7 +409,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
               </div>
               <div>
                 <h4 className="text-lg font-black font-bebas tracking-wide text-rose-400">
-                  SUPPRIMER DÉFINITIVEMENT CE MÉDIA
+                  RETIRER CE MÉDIA DE LA BIBLIOTHÈQUE
                 </h4>
                 <p className="text-xs text-slate-400 font-medium">
                   {deleteConfirmModal.name}
@@ -417,7 +419,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
 
             <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
               <p className="text-xs text-slate-300">
-                Confirmez-vous la suppression définitive de ce média de la Banque Médias ?
+                Confirmez-vous le retrait de ce média de la bibliothèque et des compositions ? Le fichier restera stocké. Pour libérer son espace, utilisez « Fichiers stockés ».
               </p>
               {getMediaUsages(deleteConfirmModal.url, visualTemplates).length > 0 ? (
                 <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-3 space-y-2">
@@ -436,7 +438,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
                 </p>
               )}
               <p className="text-[11px] text-slate-400">
-                Cette action est irréversible. Les autres médias et réglages resteront inchangés.
+                Le fichier reste dans le stockage. Les autres médias et réglages resteront inchangés.
               </p>
             </div>
 
@@ -453,7 +455,7 @@ export const MediaBankManager: React.FC<MediaBankManagerProps> = ({
                 onClick={handleConfirmPermanentDelete}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-colors cursor-pointer"
               >
-                Confirmer la suppression
+                Confirmer le retrait
               </button>
             </div>
           </div>

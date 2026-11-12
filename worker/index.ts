@@ -9,6 +9,7 @@ export { AppDataCoordinator } from './appDataCoordinator';
 import { Env } from './types';
 import { getAppData, saveAppData, verifyPassword } from './storage';
 import { serveMedia, uploadFile, uploadMultiple } from './media';
+import { mediaStorage } from './mediaStorage';
 import { getAlerts, addAlert, deleteAlert } from './alerts';
 import { telegramWebhook, telegramTest, telegramConnect, telegramDisconnect, telegramConfig } from './telegram';
 import { ffbbMatches, ffbbSearch, ffbbDebug, runScheduledFfbbSync } from './ffbb';
@@ -35,6 +36,7 @@ export default {
       if (path === '/api/save-app-data' || path === '/api/app-data' && request.method === 'POST') return await saveAppData(request, env);
       if (path === '/api/verify-password') return await verifyPassword(request, env);
       if (path === '/api/upload') return await uploadFile(request, env);
+      if (path === '/api/media-storage') return await mediaStorage(request, env);
       if (path === '/api/upload-multiple') return await uploadMultiple(request, env);
       if (path.startsWith('/api/media/')) return await serveMedia(path.replace('/api/media/', ''), env, request);
       if (path.startsWith('/uploads/')) return await serveMedia(path.replace('/uploads/', ''), env, request);
