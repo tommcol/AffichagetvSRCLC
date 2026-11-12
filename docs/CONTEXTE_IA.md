@@ -214,3 +214,23 @@ Les boutons Désactiver/Réactiver et Supprimer sont toujours visibles, y compri
 sur téléphone. La suppression demande une confirmation et retire définitivement
 la fiche via la sauvegarde partagée habituelle ; elle ne supprime aucun fichier
 de la banque de médias, qui peut être réutilisé ailleurs.
+
+### Suppression physique des fichiers médias
+
+`StoredMediaManager` dans Banques d’images → Médias → Fichiers stockés affiche
+les objets R2 et les anciennes clés KV `media:` (pagination séparée, 100 par page).
+La taille indiquée est celle des fichiers affichés, pas une mesure du quota ni
+une garantie de gratuité. Les fichiers sans fiche restent accessibles dans la liste.
+`/api/media-storage` est réservé à l’administration. DELETE exige une confirmation,
+un nom de fichier plat valide et vérifie les usages sur le document partagé actuel
+et les alertes actives. Les références `/uploads/` et `/api/media/` sont équivalentes.
+Un média référencé, même masqué/désactivé, doit d’abord être retiré des rubriques
+concernées et les réglages enregistrés. L’index `visualTemplates.mediaBank` seul ne
+constitue pas une utilisation. En cas d’échec de lecture des données, suppression
+refusée. Aucun nettoyage automatique ni suppression en masse.
+La suppression efface l’objet R2 et son éventuelle copie KV ; seul l’index du fichier
+est ensuite nettoyé par la sauvegarde habituelle du navigateur. Les sauvegardes des
+réglages ne restaurent pas les octets supprimés. Les caches des navigateurs peuvent
+encore garder une copie jusqu’à expiration. Le retrait depuis la bibliothèque est
+une opération distincte qui ne libère pas le stockage. La démo utilise exclusivement
+ses fichiers locaux, jamais le stockage d’une installation réelle.

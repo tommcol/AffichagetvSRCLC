@@ -2,6 +2,7 @@ import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
 import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
+import { localMediaStorage } from './server/mediaStorageHelpers';
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -76,7 +77,7 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 // La démonstration ne peut ni contacter la FFBB/Telegram ni publier de contenu.
 if (process.env.APP_DEMO === '1') {
   app.use('/api', (req, res, next) => {
-    const permitted = ['/health', '/get-app-data', '/save-app-data', '/app-data', '/verify-password', '/get-alerts', '/upload', '/upload-multiple'];
+    const permitted = ['/health', '/get-app-data', '/save-app-data', '/app-data', '/verify-password', '/get-alerts', '/upload', '/upload-multiple', '/media-storage'];
     if (permitted.includes(req.path) || req.path.startsWith('/media/')) return next();
     return res.status(403).json({ error: 'Action externe désactivée dans la démonstration isolée.' });
   });
@@ -99,6 +100,11 @@ app.use('/api', async (req, res, next) => {
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 let activeAlerts: ActiveMatchAlert[] = [];
+app.all('/api/media-storage', async (req, res) => {
+  if (req.headers.origin && req.headers.origin !== `${req.protocol}://${req.get('host')}`) return res.status(401).json({ error: 'Origine non autorisée' });
+  const response = await localMediaStorage(authRequest(req), [UPLOADS_DIR, path.join(DATA_DIR, 'uploads')], getSavedAppData(), activeAlerts, localAuthEnv.ADMIN_PASSWORD);
+  res.status(response.status).set('Cache-Control', 'no-store').type('json').send(await response.text());
+});
 let localTelegramBotInfo: {
   connected: boolean;
   webhookUrl?: string;
