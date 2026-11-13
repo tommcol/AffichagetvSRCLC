@@ -2,6 +2,7 @@ import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
 import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
+import { isClubMatchDay } from './src/utils/ffbbMatchDays';
 import { localMediaStorage } from './server/mediaStorageHelpers';
 import express from "express";
 import path from "path";
@@ -1331,9 +1332,10 @@ app.get("/api/ffbb/matches", async (req, res) => {
 let lastSyncTimestamp = 0;
 let lastSyncResult = { success: true, message: "En attente de synchronisation", matchesCount: 0, resultsCount: 0 };
 
-async function runBackgroundFFBBSync() {
+async function runBackgroundFFBBSync(force = false) {
   try {
     const saved = getSavedAppData();
+    if (!force && !isClubMatchDay([...(saved?.matches || []), ...(saved?.results || [])])) return;
     const clubCode = saved?.clubSettings?.codeFFBB || "";
     console.log(`[AUTO-SYNC FFBB] Déclenchement automatique pour club ${clubCode}...`);
 
@@ -1347,7 +1349,7 @@ async function runBackgroundFFBBSync() {
       const customNames = scope.settings.customTeamNames || {};
       const handoff = prepareExcelApiHandoff(
         scope.matches, scope.results,
-        filteredFfbbMatches, filteredFfbbResults,
+        filteredFfbbMatches, filteredFfbbResults, groupFfbbTeams(ffbbData.teams || [], saved.ffbbTeams || []),
       );
       const mergedMatches = mergeMatchItems(
         handoff.matches,
@@ -1430,13 +1432,13 @@ async function runBackgroundFFBBSync() {
 }
 
 // Background cron/interval: run every 3 minutes
-if (process.env.APP_DEMO !== '1') setInterval(runBackgroundFFBBSync, 180000);
+if (process.env.APP_DEMO !== '1') setInterval(() => void runBackgroundFFBBSync(), 180000);
 // Initial run 5 seconds after server startup
-if (process.env.APP_DEMO !== '1') setTimeout(runBackgroundFFBBSync, 5000);
+if (process.env.APP_DEMO !== '1') setTimeout(() => void runBackgroundFFBBSync(), 5000);
 
 // Endpoint to trigger manual sync from client
 app.all(["/api/ffbb/sync-now", "/api/ffbb/auto-sync"], async (req, res) => {
-  await runBackgroundFFBBSync();
+  await runBackgroundFFBBSync(true);
   res.json({
     ...lastSyncResult,
     lastSyncTimestamp,

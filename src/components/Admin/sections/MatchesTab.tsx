@@ -1,3 +1,4 @@
+import { FixtureScopeFilter, inFixtureScope, FixtureScope } from '../FixtureScopeFilter';
 import React, { useState } from 'react';
 import { CalendarImportModal } from '../CalendarImportModal';
 import { isInDisplayPeriod } from '../../../utils/displayPeriod';
@@ -72,10 +73,13 @@ export function MatchesTab(props: MatchesTabProps) {
   } = props;
 
   const periodItems = matches.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'matches'));
-  const visibleMatches = matchesFilterMode === 'all' ? matches : periodItems;
+  const [fixtureScope, setFixtureScope] = useState<FixtureScope>('all');
+  const scopedItems = matchesFilterMode === 'all' ? matches : periodItems;
+  const visibleMatches = scopedItems.filter(item => inFixtureScope(item, fixtureScope));
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
+              <FixtureScopeFilter items={scopedItems} value={fixtureScope} onChange={setFixtureScope} />
               {importOpen && <CalendarImportModal matches={matches} results={results} teams={ffbbTeams || []} clubSettings={clubSettings} onClose={()=>setImportOpen(false)} onConfirm={(nextMatches,nextResults,message)=>{onUpdateMatches(nextMatches);onUpdateResults(nextResults);setMatchesFilterMode('all');setImportMessage(message);}} />}
               {importMessage && <p role="status" className="p-3 bg-emerald-950 text-emerald-200 rounded-lg">{importMessage}</p>}
               {/* Barre de sous-onglets : Matchs vs Studio Calques */}

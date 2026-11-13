@@ -234,3 +234,35 @@ réglages ne restaurent pas les octets supprimés. Les caches des navigateurs pe
 encore garder une copie jusqu’à expiration. Le retrait depuis la bibliothèque est
 une opération distincte qui ne libère pas le stockage. La démo utilise exclusivement
 ses fichiers locaux, jamais le stockage d’une installation réelle.
+
+### Sources FFBB parallèles et vérification les jours de rencontres
+
+Le calendrier club est récupéré en parallèle depuis l’origine mobile et le REST
+Desimone, avec cache limité à la synchronisation en cours. Les identifiants officiels
+servent au dédoublonnage. L’identité du club, de l’engagement et le sens des équipes
+restent vérifiés par l’origine officielle : aucune ligne tierce invérifiable n’est
+importée. La source officielle est prioritaire ; une paire de scores Desimone
+complète uniquement une paire officielle absente. Ne jamais mélanger deux demi-scores.
+Si les sources échouent ou sont invérifiables, conserver les données existantes.
+Les corrections manuelles, noms personnalisés, sélections TV et alertes restent
+régis par les règles de fusion existantes. Une réponse vide ne retire pas un score.
+
+Seul le déclenchement automatique (Worker scheduled et intervalle Express) est
+conditionné par `isClubMatchDay` : date du club en Europe/Paris, au moins une
+rencontre réelle, hors exemptions/annulations/reports. Le rafraîchissement manuel
+reste disponible chaque jour. Le système s’appuie sur les dates déjà enregistrées :
+un calendrier déplacé ou une rencontre nouvelle doit être récupéré manuellement
+si aucun match n’était prévu ce jour-là. Aucun rattrapage nocturne hors jours de match.
+
+Le rapprochement Excel/API accepte un engagement FFBB identique même si son libellé
+de catégorie a changé, seulement avec les mêmes équipes/sens/saison et un candidat
+unique des deux côtés. Un Exempt Excel peut rapprocher un adversaire API inconnu
+uniquement à la même date et avec le même engagement. Une exemption explicitement
+connue est conservée tant que la source ne fournit pas un vrai adversaire. Une
+correspondance ambiguë n’est pas fusionnée. Les fiches API déjà présentes ne sont
+pas conservées en double avec la ligne Excel adoptée ; préserver les corrections
+manuelles de la fiche API existante. Aucun nettoyage direct du stockage en production.
+
+Dans les listes Matchs et Résultats : filtre Tous / Domicile / Extérieur / Exempts,
+indépendant de la période et de la présentation TV. Les exemptions n’appartiennent
+ni à Domicile ni à Extérieur. Cela ne modifie aucune sélection de diffusion.

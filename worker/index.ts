@@ -1,4 +1,6 @@
 import { isAdmin } from './auth';
+import { readSharedAppData } from './appDataCoordinator';
+import { isClubMatchDay } from '../src/utils/ffbbMatchDays';
 export { AppDataCoordinator } from './appDataCoordinator';
 // ============================================================
 // Routeur principal du worker Cloudflare
@@ -17,7 +19,12 @@ import { generateCaption, socialPublish } from './ai';
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledFfbbSync(env));
+    ctx.waitUntil((async () => {
+      const raw = await readSharedAppData(env);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (isClubMatchDay([...(data.matches || []), ...(data.results || [])])) await runScheduledFfbbSync(env);
+    })());
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {

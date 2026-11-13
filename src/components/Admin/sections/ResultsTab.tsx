@@ -1,3 +1,5 @@
+import { FixtureScopeFilter, inFixtureScope, FixtureScope } from '../FixtureScopeFilter';
+import { useState } from 'react';
 import { isInDisplayPeriod } from '../../../utils/displayPeriod';
 // ResultsTab — onglet « results » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
@@ -72,10 +74,13 @@ export function ResultsTab(props: ResultsTabProps) {
   } = props;
 
   const periodItems = results.filter((item: any) => isInDisplayPeriod(item, clubSettings, 'results'));
-  const visibleResults = resultsFilterMode === 'all' ? results : periodItems;
+  const [fixtureScope, setFixtureScope] = useState<FixtureScope>('all');
+  const scopedItems = resultsFilterMode === 'all' ? results : periodItems;
+  const visibleResults = scopedItems.filter(item => inFixtureScope(item, fixtureScope));
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
   return (
             <div className="space-y-6">
+              <FixtureScopeFilter items={scopedItems} value={fixtureScope} onChange={setFixtureScope} />
               {/* Barre de sous-onglets : Résultats vs Studio Calques */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
                 <div className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { repairLegacyCategory } from './ffbbCategory';
+import { knownExemptionTeams } from './knownExemption';
 import { MatchItem } from '../types';
 
 /**
@@ -156,6 +157,7 @@ export function mergeMatchItems(
     // et on applique les surcharges et protections locales
     merged.push({
       ...incoming,
+      ...knownExemptionTeams(existing, incoming),
       calendarSource: existing.calendarSource === 'ffbb' ? 'ffbb' : incoming.calendarSource,
       calendarImport: existing.calendarImport || incoming.calendarImport,
       id: existing.id || incoming.id,
