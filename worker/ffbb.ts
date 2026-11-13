@@ -1,3 +1,4 @@
+import { knownExemptionTeams } from '../src/utils/knownExemption';
 import { repairLegacyCategory } from '../src/utils/ffbbCategory';
 import { prepareClubSportsSync, officialMatchIds } from '../src/utils/ffbbClubScope';
 import { groupFfbbTeams } from '../src/utils/ffbbTeamGrouping';
@@ -590,7 +591,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
     // Team checkboxes control TV visibility; keep all official sports data.
     const incomingMatches = payload.matches;
     const incomingResults = Array.isArray(payload.results) ? payload.results : [];
-    const handoff = prepareExcelApiHandoff(scope.matches, scope.results, incomingMatches, incomingResults);
+    const handoff = prepareExcelApiHandoff(scope.matches, scope.results, incomingMatches, incomingResults, data.ffbbTeams);
     let existingMatches = handoff.matches;
     let existingResults = handoff.results;
     const now = Date.now();
@@ -634,7 +635,7 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
         }
 
         if (previous) {
-          const merged = { ...previous, ...fresh };
+          const merged = { ...previous, ...fresh, ...knownExemptionTeams(previous, fresh) };
           const names = data.clubSettings?.customTeamNames || {};
           merged.category = names[fresh.ffbbTeamId] || names[fresh.rawFfbbCategory || fresh.category] || (repairLegacyCategory(previous, fresh) ? fresh.category : previous.category) || fresh.category;
           merged.selectedForWeekend = previous.selectedForWeekend;
@@ -661,8 +662,8 @@ export async function runScheduledFfbbSync(env: Env): Promise<void> {
             merged.resultReceivedAt = previous.resultReceivedAt || now;
             merged.finishedAt = previous.finishedAt || now;
             updatedResults++;
-          } else if (previous.resultSource === 'telegram' && (previous.result === 'win' || previous.result === 'loss')) {
-            // Ne pas effacer un résultat Telegram valide si la FFBB n'a pas encore publié son score.
+          } else if (hasConfirmedScore(previous)) {
+            // Une réponse sans score ne doit effacer aucun résultat déjà confirmé.
             merged.result = previous.result;
             merged.homeScore = previous.homeScore;
             merged.awayScore = previous.awayScore;

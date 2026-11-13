@@ -2023,7 +2023,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
         const ignoredCategories = scope.settings.ignoredTeamCategories || [];
         const customNames = scope.settings.customTeamNames || {};
-        const handoff = prepareExcelApiHandoff(scope.matches, scope.results, allSeasonMatches, allSeasonResults);
+        const handoff = prepareExcelApiHandoff(scope.matches, scope.results, allSeasonMatches, allSeasonResults, groupFfbbTeams(res.clubInfo.teamsList || [], scope.changedClub ? [] : ffbbTeams));
         const finalMatches = mergeMatchItems(handoff.matches, allSeasonMatches, customNames);
         const finalResults = mergeMatchItems(handoff.results, allSeasonResults, customNames);
 

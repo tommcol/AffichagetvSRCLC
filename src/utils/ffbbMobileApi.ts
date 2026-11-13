@@ -164,8 +164,63 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
     return { foreignMatchIds, owned };
   }
 
+  const mergedCalendars = new Map<string, Promise<Row>>();
+  async function parallelCalendar(path: string, orgId: string): Promise<Row> {
+    if (mergedCalendars.has(orgId)) return mergedCalendars.get(orgId)!;
+    const pending = (async () => {
+      const primary = calendar(orgId);
+      const secondary = read(`https://ffbb-api.desimone.fr${path}`);
+      const [a, b] = await Promise.allSettled([primary, secondary]);
+      if (a.status === 'rejected' && b.status === 'rejected') throw new Error('Services FFBB indisponibles.');
+      const main = a.status === 'fulfilled' ? a.value : undefined;
+      const combined = new Map<string, Row>((main?.matches || []).map((m: Row) => [id(m.ffbbMatchId), m]));
+      let secondaryAccepted = false;
+      if (b.status === 'fulfilled' && Array.isArray(b.value.matches)) {
+        try {
+          const c = await club(orgId);
+          const unknown = b.value.matches.filter((m: Row) => !combined.has(id(m.ffbbMatchId || m.id)));
+          const proof = await inspectMembership(orgId, unknown.map((m: Row) => id(m.ffbbMatchId || m.id)));
+          for (const m of b.value.matches) {
+            const key = id(m.ffbbMatchId || m.id);
+            const existing = combined.get(key);
+            const row = proof.owned.get(key);
+            const home = row && id(row.idOrganismeEquipe1) === orgId;
+            const e = row && c.engagements.find((e: Row) => id(e) === id(home ? row.idEngagementEquipe1 : row.idEngagementEquipe2));
+            if (!existing && (!row || !e)) continue;
+            // Normalize scores into the official home/away pair before merging.
+            const valid = (v: any) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+            const local = m.scoreLocal ?? m.score_local;
+            const opponent = m.scoreOpponent ?? m.score_opponent;
+            const isHome = existing?.isHome ?? home;
+            const h = valid(local) && valid(opponent) ? (isHome ? local : opponent) : (m.resultatEquipe1 ?? m.scoreEquipe1 ?? m.score1);
+            const v = valid(local) && valid(opponent) ? (isHome ? opponent : local) : (m.resultatEquipe2 ?? m.scoreEquipe2 ?? m.score2);
+            if (existing) {
+              if (!(valid(existing.scoreEquipe1) && valid(existing.scoreEquipe2)) && valid(h) && valid(v)) {
+                combined.set(key, { ...existing, scoreEquipe1: Number(h), scoreEquipe2: Number(v), isPlayed: true });
+              }
+            } else {
+              // Never trust club/category/orientation supplied by an unverified external row.
+              combined.set(key, { ...m, ffbbMatchId: key, engagementId: id(e), team_number: e.numeroEquipe || '1',
+                isHome, team: home ? row.nomEquipe1 : row.nomEquipe2, opponent: home ? row.nomEquipe2 : row.nomEquipe1,
+                competition: e.idCompetition?.nom || '', scoreLocal: undefined, scoreOpponent: undefined,
+                score_local: undefined, score_opponent: undefined,
+                scoreEquipe1: valid(h) && valid(v) ? Number(h) : undefined, scoreEquipe2: valid(h) && valid(v) ? Number(v) : undefined });
+            }
+          }
+          secondaryAccepted = true;
+        } catch { /* Keep the verified official calendar if secondary verification fails. */ }
+      }
+      if (!main && !secondaryAccepted) throw new Error('Calendrier FFBB invérifiable ; données conservées.');
+      return { matches: [...combined.values()], total: combined.size, source: main ? 'ffbb_mobile' : 'ffbb_api_desimone',
+        degraded: !main, secondaryAvailable: secondaryAccepted };
+    })();
+    mergedCalendars.set(orgId, pending);
+    return pending;
+  }
+
   async function get(path: string): Promise<Row> {
     const match = path.match(/^\/api\/v1\/(club|poule)\/([\w-]+)(?:\/(matches|teams))?(?:\?.*)?$/);
+    if (match?.[1] === 'club' && match[3] === 'matches') return parallelCalendar(path, match[2]);
     try {
       if (!match) throw new Error('Route non prise en charge.');
       const [, kind, itemId, action] = match;
