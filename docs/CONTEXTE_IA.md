@@ -272,3 +272,13 @@ exemptions de leurs compteurs et de leurs listes (aperçus, exports et légendes
 La même exclusion s’applique aux diapositives TV séparées, dans la construction de
 la liste et dans `TVSlideRenderer`. Le mode Tous et le filtre Exempts conservent
 les exemptions ; aucune rencontre enregistrée ni sélection TV n’est supprimée.
+
+### Retrait des imports Excel
+
+Dans Matchs, le bloc « Imports Excel restants » compte matchs et résultats de toutes
+les dates dont calendarSource vaut exactement excel. Une confirmation affiche les
+deux compteurs et la portée hors période. Le retrait utilise les mises à jour
+habituelles et la sauvegarde partagée existante ; aucun accès direct au stockage.
+Les rencontres reprises par les API (calendarSource ffbb), même avec un identifiant
+Excel ou calendarImport conservé, et les ajouts manuels restent intacts. Le bouton
+est indisponible pendant la synchronisation FFBB ou sans import restant.
