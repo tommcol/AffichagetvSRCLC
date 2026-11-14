@@ -1,3 +1,4 @@
+import { isExemptItem } from './socialCaptionGenerator';
 import { getDisplayItems } from './displayPeriod';
 import {
   CarouselSlide,
@@ -144,8 +145,8 @@ export function buildCarouselPlaylist({
       };
 
       if (weekendMatches.length > 0) {
-        const homeList = weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatches);
-        const awayList = weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatches);
+        const homeList = weekendMatches.filter((m) => m.isHomeMatch && !isExemptItem(m)).sort(sortMatches);
+        const awayList = weekendMatches.filter((m) => !m.isHomeMatch && !isExemptItem(m)).sort(sortMatches);
 
         const customTitle = visualTemplates.matchesSettings?.customHeaderTitle?.trim();
         const customTitleHome = visualTemplates.matchesSettings?.customHeaderTitleHome?.trim();
@@ -280,8 +281,8 @@ export function buildCarouselPlaylist({
         return (a.time || '').localeCompare(b.time || '');
       };
 
-      const homeResults = resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
-      const awayResults = resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+      const homeResults = resultsToUse.filter((r) => !isExemptItem(r) && isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
+      const awayResults = resultsToUse.filter((r) => !isExemptItem(r) && !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName)).sort(sortMatches);
 
       const customTitle = visualTemplates.resultsSettings?.customHeaderTitle?.trim();
       const customTitleHome = visualTemplates.resultsSettings?.customHeaderTitleHome?.trim();

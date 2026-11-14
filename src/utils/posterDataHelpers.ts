@@ -22,8 +22,8 @@ export function getPosterItemCounts(
   isExemptItem: (item: MatchItem) => boolean
 ): PosterItemCounts {
   return {
-    home: items.filter((item) => item.isHomeMatch).length,
-    away: items.filter((item) => !item.isHomeMatch).length,
+    home: items.filter((item) => item.isHomeMatch && !isExemptItem(item)).length,
+    away: items.filter((item) => !item.isHomeMatch && !isExemptItem(item)).length,
     exempt: items.filter(isExemptItem).length,
   };
 }
@@ -36,9 +36,9 @@ export function filterPosterItems(
   let list: MatchItem[] = [];
 
   if (posterFilter === 'home') {
-    list = items.filter((item) => item.isHomeMatch);
+    list = items.filter((item) => item.isHomeMatch && !isExemptItem(item));
   } else if (posterFilter === 'away') {
-    list = items.filter((item) => !item.isHomeMatch);
+    list = items.filter((item) => !item.isHomeMatch && !isExemptItem(item));
   } else if (posterFilter === 'exempt') {
     list = items.filter(isExemptItem);
   } else {

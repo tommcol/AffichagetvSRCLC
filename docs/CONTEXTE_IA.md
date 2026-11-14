@@ -266,3 +266,9 @@ manuelles de la fiche API existante. Aucun nettoyage direct du stockage en produ
 Dans les listes Matchs et Résultats : filtre Tous / Domicile / Extérieur / Exempts,
 indépendant de la période et de la présentation TV. Les exemptions n’appartiennent
 ni à Domicile ni à Extérieur. Cela ne modifie aucune sélection de diffusion.
+
+Les filtres Domicile/Extérieur de `posterDataHelpers` excluent également les
+exemptions de leurs compteurs et de leurs listes (aperçus, exports et légendes).
+La même exclusion s’applique aux diapositives TV séparées, dans la construction de
+la liste et dans `TVSlideRenderer`. Le mode Tous et le filtre Exempts conservent
+les exemptions ; aucune rencontre enregistrée ni sélection TV n’est supprimée.
