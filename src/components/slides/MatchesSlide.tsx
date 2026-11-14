@@ -9,6 +9,7 @@ import { formatMatchDayAndDate, sortMatchesChronologically } from '../../utils/m
 import { ChromaKeyMascot } from '../ChromaKeyMascot';
 import { FreeOverlayLayer } from '../FreeOverlayLayer';
 import { getFontFamilyClass } from '../../utils/fontUtils';
+import { isExemptItem } from '../../utils/socialCaptionGenerator';
 
 interface MatchesSlideProps {
   matches: MatchItem[];
@@ -112,12 +113,14 @@ export const MatchesSlide: React.FC<MatchesSlideProps> = ({
 
   // Only display matches that are checked/selected for the weekend (selectedForWeekend !== false)
   const weekendMatches = matches.filter((m) => m.selectedForWeekend !== false);
-  const homeMatches = customHomeMatches !== undefined
+  const homeMatches = (customHomeMatches !== undefined
     ? customHomeMatches
-    : weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatchesChronologically);
-  const awayMatches = customAwayMatches !== undefined
+    : weekendMatches.filter((m) => m.isHomeMatch).sort(sortMatchesChronologically))
+    .filter((m) => !isExemptItem(m));
+  const awayMatches = (customAwayMatches !== undefined
     ? customAwayMatches
-    : weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatchesChronologically);
+    : weekendMatches.filter((m) => !m.isHomeMatch).sort(sortMatchesChronologically))
+    .filter((m) => !isExemptItem(m));
 
   // Adaptive sizing helper: cards automatically expand (flex-1) to fill 100% of vertical height
   const getColumnSizing = (count: number) => {
