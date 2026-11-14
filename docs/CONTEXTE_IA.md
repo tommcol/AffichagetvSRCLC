@@ -287,3 +287,13 @@ individuels. Les fusions et alertes existantes restent responsables de la sauveg
 rencontre officielle commencée reste sans score, y compris marquée terminée.
 Aucune limite de lendemain n'est imposée ; les anciennes rencontres jamais scorées
 peuvent donc rester en attente jusqu'à correction du calendrier ou réception du score.
+
+### Retrait des imports Excel
+
+Dans Matchs, le bloc « Imports Excel restants » compte matchs et résultats de toutes
+les dates dont calendarSource vaut exactement excel. Une confirmation affiche les
+deux compteurs et la portée hors période. Le retrait utilise les mises à jour
+habituelles et la sauvegarde partagée existante ; aucun accès direct au stockage.
+Les rencontres reprises par les API (calendarSource ffbb), même avec un identifiant
+Excel ou calendarImport conservé, et les ajouts manuels restent intacts. Le bouton
+est indisponible pendant la synchronisation FFBB ou sans import restant.

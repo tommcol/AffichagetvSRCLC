@@ -1,6 +1,7 @@
 import { FixtureScopeFilter, inFixtureScope, FixtureScope } from '../FixtureScopeFilter';
 import React, { useState } from 'react';
 import { CalendarImportModal } from '../CalendarImportModal';
+import { withoutExcelFixtures } from '../../../utils/calendarImportIdentity';
 import { isInDisplayPeriod } from '../../../utils/displayPeriod';
 // MatchesTab — onglet « matches » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
@@ -21,6 +22,7 @@ export interface MatchesTabProps {
 export function MatchesTab(props: MatchesTabProps) {
   const [importOpen,setImportOpen] = useState(false);
   const [importMessage,setImportMessage] = useState('');
+  const [removeExcelOpen, setRemoveExcelOpen] = useState(false);
     const {
     ffbbTeams,
     onUpdateResults,
@@ -77,11 +79,32 @@ export function MatchesTab(props: MatchesTabProps) {
   const scopedItems = matchesFilterMode === 'all' ? matches : periodItems;
   const visibleMatches = scopedItems.filter(item => inFixtureScope(item, fixtureScope));
   const periodSelected = periodItems.filter((item: any) => item.selectedForWeekend !== false).length;
+  const excelMatchCount = matches.filter((item: MatchItem) => item.calendarSource === 'excel').length;
+  const excelResultCount = results.filter((item: MatchItem) => item.calendarSource === 'excel').length;
+  const excelCount = excelMatchCount + excelResultCount;
   return (
             <div className="space-y-6">
               <FixtureScopeFilter items={scopedItems} value={fixtureScope} onChange={setFixtureScope} />
               {importOpen && <CalendarImportModal matches={matches} results={results} teams={ffbbTeams || []} clubSettings={clubSettings} onClose={()=>setImportOpen(false)} onConfirm={(nextMatches,nextResults,message)=>{onUpdateMatches(nextMatches);onUpdateResults(nextResults);setMatchesFilterMode('all');setImportMessage(message);}} />}
               {importMessage && <p role="status" className="p-3 bg-emerald-950 text-emerald-200 rounded-lg">{importMessage}</p>}
+              <div className="p-3 rounded-xl border border-slate-700 bg-slate-900 space-y-3">
+                <p className="text-xs text-slate-300">Imports Excel restants : {excelMatchCount} match(s), {excelResultCount} résultat(s). Les rencontres reprises par les API FFBB sont conservées.</p>
+                <button type="button" disabled={isSyncingFFBB || excelCount === 0} onClick={() => setRemoveExcelOpen(true)} className="px-3 py-2 rounded-lg bg-red-950 text-red-200 border border-red-800 text-xs font-bold disabled:opacity-40">Supprimer les rencontres importées d’Excel ({excelCount})</button>
+                {removeExcelOpen && <div role="alertdialog" aria-label="Confirmer la suppression des imports Excel" className="p-3 border border-red-700 rounded-lg space-y-3">
+                  <p className="text-sm text-red-100">Supprimer définitivement {excelMatchCount} match(s) et {excelResultCount} résultat(s) encore issus d’Excel, sur toutes les dates, même hors de la période affichée ? Les rencontres FFBB et les ajouts manuels seront conservés.</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" onClick={() => setRemoveExcelOpen(false)} className="px-3 py-2 rounded-lg bg-slate-700 text-sm">Annuler</button>
+                    <button type="button" disabled={isSyncingFFBB || excelCount === 0} onClick={() => {
+                      if (isSyncingFFBB || excelCount === 0) return;
+                      onUpdateMatches(withoutExcelFixtures(matches));
+                      onUpdateResults(withoutExcelFixtures(results));
+                      if (editingMatch?.calendarSource === 'excel') setEditingMatch(null);
+                      setRemoveExcelOpen(false);
+                      setImportMessage(`Imports Excel retirés : ${excelMatchCount} match(s), ${excelResultCount} résultat(s). Vérifiez que l’enregistrement automatique est terminé.`);
+                    }} className="px-3 py-2 rounded-lg bg-red-700 text-white text-sm font-bold disabled:opacity-40">Confirmer la suppression des imports Excel</button>
+                  </div>
+                </div>}
+              </div>
               {/* Barre de sous-onglets : Matchs vs Studio Calques */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800">
                 <div className="flex items-center gap-2">

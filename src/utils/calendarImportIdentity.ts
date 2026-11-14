@@ -1,6 +1,10 @@
 import { getFfbbKey, mergeMatchItems } from './ffbbMergeUtils';
 import { isExemptItem } from './socialCaptionGenerator';
 import type { MatchItem, FFBBTeamItem } from '../types';
+/** Keep API-adopted imports and manual fixtures; only explicit Excel ownership is removable. */
+export function withoutExcelFixtures(items: MatchItem[]): MatchItem[] {
+    return items.filter(item => item.calendarSource !== 'excel');
+}
 export const calendarText = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
 export const cleanCalendarTeam = (value: unknown) => String(value ?? '').replace(/\s*\(\d+\)\s*$/, '').trim();
 export const calendarClub = (value: unknown) => cleanCalendarTeam(value).replace(/\s*-\s*\d+\s*$/, '').trim();
