@@ -1,3 +1,4 @@
+import { isAwaitingOfficialScore } from './ffbbMatchDays';
 /** Server-only FFBB adapter. Uses the mobile API documented by ffbb-data-client
  * v2.4.42, while preserving the REST shapes consumed by our existing mappers.
  * Tokens remain in this request's closure: never persisted, logged or returned.
@@ -8,7 +9,7 @@ type Row = Record<string, any>;
 const id = (v: any): string => String(v?.id ?? v ?? '');
 const PAGE_SIZE = 500;
 
-export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
+export function createFfbbDataSource(fetcher: typeof fetch = fetch, existingRows: Row[] = []) {
   let tokenPromise: Promise<string> | undefined;
   const clubs = new Map<string, Promise<Row>>();
   const poules = new Map<string, Promise<Row>>();
@@ -211,6 +212,37 @@ export function createFfbbDataSource(fetcher: typeof fetch = fetch) {
         } catch { /* Keep the verified official calendar if secondary verification fails. */ }
       }
       if (!main && !secondaryAccepted) throw new Error('Calendrier FFBB invérifiable ; données conservées.');
+      // Poule lists can lag behind the individual official match record.
+      // Read only started, unscored fixtures, with bounded concurrency. A failed
+      // detail request leaves the calendar untouched for the next polling pass.
+      const complete = (v: any) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+      const resolvedIds = new Set(existingRows.filter(m => m.isScoreManual || (complete(m.homeScore) && complete(m.awayScore)))
+        .map(m => String(m.ffbbMatchNumber || m.id || '').replace(/^ffbb[-_]/i, '')));
+      const pendingScores = [...combined.values()].filter(m => !resolvedIds.has(id(m.ffbbMatchId)) && isAwaitingOfficialScore({
+        id: m.ffbbMatchId, date: m.dateISO, time: m.time, status: m.status,
+        teamHome: m.isHome ? m.team : m.opponent, teamAway: m.isHome ? m.opponent : m.team,
+        homeScore: m.scoreEquipe1, awayScore: m.scoreEquipe2,
+      }));
+      let detailCursor = 0;
+      await Promise.all(Array.from({ length: Math.min(4, pendingScores.length) }, async () => {
+        while (detailCursor < pendingScores.length) {
+          const m = pendingScores[detailCursor++];
+          try {
+            const r = await official(`ffbbserver_rencontres/${encodeURIComponent(id(m.ffbbMatchId))}`, {
+              fields: 'id,idOrganismeEquipe1,idOrganismeEquipe2,idEngagementEquipe1,idEngagementEquipe2,resultatEquipe1,resultatEquipe2',
+            });
+            const home = m.isHome === true;
+            // Prove both identity and orientation before accepting the pair.
+            if (id(r) !== id(m.ffbbMatchId)
+              || id(home ? r.idOrganismeEquipe1 : r.idOrganismeEquipe2) !== orgId
+              || id(home ? r.idEngagementEquipe1 : r.idEngagementEquipe2) !== id(m.engagementId)) continue;
+            const valid = (v: any) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
+            if (!valid(r.resultatEquipe1) || !valid(r.resultatEquipe2)) continue;
+            combined.set(id(m.ffbbMatchId), { ...m, scoreEquipe1: Number(r.resultatEquipe1),
+              scoreEquipe2: Number(r.resultatEquipe2), isPlayed: true });
+          } catch { /* No score is cleared; retry on the next synchronization. */ }
+        }
+      }));
       return { matches: [...combined.values()], total: combined.size, source: main ? 'ffbb_mobile' : 'ffbb_api_desimone',
         degraded: !main, secondaryAvailable: secondaryAccepted };
     })();

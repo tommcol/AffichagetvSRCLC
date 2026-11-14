@@ -272,3 +272,18 @@ exemptions de leurs compteurs et de leurs listes (aperçus, exports et légendes
 La même exclusion s’applique aux diapositives TV séparées, dans la construction de
 la liste et dans `TVSlideRenderer`. Le mode Tous et le filtre Exempts conservent
 les exemptions ; aucune rencontre enregistrée ni sélection TV n’est supprimée.
+
+
+### Rattrapage individuel des scores
+
+Après fusion des calendriers, les rencontres officielles commencées sans paire de
+scores sont interrogées individuellement via `ffbbserver_rencontres/{id}` avec au
+plus quatre requêtes simultanées. Identité, organisme et engagement du côté club
+sont vérifiés avant acceptation de deux scores numériques complets. Les rencontres
+sans heure, exemptions, reports et annulations sont exclus. Un échec laisse les
+données intactes. Une paire déjà enregistrée ou un score manuel arrête les appels
+individuels. Les fusions et alertes existantes restent responsables de la sauvegarde.
+`shouldPollFfbb` autorise également le cron les jours sans rencontre tant qu'une
+rencontre officielle commencée reste sans score, y compris marquée terminée.
+Aucune limite de lendemain n'est imposée ; les anciennes rencontres jamais scorées
+peuvent donc rester en attente jusqu'à correction du calendrier ou réception du score.
