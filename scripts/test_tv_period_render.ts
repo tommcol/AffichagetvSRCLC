@@ -13,3 +13,14 @@ for (const type of ['matches', 'results']) {
  assert.ok(!html.includes(type === 'matches' ? 'DEUXIEME PERIODE' : 'PREMIERE PERIODE'));
 }
 console.log('TV server-rendered HTML: no cross-week match/result leakage');
+
+for (const type of ['matches', 'results']) {
+ for (const filterScope of ['home', 'away']) {
+  const date = type === 'matches' ? first.date : second.date;
+  const bye = { ...record('bye', date, 'Exempt'), category: 'EQUIPE_EXEMPTEE_UNIQUE', isHomeMatch: filterScope === 'home', teamHome: filterScope === 'home' ? 'Club Démo' : 'Exempt', teamAway: filterScope === 'home' ? 'Exempt' : 'Club Démo' };
+  const html = renderToStaticMarkup(React.createElement(TVSlideRenderer, { slide: { id: type, type: 'category', categoryId: type, durationSeconds: 6, filterScope } as any,
+   clubSettings: settings, matches: [first, bye], results: [second, bye], sponsors: [], logos: [], photos: [], birthdays: [], events: [] }));
+  assert.ok(!html.includes('EQUIPE_EXEMPTEE_UNIQUE'), `${type}/${filterScope} ne contient pas les exemptions`);
+ }
+}
+console.log('TV renderer: exemptions absent from home and away matches/results');

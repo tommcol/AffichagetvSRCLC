@@ -1,3 +1,4 @@
+import { isExemptItem } from '../../utils/socialCaptionGenerator';
 import { getDisplayItems } from '../../utils/displayPeriod';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -204,9 +205,9 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
 
     if (slide.categoryId === 'matches') {
       const filteredMatches = slide.filterScope === 'home'
-        ? matchesWithFfbbResults.filter((m) => m.isHomeMatch)
+        ? matchesWithFfbbResults.filter((m) => m.isHomeMatch && !isExemptItem(m))
         : slide.filterScope === 'away'
-        ? matchesWithFfbbResults.filter((m) => !m.isHomeMatch)
+        ? matchesWithFfbbResults.filter((m) => !m.isHomeMatch && !isExemptItem(m))
         : matchesWithFfbbResults;
 
       return (
@@ -242,9 +243,9 @@ export const TVSlideRenderer: React.FC<TVSlideRendererProps> = ({
       const activeResults = getDisplayItems(results, clubSettings, 'results');
       const resultsToUse = activeResults;
       const filteredResults = slide.filterScope === 'home'
-        ? resultsToUse.filter((r) => isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        ? resultsToUse.filter((r) => !isExemptItem(r) && isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
         : slide.filterScope === 'away'
-        ? resultsToUse.filter((r) => !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
+        ? resultsToUse.filter((r) => !isExemptItem(r) && !isClubHomeMatch(r, clubSettings.name, clubSettings.shortName))
         : resultsToUse;
 
       return (

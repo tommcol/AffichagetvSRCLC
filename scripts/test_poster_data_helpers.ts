@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { MatchItem } from '../src/types';
 import {
   getWeekendMatches,
@@ -81,7 +82,7 @@ async function runTests() {
   // --- TEST 3 : Filtre Domicile ---
   console.log('\n--- TEST 3 : Filtre Domicile ---');
   const homeFiltered = filterPosterItems(dummyMatches, 'home', isExemptItem);
-  if (homeFiltered.every((m) => m.isHomeMatch)) {
+  if (homeFiltered.length === 2 && homeFiltered.every((m) => m.isHomeMatch && !isExemptItem(m))) {
     console.log(`✓ Réussi : ${homeFiltered.length} matchs à domicile filtrés`);
   } else {
     console.error('❌ Échec : Filtre domicile incorrect');
@@ -91,7 +92,7 @@ async function runTests() {
   // --- TEST 4 : Filtre Extérieur ---
   console.log('\n--- TEST 4 : Filtre Extérieur ---');
   const awayFiltered = filterPosterItems(dummyMatches, 'away', isExemptItem);
-  if (awayFiltered.every((m) => !m.isHomeMatch)) {
+  if (awayFiltered.length === 1 && awayFiltered.every((m) => !m.isHomeMatch && !isExemptItem(m))) {
     console.log(`✓ Réussi : ${awayFiltered.length} matchs à l'extérieur filtrés`);
   } else {
     console.error('❌ Échec : Filtre extérieur incorrect');
@@ -130,12 +131,21 @@ async function runTests() {
   // --- TEST 8 : Compteurs domicile / extérieur / exempt ---
   console.log('\n--- TEST 8 : Compteurs domicile / extérieur / exempt ---');
   const counts = getPosterItemCounts(dummyMatches, isExemptItem);
-  if (counts.home === 3 && counts.away === 1 && counts.exempt === 1) {
-    console.log('✓ Réussi : Compteurs exacts (home=3, away=1, exempt=1)');
+  if (counts.home === 2 && counts.away === 1 && counts.exempt === 1) {
+    console.log('✓ Réussi : Compteurs exacts (home=2, away=1, exempt=1)');
   } else {
     console.error('❌ Échec : Compteurs incorrects', counts);
     process.exit(1);
   }
+
+  const awayBye = { ...dummyMatches[2], id: 'away-bye', isHomeMatch: false, teamHome: 'Exempt', teamAway: 'Club Basket', selectedForWeekend: true };
+  const mixed = [...dummyMatches, awayBye];
+  assert.deepEqual(getPosterItemCounts(mixed, isExemptItem), { home: 2, away: 1, exempt: 2 });
+  assert.equal(filterPosterItems(mixed, 'away', isExemptItem).some(isExemptItem), false);
+  assert.equal(filterPosterItems(mixed, 'home', isExemptItem).some(isExemptItem), false);
+  assert.equal(filterPosterItems(mixed, 'exempt', isExemptItem).length, 2);
+  assert.equal(filterPosterItems(mixed, 'all', isExemptItem).length, mixed.length);
+  assert.equal(mixed.length, 5, 'Les filtres ne modifient pas les données');
 
   // --- TEST 9 : Limits / Ratios getMaxDisplayMatches ---
   console.log('\n--- TEST 9 : Limites selon le ratio et mode manuel ---');
