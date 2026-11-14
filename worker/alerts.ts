@@ -41,9 +41,9 @@ export async function getAlerts(env: Env): Promise<Response> {
       : [];
     const actives = deduplicateAlerts(activeAlerts);
 
-    if (Array.isArray(alerts) && JSON.stringify(alerts) !== JSON.stringify(actives)) {
-      await env.AFFICHAGE_KV.put('alerts', JSON.stringify(actives));
-    }
+    // A TV poll must never rewrite a potentially stale KV snapshot: it could
+    // erase an alert just created by the cron in another region. Filter only
+    // the response; alert producers already prune expired entries on writes.
 
     return new Response(JSON.stringify({ alerts: actives, count: actives.length }), {
       status: 200,
