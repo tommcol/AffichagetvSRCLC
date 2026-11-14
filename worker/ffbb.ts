@@ -104,7 +104,9 @@ export async function ffbbMatches(request: Request, env: Env): Promise<Response>
   const clubCode = (url.searchParams.get('code') || '').trim();
 
   try {
-    const api = createFfbbDataSource();
+    const existingRaw = await readSharedAppData(env);
+    const existing = existingRaw ? JSON.parse(existingRaw) : {};
+    const api = createFfbbDataSource(fetch, [...(existing.matches || []), ...(existing.results || [])]);
     const orgId = await api.resolveClub(clubCode).catch(() => null) || await resolveOrganismeId(clubCode);
     if (!orgId) {
       return new Response(

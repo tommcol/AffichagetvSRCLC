@@ -1,6 +1,6 @@
 import { isAdmin } from './auth';
 import { readSharedAppData } from './appDataCoordinator';
-import { isClubMatchDay } from '../src/utils/ffbbMatchDays';
+import { shouldPollFfbb } from '../src/utils/ffbbMatchDays';
 export { AppDataCoordinator } from './appDataCoordinator';
 // ============================================================
 // Routeur principal du worker Cloudflare
@@ -23,7 +23,7 @@ export default {
       const raw = await readSharedAppData(env);
       if (!raw) return;
       const data = JSON.parse(raw);
-      if (isClubMatchDay([...(data.matches || []), ...(data.results || [])])) await runScheduledFfbbSync(env);
+      if (shouldPollFfbb([...(data.matches || []), ...(data.results || [])])) await runScheduledFfbbSync(env);
     })());
   },
 

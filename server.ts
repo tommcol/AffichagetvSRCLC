@@ -2,7 +2,7 @@ import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
 import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
 import { isAdmin, verifyAdmin } from './worker/auth';
-import { isClubMatchDay } from './src/utils/ffbbMatchDays';
+import { shouldPollFfbb } from './src/utils/ffbbMatchDays';
 import { localMediaStorage } from './server/mediaStorageHelpers';
 import express from "express";
 import path from "path";
@@ -1335,7 +1335,7 @@ let lastSyncResult = { success: true, message: "En attente de synchronisation", 
 async function runBackgroundFFBBSync(force = false) {
   try {
     const saved = getSavedAppData();
-    if (!force && !isClubMatchDay([...(saved?.matches || []), ...(saved?.results || [])])) return;
+    if (!force && !shouldPollFfbb([...(saved?.matches || []), ...(saved?.results || [])])) return;
     const clubCode = saved?.clubSettings?.codeFFBB || "";
     console.log(`[AUTO-SYNC FFBB] Déclenchement automatique pour club ${clubCode}...`);
 

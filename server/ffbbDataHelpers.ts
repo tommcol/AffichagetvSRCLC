@@ -101,7 +101,7 @@ export function isTeamCategoryIgnored(category: string, ignoredCategories: strin
 // Core helper to fetch and parse official FFBB club matches with real poule scores
 export async function fetchOfficialClubData(clubCode: string, existingRows: any[] = []) {
   const cleanCode = String(clubCode || "").trim();
-  const api = createFfbbDataSource();
+  const api = createFfbbDataSource(fetch, existingRows);
   const mobileId = await api.resolveClub(cleanCode).catch(() => null);
   const resolved: { organismeId: string; clubResolue?: any } | null = mobileId
     ? { organismeId: mobileId } : await resolveOrganismeId(cleanCode);
