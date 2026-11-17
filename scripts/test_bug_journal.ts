@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { bugReport, clearBugJournal, installBugJournal, readBugJournal, recordBug, sanitizeDiagnostic } from '../src/utils/bugJournal';
+const storage = new Map<string, string>();
+Object.assign(globalThis, { localStorage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => storage.set(k, v) } });
+class FakeWindow extends EventTarget {
+ location = { href: 'https://demo.invalid/', origin: 'https://demo.invalid' };
+ fetch: typeof fetch = async () => new Response('private response', {status:503});
+}
+const win = new FakeWindow();
+Object.assign(globalThis, { window: win });
+clearBugJournal();
+recordBug('Test', 'API token=super-secret password="secret with spaces" user@example.org https://user:pass@demo.invalid/api/get-app-data?token=hidden', { password:'object-secret' });
+let report = bugReport();
+for (const secret of ['super-secret', 'secret with spaces', 'user@example.org', 'user:pass', 'hidden', 'object-secret']) assert.ok(!report.includes(secret), secret);
+assert.ok(report.includes('/api/get-app-data'));
+recordBug('React', new Error('Erreur de rendu'));
+assert.ok(readBugJournal()[0].message.includes('Erreur de rendu'));
+for (let n=0;n<120;n++) recordBug('Test', `error ${n}`);
+assert.equal(readBugJournal().length,100);
+assert.ok(storage.get('club_bug_journal_v1')!.length < 210000);
+const before = readBugJournal().length;
+readBugJournal().pop(); assert.equal(readBugJournal().length,before);
+const originalConsole = console.error, originalFetch = win.fetch;
+const stop = installBugJournal();
+assert.equal(installBugJournal() instanceof Function,true);
+const response = await win.fetch('/api/get-app-data?password=secret');
+assert.equal(response.status,503);
+assert.equal(await response.text(),'private response','Ne pas consommer la réponse');
+assert.ok(readBugJournal()[0].message.includes('HTTP 503'));
+assert.ok(!bugReport().includes('password=secret'));
+win.fetch = originalFetch; // restore wrapper below to exercise original failed request separately
+stop(); assert.equal(console.error, originalConsole);
+win.fetch = async () => { throw new TypeError('Failed to fetch'); };
+const stop2 = installBugJournal();
+await assert.rejects(win.fetch('/api/ffbb/sync'), /Failed to fetch/);
+assert.ok(readBugJournal()[0].message.includes('réseau indisponible'));
+stop2();
+clearBugJournal(); assert.equal(readBugJournal().length,0);
+assert.equal(storage.get('club_media_errors'),undefined, 'Effacement séparé des diagnostics vidéo');
+Object.assign(globalThis, { localStorage: { getItem: () => {throw Error('blocked');}, setItem: () => {throw Error('full');} } });
+recordBug('Test', 'Stockage indisponible'); assert.equal(readBugJournal().length,1);
+assert.ok(sanitizeDiagnostic('Authorization: Bearer abcdef cookie=private').includes('[masqué]'));
+console.log('Bug journal: redaction, bound, API response/rejection, install cleanup, clear, blocked storage OK');

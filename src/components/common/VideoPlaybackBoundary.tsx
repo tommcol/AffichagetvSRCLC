@@ -1,4 +1,5 @@
 import { videoPlaybackState } from '../../utils/videoPlaybackState';
+import { recordBug } from '../../utils/bugJournal';
 import React, { useEffect, useRef } from 'react';
 
 /** Coordinates the videos actually mounted in a TV slide, including free layers.
@@ -26,6 +27,7 @@ export function VideoPlaybackBoundary({ children, playing, slideId, onComplete, 
     const report = (v: HTMLVideoElement) => {
       if (failed.has(v)) return;
       failed.add(v);
+      recordBug('Vidéo', `Lecture impossible — code ${v.error?.code ?? 'inconnu'}`);
       const source = v.currentSrc || v.src;
       const name = /^(data|blob):/.test(source) ? 'Vidéo intégrée' : (source.split('/').pop()?.split('?')[0] || 'Vidéo indisponible').slice(0, 140);
       try {

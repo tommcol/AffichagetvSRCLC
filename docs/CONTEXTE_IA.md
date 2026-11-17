@@ -297,3 +297,19 @@ habituelles et la sauvegarde partagée existante ; aucun accès direct au stocka
 Les rencontres reprises par les API (calendarSource ffbb), même avec un identifiant
 Excel ou calendarImport conservé, et les ajouts manuels restent intacts. Le bouton
 est indisponible pendant la synchronisation FFBB ou sans import restant.
+
+### Console de bugs locale
+
+Le petit bouton Bugs dans l’en-tête admin et l’écran de secours React ouvre
+BugConsole : date/heure Europe/Paris, copie du rapport pour l’IA, sélection manuelle
+si le presse-papiers est indisponible, effacement du seul journal de bugs.
+Installé au démarrage, bugJournal collecte les erreurs et avertissements console,
+erreurs JavaScript/promesses, ressources en échec et statuts HTTP/réseau des API
+même origine. VideoPlaybackBoundary ajoute les échecs de lecture. Les fonctions
+console et fetch conservent leurs comportements et les réponses ne sont pas lues.
+Le journal garde au plus 100 entrées de 2 000 caractères dans localStorage, avec
+repli mémoire si le stockage échoue. Pas d’envoi automatique ni de données partagées.
+Ne pas collecter de corps/headers de requêtes, réponses ou objets métier. Les objets
+console sont omis ; URL, jetons, mots de passe identifiables et emails sont masqués.
+Le journal ne donne pas accès aux logs internes du Worker/cron ou des autres appareils,
+et ne prouve pas l’absence de bug visuel. L’ancien avertissement vidéo reste indépendant.
