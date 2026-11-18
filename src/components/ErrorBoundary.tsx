@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { BugConsole } from './common/BugConsole';
 
 interface Props {
   children: ReactNode;
@@ -57,6 +58,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             </div>
 
             <div className="flex items-center justify-center gap-4">
+              <BugConsole />
               <button
                 onClick={() => window.location.reload()}
                 className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all"

@@ -4,6 +4,7 @@ import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
 import { clubCalendarDate } from '../../utils/clubTime';
 import { MediaPlaybackWarning } from '../common/MediaPlaybackWarning';
+import { BugConsole } from '../common/BugConsole';
 import { isInDisplayPeriod } from '../../utils/displayPeriod';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
@@ -2776,6 +2777,7 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
           <div className="flex items-center gap-3">
             <MediaPlaybackWarning />
+            <BugConsole />
           {/* Bouton dynamique Enregistrer en haut à droite */}
             <button
               onClick={onManualSave}
