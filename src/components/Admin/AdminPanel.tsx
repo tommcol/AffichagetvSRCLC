@@ -2,6 +2,10 @@ import { prepareClubSportsSync, clubCodeKey } from '../../utils/ffbbClubScope';
 import { prepareExcelApiHandoff } from '../../utils/calendarImportIdentity';
 import { groupFfbbTeams } from '../../utils/ffbbTeamGrouping';
 import { useAdminViewState } from '../../utils/useAdminViewState';
+import { useTelegramAdmin } from './hooks/useTelegramAdmin';
+import { useMediaUploadsAdmin } from './hooks/useMediaUploadsAdmin';
+import { useSocialAdmin } from './hooks/useSocialAdmin';
+import { useBirthdaysAdmin } from './hooks/useBirthdaysAdmin';
 import { clubCalendarDate } from '../../utils/clubTime';
 import { MediaPlaybackWarning } from '../common/MediaPlaybackWarning';
 import { BugConsole } from '../common/BugConsole';
@@ -399,134 +403,71 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Telegram Bot State
-  const [telegramStatus, setTelegramStatus] = useState<{
-    hasSecretToken: boolean;
-    connected: boolean;
-    webhookUrl?: string | null;
-    botUsername?: string | null;
-    botName?: string | null;
-    lastError?: string | null;
-    pendingUpdateCount?: number;
-    message?: string;
-    lastMessage?: {
-      receivedAt: number;
-      text: string | null;
-      team?: string;
-      isWin?: boolean;
-      score?: string;
-      success: boolean;
-      error?: string;
-    } | null;
-  } | null>(null);
-  const [telegramStatusLoading, setTelegramStatusLoading] = useState<boolean>(false);
-  const [telegramConnecting, setTelegramConnecting] = useState<boolean>(false);
-  const [telegramDisconnecting, setTelegramDisconnecting] = useState<boolean>(false);
-  const [telegramActionMsg, setTelegramActionMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
-  const [adminPasswordPrompt, setAdminPasswordPrompt] = useState<boolean>(false);
-  const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
-  const [savedAdminPassword, setSavedAdminPassword] = useState<string>(() => {
-    try {
-      return sessionStorage.getItem('club_admin_password') || '';
-    } catch (e) {
-      return '';
-    }
-  });
+  const {
+    telegramStatus,
+    telegramStatusLoading,
+    telegramConnecting,
+    telegramDisconnecting,
+    telegramActionMsg,
+    setTelegramActionMsg,
+    adminPasswordPrompt,
+    setAdminPasswordPrompt,
+    adminPasswordInput,
+    setAdminPasswordInput,
+    effectiveLastTelegramMessage,
+    formatTelegramDate,
+    telegramSimText,
+    setTelegramSimText,
+    telegramSimFeedback,
+    telegramSimLoading,
+    handleTestTelegramMessage,
+    fetchTelegramStatus,
+    handleConnectTelegram,
+    handleDisconnectTelegram,
+  } = useTelegramAdmin({ activeTab, teamVisuals, visualTemplates, onAddAlert });
 
-  // Dernier message réel reçu depuis le webhook Telegram
-  const effectiveLastTelegramMessage = useMemo(() => {
-    return telegramStatus?.lastMessage || null;
-  }, [telegramStatus?.lastMessage]);
 
-  const formatTelegramDate = (timestamp: number) => {
-    try {
-      const d = new Date(timestamp);
-      return d.toLocaleDateString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch (e) {
-      return '';
-    }
-  };
+  const {
+    isParsingExcel,
+    excelSuccessMsg,
+    excelErrors,
+    excelInputRef,
+    showAllBirthdays,
+    setShowAllBirthdays,
+    birthdayWeekOffset,
+    allMembersPool,
+    editingBirthdayId,
+    editBdayFirstName,
+    setEditBdayFirstName,
+    editBdayCategory,
+    setEditBdayCategory,
+    editBdayDate,
+    setEditBdayDate,
+    isAddingManualBday,
+    setIsAddingManualBday,
+    manualBdayFirstName,
+    setManualBdayFirstName,
+    manualBdayCategory,
+    setManualBdayCategory,
+    manualBdayDate,
+    setManualBdayDate,
+    handleExcelFileUpload,
+    handleSelectWeekOffset,
+    handleStartEditBirthday,
+    handleSaveEditBirthday,
+    handleCancelEditBirthday,
+    handleAddManualBirthday,
+    handleDeleteBirthday,
+  } = useBirthdaysAdmin({ birthdays, onUpdateBirthdays, allMembers, onUpdateAllMembers, simulatedDate });
 
-  // Telegram Simulator State
-  const [telegramSimText, setTelegramSimText] = useState<string>('Victoire Seniors 1 82-74');
-  const [telegramSimResponse, setTelegramSimResponse] = useState<string | null>(null);
-  const [telegramSimFeedback, setTelegramSimFeedback] = useState<{
-    success: boolean;
-    message: string;
-    suggestions?: string[];
-    isAmbiguous?: boolean;
-  } | null>(null);
-  const [telegramSimLoading, setTelegramSimLoading] = useState<boolean>(false);
+  const {
+    socialWebhookStatus,
+    setSocialSaveSuccess,
+    socialForm,
+    setSocialForm,
+    handleTestSocialWebhook,
+  } = useSocialAdmin({ clubSettings, onUpdateClubSettings, matches, results });
 
-  // Excel & Birthday parsing/editing state
-  const [isParsingExcel, setIsParsingExcel] = useState<boolean>(false);
-  const [excelSuccessMsg, setExcelSuccessMsg] = useState<string | null>(null);
-  const [excelErrors, setExcelErrors] = useState<string[]>([]);
-  const excelInputRef = useRef<HTMLInputElement>(null);
-  const [showAllBirthdays, setShowAllBirthdays] = useState(false);
-  const [birthdayWeekOffset, setBirthdayWeekOffset] = useState<number>(0);
-  const [allMembersPool, setAllMembersPool] = useState<BirthdayItem[]>(() => {
-    if (Array.isArray(allMembers)) return allMembers;
-    try {
-      const saved = localStorage.getItem('club_all_members_pool');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
-
-  useEffect(() => {
-    if (Array.isArray(allMembers)) {
-      setAllMembersPool(allMembers);
-    }
-  }, [allMembers]);
-
-  // Synchronisation unifiée de la liste complète des adhérents (source de vérité unique)
-  const updateAllMembersEverywhere = (newPool: BirthdayItem[], newWeekBirthdays?: BirthdayItem[]) => {
-    setAllMembersPool(newPool);
-    onUpdateAllMembers?.(newPool, newWeekBirthdays);
-    if (newWeekBirthdays !== undefined) {
-      onUpdateBirthdays(newWeekBirthdays);
-    }
-    try {
-      localStorage.setItem('club_all_members_pool', JSON.stringify(newPool));
-    } catch (e) {}
-  };
-  const [editingBirthdayId, setEditingBirthdayId] = useState<string | null>(null);
-  const [editBdayFirstName, setEditBdayFirstName] = useState<string>('');
-  const [editBdayCategory, setEditBdayCategory] = useState<string>('');
-  const [editBdayDate, setEditBdayDate] = useState<string>('');
-
-  // Adding manual birthday
-  const [isAddingManualBday, setIsAddingManualBday] = useState<boolean>(false);
-  const [manualBdayFirstName, setManualBdayFirstName] = useState<string>('');
-  const [manualBdayCategory, setManualBdayCategory] = useState<string>('U15');
-  const [manualBdayDate, setManualBdayDate] = useState<string>('');
-
-  // Social Media Bridge State & Anti-Doublon Tracking
-  const [socialContentType, setSocialContentType] = useState<'matches' | 'results'>('matches');
-  const [preparedItemIds, setPreparedItemIds] = useState<string[]>([]);
-  const [socialCopiedPlatform, setSocialCopiedPlatform] = useState<string | null>(null);
-  const [socialWebhookStatus, setSocialWebhookStatus] = useState<{ loading: boolean; message?: string; success?: boolean }>({ loading: false });
-  const [socialSaveSuccess, setSocialSaveSuccess] = useState<boolean>(false);
-  const [socialOnlySelectedMatches, setSocialOnlySelectedMatches] = useState<boolean>(true);
-  const [aiTone, setAiTone] = useState<'supporter' | 'officiel' | 'fun' | 'buvette'>('supporter');
-  const [aiExtraContext, setAiExtraContext] = useState<string>('');
-  const [aiLoading, setAiLoading] = useState<boolean>(false);
-  const [aiCustomCaptions, setAiCustomCaptions] = useState<{ instagram?: string; tiktok?: string; facebook?: string }>({});
-  const [previousAiCaption, setPreviousAiCaption] = useState<string | null>(null);
-  const [customRewriteInput, setCustomRewriteInput] = useState<string>('');
-  const [customRewriteInstructions, setCustomRewriteInstructions] = useState<string>('');
-  const [customRewriteOutput, setCustomRewriteOutput] = useState<string>('');
-  const [isRewriting, setIsRewriting] = useState<boolean>(false);
   // Periodes du calendrier persistees : restaurees a la reouverture de l'appli
   const [syncStartDate, setSyncStartDate] = useState<string>(() => {
     try { return clubSettings.matchesFilterStart || ''; } catch (e) { return ''; }
@@ -627,262 +568,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [showPerTeamVisuals, setShowPerTeamVisuals] = useState<boolean>(false);
   const [newResultDate, setNewResultDate] = useState<string>('Hier');
 
-  const [socialForm, setSocialForm] = useState({
-    instagramHandle: clubSettings.instagramHandle || '',
-    facebookPage: clubSettings.facebookPage || '',
-    tiktokHandle: clubSettings.tiktokHandle || '',
-    socialWebhookUrl: clubSettings.socialWebhookUrl || '',
-  });
-
-  // Maintien de socialForm synchronisé avec clubSettings
-  useEffect(() => {
-    setSocialForm((prev) => ({
-      ...prev,
-      instagramHandle: clubSettings.instagramHandle || '',
-      facebookPage: clubSettings.facebookPage || '',
-      tiktokHandle: clubSettings.tiktokHandle || '',
-      socialWebhookUrl: clubSettings.socialWebhookUrl || '',
-    }));
-  }, [clubSettings.instagramHandle, clubSettings.facebookPage, clubSettings.tiktokHandle, clubSettings.socialWebhookUrl]);
-
-  // État glisser-déposer pour le Logo du Club
-  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const logoFileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleGenerateAICaption = async (targetPlatform: 'all' | 'instagram' | 'tiktok' | 'facebook' = 'all') => {
-    setAiLoading(true);
-    try {
-      const publicationMatches =
-        socialContentType === 'matches'
-          ? (socialOnlySelectedMatches
-              ? matches.filter((m) => m.selectedForWeekend !== false)
-              : matches)
-          : [];
-
-      const publicationResults =
-        socialContentType === 'results'
-          ? (socialOnlySelectedMatches
-              ? results.filter((r) => r.selectedForWeekend !== false)
-              : results)
-          : [];
-
-      const safeClubName = clubSettings.name || clubSettings.shortName || 'Notre Club';
-      const safeShortClub = clubSettings.shortName || clubSettings.name || 'Notre Club';
-      const safeGymnasium = clubSettings.gymnasiumDefault || 'Gymnase du Club';
-
-      if (targetPlatform === 'all') {
-        const [resInsta, resTikTok, resFB] = await Promise.all([
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'instagram',
-              type: socialContentType,
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortClub,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-
-              provider: clubSettings.aiProvider || 'gemini',
-            }),
-          }).then((r) => r.json()).catch(() => null),
-
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'tiktok',
-              type: socialContentType,
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortClub,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-
-              provider: clubSettings.aiProvider || 'gemini',
-            }),
-          }).then((r) => r.json()).catch(() => null),
-
-          fetch('/api/generate-caption', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              platform: 'facebook',
-              type: socialContentType,
-              matches: publicationMatches,
-              results: publicationResults,
-              clubName: safeClubName,
-              shortClub: safeShortClub,
-              gymnasium: safeGymnasium,
-              tone: aiTone,
-              extraContext: aiExtraContext.trim(),
-
-              provider: clubSettings.aiProvider || 'gemini',
-            }),
-          }).then((r) => r.json()).catch(() => null),
-        ]);
-
-        const failedResponse = [resInsta, resTikTok, resFB].find((item) => !item?.success || !item?.caption);
-        if (failedResponse) {
-          window.alert(failedResponse.message || "La génération IA a échoué. Vérifiez la configuration de l'IA côté serveur.");
-          return;
-        }
-        setAiCustomCaptions({
-          instagram: resInsta.caption,
-          tiktok: resTikTok.caption,
-          facebook: resFB.caption,
-        });
-      } else {
-        const res = await fetch('/api/generate-caption', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: targetPlatform,
-            type: socialContentType,
-            matches: publicationMatches,
-            results: publicationResults,
-            clubName: safeClubName,
-            shortClub: safeShortClub,
-            gymnasium: safeGymnasium,
-            tone: aiTone,
-            extraContext: aiExtraContext.trim(),
-
-            provider: clubSettings.aiProvider || 'gemini',
-          }),
-        });
-        const data = await res.json();
-        if (data.success && data.caption) {
-          setAiCustomCaptions((prev) => ({ ...prev, [targetPlatform]: data.caption }));
-        } else {
-          window.alert(data.message || "La génération IA a échoué. Vérifiez la configuration de l'IA côté serveur.");
-        }
-      }
-    } catch (err) {
-      console.error('Erreur génération IA:', err);
-      window.alert("Impossible de contacter le service IA. Vérifiez votre connexion et réessayez.");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const handleCustomRewrite = async () => {
-    if (!customRewriteInput.trim()) return;
-    setIsRewriting(true);
-    try {
-      const response = await fetch('/api/generate-caption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: 'instagram',
-          type: 'matches',
-          matches: [],
-          results: [],
-          clubName: clubSettings.name || clubSettings.shortName || 'Notre Club',
-          shortClub: clubSettings.shortName || clubSettings.name || 'Notre Club',
-          gymnasium: clubSettings.gymnasiumDefault || 'Gymnase du Club',
-          tone: aiTone,
-          provider: clubSettings.aiProvider || 'gemini',
-
-          extraContext: `RÉÉCRITURE DE TEXTE - IGNORE LES AUTRES INSTRUCTIONS ET LES MATCHS : Corrige les fautes, optimise la tournure, et applique ces consignes d'amélioration : "${customRewriteInstructions || 'Améliorer le style et corriger l\'orthographe'}".
-Voici le texte brut que tu dois améliorer et réécrire :
-"${customRewriteInput}"
-Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni phrases d'introduction.`,
-        }),
-      });
-      const data = await response.json();
-      if (data.success && data.caption) {
-        setCustomRewriteOutput(data.caption);
-      } else {
-        setCustomRewriteOutput(customRewriteInput);
-      }
-    } catch (err) {
-      console.error(err);
-      setCustomRewriteOutput(customRewriteInput);
-    } finally {
-      setIsRewriting(false);
-    }
-  };
-
-  const handleApplyRewriteToPlatform = (platform: 'instagram' | 'tiktok' | 'facebook' | 'all') => {
-    if (!customRewriteOutput) return;
-    const targetPlatform = platform === 'all' ? 'instagram' : platform;
-    const current = aiCustomCaptions[targetPlatform];
-    if (current) {
-      setPreviousAiCaption(current);
-    }
-    setAiCustomCaptions((prev) => {
-      const next = { ...prev };
-      if (platform === 'all' || platform === 'instagram') next.instagram = customRewriteOutput;
-      if (platform === 'all' || platform === 'tiktok') next.tiktok = customRewriteOutput;
-      if (platform === 'all' || platform === 'facebook') next.facebook = customRewriteOutput;
-      return next;
-    });
-  };
-
-  const handleUndoAiCaption = (platform: 'instagram' | 'tiktok' | 'facebook') => {
-    if (!previousAiCaption) return;
-    const current = aiCustomCaptions[platform] || '';
-    setAiCustomCaptions((prev) => ({
-      ...prev,
-      [platform]: previousAiCaption,
-    }));
-    setPreviousAiCaption(current);
-  };
-
-  const togglePreparedItem = (id: string) => {
-    setPreparedItemIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  // New item states
-  const [newSponsorName, setNewSponsorName] = useState('');
-  const [newSponsorTagline, setNewSponsorTagline] = useState('');
-  const [newSponsorTier, setNewSponsorTier] = useState<'gold' | 'silver' | 'bronze' | 'partenaire'>('silver');
-  const [newSponsorFolder, setNewSponsorFolder] = useState('Partenaires Locaux');
-
-  const [newLogoName, setNewLogoName] = useState('');
-  const [newLogoCategory, setNewLogoCategory] = useState<'club' | 'sponsor' | 'comite' | 'ligue' | 'autre'>('club');
-
-  const handleAddLogo = (logoUrl: string, isVideo = false) => {
-    const newLogo: ClubLogoItem = {
-      id: 'logo-' + Date.now(),
-      name: newLogoName.trim() || (isVideo ? 'Vidéo Logo ' + (logos.length + 1) : 'Logo ' + (logos.length + 1)),
-      logoUrl,
-      category: newLogoCategory,
-      isTransparent: !isVideo,
-      isVideo,
-      mediaType: isVideo ? 'video' : 'image',
-    };
-    if (onUpdateLogos) {
-      onUpdateLogos([...logos, newLogo]);
-    }
-    setNewLogoName('');
-  };
-
-  // Drag & drop and batch upload states
-  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
-  const [isDraggingSponsors, setIsDraggingSponsors] = useState(false);
-  const [isDraggingLogos, setIsDraggingLogos] = useState(false);
-  const [isDraggingEvents, setIsDraggingEvents] = useState(false);
-  const [uploadFeedback, setUploadFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  const [newPhotoTitle, setNewPhotoTitle] = useState('');
-  const [newPhotoFolder, setNewPhotoFolder] = useState('Équipe Fanion');
-  const [newPhotoCaption, setNewPhotoCaption] = useState('');
-
-  const [newEventTitle, setNewEventTitle] = useState('');
-  const [newEventDate, setNewEventDate] = useState('');
-  const [newEventTime, setNewEventTime] = useState('');
-  const [newEventLocation, setNewEventLocation] = useState(clubSettings.gymnasiumDefault);
-  const [newEventDesc, setNewEventDesc] = useState('');
-  const [newEventBadge, setNewEventBadge] = useState('Soirée Club');
+  const {
+    isDraggingLogo,
+    setIsDraggingLogo,
+    isUploadingLogo,
+    logoFileInputRef,
+    newSponsorName,
+    setNewSponsorName,
+    newSponsorTier,
+    setNewSponsorTier,
+    newLogoName,
+    setNewLogoName,
+    newLogoCategory,
+    setNewLogoCategory,
+    isDraggingPhotos,
+    setIsDraggingPhotos,
+    isDraggingSponsors,
+    setIsDraggingSponsors,
+    isDraggingLogos,
+    setIsDraggingLogos,
+    isDraggingEvents,
+    setIsDraggingEvents,
+    uploadFeedback,
+    setUploadFeedback,
+    newPhotoTitle,
+    setNewPhotoTitle,
+    newPhotoFolder,
+    setNewPhotoFolder,
+    newEventTitle,
+    setNewEventTitle,
+    newEventDate,
+    setNewEventDate,
+    handleLogoFileUpload,
+    uploadMultipleFiles,
+    handleBatchPhotosUpload,
+    handleBatchSponsorsUpload,
+    handleBatchLogosUpload,
+    handleBatchEventsUpload,
+  } = useMediaUploadsAdmin({ clubSettings, onUpdateClubSettings, sponsors, logos, photos, events, onUpdateSponsors, onUpdateLogos, onUpdatePhotos, onUpdateEvents });
 
   // State for adding a custom team visual
   const [newTeamName, setNewTeamName] = useState('');
@@ -1200,424 +923,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
   };
 
   // Helpers for multi-file batch upload & cleaning names
-  const cleanNameFromFileName = (fileName: string): string => {
-    const withoutExt = fileName.replace(/\.[^/.]+$/, '');
-    const cleaned = withoutExt
-      .replace(/[_-]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!cleaned) return 'Élément';
-    return cleaned
-      .split(' ')
-      .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
-      .join(' ');
-  };
-
-  // Upload file asynchronously via server streaming endpoint (prevents browser RAM exhaustion / crash)
-  const uploadSingleFile = async (file: File): Promise<{ url: string; isVideo: boolean; fileName: string }> => {
-    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|m4v)$/i.test(file.name);
-
-    // 1. Pour les vidéos et gros fichiers : Flux binaire direct (PUT) vers R2 (contourne l'erreur 413)
-    if (isVideo || file.size > 2 * 1024 * 1024) {
-      try {
-        const uploadUrl = `/api/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || 'video/mp4')}`;
-        const res = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type || 'application/octet-stream',
-            'X-Filename': encodeURIComponent(file.name),
-          },
-          body: file,
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.url) {
-            return {
-              url: data.url,
-              isVideo: data.mediaType === 'video' || isVideo,
-              fileName: data.fileName || file.name,
-            };
-          }
-        }
-      } catch (err) {
-        console.warn('Upload flux binaire (PUT) échoué, essai POST standard:', err);
-      }
-    }
-
-    // 2. Upload standard POST FormData (images légères, logos classiques)
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          return {
-            url: data.url,
-            isVideo: data.mediaType === 'video' || isVideo,
-            fileName: data.fileName || file.name,
-          };
-        }
-      }
-    } catch (err) {
-      console.warn('Upload serveur direct indisponible, bascule sur ObjectURL/FileReader local:', err);
-    }
-
-    // 3. Safe local fallback with automatic image compression
-    if (isVideo) {
-      try {
-        const blobUrl = URL.createObjectURL(file);
-        return { url: blobUrl, isVideo: true, fileName: file.name };
-      } catch {
-        return { url: '', isVideo: true, fileName: file.name };
-      }
-    }
-
-    try {
-      const compressedUrl = await compressImageFile(file);
-      return {
-        url: compressedUrl,
-        isVideo: false,
-        fileName: file.name,
-      };
-    } catch {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          resolve({
-            url: (e.target?.result as string) || '',
-            isVideo: false,
-            fileName: file.name,
-          });
-        };
-        reader.onerror = () => {
-          resolve({
-            url: URL.createObjectURL(file),
-            isVideo: false,
-            fileName: file.name,
-          });
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
-  // Upload du logo officiel du club
-  const handleLogoFileUpload = async (file: File) => {
-    if (!file) return;
-    setIsUploadingLogo(true);
-    try {
-      const res = await uploadSingleFile(file);
-      if (res.url) {
-        onUpdateClubSettings({
-          ...clubSettings,
-          logoUrl: res.url,
-        });
-      }
-    } catch (err) {
-      console.error('Erreur lors du téléversement du logo:', err);
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
-
-  // Upload multiple files in batch via server
-  const uploadMultipleFiles = async (
-    files: FileList | File[]
-  ): Promise<Array<{ url: string; isVideo: boolean; fileName: string }>> => {
-    const fileArray = Array.from(files).filter(
-      (f) =>
-        f.type.startsWith('image/') ||
-        f.type.startsWith('video/') ||
-        /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
-    );
-    if (fileArray.length === 0) return [];
-
-    // Téléversement individuel fichier par fichier (idéal pour le streaming R2 sans saturation de payload)
-    const results: Array<{ url: string; isVideo: boolean; fileName: string }> = [];
-    for (const f of fileArray) {
-      try {
-        const single = await uploadSingleFile(f);
-        results.push(single);
-      } catch (err) {
-        console.warn('Erreur téléversement fichier:', f.name, err);
-      }
-    }
-    return results;
-  };
-
-  // Batch upload Photos & Videos (Multiple files & Drag-and-Drop)
-  const handleBatchPhotosUpload = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter(
-      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
-    );
-    if (fileArray.length === 0) return;
-
-    setUploadFeedback({
-      message: `⏳ Téléversement de ${fileArray.length} fichier(s) en cours...`,
-      type: 'success',
-    });
-
-    try {
-      const results = await uploadMultipleFiles(fileArray);
-      const now = Date.now();
-      const newPhotos: ClubPhotoItem[] = results.map((res, idx) => {
-        const title = fileArray.length === 1 && newPhotoTitle.trim()
-          ? newPhotoTitle.trim()
-          : cleanNameFromFileName(res.fileName);
-        return {
-          id: `photo-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-          title,
-          categoryFolder: newPhotoFolder || 'Général',
-          imageUrl: res.url,
-          date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
-          caption: fileArray.length === 1 && newPhotoCaption.trim() ? newPhotoCaption.trim() : undefined,
-          isVideo: res.isVideo,
-          mediaType: res.isVideo ? 'video' : 'image',
-        };
-      });
-
-      onUpdatePhotos([...newPhotos, ...photos]);
-      setNewPhotoTitle('');
-      setNewPhotoCaption('');
-      setUploadFeedback({
-        message: `✅ ${newPhotos.length} photo(s) / vidéo(s) ajoutée(s) avec succès !`,
-        type: 'success',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    } catch (err) {
-      setUploadFeedback({
-        message: '❌ Erreur lors du chargement des fichiers',
-        type: 'error',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    }
-  };
-
-  // Batch upload Sponsors & Partners
-  const handleBatchSponsorsUpload = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter(
-      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
-    );
-    if (fileArray.length === 0) return;
-
-    setUploadFeedback({
-      message: `⏳ Téléversement de ${fileArray.length} partenaire(s) en cours...`,
-      type: 'success',
-    });
-
-    try {
-      const results = await uploadMultipleFiles(fileArray);
-      const now = Date.now();
-      const newSponsors: SponsorItem[] = results.map((res, idx) => {
-        const name = fileArray.length === 1 && newSponsorName.trim()
-          ? newSponsorName.trim()
-          : cleanNameFromFileName(res.fileName);
-        return {
-          id: `sponsor-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-          name,
-          tier: newSponsorTier,
-          logoUrl: res.url,
-          tagline: fileArray.length === 1 && newSponsorTagline.trim() ? newSponsorTagline.trim() : undefined,
-          categoryFolder: newSponsorFolder,
-          isVideo: res.isVideo,
-          mediaType: res.isVideo ? 'video' : 'image',
-        };
-      });
-
-      onUpdateSponsors([...sponsors, ...newSponsors]);
-      setNewSponsorName('');
-      setNewSponsorTagline('');
-      setUploadFeedback({
-        message: `✅ ${newSponsors.length} partenaire(s) ajouté(s) avec succès !`,
-        type: 'success',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    } catch (err) {
-      setUploadFeedback({
-        message: '❌ Erreur lors du chargement des partenaires',
-        type: 'error',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    }
-  };
-
-  // Batch upload Logos
-  const handleBatchLogosUpload = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter(
-      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
-    );
-    if (fileArray.length === 0) return;
-
-    setUploadFeedback({
-      message: `⏳ Téléversement de ${fileArray.length} logo(s) en cours...`,
-      type: 'success',
-    });
-
-    try {
-      const results = await uploadMultipleFiles(fileArray);
-      const now = Date.now();
-      const newLogos: ClubLogoItem[] = results.map((res, idx) => {
-        const name = fileArray.length === 1 && newLogoName.trim()
-          ? newLogoName.trim()
-          : cleanNameFromFileName(res.fileName);
-        return {
-          id: `logo-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-          name,
-          logoUrl: res.url,
-          category: newLogoCategory,
-          isTransparent: !res.isVideo,
-          isVideo: res.isVideo,
-          mediaType: res.isVideo ? 'video' : 'image',
-        };
-      });
-
-      if (onUpdateLogos) {
-        onUpdateLogos([...logos, ...newLogos]);
-      }
-      setNewLogoName('');
-      setUploadFeedback({
-        message: `✅ ${newLogos.length} logo(s) ajouté(s) avec succès !`,
-        type: 'success',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    } catch (err) {
-      setUploadFeedback({
-        message: '❌ Erreur lors du chargement des logos',
-        type: 'error',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    }
-  };
-
-  // Batch upload Event Posters
-  const handleBatchEventsUpload = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter(
-      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || /\.(jpg|jpeg|png|webp|svg|gif|mp4|webm|mov|m4v)$/i.test(f.name)
-    );
-    if (fileArray.length === 0) return;
-
-    setUploadFeedback({
-      message: `⏳ Téléversement de ${fileArray.length} affiche(s) en cours...`,
-      type: 'success',
-    });
-
-    try {
-      const results = await uploadMultipleFiles(fileArray);
-      const now = Date.now();
-      const newEvents: ClubEventItem[] = results.map((res, idx) => {
-        const title = fileArray.length === 1 && newEventTitle.trim()
-          ? newEventTitle.trim()
-          : cleanNameFromFileName(res.fileName);
-        return {
-          id: `event-${now}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
-          title,
-          date: newEventDate.trim() || 'Prochainement',
-          time: newEventTime.trim() || undefined,
-          location: newEventLocation.trim() || clubSettings.gymnasiumDefault,
-          description: newEventDesc.trim() || 'Tous les licenciés et supporters sont les bienvenus !',
-          badge: newEventBadge,
-          categoryFolder: 'Événements',
-          imageUrl: res.url,
-          isVideo: res.isVideo,
-          mediaType: res.isVideo ? 'video' : 'image',
-        };
-      });
-
-      onUpdateEvents([...events, ...newEvents]);
-      setNewEventTitle('');
-      setNewEventDate('');
-      setNewEventTime('');
-      setNewEventDesc('');
-      setUploadFeedback({
-        message: `✅ ${newEvents.length} affiche(s) d'événement(s) ajoutée(s) !`,
-        type: 'success',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    } catch (err) {
-      setUploadFeedback({
-        message: '❌ Erreur lors du chargement des affiches',
-        type: 'error',
-      });
-      setTimeout(() => setUploadFeedback(null), 4000);
-    }
-  };
-
-  // Generic image & video upload helper via server upload
-  const handleMediaFileChange = (file: File, callback: (url: string, isVideo: boolean) => void) => {
-    uploadSingleFile(file).then((res) => {
-      callback(res.url, res.isVideo);
-    });
-  };
-
-  // Legacy helper for places that only expect an image URL but can also receive videos
-  const handleImageFileChange = (file: File, callback: (dataUrl: string) => void) => {
-    uploadSingleFile(file).then((res) => {
-      callback(res.url);
-    });
-  };
-
-  // Add a new photo/video to photos folder
-  const handleAddPhoto = (imageUrl: string, isVideo = false) => {
-    const newPhoto: ClubPhotoItem = {
-      id: 'photo-' + Date.now(),
-      title: newPhotoTitle.trim() || (isVideo ? 'Vidéo Clip Club ' : 'Photo Club ') + (photos.length + 1),
-      categoryFolder: newPhotoFolder,
-      imageUrl,
-      date: new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
-      caption: newPhotoCaption.trim() || undefined,
-      isVideo,
-      mediaType: isVideo ? 'video' : 'image',
-    };
-    onUpdatePhotos([newPhoto, ...photos]);
-    setNewPhotoTitle('');
-    setNewPhotoCaption('');
-  };
-
-  // Add a new sponsor
-  const handleAddSponsor = (logoUrl: string, isVideo = false) => {
-    const newSponsor: SponsorItem = {
-      id: 'sponsor-' + Date.now(),
-      name: newSponsorName.trim() || 'Nouveau Partenaire',
-      tier: newSponsorTier,
-      logoUrl,
-      tagline: newSponsorTagline.trim() || undefined,
-      categoryFolder: newSponsorFolder,
-      isVideo,
-      mediaType: isVideo ? 'video' : 'image',
-    };
-    onUpdateSponsors([...sponsors, newSponsor]);
-    setNewSponsorName('');
-    setNewSponsorTagline('');
-  };
-
-  // Add a new event
-  const handleAddEvent = (imageUrl?: string, isVideo = false) => {
-    if (!newEventTitle.trim()) return;
-    const newEv: ClubEventItem = {
-      id: 'event-' + Date.now(),
-      title: newEventTitle.trim(),
-      date: newEventDate.trim() || 'Prochainement',
-      time: newEventTime.trim() || undefined,
-      location: newEventLocation.trim() || clubSettings.gymnasiumDefault,
-      description: newEventDesc.trim() || 'Tous les licenciés et supporters sont les bienvenus !',
-      badge: newEventBadge,
-      categoryFolder: 'Événements',
-      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop&q=80',
-      isVideo,
-      mediaType: isVideo ? 'video' : 'image',
-    };
-    onUpdateEvents([...events, newEv]);
-    setNewEventTitle('');
-    setNewEventDate('');
-    setNewEventTime('');
-    setNewEventDesc('');
-  };
 
   // Trigger Victory or Defeat manually for 1 hour in loop
   const handleTriggerMatchOutcome = (team: TeamVisualItem, isWin: boolean, ourScore = 82, oppScore = 74) => {
@@ -1647,209 +952,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
     };
     onAddAlert(alert);
     setActiveTab('alerts');
-  };
-
-  // Simulate Telegram Message
-  const handleTestTelegramMessage = async () => {
-    if (!telegramSimText.trim()) return;
-    setTelegramSimLoading(true);
-    setTelegramSimResponse(null);
-    setTelegramSimFeedback(null);
-
-    try {
-      const res = await fetch('/api/telegram/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageText: telegramSimText }),
-      });
-      const data = await res.json();
-      if (data.success && data.alert) {
-        // Look up matching visual in team visuals
-        const teamMatch = teamVisuals.find((tv) =>
-          tv.teamName.toLowerCase().includes(data.alert.team.toLowerCase()) ||
-          tv.shortAliases.some((alias) => data.alert.team.toLowerCase().includes(alias.toLowerCase()))
-        );
-
-        const commonBank = data.alert.isWin ? visualTemplates.commonVictoryVisuals : visualTemplates.commonDefeatVisuals;
-        if (commonBank && commonBank.length > 0) {
-          const randomIndex = Math.floor(Math.random() * commonBank.length);
-          data.alert.customImageUrl = commonBank[randomIndex];
-        } else if (teamMatch) {
-          data.alert.customImageUrl = data.alert.isWin ? teamMatch.winVisualUrl : teamMatch.lossVisualUrl;
-        }
-
-        if (data.alert.customImageUrl) {
-          data.alert.titleConfig = getEffectiveTitleConfig(
-            data.alert.customImageUrl,
-            data.alert.isWin,
-            visualTemplates
-          );
-        }
-
-        onAddAlert(data.alert);
-        const confirmMsg = data.confirmationMessage || `Visuel ${data.alert.isWin ? 'VICTOIRE' : 'DÉFAITE'} pour ${data.alert.team} injecté dans la boucle TV pendant 1 heure !`;
-        setTelegramSimResponse(confirmMsg);
-        setTelegramSimFeedback({
-          success: true,
-          message: confirmMsg,
-        });
-      } else {
-        const errorMsg = data.error || 'Équipe non reconnue : aucune alerte créée.';
-        setTelegramSimResponse(errorMsg);
-        setTelegramSimFeedback({
-          success: false,
-          message: errorMsg,
-          suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
-          isAmbiguous: Boolean(data.isAmbiguous),
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      const connErrMsg = 'Erreur de connexion au serveur API';
-      setTelegramSimResponse(connErrMsg);
-      setTelegramSimFeedback({
-        success: false,
-        message: connErrMsg,
-      });
-    } finally {
-      setTelegramSimLoading(false);
-    }
-  };
-
-  // Telegram Bot Operations
-  const fetchTelegramStatus = async () => {
-    setTelegramStatusLoading(true);
-    try {
-      const res = await fetch('/api/telegram/status');
-      if (res.ok) {
-        const data = await res.json();
-        setTelegramStatus(data);
-      }
-    } catch (err) {
-      console.error('Erreur chargement statut Telegram:', err);
-    } finally {
-      setTelegramStatusLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'telegram') {
-      fetchTelegramStatus();
-      const interval = setInterval(() => {
-        fetchTelegramStatus();
-      }, 15000);
-      return () => clearInterval(interval);
-    }
-  }, [activeTab]);
-
-  const handleConnectTelegram = async (customPassword?: string) => {
-    setTelegramConnecting(true);
-    setTelegramActionMsg(null);
-    const passwordToSend = customPassword !== undefined ? customPassword : savedAdminPassword;
-
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (passwordToSend) {
-        headers['x-admin-password'] = passwordToSend;
-      }
-
-      const res = await fetch('/api/telegram/connect', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          adminPassword: passwordToSend,
-          customDomain: typeof window !== 'undefined' ? window.location.host : undefined,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.status === 401) {
-        setAdminPasswordPrompt(true);
-        setTelegramActionMsg({
-          type: 'error',
-          text: data.error || 'Action protégée : mot de passe administrateur requis pour connecter le bot.',
-        });
-        return;
-      }
-
-      if (data.success && data.connected) {
-        if (passwordToSend) {
-          setSavedAdminPassword(passwordToSend);
-          try { sessionStorage.setItem('club_admin_password', passwordToSend); } catch (e) {}
-        }
-        setAdminPasswordPrompt(false);
-        setAdminPasswordInput('');
-        setTelegramActionMsg({
-          type: 'success',
-          text: `Bot connecté avec succès ! (@${data.botUsername || 'bot'}). Le webhook est configuré et sécurisé par signature secrète.`,
-        });
-        await fetchTelegramStatus();
-      } else {
-        setTelegramActionMsg({
-          type: 'error',
-          text: data.error || 'Échec de la connexion du bot Telegram.',
-        });
-      }
-    } catch (err: any) {
-      setTelegramActionMsg({
-        type: 'error',
-        text: `Erreur de connexion : ${err.message || 'serveur inaccessible'}`,
-      });
-    } finally {
-      setTelegramConnecting(false);
-    }
-  };
-
-  const handleDisconnectTelegram = async () => {
-    if (!confirm('Voulez-vous vraiment déconnecter le webhook Telegram ? Le bot ne recevra plus les alertes de victoires / défaites en direct.')) {
-      return;
-    }
-    setTelegramDisconnecting(true);
-    setTelegramActionMsg(null);
-
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (savedAdminPassword) {
-        headers['x-admin-password'] = savedAdminPassword;
-      }
-
-      const res = await fetch('/api/telegram/disconnect', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ adminPassword: savedAdminPassword }),
-      });
-
-      const data = await res.json();
-      if (res.status === 401) {
-        setAdminPasswordPrompt(true);
-        setTelegramActionMsg({
-          type: 'error',
-          text: data.error || 'Action protégée : mot de passe administrateur requis.',
-        });
-        return;
-      }
-
-      if (data.success) {
-        setTelegramActionMsg({
-          type: 'info',
-          text: 'Webhook Telegram déconnecté avec succès.',
-        });
-        await fetchTelegramStatus();
-      } else {
-        setTelegramActionMsg({
-          type: 'error',
-          text: data.error || 'Erreur lors de la déconnexion.',
-        });
-      }
-    } catch (err: any) {
-      setTelegramActionMsg({
-        type: 'error',
-        text: `Erreur : ${err.message || 'serveur inaccessible'}`,
-      });
-    } finally {
-      setTelegramDisconnecting(false);
-    }
   };
 
   const setFilterToCurrentWeekend = () => {
@@ -2237,287 +1339,6 @@ Ne renvoie QUE le texte réécrit, nettoyé et amélioré, sans guillemets ni ph
 
     setProposalAppliedMsg(`✓ Nom d'équipe mis à jour : « ${effectiveDisplayName} » sera affiché dans l'application, le carrousel et Telegram.`);
     setTimeout(() => setProposalAppliedMsg(null), 5000);
-  };
-
-  // Excel upload handler & Birthday week handlers
-  const handleExcelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsParsingExcel(true);
-    setExcelSuccessMsg(null);
-    setExcelErrors([]);
-
-    try {
-      const result = await parseExcelBirthdays(file, new Date(), birthdayWeekOffset);
-      if (result.allMembers && result.allMembers.length > 0) {
-        const sortedMembers = sortBirthdaysByHierarchy(result.allMembers);
-        const refDate = simulatedDate || clubCalendarDate();
-        const filtered = filterAndSortBirthdaysForWeek(sortedMembers, refDate, birthdayWeekOffset);
-        updateAllMembersEverywhere(sortedMembers, filtered);
-
-        const bounds = getWeekBounds(refDate, birthdayWeekOffset);
-        setExcelSuccessMsg(
-          `Fichier ${file.name} importé avec succès (${sortedMembers.length} licenciés trouvés). ${filtered.length} anniversaire(s) sélectionné(s) pour la ${bounds.shortLabel} !`
-        );
-      } else if (result.errors && result.errors.length > 0) {
-        setExcelErrors(result.errors);
-      } else {
-        setExcelErrors(['Aucun licencié trouvé dans ce fichier']);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setExcelErrors([err.message || 'Erreur inattendue lors du traitement du fichier Excel']);
-    } finally {
-      setIsParsingExcel(false);
-      if (excelInputRef.current) excelInputRef.current.value = '';
-    }
-  };
-
-  const handleSelectWeekOffset = (offset: number) => { setShowAllBirthdays(false); setBirthdayWeekOffset(offset); };
-
-  const handleStartEditBirthday = (item: BirthdayItem) => {
-    setEditingBirthdayId(item.id);
-    const firstName = item.firstName || (item.fullName ? item.fullName.trim().split(/\s+/)[0] : '');
-    setEditBdayFirstName(firstName);
-    setEditBdayCategory(item.teamCategory || '');
-    setEditBdayDate(item.birthDate || '');
-  };
-
-  const handleSaveEditBirthday = (id: string) => {
-    const cleanFirst = editBdayFirstName.trim();
-    if (!cleanFirst) return;
-    const cleanCat = formatDisplayCategory(editBdayCategory.trim() || 'Club', undefined, cleanFirst);
-
-    const updateList = (list: BirthdayItem[]) =>
-      list.map((b) => {
-        if (b.id !== id) return b;
-        let newFormatted = b.birthDayFormatted;
-        if (editBdayDate) {
-          const d = new Date(editBdayDate);
-          if (!isNaN(d.getTime())) {
-            newFormatted = formatFrenchBirthday(d);
-          }
-        }
-        return {
-          ...b,
-          firstName: cleanFirst,
-          fullName: cleanFirst,
-          teamCategory: cleanCat,
-          birthDate: editBdayDate || b.birthDate,
-          birthDayFormatted: newFormatted,
-        };
-      });
-
-    const updatedBirthdays = sortBirthdaysByHierarchy(updateList(birthdays));
-    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
-    const updatedPool = pool.length > 0 ? sortBirthdaysByHierarchy(updateList(pool)) : updatedBirthdays;
-    updateAllMembersEverywhere(updatedPool, updatedBirthdays);
-
-    setEditingBirthdayId(null);
-  };
-
-  const handleCancelEditBirthday = () => {
-    setEditingBirthdayId(null);
-  };
-
-  const handleAddManualBirthday = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualBdayFirstName.trim()) return;
-
-    const cleanFirst = manualBdayFirstName.trim();
-    const cleanCat = formatDisplayCategory(manualBdayCategory.trim() || 'Club', undefined, cleanFirst);
-    const dateObj = manualBdayDate ? new Date(manualBdayDate) : new Date();
-    const formattedDate = formatFrenchBirthday(dateObj);
-
-    const newItem: BirthdayItem = {
-      id: `bday-manual-${Date.now()}`,
-      firstName: cleanFirst,
-      fullName: cleanFirst,
-      teamCategory: cleanCat,
-      birthDate: manualBdayDate || new Date().toISOString().split('T')[0],
-      birthDayFormatted: formattedDate,
-      isThisWeek: true,
-    };
-
-    const nextList = sortBirthdaysByHierarchy([newItem, ...birthdays]);
-    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
-    const nextPool = sortBirthdaysByHierarchy([newItem, ...pool]);
-    updateAllMembersEverywhere(nextPool, nextList);
-
-    setManualBdayFirstName('');
-    setManualBdayCategory('U15');
-    setManualBdayDate('');
-    setIsAddingManualBday(false);
-  };
-
-  const handleDeleteBirthday = (id: string) => {
-    const nextList = birthdays.filter((b) => b.id !== id);
-    const pool = (allMembers && allMembers.length > 0) ? allMembers : allMembersPool;
-    const nextPool = pool.length > 0 ? pool.filter((b) => b.id !== id) : [];
-    updateAllMembersEverywhere(nextPool, nextList);
-  };
-
-  // Social Caption Generator Helper
-  const getSocialCaption = (platform: 'instagram' | 'tiktok' | 'facebook', type: 'matches' | 'results') => {
-    if (aiCustomCaptions[platform]) {
-      return aiCustomCaptions[platform]!;
-    }
-
-    const clubName = String(clubSettings?.name || clubSettings?.shortName || 'Notre Club').trim();
-    const shortClub = String(clubSettings?.shortName || clubSettings?.name || 'Notre Club').trim();
-    const gym = String(clubSettings?.gymnasiumDefault || 'Gymnase').trim();
-    const insta = socialForm.instagramHandle || clubSettings?.instagramHandle || '@votre_club';
-    const fb = socialForm.facebookPage || clubSettings?.facebookPage || 'Nom du club';
-    const tiktok = socialForm.tiktokHandle || clubSettings?.tiktokHandle || '@votre_club';
-
-    const targetMatches = socialOnlySelectedMatches
-      ? matches.filter((m) => m.selectedForWeekend !== false)
-      : matches;
-
-    if (type === 'matches') {
-      const homeMatches = targetMatches.filter((m) => m.isHomeMatch);
-      const awayMatches = targetMatches.filter((m) => !m.isHomeMatch);
-
-      const buildGroupedMatchesText = (list: MatchItem[], isHome: boolean) => {
-        if (list.length === 0) {
-          return isHome ? "Aucun match à domicile" : "Aucun déplacement";
-        }
-
-        // Group by date
-        const grouped: Record<string, MatchItem[]> = {};
-        list.forEach((m) => {
-          const d = m.date || 'Date non spécisée';
-          if (!grouped[d]) grouped[d] = [];
-          grouped[d].push(m);
-        });
-
-        // Sort dates
-        const sortedKeys = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-
-        return sortedKeys.map((dateStr) => {
-          const dateEur = formatDateToEuropean(dateStr);
-          const matchLines = grouped[dateStr].map((m) => {
-            const label = isHome ? `vs ${m.teamAway}` : `@ ${m.teamHome}`;
-            return `  • ${m.category} ${label} à ${m.time}`;
-          }).join('\n');
-          return `📅 ${dateEur} :\n${matchLines}`;
-        }).join('\n\n');
-      };
-
-      if (platform === 'instagram') {
-        const homeList = buildGroupedMatchesText(homeMatches, true);
-        const awayList = buildGroupedMatchesText(awayMatches, false);
-
-        return `🔥 PROGRAMME DU WEEK-END • ${shortClub.toUpperCase()} 🔥\n\nVenez soutenir nos équipes en nombre ce week-end !\n\n📍 À DOMICILE (${gym}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette & ambiance au rendez-vous ! 🔴⚪\n.\n.\n#Basket #MatchDay #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #TeamSpirit #FFBB #Basketball #GameDay\n📲 Suivez-nous : ${insta}`;
-      } else if (platform === 'tiktok') {
-        return `C'est le match day pour ${shortClub} ! 🏀🔥 Qui sera là pour faire du bruit ce week-end ? Rendez-vous sur le terrain ! ⚡💥\n\n#basketball #basket #matchday #pourtoi #fyp #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #foryou #viral #hoops #bball @${tiktok.replace(/^@/, '')}`;
-      } else {
-        const homeList = buildGroupedMatchesText(homeMatches, true);
-        const awayList = buildGroupedMatchesText(awayMatches, false);
-
-        return `🏀 PROGRAMME DU WEEK-END — ${clubName.toUpperCase()} 🏀\n\nCe week-end, nos équipes sont d'attaque pour défendre nos couleurs ! Retrouvez ci-dessous le calendrier complet des rencontres :\n\n📍 À DOMICILE (${gym}) :\n${homeList}\n\n📍 À L'EXTÉRIEUR :\n${awayList}\n\nBuvette et restauration sur place pour les matchs à domicile ! Venez encourager nos joueuses et joueurs ! 👏\n\nRetrouvez toute l'actualité du club sur notre page : fb.com/${fb}`;
-      }
-    } else {
-      const wins = results.filter((r) => isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
-      const losses = results.filter((r) => !isMatchWin(r, clubSettings.name, clubSettings.shortName)).length;
-
-      if (platform === 'instagram') {
-        const resultsList = results.map((r) => {
-          const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-          const opponent = isHome ? r.teamAway : r.teamHome;
-          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-          const score = `${r.homeScore ?? '-'} - ${r.awayScore ?? '-'}`;
-          return `${isWin ? '✅' : '❌'} ${r.category} : ${score} (${isHome ? 'vs ' + opponent : '@ ' + opponent})`;
-        }).join('\n');
-
-        return `🏆 RÉSULTATS DU WEEK-END • ${shortClub.toUpperCase()} 🏆\n\nBilan de nos équipes : ${wins} Victoire(s) et ${losses} Défaite(s) ! 💥\n\n${resultsList}\n\nFélicitations à l'ensemble des joueuses, joueurs et entraîneurs pour leur engagement ! Merci également aux arbitres, OTM et supporters ! 👏❤️\n.\n.\n#BasketResultats #Victoire #${shortClub.replace(/[^a-zA-Z0-9]/g, '')} #Basket #FFBB #Team`;
-      } else if (platform === 'tiktok') {
-        return `Le bilan du week-end pour ${shortClub} : ${wins} Victoires et ${losses} Défaites ! 🏀🔥 Identifie ton coéquipier en commentaire 👇\n\n#basket #resultats #victoire #basketball #pourtoi #fyp #bball #hooper @${tiktok.replace(/^@/, '')}`;
-      } else {
-        const resultsList = results.map((r) => {
-          const isHome = isClubHomeMatch(r, clubSettings.name, clubSettings.shortName);
-          const opponent = isHome ? r.teamAway : r.teamHome;
-          const isWin = isMatchWin(r, clubSettings.name, clubSettings.shortName);
-          const score = `${r.homeScore ?? '-'} - ${r.awayScore ?? '-'}`;
-          return `• ${r.category} : ${score} contre ${opponent} (${isWin ? 'VICTOIRE ✌️' : 'DÉFAITE'})`;
-        }).join('\n');
-
-        return `🏆 BILAN DU WEEK-END — TOUS LES RÉSULTATS 🏆\n\nUn beau week-end sportif pour ${clubName} avec un bilan global de ${wins} victoire(s) et ${losses} défaite(s) :\n\n${resultsList}\n\nBravo à toutes nos équipes pour l'état d'esprit irréprochable et la détermination sur chaque ballon ! Un immense merci à nos fidèles supporters et bénévoles présents dans les gradins !\n\nAllez ${shortClub} ! ❤️🤍`;
-      }
-    }
-  };
-
-  const handleCopySocialCaption = (platform: string, text: string) => {
-    if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(text);
-      setSocialCopiedPlatform(platform);
-      setTimeout(() => setSocialCopiedPlatform(null), 2500);
-    }
-  };
-
-  const handleSaveSocialSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateClubSettings({
-      ...clubSettings,
-      instagramHandle: socialForm.instagramHandle,
-      facebookPage: socialForm.facebookPage,
-      tiktokHandle: socialForm.tiktokHandle,
-      socialWebhookUrl: socialForm.socialWebhookUrl,
-    });
-    setSocialSaveSuccess(true);
-    setTimeout(() => setSocialSaveSuccess(false), 3000);
-  };
-
-  const handleTestSocialWebhook = async () => {
-    const webhookUrl = socialForm.socialWebhookUrl || clubSettings.socialWebhookUrl;
-    if (!webhookUrl) {
-      setSocialWebhookStatus({
-        loading: false,
-        message: 'Veuillez renseigner une URL de Webhook valide ci-dessous.',
-        success: false,
-      });
-      return;
-    }
-
-    setSocialWebhookStatus({ loading: true, message: 'Envoi du test en cours...' });
-    try {
-      const caption = getSocialCaption('instagram', socialContentType);
-      const res = await fetch('/api/social/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: 'webhook',
-          aspectRatio: '1:1',
-          caption,
-          contentType: socialContentType,
-          webhookUrl,
-          itemsCount: socialContentType === 'matches' ? matches.length : results.length,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setSocialWebhookStatus({
-          loading: false,
-          message: '✅ Webhook exécuté avec succès ! Payload envoyé.',
-          success: true,
-        });
-      } else {
-        setSocialWebhookStatus({
-          loading: false,
-          message: `⚠️ Erreur : ${data.error || 'Échec de transmission'}`,
-          success: false,
-        });
-      }
-    } catch (err: any) {
-      setSocialWebhookStatus({
-        loading: false,
-        message: `❌ Erreur réseau : ${err.message || 'Impossible de joindre le serveur'}`,
-        success: false,
-      });
-    }
   };
 
   // Horizontal Slider / Navigation for Categories
