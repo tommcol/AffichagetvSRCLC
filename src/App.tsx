@@ -592,7 +592,7 @@ export default function App() {
     };
 
     void fetchServerAlerts();
-    const interval = window.setInterval(fetchServerAlerts, 3000);
+    const interval = window.setInterval(fetchServerAlerts, 60000);
     return () => window.clearInterval(interval);
   }, []);
 
