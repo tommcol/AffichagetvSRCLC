@@ -6,9 +6,30 @@ import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } fr
 
 import { Env } from './types';
 
-export async function getAppData(env: Env): Promise<Response> {
+// Valeur affichée à la place du lien webhook réseaux sociaux pour les visiteurs
+// non connectés (la TV n'en a pas besoin). Elle est remplacée par la vraie valeur
+// à l'enregistrement, pour ne jamais effacer le lien par erreur.
+const MASKED_SECRET = '__MASQUE__';
+
+function maskPublicSecrets(data: any) {
+  const settings = data?.clubSettings;
+  if (settings && typeof settings.socialWebhookUrl === 'string' && settings.socialWebhookUrl.trim()) {
+    settings.socialWebhookUrl = MASKED_SECRET;
+  }
+}
+
+function restoreMaskedSecrets(data: any, rawCurrent: string | null) {
+  const settings = data?.clubSettings;
+  if (!settings || settings.socialWebhookUrl !== MASKED_SECRET) return;
+  let previous = '';
+  try { previous = rawCurrent ? JSON.parse(rawCurrent)?.clubSettings?.socialWebhookUrl || '' : ''; } catch { previous = ''; }
+  settings.socialWebhookUrl = previous;
+}
+
+export async function getAppData(env: Env, request?: Request): Promise<Response> {
   const raw = await readSharedAppData(env);
   const data = raw ? JSON.parse(raw) : null;
+  if (data && request && !await isAdmin(request, env)) maskPublicSecrets(data);
 
   // Rétrocompatibilité : initialiser à 0 si le document existe sans numéro de version
   const currentVersion = data && typeof data.version === 'number' ? data.version : 0;
@@ -56,6 +77,8 @@ export async function saveAppData(request: Request, env: Env): Promise<Response>
       console.warn('Erreur lecture version app-data actuelle:', e);
     }
   }
+
+  restoreMaskedSecrets(data, rawCurrent);
 
   // 2. Extraire la version transmise par le client (dans body.version ou data.version)
   const clientVersion = typeof body.version === 'number'

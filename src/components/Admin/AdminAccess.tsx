@@ -19,8 +19,10 @@ export function AdminAccess({ onAuthorized }: { onAuthorized: () => void }) {
       event.preventDefault(); setChecking(true); setError('');
       try {
         const response = await fetch('/api/verify-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+        if (response.status === 429) throw new Error('Trop de tentatives. Réessayez dans 15 minutes.');
         if (!response.ok) throw new Error('Mot de passe incorrect ou accès indisponible.');
-        setPassword(''); onAuthorized();
+        // Rechargement : les données complètes (réservées à l'administrateur) sont alors récupérées.
+        setPassword(''); window.location.reload();
       } catch (e) { setError(e instanceof Error ? e.message : 'Connexion impossible'); }
       finally { setChecking(false); }
     }}>

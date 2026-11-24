@@ -39,7 +39,7 @@ export default {
           return Response.json({ error: 'Authentification requise' }, { status: 401 });
         }
       }
-      if ((path === '/api/get-app-data' || path === '/api/app-data') && request.method === 'GET') return await getAppData(env);
+      if ((path === '/api/get-app-data' || path === '/api/app-data') && request.method === 'GET') return await getAppData(env, request);
       if (path === '/api/save-app-data' || path === '/api/app-data' && request.method === 'POST') return await saveAppData(request, env);
       if (path === '/api/verify-password') return await verifyPassword(request, env);
       if (path === '/api/upload') return await uploadFile(request, env);
