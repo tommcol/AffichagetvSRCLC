@@ -73,6 +73,7 @@ import {
   Unlink,
   Lock,
   Radio,
+  LayoutTemplate,
 } from 'lucide-react';
 import {
   CategoryConfig,
@@ -128,6 +129,7 @@ import { ExcelTab } from './sections/ExcelTab';
 import { ClubIdentityTab } from './sections/ClubIdentityTab';
 import { FfbbTab } from './sections/FfbbTab';
 import { FullykioskTab } from './sections/FullykioskTab';
+import { StudioTemplatesTab } from './sections/StudioTemplatesTab';
 
 
 
@@ -241,6 +243,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     | 'fullykiosk'
     | 'settings'
     | 'image_banks'
+    | 'studio_templates'
   >('club_admin_tab', 'matches');
 
   const [imageBankSubTab, setImageBankSubTab] = useAdminViewState<'media_bank' | 'photos' | 'sponsors' | 'logos' | 'events' | 'team_visuals'>('club_admin_bank_subtab', 'media_bank');
@@ -1790,6 +1793,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span>Passerelle Réseaux</span>
             </button>
 
+            <button
+              onClick={(e) => handleSelectTab('studio_templates', e)}
+              className={`px-3.5 py-2 rounded-xl font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
+                activeTab === 'studio_templates'
+                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <LayoutTemplate className="w-4 h-4 text-sky-400" />
+              <span>Studio templates</span>
+            </button>
+
             <div className="w-px h-6 bg-slate-700/70 mx-1.5 shrink-0" />
 
             <button
@@ -2325,6 +2340,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'fullykiosk' && (
             <FullykioskTab />
+          )}
+
+          {activeTab === 'studio_templates' && (
+            <StudioTemplatesTab
+              visualTemplates={visualTemplates}
+              onUpdateVisualTemplates={onUpdateVisualTemplates}
+            />
           )}
         </div>
       </div>

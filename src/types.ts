@@ -242,6 +242,66 @@ export interface MediaBankItem {
   size?: number;
 }
 
+// ---------------------------------------------------------------------------
+// Studio de templates (trames) : éléments décoratifs dessinés par l'utilisateur
+// ---------------------------------------------------------------------------
+export type StudioTemplateCategory = 'matches' | 'results' | 'birthdays';
+export type StudioTemplateFormat = '16:9' | '4:5' | '9:16' | '1:1';
+export type StudioElementShape = 'rect' | 'rounded' | 'pill' | 'circle' | 'star' | 'line' | 'text';
+// Rôle d'un élément : 'decor' reste fixe, les autres sont remplis automatiquement avec les vraies données.
+export type StudioElementRole = 'decor' | 'title' | 'team' | 'score' | 'opponent' | 'status' | 'date';
+
+export interface StudioElement {
+  id: string;
+  name: string;
+  shape: StudioElementShape;
+  role: StudioElementRole;
+  // Position et taille en % du conteneur (canvas pour le décor, ligne de match pour les éléments de ligne)
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number; // degrés
+  visible: boolean;
+  fill: string;
+  stroke: string;
+  strokeWidth: number; // en 1/10 de % de la hauteur du conteneur
+  opacity: number; // 0 à 1
+  shadow: boolean;
+  text: string; // texte fixe (decor) ou exemple affiché dans l'éditeur (rôles liés aux données)
+  fontFamily: FontFamilyOption;
+  fontSize: number; // en % de la hauteur du conteneur
+  textColor: string;
+}
+
+// Zone de l'affiche où les lignes de match sont répétées (en % du canvas)
+export interface StudioMatchesZone {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  gap: number; // espace entre deux lignes (% du canvas)
+  maxRowHeight: number; // hauteur maximale d'une ligne (% du canvas)
+}
+
+// Réglage manuel pour un nombre de matchs précis (si absent : placement automatique)
+export interface StudioCountOverride {
+  zone?: Partial<StudioMatchesZone>;
+  rowHeight?: number; // hauteur fixe d'une ligne (% du canvas)
+}
+
+export interface StudioTemplate {
+  id: string;
+  name: string;
+  category: StudioTemplateCategory;
+  format: StudioTemplateFormat;
+  decor: StudioElement[]; // éléments fixes dessinés sur l'affiche
+  rowElements: StudioElement[]; // modèle d'une ligne de match, répété 1 à 6 fois
+  zone: StudioMatchesZone;
+  countOverrides?: Record<number, StudioCountOverride>; // clé = nombre de matchs (1 à 6)
+  updatedAt?: string;
+}
+
 export interface VisualTemplatesConfig {
   matchesBackgroundUrl: string;
   resultsBackgroundUrl: string;
@@ -250,6 +310,8 @@ export interface VisualTemplatesConfig {
   defaultDefeatBackgroundUrl: string;
   theme?: SlideDesignTheme;
   mascot?: ForegroundMascotConfig;
+  // Templates créés dans le Studio de templates
+  studioTemplates?: StudioTemplate[];
   // Réglages par catégorie
   matchesSettings?: CategorySlideTheme;
   resultsSettings?: CategorySlideTheme;

@@ -313,3 +313,15 @@ Ne pas collecter de corps/headers de requêtes, réponses ou objets métier. Les
 console sont omis ; URL, jetons, mots de passe identifiables et emails sont masqués.
 Le journal ne donne pas accès aux logs internes du Worker/cron ou des autres appareils,
 et ne prouve pas l’absence de bug visuel. L’ancien avertissement vidéo reste indépendant.
+
+### Studio de templates (trames)
+
+Onglet admin « Studio templates » (`StudioTemplatesTab`, `studio/StudioTemplateEditor`,
+`studio/StudioElementView`, `utils/studioTemplateHelpers`). L'utilisateur dessine sans coder
+des templates par catégorie (matchs, résultats, anniversaires) et par format (16:9, 4:5…).
+Un template = éléments de décor fixes + UN modèle de ligne de match répété 1 à 6 fois dans une
+zone, avec réglage automatique ou manuel pour chaque nombre de matchs. Les éléments ont un rôle
+(équipe, score, adversaire, statut…) pour être remplis avec les vraies données. Stockage :
+`visualTemplates.studioTemplates` (types `StudioTemplate` dans `types.ts`).
+État actuel : éditeur et enregistrement faits ; le branchement du rendu réel des affiches
+(VisualThemePosterRedSection et diapositives TV) sur ces templates reste à faire.
