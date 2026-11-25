@@ -1,3 +1,4 @@
+import { publicTvData } from './src/utils/publicTvData';
 import { prepareClubSportsSync } from './src/utils/ffbbClubScope';
 import { groupFfbbTeams } from './src/utils/ffbbTeamGrouping';
 import { prepareExcelApiHandoff } from './src/utils/calendarImportIdentity';
@@ -255,8 +256,14 @@ app.get(["/api/media/:filename", "/uploads/:filename"], (req, res) => {
   return res.status(404).send("Média non trouvé");
 });
 
-app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data"], (req, res) => {
-  const data = getSavedAppData();
+app.get(["/api/app-data", "/api/get-app-data", "/.netlify/functions/get-app-data"], async (req, res) => {
+  res.set({ 'Cache-Control': 'no-store', Vary: 'Cookie' });
+  const authenticated = req.query.view !== 'tv' && await isAdmin(authRequest(req), localAuthEnv);
+  if (req.query.view === 'admin' && !authenticated) {
+    return res.status(401).json({ error: 'Authentification requise' });
+  }
+  const storedData = getSavedAppData();
+  const data = storedData && !authenticated ? publicTvData(storedData) : storedData;
   const currentVersion = data && typeof data.version === "number" ? data.version : 0;
   if (data && typeof data.version !== "number") {
     data.version = currentVersion;

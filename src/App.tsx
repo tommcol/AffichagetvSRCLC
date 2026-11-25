@@ -11,9 +11,7 @@ import {
   DEFAULT_SPONSORS,
   DEFAULT_CLUB_LOGOS,
   DEFAULT_PHOTOS,
-  DEFAULT_BIRTHDAYS,
   DEFAULT_CLUB_MEMBERS,
-  getAnchorDemoMembers,
   DEFAULT_EVENTS,
   DEFAULT_TEAM_VISUALS,
   DEFAULT_VISUAL_TEMPLATES,
@@ -44,8 +42,6 @@ import { getEffectiveCategoryConfig } from './utils/themeUtils';
 import {
   getOfflineAppData,
   setOfflineAppData,
-  getMemberPoolCache,
-  setMemberPoolCache,
   getFfbbTeamsCache,
   setFfbbTeamsCache,
   getActiveAlertsCache,
@@ -115,17 +111,7 @@ export default function App() {
   const [logos, setLogos] = useState<ClubLogoItem[]>(DEFAULT_CLUB_LOGOS);
   const [photos, setPhotos] = useState<ClubPhotoItem[]>(DEFAULT_PHOTOS);
   // Pool permanent des adhérents du club (conservé et persistant en base)
-  const [allMembers, setAllMembers] = useState<BirthdayItem[]>(() => {
-    const localPool = getMemberPoolCache();
-    if (localPool) return localPool;
-
-    const cachedData = getOfflineAppData();
-    if (cachedData?.allMembers && cachedData.allMembers.length > 0) {
-      return cachedData.allMembers;
-    }
-
-    return getAnchorDemoMembers(new Date());
-  });
+  const [allMembers, setAllMembers] = useState<BirthdayItem[]>([]);
 
   // Date simulée optionnelle (pour le banc d'essai et la vérification dimanche 23:59 -> lundi 00:00)
   const [simulatedDate, setSimulatedDate] = useState<Date | null>(null);
@@ -134,15 +120,7 @@ export default function App() {
   const [currentWeekKey, setCurrentWeekKey] = useState<string>(() => getWeekKey(new Date()));
 
   // Anniversaires actifs de la semaine courante (calcul dynamique immédiat au démarrage)
-  const [birthdays, setBirthdays] = useState<BirthdayItem[]>(() => {
-    const initialPool =
-      getMemberPoolCache() ||
-      getOfflineAppData()?.allMembers ||
-      getAnchorDemoMembers(new Date());
-
-    const calculated = filterAndSortBirthdaysForWeek(initialPool, new Date(), 0);
-    return calculated.length > 0 ? calculated : DEFAULT_BIRTHDAYS;
-  });
+  const [birthdays, setBirthdays] = useState<BirthdayItem[]>([]);
 
   const [events, setEvents] = useState<ClubEventItem[]>(DEFAULT_EVENTS);
   const [teamVisuals, setTeamVisuals] = useState<TeamVisualItem[]>(DEFAULT_TEAM_VISUALS);
@@ -161,7 +139,10 @@ export default function App() {
   }, []);
 
   const [adminAuthentifie, setAdminAuthentifie] = useState(false);
-  const authorizeAdmin = useCallback(() => setAdminAuthentifie(true), []);
+  const authorizeAdmin = useCallback(() => {
+    setDataChargee(false);
+    setAdminAuthentifie(true);
+  }, []);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
 
@@ -225,7 +206,6 @@ export default function App() {
     if (d.photos) setPhotos(d.photos);
     if (Array.isArray(d.allMembers)) {
       setAllMembers(d.allMembers);
-      setMemberPoolCache(d.allMembers);
       const ref = simulatedDate || clubCalendarDate();
       const calculatedWeekBirthdays = filterAndSortBirthdaysForWeek(d.allMembers, ref, 0);
       setBirthdays(calculatedWeekBirthdays);
@@ -246,6 +226,8 @@ export default function App() {
 
   // Chargement des données avec support complet Hors-Ligne (PWA / Cache local)
   useEffect(() => {
+    const controller = new AbortController();
+    getOfflineAppData(); // Also removes the obsolete local copies of member data.
     const loadFromOfflineCache = () => {
       const parsed = getOfflineAppData();
       if (parsed) {
@@ -260,12 +242,14 @@ export default function App() {
     };
 
     // 1. Tenter la récupération réseau avec fallback automatique sur cache hors-ligne
-    fetch('/api/get-app-data')
+    const dataUrl = adminAuthentifie ? '/api/get-app-data?view=admin' : '/api/get-app-data?view=tv';
+    fetch(dataUrl, { signal: controller.signal, cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error('Network error');
         return res.json();
       })
       .then((res: { data?: AppDataPayload; version?: number }) => {
+        if (controller.signal.aborted) return;
         if (res.data) {
           const v = getServerDataVersion(res.data, res.version);
           updateDataVersion(v);
@@ -274,17 +258,25 @@ export default function App() {
           try {
             setOfflineAppData({ ...res.data, version: v });
           } catch (e) {}
-        } else {
+        } else if (!adminAuthentifie) {
           loadFromOfflineCache();
         }
-        setDataChargee(true);
+        setDataChargee(adminAuthentifie);
       })
       .catch((err) => {
-        console.warn('Réseau indisponible au démarrage - Bascule sur le cache local hors-ligne:', err);
-        loadFromOfflineCache();
-        setDataChargee(true);
+        if (controller.signal.aborted) return;
+        if (!adminAuthentifie) {
+          loadFromOfflineCache();
+          return;
+        }
+        setSaveStatus('error');
+        setSaveErrorMessage('Impossible de charger les données privées. Utilisez le bouton de rechargement.');
       });
+    return () => controller.abort();
+    // A simulated date is applied locally and does not require a server reload.
+  }, [adminAuthentifie]);
 
+  useEffect(() => {
     // Restauration automatique des vidéos stockées dans IndexedDB
     const restoreVideos = async () => {
       try {
@@ -448,7 +440,7 @@ export default function App() {
       const payload = { version: currentVer, data: dataToSave };
 
       setOfflineAppData(payload.data);
-      if (allMembers && allMembers.length > 0) setMemberPoolCache(allMembers);
+
       void persistAppData(payload, currentSeq, true);
     }, 800);
 
@@ -466,6 +458,7 @@ export default function App() {
   }, [saveStatus]);
 
   const handleManualSave = useCallback(() => {
+    if (!dataChargee || !adminAuthentifie) return;
     if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     setSaveStatus('saving');
     const currentSeq = ++saveSeqRef.current;
@@ -473,16 +466,16 @@ export default function App() {
     const payload = { version: currentVer, data: buildAppData(currentVer) };
 
     setOfflineAppData(payload.data);
-    if (allMembers && allMembers.length > 0) setMemberPoolCache(allMembers);
+
     void persistAppData(payload, currentSeq, false);
-  }, [buildAppData, allMembers, persistAppData]);
+  }, [adminAuthentifie, buildAppData, dataChargee, persistAppData]);
 
 
   // Rechargement manuel depuis le serveur en cas de conflit de concurrence
   const handleReloadFromServer = useCallback(async () => {
     setSaveStatus('saving');
     try {
-      const res = await fetch('/api/get-app-data');
+      const res = await fetch('/api/get-app-data?view=admin', { cache: 'no-store' });
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
       const json = await res.json();
       if (json.data) {
@@ -495,6 +488,7 @@ export default function App() {
         setSaveStatus('idle');
         setSaveErrorMessage('');
       }
+      setDataChargee(true);
     } catch (err) {
       setSaveStatus('error');
       setSaveErrorMessage("Impossible de recharger les données : " + (err instanceof Error ? err.message : 'Erreur réseau'));
@@ -505,9 +499,6 @@ export default function App() {
   const handleUpdateAllMembers = useCallback(
     (newMembers: BirthdayItem[], weekBirthdays?: BirthdayItem[]) => {
       setAllMembers(newMembers);
-      try {
-        setMemberPoolCache(newMembers);
-      } catch (e) {}
       if (weekBirthdays !== undefined) {
         setBirthdays(weekBirthdays);
       }
@@ -599,6 +590,7 @@ export default function App() {
   // Actualisation automatique des résultats et matchs depuis le serveur (mise à jour continue en temps réel)
   const refreshInProgressRef = useRef(false);
   const pendingTvDataRef = useRef<AppDataPayload | null>(null);
+  const tvWeekRef = useRef(getWeekKey(clubCalendarDate()));
   const currentViewRef = useRef(viewMode);
   currentViewRef.current = viewMode;
   useEffect(() => { if (viewMode === 'admin') pendingTvDataRef.current = null; }, [viewMode]);
@@ -612,12 +604,18 @@ export default function App() {
     refreshInProgressRef.current = true;
 
     try {
-      const res = await fetch('/api/get-app-data');
+      const url = adminAuthentifie ? '/api/get-app-data?view=admin' : '/api/get-app-data?view=tv';
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json?.data && currentViewRef.current === 'tv') {
           const version = getPolledAppDataVersion(json.data, json.version);
-          if (version !== dataVersionRef.current) pendingTvDataRef.current = { ...json.data, version };
+          const week = getWeekKey(clubCalendarDate());
+          if (version !== dataVersionRef.current || week !== tvWeekRef.current) {
+            tvWeekRef.current = week;
+            pendingTvDataRef.current = { ...json.data, version };
+            setOfflineAppData(pendingTvDataRef.current);
+          }
         }
       }
     } catch (err) {

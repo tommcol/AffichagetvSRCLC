@@ -1,3 +1,4 @@
+import { publicTvData } from './publicTvData';
 import type { ActiveMatchAlert, AppDataPayload, BirthdayItem, FFBBTeamItem } from '../types';
 
 const getStorage = (): Storage | null => {
@@ -29,11 +30,19 @@ const writeJson = (key: string, value: unknown): void => {
   }
 };
 
-export const getOfflineAppData = (): AppDataPayload | null =>
-  readJson<AppDataPayload>('club_app_data_offline_cache');
+export const getOfflineAppData = (): AppDataPayload | null => {
+  const storage = getStorage();
+  try {
+    storage?.removeItem('club_app_data_offline_cache');
+    storage?.removeItem('club_all_members_pool');
+  } catch {
+    // The network remains available if the browser blocks local storage.
+  }
+  return readJson<AppDataPayload>('club_tv_data_offline_cache');
+};
 
 export const setOfflineAppData = (data: AppDataPayload): void => {
-  writeJson('club_app_data_offline_cache', data);
+  writeJson('club_tv_data_offline_cache', publicTvData(data));
 };
 
 export const getMemberPoolCache = (): BirthdayItem[] | null => {

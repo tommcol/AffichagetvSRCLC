@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { BirthdayItem } from '../types';
 
 /**
@@ -529,6 +528,7 @@ export async function parseExcelBirthdays(
   totalParsed: number;
   errors: string[];
 }> {
+  const XLSX = await import('xlsx');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -731,7 +731,8 @@ export async function parseExcelBirthdays(
 /**
  * Generate a clean sample Excel template for the club
  */
-export function generateClubBirthdayTemplate(): void {
+export async function generateClubBirthdayTemplate(): Promise<void> {
+  const XLSX = await import('xlsx');
   const sampleData = [
     { 'Prénom': 'Léna', 'Nom': 'Petit', 'Catégorie': 'U7 Filles', 'Date de Naissance': '15/09/2019' },
     { 'Prénom': 'Noah', 'Nom': 'Moreau', 'Catégorie': 'U7 Garçons', 'Date de Naissance': '16/09/2019' },

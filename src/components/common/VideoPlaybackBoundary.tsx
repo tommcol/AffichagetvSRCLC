@@ -24,12 +24,12 @@ export function VideoPlaybackBoundary({ children, playing, slideId, onComplete, 
     const visibleVideos = () => Array.from(element.querySelectorAll('video')).filter(v =>
       v.getClientRects().length > 0 && getComputedStyle(v).visibility !== 'hidden');
     const finish = () => { if (!done && playingRef.current) { done = true; completeRef.current(); } };
-    const report = (v: HTMLVideoElement) => {
+    const report = (v: HTMLVideoElement, reason: string) => {
       if (failed.has(v)) return;
       failed.add(v);
-      recordBug('Vidéo', `Lecture impossible — code ${v.error?.code ?? 'inconnu'}`);
       const source = v.currentSrc || v.src;
       const name = /^(data|blob):/.test(source) ? 'Vidéo intégrée' : (source.split('/').pop()?.split('?')[0] || 'Vidéo indisponible').slice(0, 140);
+      recordBug('Vidéo', `${name} — ${reason}${v.error ? ` (code ${v.error.code})` : ''}`);
       try {
         const list = JSON.parse(localStorage.getItem('club_media_errors') || '[]');
         localStorage.setItem('club_media_errors', JSON.stringify([{ name, at: Date.now() }, ...list].slice(0, 10)));
@@ -48,7 +48,13 @@ export function VideoPlaybackBoundary({ children, playing, slideId, onComplete, 
         v.loop = false;
         if (!clocks.has(v)) clocks.set(v, { time: v.currentTime, changed: Date.now() });
         if (!playingRef.current) v.pause();
-        else if (!v.ended && !failed.has(v) && v.paused) void v.play().catch(() => report(v));
+        else if (!v.ended && !failed.has(v) && v.paused) void v.play().catch((error: unknown) => {
+          if (playingRef.current && !(error instanceof DOMException && error.name === 'AbortError')) {
+            const reason = error instanceof DOMException && error.name === 'NotAllowedError'
+              ? 'Lecture automatique refusée' : 'Le navigateur ne peut pas démarrer la lecture';
+            report(v, reason);
+          }
+        });
       }
       check();
     };
@@ -56,7 +62,7 @@ export function VideoPlaybackBoundary({ children, playing, slideId, onComplete, 
       if (!playingRef.current && event.target instanceof HTMLVideoElement) event.target.pause();
     };
     const onError = (event: Event) => {
-      if (event.target instanceof HTMLVideoElement) report(event.target);
+      if (event.target instanceof HTMLVideoElement) report(event.target, 'Erreur du lecteur vidéo');
     };
     const observer = new MutationObserver(synchronize);
     observer.observe(element, { childList: true, subtree: true });
@@ -69,7 +75,7 @@ export function VideoPlaybackBoundary({ children, playing, slideId, onComplete, 
         const last = clocks.get(v) || { time: v.currentTime, changed: Date.now() };
         if (!playingRef.current || last.time !== v.currentTime || v.ended) {
           clocks.set(v, { time: v.currentTime, changed: Date.now() });
-        } else if (Date.now() - last.changed > 8000) report(v);
+        } else if (Date.now() - last.changed > 8000) report(v, 'Vidéo bloquée depuis 8 secondes');
       }
       synchronize();
     }, 250);

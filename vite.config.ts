@@ -44,6 +44,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          importScripts: ['/clear-old-app-data-cache.js'],
           maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
@@ -83,21 +84,6 @@ export default defineConfig(() => {
                 expiration: {
                   maxEntries: 100,
                   maxAgeSeconds: 60 * 60 * 24 * 30,
-                },
-              },
-            },
-            {
-              urlPattern: /^\/api\/get-app-data/i,
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'api-data-cache',
-                networkTimeoutSeconds: 3,
-                expiration: {
-                  maxEntries: 5,
-                  maxAgeSeconds: 60 * 60 * 24 * 7,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
                 },
               },
             },

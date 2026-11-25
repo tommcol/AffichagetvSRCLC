@@ -1,3 +1,4 @@
+import { publicTvData } from '../src/utils/publicTvData';
 import { isAdmin } from './auth';
 import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } from './appDataCoordinator';
 // ============================================================
@@ -6,17 +7,7 @@ import { readSharedAppData, commitSharedAppData, commitSharedAppDataOrThrow } fr
 
 import { Env } from './types';
 
-// Valeur affichée à la place du lien webhook réseaux sociaux pour les visiteurs
-// non connectés (la TV n'en a pas besoin). Elle est remplacée par la vraie valeur
-// à l'enregistrement, pour ne jamais effacer le lien par erreur.
 const MASKED_SECRET = '__MASQUE__';
-
-function maskPublicSecrets(data: any) {
-  const settings = data?.clubSettings;
-  if (settings && typeof settings.socialWebhookUrl === 'string' && settings.socialWebhookUrl.trim()) {
-    settings.socialWebhookUrl = MASKED_SECRET;
-  }
-}
 
 function restoreMaskedSecrets(data: any, rawCurrent: string | null) {
   const settings = data?.clubSettings;
@@ -27,9 +18,14 @@ function restoreMaskedSecrets(data: any, rawCurrent: string | null) {
 }
 
 export async function getAppData(env: Env, request?: Request): Promise<Response> {
+  const view = request && new URL(request.url).searchParams.get('view');
+  const authenticated = Boolean(request && view !== 'tv' && env.ADMIN_PASSWORD && await isAdmin(request, env));
+  if (view === 'admin' && !authenticated) {
+    return Response.json({ error: 'Authentification requise' }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  }
   const raw = await readSharedAppData(env);
-  const data = raw ? JSON.parse(raw) : null;
-  if (data && request && !await isAdmin(request, env)) maskPublicSecrets(data);
+  const storedData = raw ? JSON.parse(raw) : null;
+  const data = storedData && !authenticated ? publicTvData(storedData) : storedData;
 
   // Rétrocompatibilité : initialiser à 0 si le document existe sans numéro de version
   const currentVersion = data && typeof data.version === 'number' ? data.version : 0;
@@ -39,7 +35,7 @@ export async function getAppData(env: Env, request?: Request): Promise<Response>
 
   return new Response(JSON.stringify({ data, version: currentVersion }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Cookie' },
   });
 }
 
