@@ -280,3 +280,24 @@ export const getEffectiveStudioZone = (template: StudioTemplate, count: number):
 
 export const clampStudioValue = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+
+// Les positions utilisent des pourcentages du cadre. La tolérance vient de la taille à l'écran.
+export function alignStudioAxis(position: number, size: number, targets: number[], tolerance: number) {
+  let nearest = tolerance;
+  let aligned = position;
+  let guide: number | undefined;
+
+  for (const offset of [size / 2, 0, size]) {
+    for (const target of targets) {
+      const distance = Math.abs(position + offset - target);
+      if (distance > nearest || (guide !== undefined && Math.abs(distance - nearest) < 1e-9)) continue;
+      const candidate = target - offset;
+      if (candidate < -50 || candidate > 150) continue;
+      nearest = distance;
+      aligned = candidate;
+      guide = target;
+    }
+  }
+
+  return { position: aligned, guide };
+}

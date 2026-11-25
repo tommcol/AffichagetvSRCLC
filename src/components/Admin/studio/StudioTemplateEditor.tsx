@@ -34,6 +34,7 @@ import {
   STUDIO_ROLES,
   STUDIO_ROLE_SAMPLES,
   STUDIO_SHAPES,
+  alignStudioAxis,
   clampStudioValue,
   computeStudioRowBoxes,
   createStudioElement,
@@ -67,6 +68,10 @@ interface MoveState {
   startY: number;
   origX: number;
   origY: number;
+  itemWidth: number;
+  itemHeight: number;
+  xTargets: number[];
+  yTargets: number[];
   width: number;
   height: number;
 }
@@ -158,6 +163,7 @@ function ColorField(props: { label: string; value: string; onChange: (value: str
 }
 
 export function StudioTemplateEditor({ template, onChange, visualTemplates, clubLogoUrl }: StudioTemplateEditorProps) {
+  const [guides, setGuides] = useState<{ x?: number; y?: number }>({});
   const [mode, setMode] = useState<EditorMode>('poster');
   const [matchCount, setMatchCount] = useState(3);
   const [page, setPage] = useState(1);
@@ -287,7 +293,14 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
     id?: string
   ) => {
     const container = currentContainer();
-    if (!container) return;
+    const moving = kind === 'zone' ? zone : elements.find((element) => element.id === id);
+    if (!container || !moving) return;
+
+    const peers: Pick<StudioElement, 'x' | 'y' | 'w' | 'h'>[] = elements.filter(
+      (element) => element.visible && element.id !== id
+    );
+    if (mode === 'poster' && kind !== 'zone') peers.push(zone);
+
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -299,6 +312,10 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
       startY: e.clientY,
       origX,
       origY,
+      itemWidth: moving.w,
+      itemHeight: moving.h,
+      xTargets: [0, 50, 100, ...peers.flatMap(({ x, w }) => [x, x + w / 2, x + w])],
+      yTargets: [0, 50, 100, ...peers.flatMap(({ y, h }) => [y, y + h / 2, y + h])],
       width: rect.width || 1,
       height: rect.height || 1,
     };
@@ -310,12 +327,18 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
     if (!d) return;
     const x = Math.round(clampStudioValue(d.origX + ((e.clientX - d.startX) / d.width) * 100, -50, 150) * 10) / 10;
     const y = Math.round(clampStudioValue(d.origY + ((e.clientY - d.startY) / d.height) * 100, -50, 150) * 10) / 10;
-    if (d.kind === 'zone') setZonePatch({ x, y });
-    else if (d.id) updateElement(d.id, { x, y });
+    const horizontal = alignStudioAxis(x, d.itemWidth, d.xTargets, 5 / d.width * 100);
+    const vertical = alignStudioAxis(y, d.itemHeight, d.yTargets, 5 / d.height * 100);
+    const position = { x: horizontal.position, y: vertical.position };
+
+    setGuides({ x: horizontal.guide, y: vertical.guide });
+    if (d.kind === 'zone') setZonePatch(position);
+    else if (d.id) updateElement(d.id, position);
   };
 
   const endMove = () => {
     moveRef.current = null;
+    setGuides({});
   };
 
   const beginResize = (
@@ -549,7 +572,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
                 title="Glisse pour déplacer le cadre des matchs"
                 onPointerDown={(e) => beginMove(e, 'zone', zone.x, zone.y)}
                 onPointerMove={doMove}
-                onPointerUp={endMove}
+                onLostPointerCapture={endMove}
               />
               {rowBoxes.map((box) => (
                 <div
@@ -579,7 +602,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
                   textOverride={sampleText(el)}
                   onPointerDown={(e) => beginMove(e, 'element', el.x, el.y, el.id)}
                   onPointerMove={doMove}
-                  onPointerUp={endMove}
+                  onLostPointerCapture={endMove}
                 />
               ))}
             </>
@@ -594,9 +617,20 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates, club
                 textOverride={sampleText(el)}
                 onPointerDown={(e) => beginMove(e, 'element', el.x, el.y, el.id)}
                 onPointerMove={doMove}
-                onPointerUp={endMove}
+                onLostPointerCapture={endMove}
               />
             ))
+          )}
+        </div>
+
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+          {guides.x !== undefined && (
+            <div data-alignment-guide="vertical" className="absolute inset-y-0 border-l border-dashed border-fuchsia-400"
+              style={{ left: `${guides.x}%`, transform: 'translateX(-50%)' }} />
+          )}
+          {guides.y !== undefined && (
+            <div data-alignment-guide="horizontal" className="absolute inset-x-0 border-t border-dashed border-fuchsia-400"
+              style={{ top: `${guides.y}%`, transform: 'translateY(-50%)' }} />
           )}
         </div>
 

@@ -12,7 +12,7 @@ export interface StudioElementViewProps {
   interactive?: boolean;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerMove?: (e: React.PointerEvent<HTMLDivElement>) => void;
-  onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onLostPointerCapture?: (e: React.PointerEvent<HTMLDivElement>) => void;
   // Texte à afficher à la place du texte du template (données réelles ou exemples)
   textOverride?: string;
   imageUrl?: string;
@@ -26,7 +26,7 @@ export function StudioElementView({
   interactive = false,
   onPointerDown,
   onPointerMove,
-  onPointerUp,
+  onLostPointerCapture,
   textOverride,
   imageUrl,
 }: StudioElementViewProps) {
@@ -80,7 +80,7 @@ export function StudioElementView({
       style={style}
       onPointerDown={interactive ? onPointerDown : undefined}
       onPointerMove={interactive ? onPointerMove : undefined}
-      onPointerUp={interactive ? onPointerUp : undefined}
+      onLostPointerCapture={interactive ? onLostPointerCapture : undefined}
       title={interactive ? element.name : undefined}
     >
       {isStar && (
