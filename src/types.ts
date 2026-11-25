@@ -299,6 +299,8 @@ export interface StudioTemplate {
   rowElements: StudioElement[]; // modèle d'une ligne de match, répété 1 à 6 fois
   zone: StudioMatchesZone;
   countOverrides?: Record<number, StudioCountOverride>; // clé = nombre de matchs (1 à 6)
+  previewBgUrl?: string; // image ou vidéo de fond, uniquement pour voir le rendu dans l'éditeur
+  previewBgColor?: string; // couleur de fond de l'aperçu
   updatedAt?: string;
 }
 

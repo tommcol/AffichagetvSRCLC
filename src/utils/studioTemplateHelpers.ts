@@ -23,9 +23,9 @@ export const STUDIO_CATEGORIES: { id: StudioTemplateCategory; label: string }[] 
 ];
 
 export const STUDIO_SHAPES: { id: StudioElementShape; label: string }[] = [
-  { id: 'rounded', label: 'Rectangle arrondi' },
   { id: 'pill', label: 'Pastille' },
-  { id: 'rect', label: 'Rectangle' },
+  { id: 'rounded', label: 'Rectangle arrondi' },
+  { id: 'rect', label: 'Rectangle (angles droits)' },
   { id: 'circle', label: 'Rond' },
   { id: 'star', label: 'Étoile' },
   { id: 'line', label: 'Trait' },
@@ -33,13 +33,13 @@ export const STUDIO_SHAPES: { id: StudioElementShape; label: string }[] = [
 ];
 
 export const STUDIO_ROLES: { id: StudioElementRole; label: string }[] = [
-  { id: 'decor', label: 'Décor (fixe)' },
-  { id: 'title', label: 'Titre' },
-  { id: 'team', label: 'Équipe du club' },
-  { id: 'score', label: 'Score' },
-  { id: 'opponent', label: 'Adversaire' },
+  { id: 'decor', label: 'Rien (décor ou texte fixe)' },
+  { id: 'title', label: 'Le titre' },
+  { id: 'team', label: "L'équipe du club" },
+  { id: 'score', label: 'Le score' },
+  { id: 'opponent', label: "L'adversaire" },
   { id: 'status', label: 'Victoire / Défaite' },
-  { id: 'date', label: 'Date / Heure' },
+  { id: 'date', label: "La date et l'heure" },
 ];
 
 // Exemples affichés dans l'éditeur pour les éléments liés aux données

@@ -144,7 +144,7 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
           </div>
         </div>
 
-        <StudioTemplateEditor template={draft} onChange={setDraft} />
+        <StudioTemplateEditor template={draft} onChange={setDraft} visualTemplates={visualTemplates} />
       </div>
     );
   }
