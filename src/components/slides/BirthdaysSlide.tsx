@@ -9,6 +9,7 @@ import { sortBirthdaysByHierarchy, formatDisplayCategory } from '../../utils/exc
 
 interface BirthdaysSlideProps {
   birthdays: BirthdayItem[];
+  forImageExport?: boolean;
   backgroundUrl?: string;
   clubSettings?: ClubSettings;
   theme?: SlideDesignTheme;
@@ -25,6 +26,7 @@ interface BirthdaysSlideProps {
 
 export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
   birthdays,
+  forImageExport = false,
   backgroundUrl,
   clubSettings,
   theme,
@@ -194,7 +196,7 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
         </div>
 
         {/* Liste des Anniversaires (Prénom et Catégorie - Cartes empilées verticalement) */}
-        <div className="my-auto w-full max-w-3xl py-4">
+        <div className={`my-auto w-full py-4 ${forImageExport && sortedBirthdays.length > 6 ? '' : 'max-w-3xl'}`}>
           {sortedBirthdays.length === 0 ? (
             <div
               className="border border-white/15 rounded-3xl p-8 text-white max-w-xl shadow-2xl"
@@ -207,7 +209,9 @@ export const BirthdaysSlide: React.FC<BirthdaysSlideProps> = ({
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-2 md:gap-3 max-h-[62vh] overflow-y-auto pr-2">
+            <div className={forImageExport
+              ? `grid gap-3 ${sortedBirthdays.length > 6 ? 'grid-flow-col grid-rows-6 grid-cols-2' : 'grid-cols-1'}`
+              : 'flex flex-col gap-2 md:gap-3 max-h-[62vh] overflow-y-auto pr-2'}>
               {sortedBirthdays.map((b) => {
                 // Display strictly the First Name (Prénom) as requested
                 const displayName = b.firstName || (b.fullName ? b.fullName.trim().split(/\s+/)[0] : 'Licencié');
