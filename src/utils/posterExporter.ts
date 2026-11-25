@@ -27,6 +27,13 @@ function capturePoster(node: HTMLElement, width: number, height: number) {
       copy.style.setProperty(property, style.getPropertyValue(property));
     }
     if (original instanceof HTMLImageElement) copy.setAttribute('src', original.currentSrc || original.src);
+    if (original instanceof HTMLCanvasElement && original.width && original.height) {
+      const frame = document.createElement('img');
+      frame.src = original.toDataURL('image/png');
+      frame.alt = original.getAttribute('aria-label') || '';
+      frame.style.cssText = copy.style.cssText;
+      copy.replaceWith(frame);
+    }
     if (original instanceof HTMLVideoElement) {
       if (original.readyState < 2 || !original.videoWidth) throw new Error('Une vidéo de l’aperçu n’est pas encore chargée. Attendez sa lecture avant de télécharger.');
       const canvas = document.createElement('canvas');

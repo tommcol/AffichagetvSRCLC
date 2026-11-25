@@ -463,6 +463,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     handleAddManualBirthday,
     handleDeleteBirthday,
   } = useBirthdaysAdmin({ birthdays, onUpdateBirthdays, allMembers, onUpdateAllMembers, simulatedDate });
+  const birthdayReferenceDate = simulatedDate || clubCalendarDate();
+  const selectedWeekBirthdays = activeTab === 'excel'
+    ? filterAndSortBirthdaysForWeek(allMembersPool, birthdayReferenceDate, birthdayWeekOffset)
+    : [];
+
 
   const {
     socialWebhookStatus,
@@ -2247,7 +2252,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               allMembers={allMembers}
               allMembersPool={allMembersPool}
               birthdayWeekOffset={birthdayWeekOffset}
-              birthdays={showAllBirthdays ? allMembersPool : filterAndSortBirthdaysForWeek(allMembersPool, simulatedDate || clubCalendarDate(), birthdayWeekOffset)}
+              birthdays={showAllBirthdays ? allMembersPool : selectedWeekBirthdays}
+              selectedWeekBirthdays={selectedWeekBirthdays}
+              birthdayReferenceDate={birthdayReferenceDate}
               tvBirthdays={birthdays}
               onShowAllMembers={() => setShowAllBirthdays(true)}
               birthdaysSubTab={birthdaysSubTab}

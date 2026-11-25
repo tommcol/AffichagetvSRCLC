@@ -1,10 +1,10 @@
-import { clubCalendarDate } from '../../../utils/clubTime';
+import { BirthdayImageDownload } from './BirthdayImageDownload';
 // ExcelTab — onglet « excel » de l'AdminPanel.
 // Extrait automatiquement lors du découpage de AdminPanel.tsx : aucune logique modifiée.
 // Toutes les données et fonctions nécessaires sont reçues via des props explicites.
 
 import { X, Upload, FileSpreadsheet, Trash2, Plus, Download, CheckCircle2, AlertCircle, Cake, Layers, Check, ChevronLeft, ChevronRight, Pencil, Loader2 } from 'lucide-react';
-import { generateClubBirthdayTemplate, getWeekBounds, formatDisplayCategory } from '../../../utils/excelBirthdayParser';
+import { generateClubBirthdayTemplate, getWeekBounds, getWeekKey, formatDisplayCategory } from '../../../utils/excelBirthdayParser';
 import { StudioGraphiqueWorkbench } from '.././StudioGraphiqueWorkbench';
 
 export interface ExcelTabProps {
@@ -55,6 +55,8 @@ export function ExcelTab(props: ExcelTabProps) {
     setManualBdayFirstName,
     visualTemplates,
   } = props;
+
+  const weekKey = getWeekKey(props.birthdayReferenceDate, birthdayWeekOffset);
 
   return (
             <div className="space-y-6">
@@ -251,7 +253,7 @@ export function ExcelTab(props: ExcelTabProps) {
                       Filtrer par semaine :
                     </span>
                     <span className="px-3 py-1 rounded-full text-xs font-black bg-pink-950/80 text-pink-300 border border-pink-500/30">
-                      {getWeekBounds(clubCalendarDate(), birthdayWeekOffset).label}
+                      {getWeekBounds(props.birthdayReferenceDate, birthdayWeekOffset).label}
                     </span>
                   </div>
 
@@ -286,6 +288,14 @@ export function ExcelTab(props: ExcelTabProps) {
                     </button>
                   </div>
                 </div>
+
+                <BirthdayImageDownload
+                  key={weekKey}
+                  weekKey={weekKey}
+                  birthdays={props.selectedWeekBirthdays}
+                  clubSettings={clubSettings}
+                  visualTemplates={visualTemplates}
+                />
 
                 {/* Boutons de raccourcis rapides de semaines */}
                 <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-800">
