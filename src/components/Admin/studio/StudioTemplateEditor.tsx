@@ -37,6 +37,7 @@ import {
   clampStudioValue,
   computeStudioRowBoxes,
   createStudioElement,
+  createStudioMatchRow,
   getEffectiveStudioZone,
   getFormatRatio,
   newStudioId,
@@ -48,10 +49,10 @@ import { MediaBankSelectorModal } from '../MediaBankSelectorModal';
 // Éditeur d'un template, pensé pour être utilisé sans explication :
 // - on voit l'affiche, on clique sur un élément pour le modifier, on le glisse pour le déplacer ;
 // - un petit menu apparaît juste à côté de l'élément choisi ;
-// - la barre « Ajouter » est en bas ;
 // - un bouton permet de dessiner la ligne de match qui sera répétée pour chaque match.
 
 export interface StudioTemplateEditorProps {
+  clubLogoUrl?: string;
   template: StudioTemplate;
   onChange: (next: StudioTemplate) => void;
   visualTemplates: VisualTemplatesConfig;
@@ -156,9 +157,12 @@ function ColorField(props: { label: string; value: string; onChange: (value: str
   );
 }
 
-export function StudioTemplateEditor({ template, onChange, visualTemplates }: StudioTemplateEditorProps) {
+export function StudioTemplateEditor({ template, onChange, visualTemplates, clubLogoUrl }: StudioTemplateEditorProps) {
   const [mode, setMode] = useState<EditorMode>('poster');
-  const [previewCount, setPreviewCount] = useState<number>(3);
+  const [matchCount, setMatchCount] = useState(3);
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(matchCount / STUDIO_MAX_ROWS));
+  const previewCount = Math.min(STUDIO_MAX_ROWS, matchCount - (page - 1) * STUDIO_MAX_ROWS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [showFrameOptions, setShowFrameOptions] = useState<boolean>(false);
@@ -393,7 +397,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
       return "Tu dessines ici UNE seule ligne de match. L'appli la copiera pour chaque match de l'affiche.";
     }
     if (selected) return 'Glisse l’élément pour le déplacer. Tire le point bleu pour changer sa taille.';
-    return 'Clique sur un élément pour le modifier. Pour ajouter une forme, utilise les boutons en bas.';
+    return "Place le cadre bleu sur l’affiche. La même ligne se répète pour chaque match.";
   })();
 
   return (
@@ -437,30 +441,67 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
         )}
 
         {mode === 'poster' && (
-          <div className="flex items-center gap-1 ml-auto">
-            <span className="text-xs font-bold text-slate-300 mr-1">Nombre de matchs affichés :</span>
-            {Array.from({ length: STUDIO_MAX_ROWS }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setPreviewCount(n)}
-                className={`w-8 h-8 rounded-lg text-sm font-black border ${
-                  previewCount === n
-                    ? 'bg-sky-600 border-sky-400 text-white'
-                    : template.countOverrides?.[n]
-                      ? 'bg-slate-800 border-amber-500/60 text-amber-300'
-                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'
-                }`}
-                title={template.countOverrides?.[n] ? `${n} : placé à la main` : `${n} : placement automatique`}
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-200">
+              Aperçu avec
+              <select
+                value={matchCount}
+                onChange={(event) => { setMatchCount(Number(event.target.value)); setPage(1); }}
+                className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white"
               >
-                {n}
-              </button>
-            ))}
+                {Array.from({ length: 25 }, (_, count) => (
+                  <option key={count} value={count}>{count} match{count === 1 ? '' : 's'}</option>
+                ))}
+              </select>
+            </label>
+            {pageCount > 1 && (
+              <label className="flex items-center gap-2 text-xs text-slate-200">
+                Page
+                <select value={page} onChange={(event) => setPage(Number(event.target.value))}
+                  className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white">
+                  {Array.from({ length: pageCount }, (_, index) => (
+                    <option key={index} value={index + 1}>{index + 1} / {pageCount}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         )}
       </div>
 
       <p className="text-xs text-sky-200/90 bg-sky-950/40 border border-sky-900/60 rounded-lg px-3 py-1.5">{helpText}</p>
+
+      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-2.5 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-black text-slate-300 uppercase">
+          Ajouter {mode === 'poster' ? "à l'affiche" : 'à la ligne'} :
+        </span>
+        {mode === 'row' && elements.length === 0 && (
+          <button type="button" onClick={() => setElements(createStudioMatchRow(template.category))}
+            className="rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-600">
+            Ajouter une ligne prête à modifier
+          </button>
+        )}
+        {clubLogoUrl && mode === 'poster' && (
+          <button type="button" onClick={() => {
+            const logo = createStudioElement('text', { name: 'Logo du club', role: 'clubLogo', w: 12, h: 18 });
+            setElements([...elements, logo]);
+            setSelectedId(logo.id);
+          }} className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700">
+            <ImageIcon className="w-4 h-4 text-sky-300" /> + Logo du club
+          </button>
+        )}
+        {ADD_BUTTONS.map((b) => (
+          <button
+            key={b.shape}
+            type="button"
+            onClick={() => addElement(b.shape)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-sky-700 border border-slate-700 text-xs text-white font-bold"
+          >
+            <span className="text-sky-300">{b.icon}</span>
+            + {b.label}
+          </button>
+        ))}
+      </div>
 
       {/* Affiche */}
       <div
@@ -524,7 +565,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                   }}
                 >
                   {template.rowElements.map((el) => (
-                    <StudioElementView key={el.id} element={el} textOverride={sampleText(el)} />
+                    <StudioElementView key={el.id} element={el} imageUrl={el.role === 'clubLogo' ? clubLogoUrl : undefined} textOverride={sampleText(el)} />
                   ))}
                 </div>
               ))}
@@ -534,6 +575,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                   element={el}
                   selected={el.id === selectedId}
                   interactive
+                  imageUrl={el.role === 'clubLogo' ? clubLogoUrl : undefined}
                   textOverride={sampleText(el)}
                   onPointerDown={(e) => beginMove(e, 'element', el.x, el.y, el.id)}
                   onPointerMove={doMove}
@@ -548,6 +590,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                 element={el}
                 selected={el.id === selectedId}
                 interactive
+                imageUrl={el.role === 'clubLogo' ? clubLogoUrl : undefined}
                 textOverride={sampleText(el)}
                 onPointerDown={(e) => beginMove(e, 'element', el.x, el.y, el.id)}
                 onPointerMove={doMove}
@@ -577,7 +620,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                   whiteSpace: 'nowrap',
                 }}
               >
-                Ici viendront les matchs ({previewCount})
+                Liste des matchs · {previewCount} sur cette page
               </div>
               <div
                 style={handleStyle(zone.x + zone.w, zone.y + zone.h)}
@@ -665,24 +708,6 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
         </div>
       </div>
 
-      {/* Barre d'ajout, en bas */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-2.5 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-black text-slate-300 uppercase">
-          Ajouter {mode === 'poster' ? "à l'affiche" : 'à la ligne'} :
-        </span>
-        {ADD_BUTTONS.map((b) => (
-          <button
-            key={b.shape}
-            type="button"
-            onClick={() => addElement(b.shape)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-sky-700 border border-slate-700 text-xs text-white font-bold"
-          >
-            <span className="text-sky-300">{b.icon}</span>
-            + {b.label}
-          </button>
-        ))}
-      </div>
-
       {/* Options du cadre des matchs */}
       {mode === 'poster' && (
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 space-y-2">
@@ -692,7 +717,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
             className="flex items-center gap-1.5 text-xs font-black text-sky-300 uppercase"
           >
             <Settings2 className="w-3.5 h-3.5" />
-            Réglages des lignes de match pour {previewCount} match{previewCount > 1 ? 's' : ''} {showFrameOptions ? '▾' : '▸'}
+            Réglages avancés de la liste {showFrameOptions ? '▾' : '▸'}
           </button>
           {showFrameOptions && (
             <div className="space-y-2">
@@ -706,6 +731,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                 </button>
                 <button
                   type="button"
+                  disabled={previewCount === 0}
                   onClick={() => setManual(true)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${manual ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}
                 >
@@ -750,6 +776,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
                 </select>
                 <button
                   type="button"
+                  disabled={previewCount === 0}
                   onClick={() => copySettingsTo(copyTarget)}
                   className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-white font-bold"
                 >
@@ -839,7 +866,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
         <span className={`${labelClass} flex items-center gap-1`}>
           <Layers className="w-3 h-3" /> Tous les éléments ({elements.length})
         </span>
-        {elements.length === 0 && <p className="text-xs text-slate-500">Rien pour le moment : utilise les boutons « + » ci-dessus.</p>}
+        {elements.length === 0 && <p className="text-xs text-slate-500">Rien pour le moment : utilise les boutons « + » au-dessus de l’affiche.</p>}
         {[...elements].reverse().map((el) => (
           <div
             key={el.id}
@@ -868,7 +895,7 @@ export function StudioTemplateEditor({ template, onChange, visualTemplates }: St
 
       <MediaBankSelectorModal
         isOpen={bgModalOpen}
-        title="Choisir un fond pour voir le rendu"
+        title="Choisir le fond du modèle"
         filterType="all"
         visualTemplates={visualTemplates}
         onClose={() => setBgModalOpen(false)}

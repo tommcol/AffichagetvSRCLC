@@ -9,12 +9,16 @@ import {
   STUDIO_CATEGORIES,
   STUDIO_FORMATS,
   createBlankStudioTemplate,
+  createStudioMatchRow,
   createExampleResultsTemplate,
+  createStudioElement,
   newStudioId,
 } from '../../../utils/studioTemplateHelpers';
 import { StudioTemplateEditor } from '../studio/StudioTemplateEditor';
 
 export interface StudioTemplatesTabProps {
+  clubLogoUrl?: string;
+  onUseTemplate?: (template: StudioTemplate) => void;
   visualTemplates: VisualTemplatesConfig;
   onUpdateVisualTemplates: (newTemplates: VisualTemplatesConfig) => void;
 }
@@ -22,7 +26,7 @@ export interface StudioTemplatesTabProps {
 const fieldClass =
   'bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-sky-500';
 
-export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }: StudioTemplatesTabProps) {
+export function StudioTemplatesTab({ clubLogoUrl, visualTemplates, onUpdateVisualTemplates, onUseTemplate }: StudioTemplatesTabProps) {
   const saved: StudioTemplate[] = useMemo(() => visualTemplates.studioTemplates ?? [], [visualTemplates.studioTemplates]);
 
   const [draft, setDraft] = useState<StudioTemplate | null>(null);
@@ -55,16 +59,23 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
   };
 
   const createTemplate = () => {
-    const name = newName.trim() || 'Nouveau template';
+    const name = newName.trim() || 'Nouveau modèle';
     const tpl = createBlankStudioTemplate(name, newCategory, newFormat);
-    writeAll([...saved, tpl]);
-    setDraft(tpl);
+    setDraft(newCategory === 'birthdays' ? tpl : {
+      ...tpl,
+      decor: [createStudioElement('text', {
+        name: 'Titre',
+        role: 'title',
+        text: newCategory === 'matches' ? 'MATCHS DU WEEK-END' : 'RÉSULTATS DU WEEK-END',
+        x: 5, y: 7, w: 90, h: 14,
+      })],
+      rowElements: createStudioMatchRow(newCategory),
+    });
     setNewName('');
   };
 
   const createExample = () => {
     const tpl = createExampleResultsTemplate();
-    writeAll([...saved, tpl]);
     setDraft(tpl);
   };
 
@@ -128,10 +139,10 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
             <button
               type="button"
               onClick={cancelDraft}
-              disabled={!dirty}
+              disabled={!savedVersion || !dirty}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-700 border border-slate-700 text-xs text-white font-bold disabled:opacity-40"
             >
-              <Undo2 className="w-3.5 h-3.5" /> Annuler
+              <Undo2 className="w-3.5 h-3.5" /> Revenir à la version enregistrée
             </button>
             <button
               type="button"
@@ -144,7 +155,7 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
           </div>
         </div>
 
-        <StudioTemplateEditor template={draft} onChange={setDraft} visualTemplates={visualTemplates} />
+        <StudioTemplateEditor clubLogoUrl={clubLogoUrl} template={draft} onChange={setDraft} visualTemplates={visualTemplates} />
       </div>
     );
   }
@@ -158,9 +169,9 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
             <LayoutTemplate className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white font-bebas tracking-wide">STUDIO DE TEMPLATES</h3>
+            <h3 className="text-xl font-black text-white font-bebas tracking-wide">STUDIO DE MODÈLES</h3>
             <p className="text-xs text-slate-400">
-              Dessine tes trames (formes, traits, pastilles, textes), enregistre-les, puis réutilise-les.
+              Choisis une catégorie et un format. Pour les matchs et les résultats, dessine une seule ligne à répéter.
             </p>
           </div>
         </div>
@@ -196,7 +207,7 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
             onClick={createTemplate}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white font-black"
           >
-            <Plus className="w-4 h-4" /> Créer un template
+            <Plus className="w-4 h-4" /> Créer un modèle
           </button>
           <button
             type="button"
@@ -212,7 +223,7 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
       <div className="space-y-2">
         {saved.length === 0 && (
           <p className="text-sm text-slate-400 bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4">
-            Aucun template pour le moment. Crée-en un ci-dessus.
+            Aucun modèle pour le moment. Crée-en un ci-dessus.
           </p>
         )}
         {saved.map((tpl) => (
@@ -230,6 +241,15 @@ export function StudioTemplatesTab({ visualTemplates, onUpdateVisualTemplates }:
             >
               <Pencil className="w-3.5 h-3.5" /> Modifier
             </button>
+            {onUseTemplate && tpl.category !== 'birthdays' && tpl.rowElements.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onUseTemplate(tpl)}
+                className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600"
+              >
+                Utiliser avec les matchs
+              </button>
+            )}
             <button
               type="button"
               onClick={() => duplicateTemplate(tpl)}

@@ -249,7 +249,7 @@ export type StudioTemplateCategory = 'matches' | 'results' | 'birthdays';
 export type StudioTemplateFormat = '16:9' | '4:5' | '9:16' | '1:1';
 export type StudioElementShape = 'rect' | 'rounded' | 'pill' | 'circle' | 'star' | 'line' | 'text';
 // Rôle d'un élément : 'decor' reste fixe, les autres sont remplis automatiquement avec les vraies données.
-export type StudioElementRole = 'decor' | 'title' | 'team' | 'score' | 'opponent' | 'status' | 'date';
+export type StudioElementRole = 'decor' | 'title' | 'team' | 'score' | 'opponent' | 'status' | 'date' | 'clubLogo';
 
 export interface StudioElement {
   id: string;
@@ -299,8 +299,8 @@ export interface StudioTemplate {
   rowElements: StudioElement[]; // modèle d'une ligne de match, répété 1 à 6 fois
   zone: StudioMatchesZone;
   countOverrides?: Record<number, StudioCountOverride>; // clé = nombre de matchs (1 à 6)
-  previewBgUrl?: string; // image ou vidéo de fond, uniquement pour voir le rendu dans l'éditeur
-  previewBgColor?: string; // couleur de fond de l'aperçu
+  previewBgUrl?: string; // image ou vidéo de fond du modèle
+  previewBgColor?: string; // couleur de fond du modèle
   updatedAt?: string;
 }
 

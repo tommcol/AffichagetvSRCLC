@@ -129,6 +129,7 @@ import { ExcelTab } from './sections/ExcelTab';
 import { ClubIdentityTab } from './sections/ClubIdentityTab';
 import { FfbbTab } from './sections/FfbbTab';
 import { FullykioskTab } from './sections/FullykioskTab';
+import type { StudioTemplate } from '../../types';
 import { StudioTemplatesTab } from './sections/StudioTemplatesTab';
 
 
@@ -174,7 +175,7 @@ interface AdminPanelProps {
   onAddAlert: (alert: ActiveMatchAlert) => void;
   onRemoveAlert: (alertId: string) => void;
   onSwitchToTvMode: () => void;
-  onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat') => void;
+  onOpenVisualExporter?: (type: 'matches' | 'results' | 'victory' | 'defeat', template?: StudioTemplate) => void;
   carouselPlaylist?: CarouselSlide[];
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   saveErrorMessage?: string;
@@ -2344,6 +2345,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {activeTab === 'studio_templates' && (
             <StudioTemplatesTab
+              onUseTemplate={onOpenVisualExporter ? (template) => {
+                if (template.category !== 'birthdays') onOpenVisualExporter(template.category, template);
+              } : undefined}
+              clubLogoUrl={clubSettings.logoUrl}
               visualTemplates={visualTemplates}
               onUpdateVisualTemplates={onUpdateVisualTemplates}
             />

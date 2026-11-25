@@ -1,3 +1,6 @@
+import type { StudioTemplate } from '../types';
+import { StudioTemplatePoster } from './posterSections/StudioTemplatePoster';
+import { STUDIO_MAX_ROWS } from '../utils/studioTemplateHelpers';
 import { buildTeamCalendarRows } from '../utils/teamCalendarHelpers';
 import { getDisplayItems } from '../utils/displayPeriod';
 import React, { useRef, useState, useMemo, useEffect } from 'react';
@@ -137,6 +140,7 @@ export type { PosterAspectRatio } from '../utils/posterExporter';
 export { POSTER_DIMENSIONS } from '../utils/posterExporter';
 
 interface VisualExporterModalProps {
+  initialStudioTemplate?: StudioTemplate;
   isOpen: boolean;
   onClose: () => void;
   type: PosterInitialContentType;
@@ -160,6 +164,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   isOpen,
   onClose,
   type: initialType,
+  initialStudioTemplate,
   matches,
   results,
   birthdays = [],
@@ -180,7 +185,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   );
 
   // Default to 4:5 portrait (1080x1350 for Instagram / Facebook - directly matching user reference images!)
-  const [aspectRatio, setAspectRatio] = useState<PosterAspectRatio>('4:5');
+  const [aspectRatio, setAspectRatio] = useState<PosterAspectRatio>(initialStudioTemplate?.format ?? '4:5');
 
   // Flagship theme matching user's template and photos: 'poster-red'
   const [visualTheme, setVisualTheme] = useState<PosterThemeType>('poster-red');
@@ -386,6 +391,7 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
   // Limit of matches to display per visual (auto or manual 3-6)
   const [matchesLimit, setMatchesLimit] = useState<number | 'auto'>('auto');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [studioTemplateId, setStudioTemplateId] = useState(initialStudioTemplate?.id ?? '');
 
   // Background source selection
   const [bgSource, setBgSource] = useState<'default' | 'studio' | 'custom'>('studio');
@@ -545,20 +551,22 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
     }
   };
 
-  // Max number of matches to display per aspect ratio to ensure no overflow
-  const maxDisplayMatches = useMemo(
-    () => getMaxDisplayMatches(aspectRatio, matchesLimit),
-    [aspectRatio, matchesLimit]
-  );
+  const teamCalendarMode = teamFilterEnabled && contentType === 'matches';
+  const compatibleStudioTemplates = contentType === 'notification' || teamCalendarMode
+    ? []
+    : (visualTemplates?.studioTemplates ?? []).filter((template) =>
+      template.category === contentType && template.format === aspectRatio && template.rowElements.length > 0
+    );
+  const studioTemplate = compatibleStudioTemplates.find(({ id }) => id === studioTemplateId);
+  const baseDisplayLimit = getMaxDisplayMatches(aspectRatio, matchesLimit);
+  const maxDisplayMatches = studioTemplate ? Math.min(STUDIO_MAX_ROWS, baseDisplayLimit) : baseDisplayLimit;
 
-  // Active source items list for pagination
   const allSourceItems = useMemo(
     () => getPosterContentItems(contentType, filteredMatches, filteredResults),
     [contentType, filteredMatches, filteredResults]
   );
 
   // In the team calendar, pagination counts opponents (pairs), not individual games.
-  const teamCalendarMode = teamFilterEnabled && contentType === 'matches';
   const teamCalendarRows = useMemo(() => teamCalendarMode
     ? buildTeamCalendarRows(matches.filter(m => m.category === teamFilter), filteredMatches, safeClubName, safeShortName)
     : [], [teamCalendarMode, matches, teamFilter, filteredMatches, safeClubName, safeShortName]);
@@ -1566,6 +1574,20 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
               </div>
             </div>
 
+            {compatibleStudioTemplates.length > 0 && (
+              <label className="mb-2 flex w-full items-center gap-2 text-xs font-bold text-slate-200">
+                Modèle d’affiche
+                <select
+                  value={studioTemplate?.id ?? ''}
+                  onChange={(event) => { setStudioTemplateId(event.target.value); setCurrentPage(1); }}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-white"
+                >
+                  <option value="">Affiche habituelle</option>
+                  {compatibleStudioTemplates.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+            )}
+
             {/* PAGINATION BAR (When matches exceed capacity) */}
             {totalPages > 1 && (
               <div className="w-full flex items-center justify-between bg-gradient-to-r from-red-950/80 via-slate-900 to-red-950/80 border border-red-800/50 rounded-2xl px-3 py-1.5 mb-2.5 shadow-md">
@@ -1672,7 +1694,16 @@ export const VisualExporterModal: React.FC<VisualExporterModalProps> = ({
                   }`}
                 >
                   {/* THEME 1: OFFICIAL BASKETBALL RED POSTER (MATCHING USER IMAGES & TEMPLATE) */}
-                  {visualTheme === 'poster-red' && (
+                  {studioTemplate ? (
+                    <StudioTemplatePoster
+                      template={studioTemplate}
+                      matches={contentType === 'results' ? displayedResults : displayedMatches}
+                      title={badgeTitle}
+                      clubName={safeClubName}
+                      clubLogoUrl={clubSettings?.logoUrl}
+                      clubShortName={safeShortName}
+                    />
+                  ) : visualTheme === 'poster-red' && (
             <VisualThemePosterRedSection
               effectiveBgUrl={effectiveBgUrl}
               layer1Grayscale={layer1Grayscale}

@@ -32,6 +32,7 @@ import {
   VisualTemplatesConfig,
   FFBBTeamItem,
   AppDataPayload,
+  StudioTemplate,
 } from './types';
 import { TVSlideRenderer } from './components/slides/TVSlideRenderer';
 import { VisualExporterModal } from './components/VisualExporterModal';
@@ -165,6 +166,7 @@ export default function App() {
   const [visualModalState, setVisualModalState] = useState<{
     isOpen: boolean;
     type: 'matches' | 'results' | 'victory' | 'defeat';
+    studioTemplate?: StudioTemplate;
   }>({
     isOpen: false,
     type: 'matches',
@@ -912,12 +914,14 @@ export default function App() {
             setViewMode('tv');
             handleToggleFullscreen();
           }}
-          onOpenVisualExporter={(type) => setVisualModalState({ isOpen: true, type })}
+          onOpenVisualExporter={(type, studioTemplate) => setVisualModalState({ isOpen: true, type, studioTemplate })}
           carouselPlaylist={carouselPlaylist}
         />
 
         {/* Social Media Visual Exporter Modal */}
         <VisualExporterModal
+          key={visualModalState.studioTemplate?.id}
+          initialStudioTemplate={visualModalState.studioTemplate}
           isOpen={visualModalState.isOpen}
           onClose={() => setVisualModalState({ isOpen: false, type: 'matches' })}
           type={visualModalState.type}

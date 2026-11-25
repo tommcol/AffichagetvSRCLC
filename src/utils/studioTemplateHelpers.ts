@@ -35,6 +35,7 @@ export const STUDIO_SHAPES: { id: StudioElementShape; label: string }[] = [
 export const STUDIO_ROLES: { id: StudioElementRole; label: string }[] = [
   { id: 'decor', label: 'Rien (décor ou texte fixe)' },
   { id: 'title', label: 'Le titre' },
+  { id: 'clubLogo', label: 'Le logo du club' },
   { id: 'team', label: "L'équipe du club" },
   { id: 'score', label: 'Le score' },
   { id: 'opponent', label: "L'adversaire" },
@@ -46,6 +47,7 @@ export const STUDIO_ROLES: { id: StudioElementRole; label: string }[] = [
 export const STUDIO_ROLE_SAMPLES: Record<StudioElementRole, string> = {
   decor: '',
   title: 'TITRE',
+  clubLogo: 'LOGO',
   team: 'U13 M1',
   score: '48 - 45',
   opponent: 'ADVERSAIRE - 1',
@@ -115,6 +117,21 @@ export const createBlankStudioTemplate = (
   countOverrides: {},
   updatedAt: new Date().toISOString(),
 });
+
+export function createStudioMatchRow(category: StudioTemplateCategory): StudioElement[] {
+  const middle = category === 'results' ? 'score' : 'date';
+  return ([
+    { role: 'team', x: 0, w: 27, fill: '#b91c1c' },
+    { role: middle, x: 28, w: 26, fill: '#0f172a' },
+    { role: 'opponent', x: 55, w: 45, fill: '#1e293b' },
+  ] satisfies Partial<StudioElement>[]).map((element) => createStudioElement('rounded', {
+    ...element,
+    name: STUDIO_ROLES.find(({ id }) => id === element.role)?.label,
+    y: 10,
+    h: 80,
+    fontSize: 48,
+  }));
+}
 
 // Template d'exemple qui reproduit l'affiche « Résultats à l'extérieur » (4:5)
 export const createExampleResultsTemplate = (): StudioTemplate => {
@@ -238,17 +255,19 @@ export interface StudioRowBox {
 
 // Calcule la position des lignes pour un nombre de matchs donné (placement automatique ou réglage manuel)
 export const computeStudioRowBoxes = (template: StudioTemplate, count: number): StudioRowBox[] => {
-  const n = Math.min(STUDIO_MAX_ROWS, Math.max(1, Math.round(count)));
+  const n = Math.min(STUDIO_MAX_ROWS, Math.max(0, Math.round(count)));
+  if (!n) return [];
   const override: StudioCountOverride | undefined = template.countOverrides?.[n];
   const zone: StudioMatchesZone = { ...template.zone, ...(override?.zone ?? {}) };
-  const autoHeight = Math.min(zone.maxRowHeight, (zone.h - zone.gap * (n - 1)) / n);
-  const rowH = Math.max(1, override?.rowHeight ?? autoHeight);
-  const total = rowH * n + zone.gap * (n - 1);
+  const gap = n > 1 ? Math.min(zone.gap, zone.h / (2 * (n - 1))) : 0;
+  const maxFittingHeight = (zone.h - gap * (n - 1)) / n;
+  const rowH = Math.min(maxFittingHeight, override?.rowHeight ?? zone.maxRowHeight);
+  const total = rowH * n + gap * (n - 1);
   const startY = zone.y + (zone.h - total) / 2;
   return Array.from({ length: n }, (_, index) => ({
     index,
     x: zone.x,
-    y: startY + index * (rowH + zone.gap),
+    y: startY + index * (rowH + gap),
     w: zone.w,
     h: rowH,
   }));

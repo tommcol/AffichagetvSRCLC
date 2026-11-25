@@ -15,6 +15,7 @@ export interface StudioElementViewProps {
   onPointerUp?: (e: React.PointerEvent<HTMLDivElement>) => void;
   // Texte à afficher à la place du texte du template (données réelles ou exemples)
   textOverride?: string;
+  imageUrl?: string;
 }
 
 const STAR_POINTS = '50,3 61,37 97,37 68,58 79,93 50,72 21,93 32,58 3,37 39,37';
@@ -27,6 +28,7 @@ export function StudioElementView({
   onPointerMove,
   onPointerUp,
   textOverride,
+  imageUrl,
 }: StudioElementViewProps) {
   if (!element.visible && !interactive) return null;
 
@@ -97,7 +99,9 @@ export function StudioElementView({
           />
         </svg>
       )}
-      {content && element.shape !== 'line' && (
+      {imageUrl && <img src={imageUrl} alt="Logo du club" draggable={false}
+        className="absolute inset-0 h-full w-full object-contain" />}
+      {!imageUrl && content && element.shape !== 'line' && (
         <span
           className={getFontFamilyClass(element.fontFamily)}
           style={{
